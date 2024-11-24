@@ -1,0 +1,380 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <base href="." />
+    <meta charset="UTF-8">
+    <title>NBM-Progressão</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
+<style>
+body {
+    font-family: Arial, sans-serif;
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+    background-color: #f5f5f5;
+}
+
+#music-list {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    display: none;
+}
+
+#notation-viewer {
+    background-color: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+button:hover {
+    background-color: #45a049;
+}
+
+#play-button {
+    background-color: #2196F3;
+}
+
+#play-button:hover {
+    background-color: #1976D2;
+}
+
+#midi-player {
+    margin-top: 20px;
+}
+
+input[type="text"] {
+    padding: 8px;
+    width: 200px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    margin: 5px;
+}
+
+.music-item {
+    cursor: pointer;
+    padding: 10px;
+    margin: 5px 0;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+}
+
+.music-item:hover {
+    background-color: #f0f0f0;
+}
+
+#loading {
+    color: #666;
+    margin: 10px 0;
+}
+
+#filter-container {
+    margin: 20px 0;
+    padding: 20px;
+    background-color: #fff;
+    border-radius: 4px;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+}
+
+.filter-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-field label {
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #333;
+}
+
+#button-container {
+    grid-column: 1 / -1;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+#no-results {
+    color: #ff4444;
+    font-size: 16px;
+    padding: 10px;
+    text-align: center;
+    display: none;
+}
+
+#abc-editor {
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-top: 10px;
+}
+
+#abc-textarea {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    resize: vertical;
+}
+
+#editor-container button {
+    background-color: #4CAF50;
+    color: white;
+    padding: 10px 20px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+#editor-container button:hover {
+    background-color: #45a049;
+}
+</style>
+</head>
+<body>
+    <h1>NBM - Progressão Harmônica</h1>
+
+    <div id="filter-container">
+        <div class="filter-field">
+            <label for="codigo">Progressão Harmônica:</label>
+            <input type="text" id="codigo" placeholder="Filtrar por progressão harmônica...">
+        </div>
+        <div class="filter-field">
+            <label for="titulo">Título:</label>
+            <input type="text" id="titulo" placeholder="Filtrar por título...">
+        </div>
+        <div class="filter-field">
+            <label for="tipo">Tipo:</label>
+            <input type="text" id="tipo" placeholder="Filtrar por tipo...">
+        </div>
+        <div id="button-container">
+            <button onclick="filterMusic()">Buscar</button>
+            <button onclick="clearFilter()">Limpar Filtros</button>
+            <div id="loading">Carregando músicas...</div>
+        </div>
+    </div>
+
+    <div id="no-results">O arquivo não existe.</div>
+
+    <div id="music-list">
+        <h2>Lista de Músicas</h2>
+        <div id="songs"></div>
+    </div>
+
+    <div id="notation-viewer">
+        <h2>Visualização da Partitura</h2>
+        <div id="paper"></div>
+        <div id="midi-player"></div>
+        <button id="play-button" onclick="playMusic()">Tocar Música</button>
+        <div id="editor-container" style="margin-top: 20px;">
+            <button onclick="toggleEditor()">Editar Notação ABC</button>
+            <div id="abc-editor" style="display: none;">
+                <textarea id="abc-textarea" rows="10" style="width: 100%; margin: 10px 0; padding: 10px; font-family: monospace;"></textarea>
+                <button onclick="updateNotation()">Atualizar Partitura</button>
+            </div>
+        </div>
+    </div>
+
+<script>
+let allMusicData = [];
+let currentSynthControl = null;
+let currentAbcNotation = '';
+const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbw1XE73HGC8HGm2PlniDAQyUq7Dhcd-DkIkyq8auYdl3iscpjkXcborX4i3bKf0Y2CF/exec';
+
+async function loadSheet() {
+    const loading = document.getElementById('loading');
+    loading.style.display = 'block';
+
+    try {
+        const response = await fetch(WEBAPP_URL);
+        const data = await response.json();
+        allMusicData = data;
+        document.getElementById('music-list').style.display = 'none';
+    } catch (error) {
+        console.error('Error loading data:', error);
+        alert('Erro ao carregar os dados. Por favor, tente novamente mais tarde.');
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
+function displayMusicList(data) {
+    const songsDiv = document.getElementById('songs');
+    const musicList = document.getElementById('music-list');
+    const noResults = document.getElementById('no-results');
+    
+    songsDiv.innerHTML = '';
+    
+    if (data.length === 0) {
+        musicList.style.display = 'none';
+        noResults.style.display = 'block';
+    } else {
+        musicList.style.display = 'block';
+        noResults.style.display = 'none';
+        
+        data.forEach((row) => {
+            const div = document.createElement('div');
+            div.className = 'music-item';
+            div.textContent = row.titulo || 'Sem título';
+            div.onclick = () => {
+                console.log('ABC Notation:', row['notacao-abc']);
+                renderABC(row['notacao-abc']);
+            };
+            songsDiv.appendChild(div);
+        });
+    }
+}
+
+function filterMusic() {
+    const filters = {
+        codigo: document.getElementById('codigo').value.toLowerCase(),
+        tipo: document.getElementById('tipo').value.toLowerCase(),
+        titulo: document.getElementById('titulo').value.toLowerCase()
+    };
+
+    const hasFilter = Object.values(filters).some(value => value.trim() !== '');
+    
+    if (!hasFilter) {
+        alert('Por favor, preencha pelo menos um filtro para pesquisar.');
+        return;
+    }
+
+    const filteredData = allMusicData.filter(item => {
+        return (filters.codigo === '' || String(item.codigo || '').toLowerCase().includes(filters.codigo)) &&
+               (filters.tipo === '' || String(item.tipo || '').toLowerCase().includes(filters.tipo)) &&
+               (filters.titulo === '' || String(item.titulo || '').toLowerCase().includes(filters.titulo));
+    });
+
+    displayMusicList(filteredData);
+}
+
+function clearFilter() {
+    const fields = ['codigo', 'tipo', 'titulo'];
+    fields.forEach(field => {
+        document.getElementById(field).value = '';
+    });
+    document.getElementById('music-list').style.display = 'none';
+    document.getElementById('no-results').style.display = 'none';
+}
+
+function renderABC(abcNotation) {
+    if (!abcNotation) {
+        console.error('No ABC notation provided');
+        return;
+    }
+    
+    currentAbcNotation = abcNotation;
+    const paper = document.getElementById('paper');
+    paper.innerHTML = '';
+    
+    try {
+        console.log('Rendering ABC notation:', abcNotation);
+        ABCJS.renderAbc("paper", abcNotation, {
+            responsive: "resize",
+            format: {
+                titlefont: "Arial 20",
+                gchordfont: "Arial 12",
+                composerfont: "Arial 12",
+                footerfont: "Arial 12",
+                headerfont: "Arial 12",
+                historyfont: "Arial 12",
+                infofont: "Arial 12",
+                measurefont: "Arial 12",
+                partsfont: "Arial 12",
+                repeatfont: "Arial 12",
+                subtitlefont: "Arial 16",
+                tempofont: "Arial 12",
+                textfont: "Arial 12",
+                voicefont: "Arial 12",
+                wordsfont: "Arial 12"
+            }
+        });
+
+        if (currentSynthControl) {
+            currentSynthControl.destroy();
+        }
+
+        currentSynthControl = new ABCJS.synth.SynthController();
+        currentSynthControl.load("#midi-player", null, {
+            displayLoop: true,
+            displayRestart: true,
+            displayPlay: true,
+            displayProgress: true,
+            displayWarp: true
+        });
+
+        var visualObj = ABCJS.renderAbc("paper", abcNotation)[0];
+        
+        var createSynth = new ABCJS.synth.CreateSynth();
+        createSynth.init({ visualObj: visualObj }).then(function() {
+            currentSynthControl.setTune(visualObj, false);
+        }).catch(function(error) {
+            console.warn("Audio problem:", error);
+        });
+
+    } catch (error) {
+        console.error('Error rendering ABC notation:', error);
+        paper.innerHTML = 'Error rendering music notation';
+    }
+}
+
+function playMusic() {
+    if (currentSynthControl) {
+        currentSynthControl.play();
+    }
+}
+
+function toggleEditor() {
+    const editorDiv = document.getElementById('abc-editor');
+    const textarea = document.getElementById('abc-textarea');
+    
+    if (editorDiv.style.display === 'none') {
+        editorDiv.style.display = 'block';
+        textarea.value = currentAbcNotation;
+    } else {
+        editorDiv.style.display = 'none';
+    }
+}
+
+function updateNotation() {
+    const textarea = document.getElementById('abc-textarea');
+    const newNotation = textarea.value;
+    
+    if (newNotation.trim() === '') {
+        alert('Por favor, insira uma notação ABC válida.');
+        return;
+    }
+    
+    currentAbcNotation = newNotation;
+    renderABC(newNotation);
+}
+
+window.onload = loadSheet;
+
+const filterInputs = document.querySelectorAll('#filter-container input');
+filterInputs.forEach(input => {
+    input.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            filterMusic();
+        }
+    });
+});
+</script>
+
+</body></html>
