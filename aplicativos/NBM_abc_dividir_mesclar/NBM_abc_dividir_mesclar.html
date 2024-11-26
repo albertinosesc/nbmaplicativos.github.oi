@@ -1,0 +1,349 @@
+<html><head><base href="." />
+<meta charset="UTF-8">
+<title>ABC Music Tools</title>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 20px auto;
+        padding: 20px;
+        background: #f5f5f5;
+    }
+
+    .container {
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+
+    textarea {
+        width: 100%;
+        min-height: 300px;
+        margin: 10px 0;
+        padding: 10px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        font-family: monospace;
+    }
+
+    .input-section {
+        margin-bottom: 20px;
+    }
+
+    button {
+        background: #4CAF50;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 5px;
+    }
+
+    button:hover {
+        background: #45a049;
+    }
+
+    input[type="text"] {
+        width: 100%;
+        padding: 8px;
+        margin: 5px 0;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    .tab-buttons {
+        margin-bottom: 20px;
+    }
+
+    .tab-buttons button {
+        background: #ddd;
+    }
+
+    .tab-buttons button.active {
+        background: #4CAF50;
+    }
+
+    .tool-container {
+        display: none;
+    }
+
+    .tool-container.active {
+        display: block;
+    }
+
+    #selectedFiles {
+        margin: 10px 0;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    .file-item {
+        padding: 5px;
+        border-bottom: 1px solid #eee;
+    }
+</style>
+</head>
+<body>
+    <div class="tab-buttons">
+        <button onclick="showTool('splitter')" class="active">Split ABC Files</button>
+        <button onclick="showTool('merger')">Merge ABC Files</button>
+    </div>
+
+    <div id="splitter" class="tool-container active container">
+        <h2>ABC Music Splitter</h2>
+        
+        <div class="input-section">
+            <h3>Upload ABC File:</h3>
+            <input type="file" id="fileInput" accept=".abc,.txt">
+        </div>
+
+        <div class="input-section">
+            <h3>Or Paste ABC Notation:</h3>
+            <textarea id="abcInput" placeholder="Paste your ABC notation here..."></textarea>
+        </div>
+
+        <div class="input-section">
+            <h3>Output Format:</h3>
+            <select id="outputFormat">
+                <option value="txt">.txt</option>
+                <option value="abc">.abc</option>
+                <option value="csv">Spreadsheet (.csv)</option>
+            </select>
+        </div>
+
+        <button onclick="processABC()">Process ABC Notation</button>
+        <button onclick="downloadAllTunes()" id="downloadAllBtn" style="display: none;">Download All Tunes</button>
+    </div>
+
+    <div id="merger" class="tool-container container">
+        <h2>ABC Music Merger</h2>
+        
+        <div class="input-section">
+            <h3>Select Folder:</h3>
+            <input type="file" id="folderInput" webkitdirectory directory multiple>
+            <div id="selectedFiles"></div>
+        </div>
+
+        <div class="input-section">
+            <h3>Output Filename:</h3>
+            <input type="text" id="outputFilename" placeholder="Enter filename (without extension)">
+            <select id="fileExtension">
+                <option value="abc">.abc</option>
+                <option value="txt">.txt</option>
+            </select>
+        </div>
+
+        <button onclick="mergeFiles()">Merge Files</button>
+    </div>
+
+<script>
+let processedTunes = [];
+
+function showTool(toolId) {
+    document.querySelectorAll('.tool-container').forEach(container => {
+        container.classList.remove('active');
+    });
+    document.querySelectorAll('.tab-buttons button').forEach(btn => {
+        btn.classList.remove('active');
+    });
+
+    document.getElementById(toolId).classList.add('active');
+    event.target.classList.add('active');
+}
+
+function processABC() {
+    let content = document.getElementById('abcInput').value;
+    
+    if (!content.trim() && document.getElementById('fileInput').files.length > 0) {
+        const file = document.getElementById('fileInput').files[0];
+        const reader = new FileReader();
+        
+        reader.onload = function(e) {
+            content = e.target.result;
+            processSplitAndSave(content);
+        };
+        
+        reader.readAsText(file);
+    } else {
+        processSplitAndSave(content);
+    }
+}
+
+function processSplitAndSave(content) {
+    const tunes = content.split(/(?=X:)/);
+    processedTunes = [];
+    const outputFormat = document.getElementById('outputFormat').value;
+    
+    if (outputFormat === 'csv') {
+        let csvContent = "X Number,Title,Composer,Time Signature,Unit Note Length,Key,Source,Notes,Full Music Text\n";
+        
+        tunes.forEach(tune => {
+            if (!tune.trim()) return;
+            
+            const xMatch = tune.match(/X:\s*([^\n\r]*)/);
+            const titleMatch = tune.match(/T:\s*([^\n\r]*)/);
+            const composerMatch = tune.match(/C:\s*([^\n\r]*)/);
+            const meterMatch = tune.match(/M:\s*([^\n\r]*)/);
+            const lengthMatch = tune.match(/L:\s*([^\n\r]*)/);
+            const keyMatch = tune.match(/K:\s*([^\n\r]*)/);
+            const sourceMatch = tune.match(/Z:\s*([^\n\r]*)/);
+            const notesMatch = tune.match(/W:\s*([^\n\r]*)/);
+            
+            const xNumber = xMatch ? xMatch[1].trim() : '';
+            const title = titleMatch ? titleMatch[1].trim() : '';
+            const composer = composerMatch ? composerMatch[1].trim() : '';
+            const meter = meterMatch ? meterMatch[1].trim() : '';
+            const length = lengthMatch ? lengthMatch[1].trim() : '';
+            const key = keyMatch ? keyMatch[1].trim() : '';
+            const source = sourceMatch ? sourceMatch[1].trim() : '';
+            const notes = notesMatch ? notesMatch[1].trim() : '';
+            const escapedTune = tune.replace(/"/g, '""');
+            
+            csvContent += `${xNumber},"${title}","${composer}","${meter}","${length}","${key}","${source}","${notes}","${escapedTune}"\n`;
+        });
+        
+        processedTunes.push({
+            content: csvContent,
+            filename: 'abc_music_catalog.csv'
+        });
+    } else {
+        tunes.forEach(tune => {
+            if (!tune.trim()) return;
+            
+            const titleMatch = tune.match(/T:\s*([^\n\r]*)/);
+            const composerMatch = tune.match(/C:\s*([^\n\r]*)/);
+            
+            const title = titleMatch ? titleMatch[1].trim() : 'Untitled';
+            const composer = composerMatch ? composerMatch[1].trim() : '';
+            
+            let filename = composer ? 
+                `${title} - ${composer}.${outputFormat}` : 
+                `${title}.${outputFormat}`;
+            
+            filename = filename.replace(/[<>:"/\\|?*]/g, '_');
+            
+            processedTunes.push({
+                content: tune,
+                filename: filename
+            });
+        });
+    }
+    
+    document.getElementById('downloadAllBtn').style.display = processedTunes.length > 0 ? 'inline-block' : 'none';
+}
+
+function downloadAllTunes() {
+    if (!processedTunes.length) return;
+    
+    const outputFormat = document.getElementById('outputFormat').value;
+    
+    if (outputFormat === 'csv') {
+        const blob = new Blob([processedTunes[0].content], {type: 'text/csv'});
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = processedTunes[0].filename;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+    } else {
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js';
+        script.onload = function() {
+            const zip = new JSZip();
+            
+            processedTunes.forEach(tune => {
+                zip.file(tune.filename, tune.content);
+            });
+            
+            zip.generateAsync({type: "blob"}).then(function(content) {
+                const url = window.URL.createObjectURL(content);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = "all_abc_tunes.zip";
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                document.body.removeChild(a);
+            });
+        };
+        document.head.appendChild(script);
+    }
+}
+
+document.getElementById('folderInput').addEventListener('change', function(e) {
+    const files = e.target.files;
+    const selectedFilesDiv = document.getElementById('selectedFiles');
+    selectedFilesDiv.innerHTML = '';
+    
+    Array.from(files).forEach(file => {
+        if (file.name.endsWith('.abc') || file.name.endsWith('.txt')) {
+            const fileItem = document.createElement('div');
+            fileItem.className = 'file-item';
+            fileItem.textContent = file.name;
+            selectedFilesDiv.appendChild(fileItem);
+        }
+    });
+});
+
+function mergeFiles() {
+    const files = document.getElementById('folderInput').files;
+    if (files.length === 0) {
+        alert('Please select files to merge');
+        return;
+    }
+
+    let mergedContent = '';
+    let filesProcessed = 0;
+
+    Array.from(files).forEach(file => {
+        if (file.name.endsWith('.abc') || file.name.endsWith('.txt')) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                mergedContent += e.target.result + '\n';
+                filesProcessed++;
+
+                if (filesProcessed === files.length) {
+                    downloadMergedFile(mergedContent);
+                }
+            };
+            reader.readAsText(file);
+        }
+    });
+}
+
+function downloadMergedFile(content) {
+    let filename = document.getElementById('outputFilename').value.trim() || 'merged_abc_files';
+    const extension = document.getElementById('fileExtension').value;
+    filename = `${filename}.${extension}`;
+
+    const blob = new Blob([content], {type: 'text/plain'});
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+}
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            document.getElementById('abcInput').value = e.target.result;
+        };
+        reader.readAsText(file);
+    }
+});
+</script>
+</body></html>
