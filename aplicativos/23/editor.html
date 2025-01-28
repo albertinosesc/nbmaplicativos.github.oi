@@ -1,0 +1,978 @@
+/>
+<title>Editor de Livro com Notação Musical</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/abc2svg/lib/abc2svg-1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/abc2svg/lib/abc2svg-utf8.min.js"></script>
+<style>
+    body {
+        margin: 0;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+    }
+
+    .container {
+        display: flex;
+        gap: 20px;
+        height: 100vh;
+    }
+
+    .editor-column, .preview-column {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        background: #f5f5f5;
+        border-radius: 8px;
+    }
+
+    .toolbar {
+        margin-bottom: 10px;
+        display: flex;
+        gap: 10px;
+    }
+
+    button {
+        padding: 8px 16px;
+        background: #4CAF50;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.3s;
+        -webkit-transition: background 0.3s;
+        -moz-transition: background 0.3s;
+        -ms-transition: background 0.3s;
+    }
+
+    button:hover {
+        background: #45a049;
+    }
+
+    #editor {
+        flex: 1;
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        resize: none;
+        font-size: 16px;
+        line-height: 1.5;
+        white-space: pre-wrap;
+    }
+
+    #preview {
+        flex: 1;
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background: white;
+        overflow-y: auto;
+        white-space: pre-wrap;
+    }
+
+    .page-counter {
+        text-align: center;
+        margin: 10px 0;
+        font-size: 18px;
+        font-weight: bold;
+    }
+
+    .score {
+        margin: 20px 0;
+    }
+
+    .preview-text {
+        margin: 0;
+        white-space: pre-wrap;
+    }
+
+    .formatting-toolbar {
+        display: flex;
+        gap: 5px;
+        margin-bottom: 10px;
+    }
+
+    .formatting-toolbar select, .formatting-toolbar input {
+        padding: 5px;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+    }
+
+    .chord-notation {
+        font-family: monospace;
+        white-space: pre-wrap;
+        line-height: 3;
+        margin: 20px 0;
+        padding: 10px;
+        background: #f8f8f8;
+        border-left: 3px solid #4CAF50;
+        -webkit-box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        box-sizing: border-box;
+    }
+
+    .lyric {
+        position: relative;
+        display: inline-block;
+        -webkit-box-sizing: border-box;
+        -moz-box-sizing: border-box;
+        box-sizing: border-box;
+    }
+
+    .chord {
+        position: absolute;
+        top: -20px;
+        left: 0;
+        font-weight: bold;
+        -webkit-transform: translateY(-1px);
+        -moz-transform: translateY(-1px);
+        -ms-transform: translateY(-1px);
+        transform: translateY(-1px);
+    }
+
+    .chord-diagram {
+        display: inline-block;
+        margin: 10px;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .fret-dot {
+        fill: #fff;
+        stroke: #000;
+        stroke-width: 1;
+        cursor: pointer;
+    }
+
+    .fret-dot.active {
+        fill: #4CAF50;
+    }
+
+    .fret-number {
+        font-size: 12px;
+        font-family: Arial;
+        text-anchor: middle;
+        dominant-baseline: middle;
+    }
+
+    .string-label {
+        font-size: 12px;
+        font-family: Arial;
+        text-anchor: middle;
+    }
+
+    .barre {
+        stroke: #000;
+        stroke-width: 2;
+        fill: none;
+    }
+    
+    .dot-placeholder {
+        fill: transparent;
+        stroke: #ccc;
+        stroke-dasharray: 3,3;
+        cursor: pointer;
+    }
+    
+    .dot-active {
+        fill: #4CAF50;
+        stroke: none;
+        stroke-dasharray: none;
+    }
+    
+    .dot-text {
+        fill: white;
+        text-anchor: middle;
+        dominant-baseline: middle;
+        font-size: 12px;
+        pointer-events: none;
+    }
+    
+    .barre-line {
+        stroke: #4CAF50;
+        stroke-width: 4;
+        stroke-linecap: round;
+    }
+</style>
+</head>
+<body>
+<div class="container">
+    <div class="editor-column">
+        <div class="toolbar">
+            <button onclick="saveContent()">Salvar</button>
+            <button onclick="clearEditor()">Limpar</button>
+            <button onclick="importFile()">Importar HTML</button>
+            <button onclick="insertImageTag()">Inserir Imagem</button>
+            <button onclick="insertImageFromURL()">URL Imagem</button>
+            <input type="file" id="fileInput" style="display: none" accept=".html,.txt">
+            <input type="file" id="imageUpload" accept="image/*" style="display: none" onchange="uploadImage()">
+            <input type="text" id="imageUrl" style="display: none" placeholder="URL da imagem">
+            <button onclick="document.getElementById('imageUpload').click()">Upload Imagem</button>
+        </div>
+        <div class="formatting-toolbar">
+            <button onclick="applyFormat('bold')"><b>B</b></button>
+            <button onclick="applyFormat('italic')"><i>I</i></button>
+            <button onclick="applyFormat('underline')"><u>U</u></button>
+            <select id="fontFamily" onchange="applyFormat('fontFamily')">
+                <option value="Arial">Arial</option>
+                <option value="Times New Roman">Times New Roman</option>
+                <option value="Courier New">Courier New</option>
+            </select>
+            <select id="fontSize" onchange="applyFormat('fontSize')">
+                <option value="12px">12px</option>
+                <option value="14px">14px</option>
+                <option value="16px">16px</option>
+                <option value="18px">18px</option>
+                <option value="20px">20px</option>
+            </select>
+            <input type="color" id="textColor" onchange="applyFormat('color')" value="#000000">
+        </div>
+        <div class="chord-diagram-controls" style="display:none">
+            <select id="instrumentType">
+                <option value="guitar">Violão (6 cordas)</option>
+                <option value="bass">Baixo (4 cordas)</option>
+                <option value="ukulele">Ukulele (4 cordas)</option>
+                <option value="violin">Violino (4 cordas)</option>
+            </select>
+            <input type="number" id="fretCount" min="4" max="24" value="6" placeholder="Número de casas">
+            <button onclick="insertChordDiagram()">Inserir Diagrama</button>
+        </div>
+        <textarea id="editor" placeholder="Digite seu texto aqui. Para notação musical, use o formato ABC entre marcadores [ABC] e [/ABC]"></textarea>
+    </div>
+
+    <div class="preview-column">
+        <div class="toolbar">
+            <button onclick="resetBook()">Reset Livro</button>
+            <button onclick="downloadTXT()">Baixar TXT</button>
+            <button onclick="downloadPDF()">Baixar PDF</button>
+            <button onclick="downloadHTML()">Baixar HTML</button>
+            <button onclick="downloadCurrentPage()">Baixar Página Atual</button>
+        </div>
+        <img id="imagePreview" style="display: none; max-width: 100%; margin: 10px 0;" alt="Preview da imagem">
+        <div class="page-counter">Página: <span id="pageNumber">1</span></div>
+        <div id="preview"></div>
+    </div>
+</div>
+
+<script>
+let currentPage = 1;
+let content = '';
+let formattedContent = {};
+
+function updatePreview() {
+    const text = document.getElementById('editor').value;
+    const preview = document.getElementById('preview');
+    preview.innerHTML = '';
+    
+    const segments = text.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[IMG\][\s\S]*?\[\/IMG\]|\[DCORDA\][\s\S]*?\[\/DCORDA\])/g);
+    
+    segments.forEach(segment => {
+        if (segment.startsWith('[ABC]') && segment.endsWith('[/ABC]')) {
+            const abcNotation = segment.slice(5, -6).trim();
+            const div = document.createElement('div');
+            div.className = 'score';
+            div.setAttribute('data-abc', abcNotation);
+            preview.appendChild(div);
+            
+            try {
+              const abc = new abc2svg.Abc({
+                imagesize: "width=800",
+                scale: 1.5,
+                paddingtop: 20,
+                paddingbottom: 20
+              });
+              abc.tosvg('', abcNotation);
+              div.innerHTML = abc.content;
+            } catch (e1) {
+              try {
+                ABCJS.renderAbc(div, abcNotation, {
+                  responsive: 'resize',
+                  paddingbottom: 20,
+                  staffwidth: 800,
+                  scale: 1.5
+                });
+              } catch (e2) {
+                console.error('Erro ao renderizar notação musical:', e1, e2);
+                const errorDiv = document.createElement('div');
+                errorDiv.style.color = 'red';
+                errorDiv.textContent = 'Erro na notação musical ABC';
+                preview.appendChild(errorDiv);
+              }
+            }
+        } else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
+            const cifraDiv = document.createElement('div');
+            cifraDiv.className = 'chord-notation';
+            
+            let styles = {};
+            const styleMatch = segment.match(/\[CIFRA\s+style\s*=\s*([^\]]+)\]/);
+            if (styleMatch) {
+                const styleStr = styleMatch[1];
+                styleStr.split(',').forEach(style => {
+                    const [prop, value] = style.split(':').map(s => s.trim());
+                    styles[prop] = value.replace(/["']/g, '');
+                });
+                segment = segment.replace(/\[CIFRA\s+style\s*=\s*[^\]]+\]/, '[CIFRA]');
+            }
+            
+            const cifraText = segment.slice(segment.indexOf(']') + 1, -8).trim();
+            const lines = cifraText.split('\n');
+            const processedLines = lines.map(line => {
+                return line.replace(/\[([^\]]+)\]([^\[]+)?/g, (match, chord, text) => {
+                    text = text || '';
+                    let styleStr = '';
+                    if (Object.keys(styles).length > 0) {
+                        const safeStyles = Object.entries(styles).map(([k,v]) => {
+                            k = k.replace(/[^a-zA-Z\-]/g, '');
+                            v = v.replace(/[<>{}]/g, '');
+                            return `${k}:${v}`;
+                        }).join(';');
+                        styleStr = ` style="${safeStyles}"`;
+                    }
+                    
+                    return `<span class="lyric"><span class="chord"${styleStr}>${chord}</span>${text}</span>`;
+                });
+            });
+            
+            cifraDiv.innerHTML = processedLines.join('\n');
+            preview.appendChild(cifraDiv);
+        } else if (segment.startsWith('[IMG]') && segment.endsWith('[/IMG]')) {
+            const imgData = segment.slice(5, -6).trim();
+            const img = document.createElement('img');
+            try {
+                const imgInfo = JSON.parse(imgData);
+                img.src = imgInfo.src;
+                img.alt = imgInfo.alt || 'Imagem inserida';
+                img.style.maxWidth = '100%';
+                preview.appendChild(img);
+            } catch (e) {
+                console.error('Erro ao renderizar imagem:', e);
+                const errorDiv = document.createElement('div');
+                errorDiv.style.color = 'red';
+                errorDiv.textContent = 'Erro ao carregar imagem';
+                preview.appendChild(errorDiv);
+            }
+        } else if (segment.startsWith('[DCORDA]') && segment.endsWith('[/DCORDA]')) {
+            const diagramDiv = document.createElement('div');
+            diagramDiv.className = 'chord-diagram';
+            preview.appendChild(diagramDiv);
+            
+            try {
+                const chordData = JSON.parse(segment.slice(8, -9).trim());
+                new ChordDiagram(diagramDiv, chordData);
+            } catch (e) {
+                console.error('Erro ao renderizar diagrama:', e);
+            }
+        } else if (segment.trim()) {
+            const div = document.createElement('div');
+            div.innerHTML = segment;
+            preview.appendChild(div);
+        }
+    });
+}
+
+function insertImageTag() {
+    const imgSrc = prompt("Digite a URL da imagem:");
+    const imgAlt = prompt("Digite a descrição da imagem:");
+    if (imgSrc) {
+        const imgTag = `[IMG]${JSON.stringify({src: imgSrc, alt: imgAlt})}[/IMG]\n`;
+        const editor = document.getElementById('editor');
+        const cursorPos = editor.selectionStart;
+        editor.value = editor.value.slice(0, cursorPos) + imgTag + editor.value.slice(editor.selectionEnd);
+        updatePreview();
+    }
+}
+
+function uploadImage() {
+    const fileInput = document.getElementById('imageUpload');
+    const file = fileInput.files[0];
+
+    if (file) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const imgTag = `[IMG]${JSON.stringify({
+                src: e.target.result,
+                alt: file.name
+            })}[/IMG]\n`;
+            
+            const editor = document.getElementById('editor');
+            const cursorPos = editor.selectionStart;
+            editor.value = editor.value.slice(0, cursorPos) + imgTag + editor.value.slice(editor.selectionEnd);
+            updatePreview();
+        };
+        reader.readAsDataURL(file);
+    } else {
+        alert("Por favor, selecione uma imagem.");
+    }
+}
+
+function insertImageFromURL() {
+    const imageUrl = prompt("Digite a URL da imagem:");
+    if (imageUrl) {
+        convertImageToBase64(imageUrl, function(base64Image) {
+            const imgTag = `[IMG]${JSON.stringify({
+                src: base64Image,
+                alt: "Imagem da URL"
+            })}[/IMG]\n`;
+            
+            const editor = document.getElementById('editor');
+            const cursorPos = editor.selectionStart;
+            editor.value = editor.value.slice(0, cursorPos) + imgTag + editor.value.slice(editor.selectionEnd);
+            updatePreview();
+        });
+    }
+}
+
+function convertImageToBase64(url, callback) {
+    const img = new Image();
+    img.crossOrigin = "Anonymous";
+    img.onload = function() {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        const dataURL = canvas.toDataURL('image/jpeg');
+        callback(dataURL);
+    };
+    img.onerror = function() {
+        alert("Não foi possível carregar a imagem. Verifique a URL e tente novamente.");
+    };
+    img.src = url;
+}
+
+function applyFormat(type) {
+    const editor = document.getElementById('editor');
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    
+    if (start === end) return;
+    
+    let tag = '';
+    switch(type) {
+        case 'bold':
+            tag = 'b';
+            break;
+        case 'italic':
+            tag = 'i';
+            break;
+        case 'underline':
+            tag = 'u';
+            break;
+        case 'fontFamily':
+            const font = document.getElementById('fontFamily').value;
+            tag = `span style="font-family: ${font}"`;
+            break;
+        case 'fontSize':
+            const size = document.getElementById('fontSize').value;
+            tag = `span style="font-size: ${size}"`;
+            break;
+        case 'color':
+            const color = document.getElementById('textColor').value;
+            tag = `span style="color: ${color}"`;
+            break;
+    }
+    
+    const selectedText = editor.value.substring(start, end);
+    const newText = `<${tag}>${selectedText}</${tag.split(' ')[0]}>`;
+    
+    editor.value = editor.value.substring(0, start) + newText + editor.value.substring(end);
+    editor.selectionStart = start;
+    editor.selectionEnd = start + newText.length;
+    
+    updatePreview();
+}
+
+function saveContent() {
+    const editorContent = {
+        text: document.getElementById('editor').value,
+        formatting: formattedContent
+    };
+    localStorage.setItem('bookContent', JSON.stringify(editorContent));
+    alert('Conteúdo salvo!');
+}
+
+function clearEditor() {
+    document.getElementById('editor').value = '';
+    updatePreview();
+}
+
+function importFile() {
+    document.getElementById('fileInput').click();
+}
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    
+    reader.onload = function(e) {
+        document.getElementById('editor').value = e.target.result;
+        updatePreview();
+    };
+    
+    reader.readAsText(file);
+});
+
+function resetBook() {
+    if (confirm('Tem certeza que deseja resetar todo o livro?')) {
+        document.getElementById('editor').value = '';
+        content = '';
+        currentPage = 1;
+        updatePageNumber();
+        updatePreview();
+        localStorage.removeItem('bookContent');
+    }
+}
+
+function downloadTXT() {
+    const text = document.getElementById('editor').value;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'livro.txt';
+    a.click();
+}
+
+function downloadPDF() {
+    const element = document.getElementById('preview');
+    const opt = {
+        margin: [10, 10],
+        filename: 'livro.pdf',
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { 
+            scale: 4,
+            useCORS: true,
+            logging: true
+        },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+    };
+
+    const images = element.getElementsByTagName('img');
+    const imagePromises = Array.from(images).map(img => {
+        if (img.complete) {
+            return Promise.resolve();
+        } else {
+            return new Promise(resolve => {
+                img.onload = resolve;
+                img.onerror = resolve;
+            });
+        }
+    });
+
+    Promise.all(imagePromises)
+        .then(() => {
+            html2pdf().set(opt).from(element).save()
+                .catch(err => console.error('Error generating PDF:', err));
+        });
+}
+
+function downloadHTML() {
+    const previewContent = document.getElementById('preview').innerHTML;
+    const html = `
+        <!DOCTYPE html>
+        <html>
+            <head>
+                <title>Meu Livro</title>
+                <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
+                <style>
+                    body {
+                        margin: 20px;
+                        font-family: Arial, sans-serif;
+                    }
+                    .score {
+                        margin: 20px 0;
+                    }
+                    img {
+                        max-width: 100%;
+                    }
+                    .chord-notation {
+                        font-family: monospace;
+                        white-space: pre;
+                        line-height: 3;
+                        margin: 20px 0;
+                        padding: 10px;
+                        background: #f8f8f8;
+                        border-left: 3px solid #4CAF50;
+                        position: relative;
+                    }
+                    .lyric {
+                        position: relative;
+                        display: inline-block;
+                    }
+                </style>
+            </head>
+            <body>
+                <div id="content">
+                    ${previewContent}
+                </div>
+                <script>
+                    window.onload = function() {
+                        const scores = document.getElementsByClassName('score');
+                        Array.from(scores).forEach(score => {
+                            const abcString = score.getAttribute('data-abc');
+                            if (abcString) {
+                                ABCJS.renderAbc(score, abcString, {
+                                    responsive: 'resize',
+                                    paddingbottom: 20,
+                                    staffwidth: 800,
+                                    scale: 1.5
+                                });
+                            }
+                        });
+                    }
+                <\/script>
+            </body>
+        </html>
+    `;
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'livro.html';
+    a.click();
+}
+
+function downloadCurrentPage() {
+    const text = document.getElementById('editor').value;
+    const blob = new Blob([text], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `pagina${currentPage}.txt`;
+    a.click();
+}
+
+function updatePageNumber() {
+    document.getElementById('pageNumber').textContent = currentPage;
+}
+
+function addExampleText() {
+    const exampleText = `Exemplo de cifras com estilos:
+
+[CIFRA style=color:red,font-size:20px]
+[Am]Bo[D7]la de [G]cristal
+[Dm]Cora[Am]ção mu[E7]sical
+[/CIFRA]
+
+Exemplo de cifras normais:
+[CIFRA]
+[C]Amor per[G]feito
+[Am]Doce can[F]tar
+[/CIFRA]`;
+
+    document.getElementById('editor').value = exampleText;
+    updatePreview();
+}
+
+document.getElementById('editor').addEventListener('input', updatePreview);
+
+window.onload = function() {
+    const savedContent = localStorage.getItem('bookContent');
+    if (savedContent) {
+        const parsedContent = JSON.parse(savedContent);
+        const preview = document.getElementById('preview');
+        preview.innerHTML = parsedContent.text;
+        formattedContent = parsedContent.formatting || {};
+        const segments = parsedContent.text.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[IMG\][\s\S]*?\[\/IMG\]|\[DCORDA\][\s\S]*?\[\/DCORDA\])/g);
+        
+        segments.forEach(segment => {
+          if (segment.startsWith('[ABC]') && segment.endsWith('[/ABC]')) {
+            const abcNotation = segment.slice(5, -6).trim();
+            const div = document.createElement('div');
+            div.className = 'score';
+            div.setAttribute('data-abc', abcNotation);
+            preview.appendChild(div);
+            
+            try {
+              const abc = new abc2svg.Abc({
+                imagesize: "width=800",
+                scale: 1.5,
+                paddingtop: 20,
+                paddingbottom: 20
+              });
+              abc.tosvg('', abcNotation);
+              div.innerHTML = abc.content;
+            } catch (e1) {
+              try {
+                ABCJS.renderAbc(div, abcNotation, {
+                  responsive: 'resize',
+                  paddingbottom: 20,
+                  staffwidth: 800,
+                  scale: 1.5
+                });
+              } catch (e2) {
+                console.error('Erro ao renderizar notação musical:', e1, e2);
+                const errorDiv = document.createElement('div');
+                errorDiv.style.color = 'red';
+                errorDiv.textContent = 'Erro na notação musical ABC';
+                preview.appendChild(errorDiv);
+              }
+            }
+          } else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
+            const cifraDiv = document.createElement('div');
+            cifraDiv.className = 'chord-notation';
+            
+            let styles = {};
+            const styleMatch = segment.match(/\[CIFRA\s+style\s*=\s*([^\]]+)\]/);
+            if (styleMatch) {
+                const styleStr = styleMatch[1];
+                styleStr.split(',').forEach(style => {
+                    const [prop, value] = style.split(':').map(s => s.trim());
+                    styles[prop] = value.replace(/["']/g, '');
+                });
+                segment = segment.replace(/\[CIFRA\s+style\s*=\s*[^\]]+\]/, '[CIFRA]');
+            }
+            
+            const cifraText = segment.slice(segment.indexOf(']') + 1, -8).trim();
+            const lines = cifraText.split('\n');
+            const processedLines = lines.map(line => {
+                return line.replace(/\[([^\]]+)\]([^\[]+)?/g, (match, chord, text) => {
+                    text = text || '';
+                    let styleStr = '';
+                    if (Object.keys(styles).length > 0) {
+                        const safeStyles = Object.entries(styles).map(([k,v]) => {
+                            k = k.replace(/[^a-zA-Z\-]/g, '');
+                            v = v.replace(/[<>{}]/g, '');
+                            return `${k}:${v}`;
+                        }).join(';');
+                        styleStr = ` style="${safeStyles}"`;
+                    }
+                    
+                    return `<span class="lyric"><span class="chord"${styleStr}>${chord}</span>${text}</span>`;
+                });
+            });
+            
+            cifraDiv.innerHTML = processedLines.join('\n');
+            preview.appendChild(cifraDiv);
+          } else if (segment.startsWith('[IMG]') && segment.endsWith('[/IMG]')) {
+            const imgData = segment.slice(5, -6).trim();
+            const img = document.createElement('img');
+            try {
+                const imgInfo = JSON.parse(imgData);
+                img.src = imgInfo.src;
+                img.alt = imgInfo.alt || 'Imagem inserida';
+                img.style.maxWidth = '100%';
+                preview.appendChild(img);
+            } catch (e) {
+                console.error('Erro ao renderizar imagem:', e);
+                const errorDiv = document.createElement('div');
+                errorDiv.style.color = 'red';
+                errorDiv.textContent = 'Erro ao carregar imagem';
+                preview.appendChild(errorDiv);
+            }
+          } else if (segment.startsWith('[DCORDA]') && segment.endsWith('[/DCORDA]')) {
+            const diagramDiv = document.createElement('div');
+            diagramDiv.className = 'chord-diagram';
+            preview.appendChild(diagramDiv);
+            
+            try {
+                const chordData = JSON.parse(segment.slice(8, -9).trim());
+                new ChordDiagram(diagramDiv, chordData);
+            } catch (e) {
+                console.error('Erro ao renderizar diagrama:', e);
+            }
+          } else if (segment.trim()) {
+            const div = document.createElement('div');
+            div.innerHTML = segment;
+            preview.appendChild(div);
+          }
+        });
+    } else {
+        alert('No content available to preview');
+    }
+}
+
+document.getElementById('editor').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        const cursorPosition = this.selectionStart;
+        const currentContent = this.value;
+        this.value = currentContent.substring(0, cursorPosition) + '\n' + 
+                     currentContent.substring(this.selectionEnd);
+        this.selectionStart = this.selectionEnd = cursorPosition + 1;
+        e.preventDefault();
+        updatePreview();
+    }
+});
+
+function insertChordDiagram() {
+    const instrument = document.getElementById('instrumentType').value;
+    const frets = parseInt(document.getElementById('fretCount').value);
+    
+    const stringCount = {
+        'guitar': 6,
+        'bass': 4,
+        'ukulele': 4,
+        'violin': 4
+    }[instrument];
+    
+    const diagramData = {
+        strings: stringCount,
+        frets: frets,
+        width: 200,
+        height: 300
+    };
+    
+    const editor = document.getElementById('editor');
+    const cursorPos = editor.selectionStart;
+    const diagramTag = `[DCORDA]${JSON.stringify(diagramData)}[/DCORDA]\n`;
+    editor.value = editor.value.slice(0, cursorPos) + diagramTag + editor.value.slice(editor.selectionEnd);
+    updatePreview();
+}
+
+class ChordDiagram {
+  constructor(container, options = {}) {
+    this.container = container;
+    this.options = {
+      strings: options.strings || 6,
+      frets: options.frets || 6,
+      width: options.width || 200,
+      height: options.height || 300,
+      dotRadius: 8
+    };
+    
+    this.svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    this.svg.setAttribute("width", this.options.width);
+    this.svg.setAttribute("height", this.options.height);
+    this.svg.setAttribute("viewBox", "0 0 200 300");
+    this.container.appendChild(this.svg);
+    
+    this.drawFretboard();
+    this.setupEventListeners();
+  }
+
+  drawFretboard() {
+    const neck = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    neck.setAttribute("x", "40");
+    neck.setAttribute("y", "20");
+    neck.setAttribute("width", "120");
+    neck.setAttribute("height", "250");
+    neck.setAttribute("fill", "#f4d03f");
+    neck.setAttribute("stroke", "#000");
+    this.svg.appendChild(neck);
+
+    const stringSpacing = 120 / (this.options.strings - 1);
+    const fretSpacing = 250 / this.options.frets;
+
+    for(let i = 0; i <= this.options.frets; i++) {
+      this.drawLine(40, 20 + i * fretSpacing, 160, 20 + i * fretSpacing, 2);
+    }
+
+    for(let i = 0; i < this.options.strings; i++) {
+      this.drawLine(40 + i * stringSpacing, 20, 40 + i * stringSpacing, 270, 1);
+    }
+
+    for(let i = 0; i < this.options.strings; i++) {
+      for(let j = 0; j < this.options.frets; j++) {
+        const x = 40 + i * stringSpacing;
+        const y = 20 + j * fretSpacing;
+        this.addDot(x, y + fretSpacing/2, i, j);
+      }
+    }
+  }
+
+  addDot(x, y, stringIndex, fretIndex) {
+    const dotGroup = document.createElementNS("http://www.w3.org/2000/svg", "g");
+    
+    const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    dot.setAttribute("cx", x);
+    dot.setAttribute("cy", y);
+    dot.setAttribute("r", this.options.dotRadius);
+    dot.setAttribute("class", "dot-placeholder");
+    dot.setAttribute("data-string", stringIndex);
+    dot.setAttribute("data-fret", fretIndex);
+    
+    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    text.setAttribute("x", x);
+    text.setAttribute("y", y);
+    text.setAttribute("class", "dot-text");
+    
+    dotGroup.appendChild(dot);
+    dotGroup.appendChild(text);
+    this.svg.appendChild(dotGroup);
+    
+    dot.addEventListener('click', (e) => this.handleDotClick(e, dot, text));
+  }
+
+  handleDotClick(e, dot, text) {
+    if (e.altKey) {
+      this.addBarre(parseInt(dot.dataset.fret));
+      return;
+    }
+    
+    if (!dot.classList.contains('dot-active')) {
+      dot.classList.add('dot-active');
+    } else {
+      dot.classList.remove('dot-active');
+      text.textContent = '';
+    }
+  }
+
+  drawLine(x1, y1, x2, y2, width) {
+    const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    line.setAttribute("x1", x1);
+    line.setAttribute("y1", y1);
+    line.setAttribute("x2", x2);
+    line.setAttribute("y2", y2);
+    line.setAttribute("stroke", "#000");
+    line.setAttribute("stroke-width", width);
+    this.svg.appendChild(line);
+  }
+
+  addBarre(fretIndex) {
+    const y = 20 + (fretIndex * (250/this.options.frets)) + ((250/this.options.frets)/2);
+    const barreLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    barreLine.setAttribute("x1", "40");
+    barreLine.setAttribute("x2", "160");
+    barreLine.setAttribute("y1", y);
+    barreLine.setAttribute("y2", y);
+    barreLine.setAttribute("class", "barre-line");
+    this.svg.appendChild(barreLine);
+  }
+
+  setupEventListeners() {
+    document.addEventListener('keydown', (e) => {
+      if (e.target.tagName === 'TEXTAREA') return;
+      
+      const key = e.key;
+      if (key >= '0' && key <= '4') {
+        const hoveredDot = this.svg.querySelector('circle.dot-placeholder:hover');
+        if (hoveredDot) {
+          const text = hoveredDot.nextElementSibling;
+          if (key === '0') {
+            hoveredDot.classList.remove('dot-active');
+            text.textContent = '';
+          } else {
+            hoveredDot.classList.add('dot-active');
+            text.textContent = key;
+          }
+        }
+      }
+    });
+  }
+}
+
+document.addEventListener('keydown', function(e) {
+    if (e.target.tagName === 'TEXTAREA') return;
+    
+    const key = e.key;
+    if (key >= '0' && key <= '4') {
+        const hoveredDot = document.querySelector('circle.dot-placeholder:hover');
+        if (hoveredDot) {
+            const text = hoveredDot.nextElementSibling;
+            if (key === '0') {
+                hoveredDot.classList.remove('dot-active');
+                text.textContent = '';
+            } else {
+                hoveredDot.classList.add('dot-active');
+                text.textContent = key;
+            }
+        }
+    }
+});
+</script>
+</body></html>

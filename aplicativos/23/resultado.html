@@ -1,0 +1,296 @@
+<title>Resultado do Livro com Notação Musical</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/abc2svg/lib/abc2svg-1.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/abc2svg/lib/abc2svg-utf8.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
+<style>
+body {
+  margin: 0;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.preview-container {
+  max-width: 800px;
+  margin: 0 auto;
+  background: white;
+  padding: 40px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  border-radius: 8px;
+}
+
+.preview-content {
+  margin-bottom: 40px;
+}
+
+.score {
+  margin: 20px 0;
+}
+
+.chord-notation {
+  font-family: monospace;
+  white-space: pre-wrap;
+  line-height: 3;
+  margin: 20px 0;
+  padding: 10px;
+  background: #f8f8f8;
+  border-left: 3px solid #4CAF50;
+}
+
+.lyric {
+  position: relative;
+  display: inline-block;
+}
+
+.chord {
+  position: absolute;
+  top: -20px;
+  left: 0;
+  font-weight: bold;
+}
+
+.chord-diagram {
+  display: inline-block;
+  margin: 10px;
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+img {
+  max-width: 100%;
+  height: auto;
+  margin: 10px 0;
+}
+
+.page-break {
+  page-break-after: always;
+}
+
+@media print {
+  body {
+    padding: 0;
+  }
+  
+  .preview-container {
+    box-shadow: none;
+    padding: 0;
+  }
+}
+
+.dot-placeholder {
+  fill: transparent;
+  stroke: #ccc;
+  stroke-dasharray: 3,3;
+  cursor: pointer;
+}
+
+.dot-active {
+  fill: #4CAF50;
+  stroke: none;
+  stroke-dasharray: none;  
+}
+
+.dot-text {
+  fill: white;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  font-size: 12px;
+  pointer-events: none;
+}
+
+.barre-line {
+  stroke: #4CAF50;
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+</style>
+</head>
+<body>
+
+<div class="preview-container">
+  <div id="preview" class="preview-content"></div>
+</div>
+
+<script>
+// Função para atualizar o conteúdo em tempo real usando BroadcastChannel
+const broadcastChannel = new BroadcastChannel('bookContent');
+
+broadcastChannel.onmessage = function(e) {
+  if (e.data.type === 'content-update') {
+    renderContent(e.data.content);
+  }
+};
+
+// Função para atualizar o conteúdo via localStorage (fallback)
+function updatePreviewContent() {
+  const savedContent = localStorage.getItem('bookContent');
+  
+  if (savedContent) {
+    const parsedContent = JSON.parse(savedContent);
+    renderContent(parsedContent.text);
+  } else {
+    document.getElementById('preview').innerHTML = '<p>Nenhum conteúdo disponível para visualização.</p>';
+  }
+}
+
+// Adiciona listener para o evento 'storage' para detectar mudanças no localStorage
+window.addEventListener('storage', function(e) {
+  if (e.key === 'bookContent') {
+    updatePreviewContent();
+  }
+});
+
+// Atualiza o conteúdo inicialmente
+updatePreviewContent();
+
+function renderContent(content) {
+  const preview = document.getElementById('preview');
+  preview.innerHTML = '';
+  
+  const segments = content.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[IMG\][\s\S]*?\[\/IMG\]|\[DCORDA\][\s\S]*?\[\/DCORDA\])/g);
+  
+  segments.forEach(segment => {
+    if (segment.startsWith('[ABC]') && segment.endsWith('[/ABC]')) {
+      const abcNotation = segment.slice(5, -6).trim();
+      const div = document.createElement('div');
+      div.className = 'score';
+      div.setAttribute('data-abc', abcNotation);
+      preview.appendChild(div);
+      
+      try {
+        ABCJS.renderAbc(div, abcNotation, {
+          responsive: 'resize',
+          paddingbottom: 20,
+          staffwidth: 800,
+          scale: 1.5
+        });
+      } catch (e) {
+        console.error('Erro ao renderizar notação musical:', e);
+        div.innerHTML = '<p style="color: red">Erro na notação musical ABC</p>';
+      }
+    } 
+    else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
+      const cifraDiv = document.createElement('div');
+      cifraDiv.className = 'chord-notation';
+      
+      let styles = {};
+      const styleMatch = segment.match(/\[CIFRA\s+style\s*=\s*([^\]]+)\]/);
+      if (styleMatch) {
+        const styleStr = styleMatch[1];
+        styleStr.split(',').forEach(style => {
+          const [prop, value] = style.split(':').map(s => s.trim());
+          styles[prop] = value.replace(/["']/g, '');
+        });
+        segment = segment.replace(/\[CIFRA\s+style\s*=\s*[^\]]+\]/, '[CIFRA]');
+      }
+      
+      const cifraText = segment.slice(segment.indexOf(']') + 1, -8).trim();
+      const lines = cifraText.split('\n');
+      const processedLines = lines.map(line => {
+        return line.replace(/\[([^\]]+)\]([^\[]+)?/g, (match, chord, text) => {
+          text = text || '';
+          let styleStr = '';
+          if (Object.keys(styles).length > 0) {
+            const safeStyles = Object.entries(styles)
+              .map(([k,v]) => `${k.replace(/[^a-zA-Z\-]/g, '')}:${v.replace(/[<>{}]/g, '')}`)
+              .join(';');
+            styleStr = ` style="${safeStyles}"`;
+          }
+          return `<span class="lyric"><span class="chord"${styleStr}>${chord}</span>${text}</span>`;
+        });
+      });
+      
+      cifraDiv.innerHTML = processedLines.join('\n');
+      preview.appendChild(cifraDiv);
+    }
+    else if (segment.startsWith('[IMG]') && segment.endsWith('[/IMG]')) {
+      const imgData = segment.slice(5, -6).trim();
+      const img = document.createElement('img');
+      try {
+        const imgInfo = JSON.parse(imgData);
+        img.src = imgInfo.src;
+        img.alt = imgInfo.alt || 'Imagem inserida';
+        preview.appendChild(img);
+      } catch (e) {
+        console.error('Erro ao renderizar imagem:', e);
+        const errorDiv = document.createElement('div');
+        errorDiv.style.color = 'red';
+        errorDiv.textContent = 'Erro ao carregar imagem';
+        preview.appendChild(errorDiv);
+      }
+    }
+    else if (segment.startsWith('[DCORDA]') && segment.endsWith('[/DCORDA]')) {
+      const diagramDiv = document.createElement('div');
+      diagramDiv.className = 'chord-diagram';
+      preview.appendChild(diagramDiv);
+      
+      try {
+        const chordData = JSON.parse(segment.slice(8, -9).trim());
+        renderChordDiagram(diagramDiv, chordData);
+      } catch (e) {
+        console.error('Erro ao renderizar diagrama:', e);
+        diagramDiv.innerHTML = '<p style="color: red">Erro ao renderizar diagrama de acordes</p>';
+      }
+    }
+    else if (segment.trim()) {
+      const div = document.createElement('div');
+      div.innerHTML = segment;
+      preview.appendChild(div);
+    }
+  });
+}
+
+function renderChordDiagram(container, data) {
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("width", "200");
+  svg.setAttribute("height", "250");
+  svg.setAttribute("viewBox", "0 0 200 250");
+  
+  const frets = 5;
+  const strings = 6;
+  for (let i = 0; i < strings; i++) {
+    const string = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    string.setAttribute("x1", "20");
+    string.setAttribute("y1", 20 + i * 30);
+    string.setAttribute("x2", "180");
+    string.setAttribute("y2", 20 + i * 30);
+    string.setAttribute("stroke", "#ccc");
+    svg.appendChild(string);
+  }
+  
+  for (let i = 0; i < frets; i++) {
+    const fret = document.createElementNS("http://www.w3.org/2000/svg", "line");
+    fret.setAttribute("x1", 20 + i * 30);
+    fret.setAttribute("y1", "20");
+    fret.setAttribute("x2", 20 + i * 30);
+    fret.setAttribute("y2", "200");
+    fret.setAttribute("stroke", "#ccc");
+    svg.appendChild(fret);
+  }
+  
+  if (data.fingerPositions) {
+    data.fingerPositions.forEach((position) => {
+      const dot = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+      dot.setAttribute("cx", 20 + position.fret * 30);
+      dot.setAttribute("cy", 20 + position.string * 30);
+      dot.setAttribute("r", "8");
+      dot.setAttribute("fill", "#4CAF50");
+      svg.appendChild(dot);
+      
+      const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      text.setAttribute("x", 20 + position.fret * 30);
+      text.setAttribute("y", 20 + position.string * 30 + 5);
+      text.textContent = position.finger;
+      svg.appendChild(text);
+    });
+  }
+  
+  container.appendChild(svg);
+}
+</script>
+
+</body></html>
