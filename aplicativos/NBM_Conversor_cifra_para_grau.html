@@ -1,0 +1,205 @@
+
+
+<html lang="pt">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Cifra para Grau ABC</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+
+        textarea {
+            width: 100%;
+            height: 200px;
+            margin-bottom: 10px;
+            font-family: monospace;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-right: 5px;
+        }
+
+        button:hover {
+            background-color: #3e8e41;
+        }
+
+        #abcNotation {
+            font-family: monospace;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 10px;
+            background-color: #f9f9f9;
+            white-space: pre-wrap;
+        }
+
+        #score {
+            margin-top: 20px;
+        }
+    </style>
+
+</head>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.0.0/abcjs-basic.min.js"></script>
+
+<body>
+    <h1>Cifra para Grau ABC</h1>
+
+    <label for="tomOriginal">Tom Original:</label>
+    <select id="tomOriginal">
+        <option value="C">C</option>
+        <option value="C#">C#</option>
+        <option value="Db">Db</option>
+        <option value="D">D</option>
+        <option value="D#">D#</option>
+        <option value="Eb">Eb</option>
+        <option value="E">E</option>
+        <option value="F">F</option>
+        <option value="F#">F#</option>
+        <option value="Gb">Gb</option>
+        <option value="G">G</option>
+        <option value="G#">G#</option>
+        <option value="Ab">Ab</option>
+        <option value="A">A</option>
+        <option value="A#">A#</option>
+        <option value="Bb">Bb</option>
+        <option value="B">B</option>
+    </select>
+
+    <label for="tomDestino">Tom Destino:</label>
+    <select id="tomDestino">
+        <option value="C">I</option>
+        <option value="C#">I#</option>
+        <option value="Db">bII</option>
+        <option value="D">II</option>
+        <option value="D#">II#</option>
+        <option value="Eb">bIII</option>
+        <option value="E">III</option>
+        <option value="F">IV</option>
+        <option value="F#">IV#</option>
+        <option value="Gb">Vb</option>
+        <option value="G">V</option>
+        <option value="G#">V#</option>
+        <option value="Ab">bVI</option>
+        <option value="A">VI</option>
+        <option value="A#">VI#</option>
+        <option value="Bb">bVII</option>
+        <option value="B">VII</option>
+    </select>
+
+    <textarea id="inputTexto" placeholder="Cole sua cifra aqui..."></textarea>
+    <button id="converterBtn">Converter</button>
+    <button id="baixarTxtBtn">Baixar txt</button>
+    <button id="baixarAbcBtn">Baixar abc</button>
+   
+
+    <h2>Pré-visualização:</h2>
+    <div id="abcNotation"></div>
+    <div id="score"></div>
+
+    <script>
+        const converterBtn = document.getElementById('converterBtn');
+        const baixarTxtBtn = document.getElementById('baixarTxtBtn');
+        const baixarAbcBtn = document.getElementById('baixarAbcBtn');
+        const inputTexto = document.getElementById('inputTexto');
+        const abcNotation = document.getElementById('abcNotation');
+        const scoreDiv = document.getElementById('score');
+        const tomOriginalSelect = document.getElementById('tomOriginal');
+        const tomDestinoSelect = document.getElementById('tomDestino');
+
+        const notas = ["C", "C#", "Db", "D", "D#", "Eb", "E", "F", "F#", "Gb", "G", "G#", "Ab", "A", "A#", "Bb", "B"];
+        const mapeamentoGraus ={
+            "C": "I", "C#": "I#", "Db": "bII", "D": "II", "D#": "II#", "Eb": "bIII",
+            "E": "III", "E#": "III#", "Fb": "bIV", "F": "IV", "F#": "IV#", "Gb": "bV",
+            "G": "V", "G#": "V#", "Ab": "bVI", "A": "VI", "A#": "VI#", "Bb": "bVII", "B": "VII", "B#": "VII#"
+        };
+
+      // Função para transpor uma nota
+      function transporNota(nota, tomOriginal, tomDestino) {
+            const indexOriginal = notas.indexOf(tomOriginal);
+            const indexDestino = notas.indexOf(tomDestino);
+            const distancia = indexDestino - indexOriginal;
+
+            let indexNota = notas.indexOf(nota);
+            if (indexNota === -1) return nota; // Se a nota não for encontrada, retorna a nota original
+
+            indexNota = (indexNota + distancia + notas.length) % notas.length;
+            return notas[indexNota];
+        }
+
+
+        function converterCifraParaGrau(texto, tomOriginal, tomDestino) {
+            return texto.replace(/"([A-Ga-g#b]+(?:m|7|\(b5\)|dim)?)([^"]*)"/g, (match, notaOriginal, complemento) => {
+                const baseNota = notaOriginal.replace(/m|7|\(b5\)|dim/g, '');
+                const tipoAcorde = notaOriginal.replace(baseNota, '');
+                const notaTransposta = transporNota(baseNota, tomOriginal, tomDestino);
+                const grau = mapeamentoGraus[notaTransposta] || notaTransposta;
+                return `"${grau}${tipoAcorde}${complemento}"`;
+            });
+        }
+
+        function baixarArquivo(texto, nomeArquivo, tipo) {
+            const arquivo = new Blob([texto], { type: tipo });
+            const url = URL.createObjectURL(arquivo);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = nomeArquivo;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        function obterTitulo() {
+            const linhas = inputTexto.value.split("\n");
+            for (const linha of linhas) {
+                if (linha.startsWith("T:")) {
+                    return linha.substring(2).trim(); // Mantém os espaços sem substituí-los
+                }
+            }
+            return "convertido"; // Nome padrão caso não encontre um título
+        }
+
+        baixarTxtBtn.addEventListener('click', () => {
+            const titulo = obterTitulo();
+            baixarArquivo(abcNotation.textContent, `${titulo}.txt`, 'text/plain');
+        });
+
+        baixarAbcBtn.addEventListener('click', () => {
+            const titulo = obterTitulo();
+            baixarArquivo(abcNotation.textContent, `${titulo}.abc`, 'text/plain');
+        });
+
+       
+        function displayScore(abc) {
+            try {
+                // Limpa o conteúdo anterior
+                scoreDiv.innerHTML = '';
+                // Renderiza a partitura
+                ABCJS.renderAbc("score", abc, {
+                    scale: 0.9,
+                });
+            } catch (error) {
+                console.error("Erro ao renderizar a partitura ABC:", error);
+                scoreDiv.textContent = "Erro ao renderizar a partitura. Verifique a sintaxe ABC.";
+            }
+        }
+
+        converterBtn.addEventListener('click', () => {
+            const tomOriginal = tomOriginalSelect.value;
+            const tomDestino = tomDestinoSelect.value;
+            const textoConvertido = converterCifraParaGrau(inputTexto.value, tomOriginal, tomDestino);
+            abcNotation.textContent = textoConvertido;
+            displayScore(textoConvertido);
+        });
+
+        // Renderiza a partitura inicial ao carregar a página
+        displayScore(inputTexto.value);
+    </script>
+</body>
+</html>
