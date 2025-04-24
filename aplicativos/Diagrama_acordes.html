@@ -1,0 +1,311 @@
+HTML
+
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Diagrama de Acordes</title>
+    <style>
+        input, select, button { margin: 4px; }
+        #saida svg { border: 1px solid #ccc; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<h1>Gerador de Diagrama de Acordes</h1>
+
+<label for="titulo">Título:</label>
+<input type="text" id="titulo" placeholder="Exemplo de Diagrama" />
+
+<label for="cordas">Número de cordas:</label>
+<input type="number" id="cordas" value="6" min="1" max="12" />
+
+<label for="trasteInicial">Traste inicial:</label>
+<input type="number" id="trasteInicial" value="1" min="1" />
+
+<label for="trastes">Número de trastes:</label>
+<input type="number" id="trastes" value="4" min="1" />
+
+<label for="orientacao">Orientação:</label>
+<select id="orientacao" onchange="alterarOrientacao()">
+    <option value="normal">Normal</option>
+    <option value="invertida">Invertida</option>
+    <option value="horizontal">Horizontal</option>
+    <option value="vertical">Vertical</option>
+</select>
+<h3>Cor das Notas:</h3>
+<input type="color" id="corNota" value="#000000" />
+
+
+<h3>Notas das cordas (da mais grave para a mais aguda):</h3>
+<div>
+    <label for="nota-corda-1">Corda 6:</label>
+    <input type="text" id="nota-corda-1" value="E" />
+</div>
+<div>
+    <label for="nota-corda-2">Corda 5:</label>
+    <input type="text" id="nota-corda-2" value="A" />
+</div>
+<div>
+    <label for="nota-corda-3">Corda 4:</label>
+    <input type="text" id="nota-corda-3" value="D" />
+</div>
+<div>
+    <label for="nota-corda-4">Corda 3:</label>
+    <input type="text" id="nota-corda-4" value="G" />
+</div>
+<div>
+    <label for="nota-corda-5">Corda 2:</label>
+    <input type="text" id="nota-corda-5" value="B" />
+</div>
+<div>
+    <label for="nota-corda-6">Corda 1:</label>
+    <input type="text" id="nota-corda-6" value="E" />
+</div>
+
+<button onclick="definirNotasCordas()">Definir Notas</button>
+
+<h3>Pestana</h3>
+<label>Traste:</label>
+<input type="number" id="trastePestana" value="1" min="1">
+<label>Corda Inicial:</label>
+<input type="number" id="cordaInicioPestana" value="1" min="1">
+<label>Corda Final:</label>
+<input type="number" id="cordaFimPestana" value="6" min="1">
+<button onclick="adicionarPestana()">Adicionar Pestana</button>
+
+<h3>Exibir:</h3>
+<select id="exibirNotas" onchange="alternarExibicaoNotas()">
+    <option value="notas">Notas</option>
+    <option value="dedos">Números dos Dedos</option>
+</select>
+
+<button onclick="gerarDiagrama()">Gerar Diagrama</button>
+<button onclick="limparDiagrama()">Limpar Diagrama</button>
+<button onclick="exportarAcorde()">Exportar Acorde</button>
+<button onclick="salvarComoSVG()">Salvar como SVG</button>
+
+<div id="saida"></div>
+
+<script>
+    let orientacao = "normal";
+    let notasPorCorda = ['E', 'A', 'D', 'G', 'B', 'E'];
+    let exibirNotas = true;
+    let pestanas = [];
+    let notasCasaZero = {}; // Objeto para armazenar o estado da casa zero para cada corda (null, true para bolinha vazia, 'X')
+
+    // Garante que o elemento de saída tenha um SVG inicial
+    const saidaElement = document.getElementById("saida");
+    if (saidaElement && !saidaElement.querySelector("svg")) {
+        const larguraInicial = 300; // Use valores iniciais
+        const alturaInicial = 400;
+        const tempSvg = `<svg id="svg-diagrama" width="${larguraInicial}" height="${alturaInicial}" viewBox="0 0 ${larguraInicial} ${alturaInicial}" xmlns="http://www.w3.org/2000/svg"></svg>`;
+        saidaElement.innerHTML = tempSvg;
+    }
+
+    function alterarOrientacao() {
+        orientacao = document.getElementById("orientacao").value;
+        gerarDiagrama();
+    }
+
+    function definirNotasCordas() {
+        notasPorCorda = [];
+        for (let i = 1; i <= 6; i++) {
+            const input = document.getElementById(`nota-corda-${i}`);
+            if (input) notasPorCorda.push(input.value.toUpperCase());
+        }
+        gerarDiagrama();
+    }
+
+    function alternarExibicaoNotas() {
+        exibirNotas = document.getElementById("exibirNotas").value === "notas";
+        gerarDiagrama();
+    }
+
+    function notaPorCordaETraste(corda, traste) {
+        const notas = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const base = notasPorCorda[corda] || "E";
+        const indexBase = notas.findIndex(n => n === base);
+        const notaFinal = notas[(indexBase + traste) % 12];
+        return notaFinal;
+    }
+
+    function adicionarPestana() {
+        const traste = parseInt(document.getElementById("trastePestana").value);
+        const inicio = parseInt(document.getElementById("cordaInicioPestana").value) - 1;
+        const fim = parseInt(document.getElementById("cordaFimPestana").value) - 1;
+        pestanas.push({ traste, inicio, fim });
+        gerarDiagrama();
+    }
+
+    function exportarAcorde() {
+        const acordeHTML = document.getElementById("svg-diagrama").outerHTML;
+        const blob = new Blob([acordeHTML], { type: "text/html" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "acorde.html";
+        link.click();
+    }
+
+    function salvarComoSVG() {
+        const svg = document.getElementById("svg-diagrama").outerHTML;
+        const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = "diagrama.svg";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+
+    function limparDiagrama() {
+        pestanas = [];
+        notasCasaZero = {};
+        document.getElementById("saida").innerHTML = "";
+    }
+
+    function gerarDiagrama() {
+        const titulo = document.getElementById("titulo").value;
+        const cordas = parseInt(document.getElementById("cordas").value);
+        const trastes = parseInt(document.getElementById("trastes").value);
+        const trasteInicial = parseInt(document.getElementById("trasteInicial").value);
+        const largura = 300;
+        const altura = 400;
+        const margem = 40;
+        const alturaCasaZero = 30; // Altura da área da casa zero
+        const raioNota = 20; // Raio das bolinhas
+
+        let espacamentoCordas = (largura - 2 * margem) / (cordas - 1);
+        let espacamentoTrastes = (altura - 2 * margem - alturaCasaZero) / trastes; // Reduz a altura disponível para os trastes
+
+        let svg = `<svg id="svg-diagrama" width="${largura}" height="${altura}" viewBox="0 0 ${largura} ${altura}" xmlns="http://www.w3.org/2000/svg">`;
+        svg += `<text x="${largura / 2}" y="30" font-size="20" text-anchor="middle">${titulo}</text>`;
+
+        // Desenha a linha superior da área da casa zero
+        svg += `<line x1="${margem}" y1="${margem + alturaCasaZero}" x2="${largura - margem}" y2="${margem + alturaCasaZero}" stroke="#000" stroke-width="4" />`;
+
+        for (let i = 0; i < cordas; i++) {
+            const x = margem + i * espacamentoCordas;
+            svg += `<line x1="${x}" y1="${margem + alturaCasaZero}" x2="${x}" y2="${altura - margem}" stroke="#000" stroke-width="2"/>`;
+
+            // Desenha a representação da corda solta (casa zero)
+            const yCasaZero = margem + alturaCasaZero / 2 - 11; // Ajuste fino da posição vertical
+            if (notasCasaZero[i] === 'X') {
+                svg += `<text x="${x}" y="${yCasaZero + 8}" font-size="26" text-anchor="middle">X</text>`;
+            } else if (notasCasaZero[i] === true) {
+                svg += `<circle cx="${x}" cy="${yCasaZero}" r="${raioNota}" fill="none" stroke="#000" stroke-width="2" class="casa-zero-circulo" />`;
+            } else if (exibirNotas && notasCasaZero[i] && notasCasaZero[i] !== '') {
+                svg += `<circle cx="${x}" cy="${yCasaZero}" r="${raioNota}" fill="#000" class="casa-zero-circulo" />`;
+                svg += `<text x="${x}" y="${yCasaZero + 4}" font-size="14" fill="#fff" text-anchor="middle" dominant-baseline="middle">${notasCasaZero[i]}</text>`;
+            }
+            // Se notasCasaZero[i] for null (ou undefined), nada é desenhado, representando o estado inicial.
+        }
+
+        for (let i = 0; i <= trastes; i++) {
+            const y = margem + alturaCasaZero + i * espacamentoTrastes;
+            svg += `<line x1="${margem}" y1="${y}" x2="${largura - margem}" y2="${y}" stroke="#000" stroke-width="${i === 0 ? 4 : 2}" />`;
+        }
+
+        pestanas.forEach(p => {
+            const y = margem + alturaCasaZero + (p.traste - 0.5) * espacamentoTrastes;
+            const x1 = margem + p.inicio * espacamentoCordas;
+            const x2 = margem + p.fim * espacamentoCordas;
+            svg += `<line x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" stroke="black" stroke-width="20" stroke-linecap="round"/>`;
+        });
+
+        svg += `</svg>`;
+        document.getElementById("saida").innerHTML = svg;
+
+        const svgElement = document.getElementById("svg-diagrama");
+
+        svgElement.addEventListener("click", function (e) {
+            const rect = svgElement.getBoundingClientRect();
+            const mouseX = e.clientX - rect.left;
+            const mouseY = e.clientY - rect.top;
+
+            const corda = Math.round((mouseX - margem) / espacamentoCordas);
+            const trasteY = mouseY - (margem + alturaCasaZero);
+            const traste = Math.round(trasteY / espacamentoTrastes);
+            const yCasaZeroArea = margem <= mouseY && mouseY <= margem + alturaCasaZero;
+            const yTrasteArea = mouseY > margem + alturaCasaZero && mouseY <= altura - margem;
+
+            if (corda >= 0 && corda < cordas) {
+                const x = margem + corda * espacamentoCordas;
+                const yCasaZero = margem + alturaCasaZero / 2;
+
+                if (yCasaZeroArea) {
+                    // Lógica de ciclo de estados para a casa zero
+                    if (!e.shiftKey) {
+                        if (notasCasaZero[corda] === null || notasCasaZero[corda] === undefined) {
+                            notasCasaZero[corda] = true; // Bolinha vazia
+                        } else if (notasCasaZero[corda] === true) {
+                            notasCasaZero[corda] = 'X';
+                        } else if (notasCasaZero[corda] === 'X') {
+                            notasCasaZero[corda] = null; // Limpa
+                        }
+                        gerarDiagrama(); // Redesenha para mostrar a alteração na casa zero
+                    } else {
+                        notasCasaZero[corda] = notasCasaZero[corda] === 'X' ? null : 'X'; // Alterna entre 'X' e nada com Shift
+                        gerarDiagrama();
+                    }
+                } else if (yTrasteArea && traste >= 1 && traste <= trastes) {
+                    // Lógica para os trastes (notas no braço)
+                    const yTraste = margem + alturaCasaZero + (traste - 0.5) * espacamentoTrastes;
+                    const clickedElement = e.target;
+
+                    // Verifica se o clique foi em um círculo (nota) dentro da área dos trastes
+                    if (clickedElement.tagName === 'circle' && !clickedElement.classList.contains('casa-zero-circulo')) {
+                        if (e.ctrlKey) {
+                            const novaCor = document.getElementById("corNota").value;
+                            clickedElement.setAttribute("fill", novaCor);
+                        } else {
+                            // Remove o círculo e o texto associado
+                            const cx = parseFloat(clickedElement.getAttribute('cx'));
+                            const cy = parseFloat(clickedElement.getAttribute('cy'));
+                            clickedElement.remove();
+                            svgElement.querySelectorAll('text').forEach(textElement => {
+                                const textX = parseFloat(textElement.getAttribute('x'));
+                                const textY = parseFloat(textElement.getAttribute('y'));
+                                if (Math.abs(textX - cx) < 5 && Math.abs(textY - cy) < 5) {
+                                    textElement.remove();
+                                }
+                            });
+                        }
+                    } else if (clickedElement.tagName === 'svg') {
+                        // Se o clique foi no fundo do SVG DENTRO da área dos trastes, adiciona uma nova nota
+                        const nota = notaPorCordaETraste(corda, trasteInicial + traste - 1);
+                        const valor = exibirNotas ? nota : trasteInicial + traste - 1;
+
+                        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                        circle.setAttribute("cx", x);
+                        circle.setAttribute("cy", yTraste);
+                        circle.setAttribute("r", raioNota);
+                        const cor = document.getElementById("corNota").value;
+                        circle.setAttribute("fill", cor);
+                        svgElement.appendChild(circle);
+
+                        const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                        text.setAttribute("x", x);
+                        text.setAttribute("y", yTraste);
+                        text.setAttribute("fill", "#fff");
+                        text.setAttribute("font-size", "14");
+                        text.setAttribute("text-anchor", "middle");
+                        text.setAttribute("dominant-baseline", "middle");
+                        text.textContent = valor;
+                        svgElement.appendChild(text);
+                    }
+                }
+            }
+        });
+    }
+
+    // Garante que o elemento de saída tenha um SVG inicial vazio
+    const saidaElementInicial = document.getElementById("saida");
+    if (saidaElementInicial && !saidaElementInicial.querySelector("svg")) {
+        saidaElementInicial.innerHTML = `<svg id="svg-diagrama" width="300" height="400" viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg"></svg>`;
+    }
+</script>
+
+</body>
+</html>
