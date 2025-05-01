@@ -7,7 +7,6 @@ registerTextBlock({
     content: `
 <h1>1 - NOMES DAS NOTAS MUSICAIS</h1>
 
-<p>CONTEÚDO</p>
 <p>Dó - Ré - Mi - Fá - Sol - Lá - Si </p>
     `
   });
