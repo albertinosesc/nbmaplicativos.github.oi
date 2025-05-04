@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tabela Editável com Google Sheets</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        #editableTable {
+            border-collapse: collapse;
+            width: 100%;
+            margin: 20px 0;
+        }
+        #editableTable th, #editableTable td {
+            border: 1px solid #ddd;
+            padding: 6px;
+            text-align: center;
+        }
+        #editableTable th {
+            background-color: #f2f2f2;
+            font-weight: bold;
+        }
+        #editableTable td[contenteditable="true"] {
+            background-color: #fff;
+            min-width: 60px;
+        }
+        #editableTable td[contenteditable="true"]:focus {
+            background-color: #e6f7ff;
+            outline: 2px solid #4CAF50;
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        button, .button-like {
+            padding: 10px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover, .button-like:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #loadingIndicator {
+            display: none;
+            margin: 10px 0;
+            color: #2196F3;
+        }
+        #statusMessage {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .success {
+            background-color: #dff0d8;
+            color: #3c763d;
+        }
+        .error {
+            background-color: #f2dede;
+            color: #a94442;
+        }
+    </style>
+</head>
+<body>
+    <h1>Tabela Editável com Google Sheets</h1>
+    
+    <div class="controls">
+        <button id="loadSheetButton">Carregar Planilha</button>
+        <button id="saveSheetButton">Salvar Planilha</button>
+        <button id="clearButton">Limpar Tabela</button>
+        <button id="exportButton">Exportar CSV</button>
+        <label class="button-like">
+            Importar CSV
+            <input type="file" id="importFile" accept=".csv" style="display: none;">
+        </label>
+    </div>
+    
+    <div id="loadingIndicator">Carregando...</div>
+    <div id="statusMessage"></div>
+    
+    <table id="editableTable">
+        <thead>
+            <tr>
+                <th>Linha/Coluna</th>
+                <th>pi</th><th>pm</th><th>pa</th>
+                <th>ip</th><th>im</th><th>ia</th>
+                <th>mp</th><th>mi</th><th>ma</th>
+                <th>ap</th><th>ai</th><th>am</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const tableBody = document.querySelector('#editableTable tbody');
+            const loadSheetButton = document.getElementById('loadSheetButton');
+            const saveSheetButton = document.getElementById('saveSheetButton');
+            const clearButton = document.getElementById('clearButton');
+            const exportButton = document.getElementById('exportButton');
+            const importFile = document.getElementById('importFile');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const statusMessage = document.getElementById('statusMessage');
+            const allControls = document.querySelectorAll('.controls button, .controls .button-like');
+
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxRvgrQT1LUvs4mWSY5W7xo_z3yPQzlQ9GMuSYsb0Y9UIsS8tBcnkhSKlON8sxnFK-W/exec';
+
+            const rowHeaders = ['A1','A2','A3','A4','B1','B2','B3','B4','C1','C2','C3','C4','D1','D2','D3','D4','E1','E2','E3','E4','F1','F2','F3','F4'];
+            const colHeaders = ['pi','pm','pa','ip','im','ia','mp','mi','ma','ap','ai','am'];
+            const fullColHeaders = ['', ...colHeaders];
+
+            function showLoading(isLoading) {
+                loadingIndicator.style.display = isLoading ? 'block' : 'none';
+                statusMessage.textContent = '';
+                statusMessage.className = '';
+                allControls.forEach(control => control.disabled = isLoading);
+            }
+
+            function showStatus(message, isError = false) {
+                statusMessage.textContent = message;
+                statusMessage.className = isError ? 'error' : 'success';
+                setTimeout(() => {
+                    statusMessage.textContent = '';
+                    statusMessage.className = '';
+                }, 5000);
+            }
+
+            function generateTableStructure() {
+                tableBody.innerHTML = '';
+                rowHeaders.forEach(row => {
+                    const tr = document.createElement('tr');
+                    const th = document.createElement('td');
+                    th.textContent = row;
+                    tr.appendChild(th);
+                    colHeaders.forEach(col => {
+                        const td = document.createElement('td');
+                        td.setAttribute('contenteditable', 'true');
+                        td.id = `cell-${row}-${col}`;
+                        tr.appendChild(td);
+                    });
+                    tableBody.appendChild(tr);
+                });
+            }
+
+            function populateTableCells(data) {
+                rowHeaders.forEach(row => {
+                    colHeaders.forEach(col => {
+                        const cellId = `cell-${row}-${col}`;
+                        const cell = document.getElementById(cellId);
+                        if (cell) {
+                            cell.textContent = data && data[cellId] ? data[cellId] : '';
+                        }
+                    });
+                });
+            }
+
+            async function loadDataFromSheet() {
+                showLoading(true);
+                try {
+                    const response = await fetch(`${APPS_SCRIPT_URL}?cache=${Date.now()}`);
+                    if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        populateTableCells(result.data);
+                        showStatus('Dados carregados com sucesso!');
+                    } else {
+                        throw new Error(result.message || 'Erro ao carregar dados');
+                    }
+                } catch (error) {
+                    showStatus(`Falha ao carregar: ${error.message}`, true);
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            async function saveDataToSheet() {
+                showLoading(true);
+                try {
+                    const tableData = {};
+                    rowHeaders.forEach(row => {
+                        colHeaders.forEach(col => {
+                            const id = `cell-${row}-${col}`;
+                            const cell = document.getElementById(id);
+                            tableData[id] = cell.textContent.trim();
+                        });
+                    });
+
+                    const response = await corsProxyRequest({
+                        url: APPS_SCRIPT_URL,
+                        method: 'POST',
+                        data: {
+                            data: tableData,
+                            rowHeaders,
+                            colHeaders
+                        }
+                    });
+
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        showStatus('Dados salvos com sucesso!');
+                    } else {
+                        throw new Error(result.message || 'Erro ao salvar');
+                    }
+                } catch (error) {
+                    showStatus(`Falha ao salvar: ${error.message}`, true);
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            async function corsProxyRequest(options) {
+                try {
+                    const direct = await fetch(options.url, {
+                        method: options.method,
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(options.data),
+                        mode: 'no-cors'
+                    });
+                    return direct;
+                } catch {
+                    const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
+                    const proxy = await fetch(proxyUrl + options.url, {
+                        method: options.method,
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'X-Requested-With': 'XMLHttpRequest'
+                        },
+                        body: JSON.stringify(options.data)
+                    });
+                    return proxy;
+                }
+            }
+
+            function clearTableDataLocal() {
+                if (confirm('Tem certeza que deseja limpar a tabela?')) {
+                    populateTableCells({});
+                    showStatus('Tabela limpa localmente.');
+                }
+            }
+
+            function exportTableToCSV() {
+                let csv = fullColHeaders.map(h => `"${h}"`).join(',') + "\n";
+                rowHeaders.forEach(row => {
+                    const rowData = [`"${row}"`];
+                    colHeaders.forEach(col => {
+                        const cell = document.getElementById(`cell-${row}-${col}`);
+                        const value = cell ? cell.textContent.trim().replace(/"/g, '""') : '';
+                        rowData.push(`"${value}"`);
+                    });
+                    csv += rowData.join(',') + "\n";
+                });
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'tabela_editavel.csv';
+                link.click();
+            }
+
+            function importTableFromCSV(event) {
+                const file = event.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    const lines = e.target.result.split(/\r?\n/);
+                    if (lines.length < 2) return alert('Arquivo CSV inválido.');
+                    
+                    const headers = lines[0].split(',').map(h => h.replace(/^"|"$/g, ''));
+                    if (JSON.stringify(headers) !== JSON.stringify(fullColHeaders)) {
+                        if (!confirm('Cabeçalho do CSV diferente do esperado. Continuar mesmo assim?')) return;
+                    }
+
+                    const importedData = {};
+                    for (let i = 1; i < lines.length; i++) {
+                        const cells = lines[i].split(',').map(c => c.replace(/^"|"$/g, '').replace(/""/g, '"'));
+                        const row = cells[0];
+                        if (rowHeaders.includes(row)) {
+                            colHeaders.forEach((col, idx) => {
+                                importedData[`cell-${row}-${col}`] = cells[idx + 1] || '';
+                            });
+                        }
+                    }
+                    populateTableCells(importedData);
+                    showStatus('CSV importado com sucesso.');
+                };
+                reader.readAsText(file);
+            }
+
+            // Inicialização
+            generateTableStructure();
+
+            // Eventos
+            loadSheetButton.addEventListener('click', loadDataFromSheet);
+            saveSheetButton.addEventListener('click', saveDataToSheet);
+            clearButton.addEventListener('click', clearTableDataLocal);
+            exportButton.addEventListener('click', exportTableToCSV);
+            importFile.addEventListener('change', importTableFromCSV);
+        });
+    </script>
+</body>
+</html>
