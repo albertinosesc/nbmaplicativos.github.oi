@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tabela Editável com Google Sheets</title>
+    <title>935_Módulo I</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -72,10 +72,29 @@
             background-color: #f2dede;
             color: #a94442;
         }
+        .sheet-controls {
+            margin-bottom: 15px;
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
     </style>
 </head>
 <body>
-    <h1>Tabela Editável com Google Sheets</h1>
+    <h1>Tabela: 935 - GUITARRA - Albertino Moura - Módulo I</h1>
+    
+    <div class="sheet-controls">
+        <select id="sheetSelector">
+            <option value="">Carregando abas...</option>
+        </select>
+        <button id="newSheetButton">Nova Aba</button>
+        <input type="text" id="newSheetName" placeholder="Nome da nova aba" style="padding: 8px;">
+    </div>
     
     <div class="controls">
         <button id="loadSheetButton">Carregar Planilha</button>
@@ -115,8 +134,12 @@
             const loadingIndicator = document.getElementById('loadingIndicator');
             const statusMessage = document.getElementById('statusMessage');
             const allControls = document.querySelectorAll('.controls button, .controls .button-like');
+            const sheetSelector = document.getElementById('sheetSelector');
+            const newSheetButton = document.getElementById('newSheetButton');
+            const newSheetName = document.getElementById('newSheetName');
 
-            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxRvgrQT1LUvs4mWSY5W7xo_z3yPQzlQ9GMuSYsb0Y9UIsS8tBcnkhSKlON8sxnFK-W/exec';
+            const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycby9A--7sYAr31LC_ZADHllIV6nP2PvPM3hlQ_3gG61OuUlqexecY5wfSjm-rdy-2mtRwA/exec';
+            let currentSheetName = 'Dados1';
 
             const rowHeaders = ['A1','A2','A3','A4','B1','B2','B3','B4','C1','C2','C3','C4','D1','D2','D3','D4','E1','E2','E3','E4','F1','F2','F3','F4'];
             const colHeaders = ['pi','pm','pa','ip','im','ia','mp','mi','ma','ap','ai','am'];
@@ -127,6 +150,8 @@
                 statusMessage.textContent = '';
                 statusMessage.className = '';
                 allControls.forEach(control => control.disabled = isLoading);
+                sheetSelector.disabled = isLoading;
+                newSheetButton.disabled = isLoading;
             }
 
             function showStatus(message, isError = false) {
@@ -167,15 +192,57 @@
                 });
             }
 
-            async function loadDataFromSheet() {
+            async function fetchSheetList() {
                 showLoading(true);
                 try {
-                    const response = await fetch(`${APPS_SCRIPT_URL}?cache=${Date.now()}`);
+                    const response = await fetch(`${APPS_SCRIPT_URL}?listSheets=1&cache=${Date.now()}`);
+                    if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
+                    const result = await response.json();
+                    if (result.status === 'success') {
+                        updateSheetSelector(result.sheetNames);
+                        if (result.sheetNames.length > 0) {
+                            currentSheetName = result.sheetNames[0];
+                            sheetSelector.value = currentSheetName;
+                        }
+                    } else {
+                        throw new Error(result.message || 'Erro ao carregar lista de abas');
+                    }
+                } catch (error) {
+                    showStatus(`Falha ao carregar lista de abas: ${error.message}`, true);
+                } finally {
+                    showLoading(false);
+                }
+            }
+
+            function updateSheetSelector(sheetNames) {
+                sheetSelector.innerHTML = '';
+                if (sheetNames.length === 0) {
+                    sheetSelector.innerHTML = '<option value="">Nenhuma aba encontrada</option>';
+                    return;
+                }
+                
+                sheetNames.forEach(name => {
+                    const option = document.createElement('option');
+                    option.value = name;
+                    option.textContent = name;
+                    sheetSelector.appendChild(option);
+                });
+            }
+
+            async function loadDataFromSheet() {
+                if (!currentSheetName) {
+                    showStatus('Selecione uma aba primeiro', true);
+                    return;
+                }
+                
+                showLoading(true);
+                try {
+                    const response = await fetch(`${APPS_SCRIPT_URL}?sheetName=${encodeURIComponent(currentSheetName)}&cache=${Date.now()}`);
                     if (!response.ok) throw new Error(`Erro HTTP ${response.status}`);
                     const result = await response.json();
                     if (result.status === 'success') {
                         populateTableCells(result.data);
-                        showStatus('Dados carregados com sucesso!');
+                        showStatus(`Dados carregados com sucesso da aba ${currentSheetName}!`);
                     } else {
                         throw new Error(result.message || 'Erro ao carregar dados');
                     }
@@ -187,6 +254,11 @@
             }
 
             async function saveDataToSheet() {
+                if (!currentSheetName) {
+                    showStatus('Selecione uma aba primeiro', true);
+                    return;
+                }
+                
                 showLoading(true);
                 try {
                     const tableData = {};
@@ -203,6 +275,7 @@
                         method: 'POST',
                         data: {
                             data: tableData,
+                            sheetName: currentSheetName,
                             rowHeaders,
                             colHeaders
                         }
@@ -210,7 +283,11 @@
 
                     const result = await response.json();
                     if (result.status === 'success') {
-                        showStatus('Dados salvos com sucesso!');
+                        showStatus(`Dados salvos com sucesso na aba ${currentSheetName}!`);
+                        // Atualiza a lista de abas caso tenha sido criada uma nova
+                        if (result.message && result.message.includes('nova')) {
+                            await fetchSheetList();
+                        }
                     } else {
                         throw new Error(result.message || 'Erro ao salvar');
                     }
@@ -218,6 +295,61 @@
                     showStatus(`Falha ao salvar: ${error.message}`, true);
                 } finally {
                     showLoading(false);
+                }
+            }
+
+            async function createNewSheet() {
+                const sheetName = newSheetName.value.trim();
+                if (!sheetName) {
+                    showStatus('Digite um nome para a nova aba', true);
+                    return;
+                }
+                
+                showLoading(true);
+                try {
+                    // Verifica se a aba já existe
+                    const response = await fetch(`${APPS_SCRIPT_URL}?sheetName=${encodeURIComponent(sheetName)}&cache=${Date.now()}`);
+                    const result = await response.json();
+                    
+                    if (result.status === 'success' && !result.message.includes('não existe')) {
+                        showStatus(`A aba "${sheetName}" já existe.`, true);
+                        return;
+                    }
+                    
+                    // Cria a nova aba com dados vazios
+                    const tableData = {};
+                    rowHeaders.forEach(row => {
+                        colHeaders.forEach(col => {
+                            tableData[`cell-${row}-${col}`] = '';
+                        });
+                    });
+
+                    const saveResponse = await corsProxyRequest({
+                        url: APPS_SCRIPT_URL,
+                        method: 'POST',
+                        data: {
+                            data: tableData,
+                            sheetName: sheetName,
+                            rowHeaders,
+                            colHeaders
+                        }
+                    });
+
+                    const saveResult = await saveResponse.json();
+                    if (saveResult.status === 'success') {
+                        showStatus(`Nova aba "${sheetName}" criada com sucesso!`);
+                        currentSheetName = sheetName;
+                        await fetchSheetList();
+                        // Seleciona a nova aba no dropdown
+                        sheetSelector.value = sheetName;
+                    } else {
+                        throw new Error(saveResult.message || 'Erro ao criar nova aba');
+                    }
+                } catch (error) {
+                    showStatus(`Falha ao criar nova aba: ${error.message}`, true);
+                } finally {
+                    showLoading(false);
+                    newSheetName.value = '';
                 }
             }
 
@@ -265,7 +397,7 @@
                 const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
                 const link = document.createElement('a');
                 link.href = URL.createObjectURL(blob);
-                link.download = 'tabela_editavel.csv';
+                link.download = `tabela_${currentSheetName || 'editavel'}.csv`;
                 link.click();
             }
 
@@ -301,6 +433,7 @@
 
             // Inicialização
             generateTableStructure();
+            fetchSheetList();
 
             // Eventos
             loadSheetButton.addEventListener('click', loadDataFromSheet);
@@ -308,6 +441,14 @@
             clearButton.addEventListener('click', clearTableDataLocal);
             exportButton.addEventListener('click', exportTableToCSV);
             importFile.addEventListener('change', importTableFromCSV);
+            newSheetButton.addEventListener('click', createNewSheet);
+            
+            sheetSelector.addEventListener('change', (e) => {
+                currentSheetName = e.target.value;
+                if (currentSheetName) {
+                    loadDataFromSheet();
+                }
+            });
         });
     </script>
 </body>
