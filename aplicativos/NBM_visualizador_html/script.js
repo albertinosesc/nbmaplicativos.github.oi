@@ -1,12 +1,8 @@
 //====================================================
-//ATUALIZAÇÃO: 01-05-25
+//ATUALIZAÇÃO: 14-05-25
 //====================================================
 
-document.addEventListener('DOMContentLoaded', () => {
-    const fileListElement = document.getElementById('files-ul');
-    const contentFrame = document.getElementById('content-frame');
-    const searchInput = document.getElementById('search-input');
-    const htmlFiles = [
+    const files = [
         { 
             name: "NBM - Alunos - Lista", 
             path: "content/nbm_alunos_lista.html",
@@ -79,120 +75,69 @@ document.addEventListener('DOMContentLoaded', () => {
         
         }
     ];
-    let listItems = [];
-    let currentActiveLink = null;
-    function createListItem(file, parentElement, level = 0) {
-        const listItem = document.createElement('li');
-        const link = document.createElement('a');
-        link.href = file.path;
-        link.textContent = file.name;
-        link.title = file.name;
-        link.addEventListener('click', (event) => {
-            event.preventDefault();
-            if (file.subpages) {
-                const parentLi = event.target.closest('li');
-                parentLi.classList.toggle('collapsed');
-                const subpagesUl = parentLi.querySelector('ul');
-                if (subpagesUl) {
-                    subpagesUl.style.display = parentLi.classList.contains('collapsed') ? 'none' : 'block';
-                }
-                contentFrame.src = file.path;
-                if (currentActiveLink) {
-                    currentActiveLink.classList.remove('active');
-                }
-                link.classList.add('active');
-                currentActiveLink = link;
-            } else {
-                if (currentActiveLink) {
-                    currentActiveLink.classList.remove('active');
-                }
-                contentFrame.src = link.href;
-                link.classList.add('active');
-                currentActiveLink = link;
-            }
-        });
-        listItem.appendChild(link);
-        if (file.subpages) {
-            listItem.classList.add('has-subpages', 'collapsed');
-            const subpagesUl = document.createElement('ul');
-            subpagesUl.className = 'subpages';
-            file.subpages.forEach(subFile => {
-                createListItem(subFile, subpagesUl, level + 1);
-            });
-            listItem.appendChild(subpagesUl);
-        }
-        parentElement.appendChild(listItem);
-        listItems.push({ 
-            element: listItem, 
-            name: file.name.toLowerCase(),
-            level: level
-        });
-    }
-    function populateFileList(files) {
-        fileListElement.innerHTML = '';
-        listItems = [];
-        files.forEach(file => {
-            createListItem(file, fileListElement);
-        });
-        loadInitialFile();
-    }
-    function filterFiles() {
-        const searchTerm = searchInput.value.toLowerCase();
-        let hasVisibleItems = false;
-        listItems.forEach(item => {
-            const isVisible = item.name.includes(searchTerm);
-            const isParentVisible = item.level === 0 || 
-                                    Array.from(item.element.parentNode.children).some(
-                                        child => !child.classList.contains('hidden')
-                                    );
-            item.element.classList.toggle('hidden', !(isVisible || isParentVisible));
-            if (isVisible || isParentVisible) {
-                hasVisibleItems = true;
-                 if (item.element.querySelector('ul')) {
-                    item.element.classList.remove('collapsed');
-                    item.element.querySelector('ul').style.display = 'block';
-                }
-            }
-        });
-        updateActiveLinkAfterFilter();
-    }
-    function updateActiveLinkAfterFilter() {
-        if (currentActiveLink && currentActiveLink.closest('li').classList.contains('hidden')) {
-            currentActiveLink.classList.remove('active');
-            currentActiveLink = null;
-        }
-        const firstVisibleItem = listItems.find(item => !item.element.classList.contains('hidden'));
-        if (firstVisibleItem && !currentActiveLink) {
-            const firstLink = firstVisibleItem.element.querySelector('a');
-            if (firstLink) {
-                contentFrame.src = firstLink.href;
-                firstLink.classList.add('active');
-                currentActiveLink = firstLink;
-            }
-        } else if (!hasVisibleItems(listItems) && searchInput.value !== '') {
-            contentFrame.src = 'about:blank';
-        }
-    }
-    function hasVisibleItems(items) {
-        return items.some(item => !item.element.classList.contains('hidden'));
-    }
-    function loadInitialFile() {
-        const firstItem = listItems.find(item => item.level === 0);
-        if (firstItem) {
-            const firstLink = firstItem.element.querySelector('a');
-            if (firstLink && !currentActiveLink) {
-                contentFrame.src = firstLink.href;
-                firstLink.classList.add('active');
-                currentActiveLink = firstLink;
-            }
-        }
-    }
-    populateFileList(htmlFiles);
-    searchInput.addEventListener('input', filterFiles);
-    document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && e.key === 'f') {
+
+    const fileList = document.getElementById("file-list");
+    const iframe = document.getElementById("viewer");
+    const searchInput = document.getElementById("search-input");
+    const sidebar = document.getElementById("sidebar");
+    const overlay = document.querySelector(".mobile-overlay");
+    const toggle = document.querySelector(".menu-toggle");
+
+    function createList(items, parentUl) {
+      items.forEach(item => {
+        const li = document.createElement("li");
+
+        if (item.subpages) {
+          li.classList.add("folder");
+          const span = document.createElement("span");
+          span.textContent = item.name;
+          span.onclick = () => li.classList.toggle("open");
+          li.appendChild(span);
+
+          const subUl = document.createElement("ul");
+          subUl.classList.add("subpages");
+          createList(item.subpages, subUl);
+          li.appendChild(subUl);
+        } else {
+          const link = document.createElement("a");
+          link.href = "#";
+          link.textContent = item.name;
+          link.onclick = (e) => {
             e.preventDefault();
-            searchInput.focus();
+            iframe.src = item.path;
+            document.querySelectorAll("a").forEach(a => a.classList.remove("active"));
+            link.classList.add("active");
+            if (window.innerWidth <= 768) {
+              sidebar.classList.remove("visible");
+              overlay.classList.remove("visible");
+            }
+          };
+          li.appendChild(link);
         }
+
+        parentUl.appendChild(li);
+      });
+    }
+
+    createList(files, fileList);
+
+    searchInput.addEventListener("input", () => {
+      const term = searchInput.value.toLowerCase();
+      document.querySelectorAll("#file-list a").forEach(link => {
+        const text = link.textContent.toLowerCase();
+        link.parentElement.style.display = text.includes(term) ? "block" : "none";
+      });
     });
-});
+
+    toggle.addEventListener("click", () => {
+      sidebar.classList.toggle("visible");
+      overlay.classList.toggle("visible");
+    });
+
+    overlay.addEventListener("click", () => {
+      sidebar.classList.remove("visible");
+      overlay.classList.remove("visible");
+    });
+
+    // Carregar página principal
+    iframe.src = "content/html/listadearquivos.html";
