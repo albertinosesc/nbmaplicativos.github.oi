@@ -1,3 +1,9 @@
+//====================================
+// - textlist1.js
+//  ATUALIZAÇÃO:14-05-25
+//====================================
+
+
 registerTextBlock({
     id: "textlist1",
     content: `
@@ -5,31 +11,37 @@ registerTextBlock({
 <h1>Lista de Arquivos</h1>
 <pre>
 
-1 - NOMES DAS NOTAS MUSICAIS - text1.js
-2 - RELÓGIO MUSICAL - text2.js
-3 - LETRA DO ALFABETO - text3.js
-4 - CIFRAS - text4.js
-5 - DIAGRAMA DE ACORDE - VIOLÃO - text5.js
-6 - CORDAS (Diagrama) - VIOLÃO - text6.js
-7 - CASA (Diagrama) - VIOLÃO - text7.js
-8 - GRÁFICO HARMÔNICO - text8.js
-9 - BARRA SIMPLES - text9.js
-10 - COMPASSO - text10.js
-11 - BARRA FINAL - text11.js
-12 - SIGNO DE COMPASSO (Gráfico Harmônico) - text12.js
-13 - ACORDE - VIOLÃO - FORMA - text13.js
-14 - NOME DO ACORDE - text14.js
-15 - TIPO DO ACORDE - text15.js
-16 - CARACTERES - ACORDES - text16.js
-17 - ALTERAÇÃO - text17.js
-18 - ACORDES MAIORES S/ PESTANA - VIOLÃO - text18.js
-19 - ACORDES MENORES S/ PESTANA - VIOLÃO - text19.js
-22 - RITMO - VIOLÃO 1 FASE- text22.js
-21 - RITMO - VIOLÃO 1 FASE - text21.js
-22 - SISTEMA DE NOTAÇÃO - text22.js
-23 - PROGRESSÃO HARMÔNICA: VIOLÃO I - text23.js
-24 - GRAU: VIOLÃO I - text24.js
-25 - NOTAS MUSICAIS - text25.js
+1 - Nomes Das Notas Musicais
+2 - Relógio Musical
+3 - Letra Do Alfabeto
+4 - Cifras
+5 - Diagrama De Acorde - Violão
+6 - Cordas (Diagrama) - Violão
+7 - Casa (Diagrama) - Violão
+8 - Gráfico Harmônico
+9 - Barra Simples
+10 - Compasso
+11 - Barra Final
+12 - Signo De Compasso (Gráfico Harmônico)
+13 - Acorde - Violão - Forma
+14 - Nome Do Acorde
+15 - Tipo Do Acorde
+16 - Caracteres - Acordes
+17 - Alteração
+18 - Acordes Maiores S/ Pestana - Violão
+19 - Acordes Menores S/ Pestana - Violão
+20 - Ritmo - Violão 1 Fase
+21 - Ritmo - Violão 1 Fase
+22 - Sistema De Notação
+23 - Progressão Harmônica: Violão I
+24 - Grau: Violão I
+25 - Notas Musicais
+26 - Tríade - Maior - Fundamental - Todos
+27 - Tríade - Menor - Fundamental - Todos
+28 - Tríade - Diminuto - Fundamental - Todos
+29 - Tríade - Aumentado - Fundamental - Todos
+30 - Tríade - Sus2 - Fundamental - Todos
+31 - Tríade - Sus2 - Fundamental - Todos
 
 
 </pre>
