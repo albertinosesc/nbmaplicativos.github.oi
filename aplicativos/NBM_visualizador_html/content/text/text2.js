@@ -15,7 +15,8 @@ Conteúdo Prévio
 1 - Nomes das Notas Musicais
 </pre>
 
-<img src="LOCAL DA IMAGEM" alt="RELÓGIO MUSICAL">
+<img src="../imagens/2-relogio_musical.png" alt="RELÓGIO MUSICAL" width="500">
+
     `
   });
 
