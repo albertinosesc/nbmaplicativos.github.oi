@@ -4,40 +4,498 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Visualizador de HTML com Pesquisa</title>
-    <link rel="stylesheet" href="style.css">
-<style>
-.subpages {
-    margin-left: 20px;
-    border-left: 2px solid #ccc;
-    padding-left: 10px;
-    display: none;
-}
-.has-subpages > a::after {
-    content: " ▼";
-    font-size: 0.8em;
-}
-.has-subpages.collapsed > a::after {
-    content: " ►";
-}
-.folder {
-    font-weight: bold;
-    cursor: pointer;
-}
-</style>
+    <style>
+        :root {
+            --sidebar-width: 250px;
+            --sidebar-collapsed-width: 50px;
+            --header-height: 60px;
+            --mobile-breakpoint: 768px;
+            --tablet-breakpoint: 1024px;
+            --primary-color: #4285f4;
+            --sidebar-bg: #f4f4f4;
+            --text-color: #333;
+            --border-color: #ddd;
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: var(--text-color);
+            overflow: hidden;
+        }
+        
+        .header {
+            height: var(--header-height);
+            background-color: var(--primary-color);
+            color: white;
+            display: flex;
+            align-items: center;
+            padding: 0 15px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+        
+        .header h1 {
+            font-size: 1.2rem;
+            font-weight: 500;
+        }
+        
+        .menu-toggle {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.5rem;
+            margin-right: 15px;
+            cursor: pointer;
+            display: none;
+        }
+        
+        .container {
+            display: flex;
+            flex: 1;
+            height: calc(100vh - var(--header-height));
+            overflow: hidden;
+        }
+        
+        .sidebar {
+            width: var(--sidebar-width);
+            background-color: var(--sidebar-bg);
+            padding: 15px;
+            box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
+            height: 100%;
+            transition: width 0.3s ease;
+            position: relative;
+            z-index: 5;
+        }
+        
+        .sidebar.collapsed {
+            width: var(--sidebar-collapsed-width);
+            overflow: hidden;
+        }
+        
+        .sidebar h2 {
+            margin-top: 0;
+            font-size: 1.2em;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        #search-input {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 0.9em;
+            transition: all 0.3s ease;
+        }
+        
+        .sidebar.collapsed #search-input {
+            opacity: 0;
+            padding: 10px 0;
+            width: 0;
+            margin: 0;
+            border: none;
+        }
+        
+        .sidebar ul {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+            overflow-y: auto;
+        }
+        
+        .sidebar li {
+            margin-bottom: 8px;
+            white-space: nowrap;
+            overflow: hidden;
+        }
+        
+        .sidebar a {
+            text-decoration: none;
+            color: var(--text-color);
+            display: block;
+            padding: 8px 5px;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .sidebar a:hover,
+        .sidebar a.active {
+            background-color: #e0e0e0;
+            color: #000;
+        }
+        
+        .sidebar.collapsed a {
+            text-align: center;
+            padding: 10px 0;
+        }
+        
+        .sidebar.collapsed a span {
+            display: none;
+        }
+        
+        .sidebar.collapsed a::before {
+            content: attr(data-initial);
+            display: block;
+            font-size: 1.2rem;
+        }
+        
+        .content-area {
+            flex: 1;
+            height: 100%;
+            display: flex;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #content-frame {
+            width: 100%;
+            height: 100%;
+            border: none;
+            background-color: #fff;
+        }
+        
+        .subpages {
+            margin-left: 15px;
+            border-left: 2px solid var(--border-color);
+            padding-left: 10px;
+            display: none;
+        }
+        
+        .has-subpages > a::after {
+            content: " ▼";
+            font-size: 0.8em;
+        }
+        
+        .has-subpages.collapsed > a::after {
+            content: " ►";
+        }
+        
+        .folder {
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .sidebar.collapsed .subpages,
+        .sidebar.collapsed .has-subpages > a::after {
+            display: none !important;
+        }
+        
+        .mobile-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(0,0,0,0.5);
+            z-index: 4;
+            display: none;
+        }
+        
+        /* Responsive styles */
+        @media (max-width: 1024px) { /* Tablet */
+            .sidebar {
+                width: 200px;
+            }
+        }
+        
+        @media (max-width: 768px) { /* Mobile */
+            .menu-toggle {
+                display: block;
+            }
+            
+            .sidebar {
+                position: fixed;
+                top: var(--header-height);
+                left: 0;
+                bottom: 0;
+                width: var(--sidebar-width);
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+                z-index: 20;
+            }
+            
+            .sidebar.visible {
+                transform: translateX(0);
+            }
+            
+            .mobile-overlay.visible {
+                display: block;
+            }
+            
+            .sidebar.collapsed {
+                transform: translateX(-100%);
+            }
+        }
+        
+        /* Print styles */
+        @media print {
+            .sidebar, .menu-toggle, .header {
+                display: none !important;
+            }
+            
+            .content-area {
+                margin: 0;
+                padding: 0;
+            }
+            
+            #content-frame {
+                height: auto;
+            }
+        }
+    </style>
 </head>
 <body>
+    <div class="header">
+        <button class="menu-toggle">☰</button>
+        <h1>Visualizador de HTML</h1>
+    </div>
+
+    <h1>casa</h1>
+    
     <div class="container">
+        <div class="mobile-overlay"></div>
+        
         <aside id="file-list" class="sidebar">
             <h2>Arquivos Disponíveis</h2>
             <input type="text" id="search-input" placeholder="Pesquisar arquivos...">
             <ul id="files-ul">
-                </ul>
+                <!-- Os arquivos serão inseridos aqui via JavaScript -->
+            </ul>
         </aside>
+        
         <main id="content-viewer" class="content-area">
             <iframe id="content-frame" name="content-frame" src="about:blank" frameborder="0"></iframe>
         </main>
     </div>
 
-    <script src="script.js"></script>
+    <script>
+        // Adicionando funcionalidade para o menu toggle
+        document.querySelector('.menu-toggle').addEventListener('click', function() {
+            const sidebar = document.querySelector('.sidebar');
+            const overlay = document.querySelector('.mobile-overlay');
+            
+            sidebar.classList.toggle('visible');
+            overlay.classList.toggle('visible');
+        });
+        
+        // Fechar o sidebar quando clicar no overlay (mobile)
+        document.querySelector('.mobile-overlay').addEventListener('click', function() {
+            const sidebar = document.querySelector('.sidebar');
+            sidebar.classList.remove('visible');
+            this.classList.remove('visible');
+        });
+        
+        // Simulação de dados para demonstração
+        document.addEventListener('DOMContentLoaded', () => {
+    const fileListElement = document.getElementById('files-ul');
+    const contentFrame = document.getElementById('content-frame');
+    const searchInput = document.getElementById('search-input');
+    const htmlFiles = [
+        { 
+            name: "NBM - Alunos - Lista", 
+            path: "content/nbm_alunos_lista.html",
+            subpages: [
+               
+                { 
+                    name: "Jerfesson", 
+                    path: "content/.html",
+                    subpages: [
+                        { name: "1 - Jerfesson Violão Popular", path: "content/html/nbm_jefferson_violãopopular.html" },
+                        { name: "2 - Jerfesson Violino ", path: "content/.html" },
+                        { name: "3 - Jerfesson Teclado", path: "content/.html" },
+                        { name: "4 - Jerfesson Saxofone Alto", path: "content/.html" },
+                        { name: "5 - Jerfesson Flauta Doce Soprano", path: "content/.html" },
+                        { name: "6 - Jerfesson Violão Classico ", path: "content/.html" },
+                        { name: "7 - Jerfesson Ukulele", path: "content/.html" },
+                        { name: "8 - Jerfesson Trompete", path: "content/.html" },
+                        { name: "9 - Jerfesson Canto Coral", path: "content/.html" },
+                        { name: "10 - Jerfesson Canto", path: "content/.html" },
+                        { name: "11 - Jerfesson Arranjo/Composição", path: "content/.html" },
+                        { name: "12 - Jerfesson Harmonia", path: "content/.html" },
+                        { name: "13 - Jerfesson Improvisação", path: "content/.html" },
+                        { name: "14 - Jerfesson Notação Musical-ABC", path: "content/.html" },
+                        { name: "15 - Jerfesson Piano", path: "content/page1/section3/item2.html" }
+                    ]
+
+                },
+
+                {
+                    name: "Gervásio", 
+                    path: "content/Repertório.html",
+                    subpages: [
+                        { name: "Melodia", path: "content/html/Repertório1.html" },
+                        { name: "Harmonia", path: "content/html/Repertório1.html" },
+                        { name: "Ritmo", path: "content/html/Repertório1.html" },
+                        { name: "Repertório - Cifra", path: "content/html/Repertório2.html" },
+                        { name: "Repertório - Cifra e Letra", path: "content/html/Repertório2.html" }
+                    ]
+                },
+
+                {
+                    name: "Hanna", 
+                    path: "content/Repertório.html",
+                    subpages: [
+                        { name: "Melodia", path: "content/html/Repertório1.html" },
+                        { name: "Harmonia", path: "content/html/Repertório1.html" },
+                        { name: "Ritmo", path: "content/html/Repertório1.html" },
+                        { name: "Repertório - Cifra", path: "content/html/Repertório2.html" },
+                        { name: "Repertório - Cifra e Letra", path: "content/html/Repertório2.html" },
+                        { name: "Repertório - Partitura", path: "content/html/Repertório2.html" }
+                    ]
+                }
+            ]
+        },
+      
+       /* { 
+            name: "Outra Página (Exemplo 2)", 
+            path: "content/documento.html",
+            subpages: [
+                { name: "Subpágina 2.1", path: "content/page2/subpage1.html" }
+            ]
+        },
+*/
+        {   
+            name: "Arquivos - Lista", 
+            path: "content/html/listadearquivos.html",
+            subpages: [
+                { name: "Arquivos", path: "content/html/arquivos_geral.html" }
+            ]
+        
+        }
+    ];
+    let listItems = [];
+    let currentActiveLink = null;
+    function createListItem(file, parentElement, level = 0) {
+        const listItem = document.createElement('li');
+        const link = document.createElement('a');
+        link.href = file.path;
+        link.textContent = file.name;
+        link.title = file.name;
+        link.addEventListener('click', (event) => {
+            event.preventDefault();
+            if (file.subpages) {
+                const parentLi = event.target.closest('li');
+                parentLi.classList.toggle('collapsed');
+                const subpagesUl = parentLi.querySelector('ul');
+                if (subpagesUl) {
+                    subpagesUl.style.display = parentLi.classList.contains('collapsed') ? 'none' : 'block';
+                }
+                contentFrame.src = file.path;
+                if (currentActiveLink) {
+                    currentActiveLink.classList.remove('active');
+                }
+                link.classList.add('active');
+                currentActiveLink = link;
+            } else {
+                if (currentActiveLink) {
+                    currentActiveLink.classList.remove('active');
+                }
+                contentFrame.src = link.href;
+                link.classList.add('active');
+                currentActiveLink = link;
+            }
+        });
+        listItem.appendChild(link);
+        if (file.subpages) {
+            listItem.classList.add('has-subpages', 'collapsed');
+            const subpagesUl = document.createElement('ul');
+            subpagesUl.className = 'subpages';
+            file.subpages.forEach(subFile => {
+                createListItem(subFile, subpagesUl, level + 1);
+            });
+            listItem.appendChild(subpagesUl);
+        }
+        parentElement.appendChild(listItem);
+        listItems.push({ 
+            element: listItem, 
+            name: file.name.toLowerCase(),
+            level: level
+        });
+    }
+    function populateFileList(files) {
+        fileListElement.innerHTML = '';
+        listItems = [];
+        files.forEach(file => {
+            createListItem(file, fileListElement);
+        });
+        loadInitialFile();
+    }
+    function filterFiles() {
+        const searchTerm = searchInput.value.toLowerCase();
+        let hasVisibleItems = false;
+        listItems.forEach(item => {
+            const isVisible = item.name.includes(searchTerm);
+            const isParentVisible = item.level === 0 || 
+                                    Array.from(item.element.parentNode.children).some(
+                                        child => !child.classList.contains('hidden')
+                                    );
+            item.element.classList.toggle('hidden', !(isVisible || isParentVisible));
+            if (isVisible || isParentVisible) {
+                hasVisibleItems = true;
+                 if (item.element.querySelector('ul')) {
+                    item.element.classList.remove('collapsed');
+                    item.element.querySelector('ul').style.display = 'block';
+                }
+            }
+        });
+        updateActiveLinkAfterFilter();
+    }
+    function updateActiveLinkAfterFilter() {
+        if (currentActiveLink && currentActiveLink.closest('li').classList.contains('hidden')) {
+            currentActiveLink.classList.remove('active');
+            currentActiveLink = null;
+        }
+        const firstVisibleItem = listItems.find(item => !item.element.classList.contains('hidden'));
+        if (firstVisibleItem && !currentActiveLink) {
+            const firstLink = firstVisibleItem.element.querySelector('a');
+            if (firstLink) {
+                contentFrame.src = firstLink.href;
+                firstLink.classList.add('active');
+                currentActiveLink = firstLink;
+            }
+        } else if (!hasVisibleItems(listItems) && searchInput.value !== '') {
+            contentFrame.src = 'about:blank';
+        }
+    }
+    function hasVisibleItems(items) {
+        return items.some(item => !item.element.classList.contains('hidden'));
+    }
+    function loadInitialFile() {
+        const firstItem = listItems.find(item => item.level === 0);
+        if (firstItem) {
+            const firstLink = firstItem.element.querySelector('a');
+            if (firstLink && !currentActiveLink) {
+                contentFrame.src = firstLink.href;
+                firstLink.classList.add('active');
+                currentActiveLink = firstLink;
+            }
+        }
+    }
+    populateFileList(htmlFiles);
+    searchInput.addEventListener('input', filterFiles);
+    document.addEventListener('keydown', (e) => {
+        if (e.ctrlKey && e.key === 'f') {
+            e.preventDefault();
+            searchInput.focus();
+        }
+    });
+});
+    </script>
 </body>
 </html>
