@@ -6,8 +6,7 @@
         { 
             name: "NBM - Alunos - Lista", 
             path: "content/nbm_alunos_lista.html",
-            subpages: [
-               
+            subpages: [     
                 { 
                     name: "Jerfesson", 
                     path: "content/.html",
@@ -28,33 +27,14 @@
                         { name: "14 - Jerfesson Notação Musical-ABC", path: "content/.html" },
                         { name: "15 - Jerfesson Piano", path: "content/page1/section3/item2.html" }
                     ]
-
                 },
-
                 {
-                    name: "Gervásio", 
-                    path: "content/Repertório.html",
+                    name: "Alunos", 
                     subpages: [
-                        { name: "Melodia", path: "content/html/Repertório1.html" },
-                        { name: "Harmonia", path: "content/html/Repertório1.html" },
-                        { name: "Ritmo", path: "content/html/Repertório1.html" },
-                        { name: "Repertório - Cifra", path: "content/html/Repertório2.html" },
-                        { name: "Repertório - Cifra e Letra", path: "content/html/Repertório2.html" }
+                        { name: "Gervásio", path: "content/html_alunos/Gervasio.html" },
+                        { name: "Hanna", path: "content/html_alunos/Hanna.html" }                        
                     ]
-                },
-
-                {
-                    name: "Hanna", 
-                    path: "content/Repertório.html",
-                    subpages: [
-                        { name: "Melodia", path: "content/html/Repertório1.html" },
-                        { name: "Harmonia", path: "content/html/Repertório1.html" },
-                        { name: "Ritmo", path: "content/html/Repertório1.html" },
-                        { name: "Repertório - Cifra", path: "content/html/Repertório2.html" },
-                        { name: "Repertório - Cifra e Letra", path: "content/html/Repertório2.html" },
-                        { name: "Repertório - Partitura", path: "content/html/Repertório2.html" }
-                    ]
-                }
+                },  
             ]
         },
       
