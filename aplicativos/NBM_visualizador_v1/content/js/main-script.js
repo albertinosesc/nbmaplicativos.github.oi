@@ -2,6 +2,7 @@
 
 // =============================================
 // CONFIGURAÇÕES GLOBAIS
+//ATUALIZAÇÃO: 16-05-25
 // =============================================
 const globalRenderParams = { selectTypes: false };
 const globalSynthOptions = {};
@@ -394,3 +395,50 @@ let currentSynth = null; // Synth atual
       });
     });
   });
+
+  document.addEventListener('DOMContentLoaded', function() {
+  // Controle de zoom para a partitura
+  let currentScale = 0.85;
+  const abcContainer = document.querySelector('.abcjs-container');
+  
+  // Funções de zoom
+  function zoomIn() {
+    if (currentScale < 1.5) {
+      currentScale += 0.1;
+      applyZoom();
+    }
+  }
+  
+  function zoomOut() {
+    if (currentScale > 0.5) {
+      currentScale -= 0.1;
+      applyZoom();
+    }
+  }
+  
+  function applyZoom() {
+    abcContainer.style.transform = `scale(${currentScale})`;
+    abcContainer.style.width = `${100/currentScale}%`;
+  }
+  
+  // Adiciona listeners aos botões de zoom
+  document.querySelector('.zoom-in')?.addEventListener('click', zoomIn);
+  document.querySelector('.zoom-out')?.addEventListener('click', zoomOut);
+  
+  // Detecta toques na partitura para melhorar a interação
+  abcContainer?.addEventListener('touchstart', function(e) {
+    this.style.overflowX = 'auto';
+  }, { passive: true });
+  
+  // Ajuste inicial para dispositivos móveis
+  if (window.innerWidth < 600) {
+    if (window.innerHeight > window.innerWidth) {
+      // Modo retrato
+      currentScale = 0.75;
+    } else {
+      // Modo paisagem
+      currentScale = 1;
+    }
+    applyZoom();
+  }
+});
