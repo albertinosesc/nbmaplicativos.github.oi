@@ -207,3 +207,24 @@ document.addEventListener('DOMContentLoaded', function() {
   // Aqui você pode adicionar a lógica para carregar arquivos e pesquisa
   // ...
 });
+
+// Adicione isso no final do seu script.js
+function adjustIframeForMobile() {
+  if (window.innerWidth <= 768) {
+    // Ajusta o viewport para conteúdo responsivo
+    const metaViewport = document.createElement('meta');
+    metaViewport.name = 'viewport';
+    metaViewport.content = 'width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes';
+    document.head.appendChild(metaViewport);
+    
+    // Configura o iframe para permitir zoom
+    iframe.style.width = '100%';
+    iframe.style.minWidth = '100%';
+    iframe.style.transform = 'scale(1)';
+    iframe.style.transformOrigin = '0 0';
+  }
+}
+
+// Executa ao carregar e ao redimensionar a tela
+window.addEventListener('load', adjustIframeForMobile);
+window.addEventListener('resize', adjustIframeForMobile);
