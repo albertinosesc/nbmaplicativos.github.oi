@@ -187,3 +187,23 @@ iframe.src = "content/alunos/Lista_Geral_Arquivo/Lista_Geral_Arquivo.html";
 
 // Ativar o link correspondente após o carregamento
 window.addEventListener('load', activateInitialLink);
+document.addEventListener('DOMContentLoaded', function() {
+  const menuToggle = document.querySelector('.menu-toggle');
+  const sidebar = document.getElementById('sidebar');
+  const mobileOverlay = document.querySelector('.mobile-overlay');
+  
+  // Alternar menu mobile
+  menuToggle.addEventListener('click', function() {
+    sidebar.classList.toggle('active');
+    mobileOverlay.classList.toggle('active');
+  });
+  
+  // Fechar menu ao clicar no overlay
+  mobileOverlay.addEventListener('click', function() {
+    sidebar.classList.remove('active');
+    mobileOverlay.classList.remove('active');
+  });
+  
+  // Aqui você pode adicionar a lógica para carregar arquivos e pesquisa
+  // ...
+});
