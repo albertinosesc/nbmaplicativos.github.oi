@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Leitor de Cifras JSON + Gerador de Lista</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    button, select { padding: 10px; margin: 5px; }
+    pre { background: #f0f0f0; padding: 10px; border-radius: 5px; }
+  </style>
+</head>
+<body>
+
+<h1>Leitor de Cifras JSON</h1>
+
+<button onclick="selecionarPasta()">Selecionar Pasta de Músicas</button>
+<button onclick="baixarLista()">Baixar lista-musicas.json</button>
+
+<h2>Lista de Músicas</h2>
+<select id="seletor"></select>
+<button onclick="carregarMusica()">Carregar Música</button>
+
+<h2 id="titulo"></h2>
+<h3 id="artista"></h3>
+<pre id="cifra"></pre>
+
+<script>
+let arquivos = [];
+let pastaHandle = null;
+
+async function selecionarPasta() {
+  try {
+    pastaHandle = await window.showDirectoryPicker();
+    arquivos = [];
+
+    const seletor = document.getElementById('seletor');
+    seletor.innerHTML = '';
+
+    for await (const entry of pastaHandle.values()) {
+      if (entry.kind === 'file' && entry.name.endsWith('.json')) {
+        arquivos.push(entry);
+        const opcao = document.createElement('option');
+        opcao.value = entry.name;
+        opcao.textContent = entry.name.replace('.json', '').replace(/-/g, ' ');
+        seletor.appendChild(opcao);
+      }
+    }
+
+    if (arquivos.length === 0) {
+      alert('Nenhum arquivo JSON encontrado na pasta.');
+    }
+
+  } catch (e) {
+    console.error(e);
+    alert('Erro ou operação cancelada.');
+  }
+}
+
+async function carregarMusica() {
+  const seletor = document.getElementById('seletor');
+  const nomeArquivo = seletor.value;
+
+  const arquivo = arquivos.find(a => a.name === nomeArquivo);
+  if (!arquivo) {
+    alert('Arquivo não encontrado.');
+    return;
+  }
+
+  const file = await arquivo.getFile();
+  const texto = await file.text();
+  const musica = JSON.parse(texto);
+
+  document.getElementById('titulo').textContent = musica.titulo || '';
+  document.getElementById('artista').textContent = musica.artista || '';
+  document.getElementById('cifra').textContent = (musica.cifra || []).join('\n');
+}
+
+function baixarLista() {
+  if (arquivos.length === 0) {
+    alert('Nenhum arquivo carregado.');
+    return;
+  }
+
+  const lista = arquivos.map(a => a.name);
+  const blob = new Blob([JSON.stringify(lista, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'lista-musicas.json';
+  a.click();
+
+  URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>
