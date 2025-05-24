@@ -41,6 +41,14 @@ const files = [
                 subpages: [
                     { name: "Hanna_Teclado - 1", path: "content/alunos/.html"}
                 ]
+            },
+
+            {
+                name: "Albertino", 
+                path: "",
+                subpages: [
+                    { name: "Albertino_Teclado - 1", path: "content/alunos/Albertino/Albertino.html"}
+                ]
             }
         ]
     },
