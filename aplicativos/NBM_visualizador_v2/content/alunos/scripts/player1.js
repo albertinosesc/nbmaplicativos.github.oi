@@ -119,26 +119,63 @@ function chordToDegree(chord) {
         }
 
         // Exibir os acordes formatados
-        function displayChords() {
-            let finalOutput = '';
-            const lines = originalChords.split('\n');
-            const useSharp = getNotation() === notesSharp;
-            const showDegrees = displayMode.value === 'degrees';
+function displayChords() {
+    let finalOutput = '';
+    const lines = originalChords.split('\n');
+    const useSharp = getNotation() === notesSharp;
+    const showDegrees = displayMode.value === 'degrees';
 
-            lines.forEach(line => {
-                const processedLine = line.replace(/\[([^\]]+)\]/g, (match, chord) => {
-                    const transposed = transposeChord(chord, currentSemitones, useSharp);
-                    if (showDegrees) {
-                        return chordToDegree(transposed);
-                    }
-                    return transposed;
-                });
-                finalOutput += processedLine + '\n';
-            });
+    lines.forEach(line => {
+        // Processar acordes
+        let processedLine = line.replace(/\[([^\]]+)\]/g, (match, chord) => {
+            const transposed = transposeChord(chord, currentSemitones, useSharp);
+            return showDegrees ? chordToDegree(transposed) : transposed;
+        });
 
-            musicContainer.innerHTML = `<pre>${finalOutput}</pre>`;
+        // Criar linha de números e linha de barras
+        let numbersLine = '';
+        let barsLine = '';
+        let currentPos = 0;
+
+        // Processar cada segmento da linha
+        const segments = processedLine.split(/(\|+\*+)/g);
+        
+        segments.forEach(segment => {
+            const match = segment.match(/(\|+)(\*+)/);
+            
+            if (match) {
+                const bars = match[1];
+                const stars = match[2];
+                const starCount = stars.length;
+                const totalLength = bars.length + stars.length;
+                
+                // Adicionar à linha de números
+                const centerPos = Math.floor(bars.length / 2);
+                for (let i = 0; i < bars.length; i++) {
+                    numbersLine += (i === centerPos) ? starCount : ' ';
+                }
+                
+                // Adicionar à linha de barras (sem asteriscos)
+                barsLine += bars;
+                
+                currentPos += totalLength;
+            } else {
+                // Adicionar texto normal
+                numbersLine += ' '.repeat(segment.length);
+                barsLine += segment;
+                currentPos += segment.length;
+            }
+        });
+
+        // Adicionar ao output se houver números
+        if (numbersLine.trim() !== '') {
+            finalOutput += numbersLine + '\n';
         }
+        finalOutput += barsLine + '\n';
+    });
 
+    musicContainer.innerHTML = `<pre style="line-height: 1.1; font-family: monospace;">${finalOutput}</pre>`;
+}
         // Função para transpor acordes
         function transposeChord(chord, semitones, useSharp) {
             const notes = useSharp ? notesSharp : notesFlat;
