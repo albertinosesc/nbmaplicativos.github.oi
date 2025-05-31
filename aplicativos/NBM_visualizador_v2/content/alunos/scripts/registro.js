@@ -31,7 +31,7 @@
       document.getElementById(`wrapper-${tables[currentTableIndex].id}`).style.display = 'block';
 
       updateSelectors();
-      updateStickyButtonState();  
+      updateStickyButtonState();   
       adjustStickyHeaderPosition(); // Ajusta a posição ao trocar de tabela
     }
   }
@@ -46,6 +46,7 @@
     
     const title = document.createElement('h3');
     title.textContent = tableTitle;
+    title.id = `title-${tableId}`; // Adiciona um ID ao h3 para fácil acesso
     
     const actions = document.createElement('div');
     actions.className = 'table-actions';
@@ -98,7 +99,7 @@
     
     updateTableSelector();
     updateSelectors();
-    updateStickyButtonState();  
+    updateStickyButtonState();   
     adjustStickyHeaderPosition(); // Ajusta a posição ao adicionar nova tabela
     
     saveToLocalStorage();
@@ -137,7 +138,7 @@
     
     updateTableSelector();
     updateSelectors();
-    updateStickyButtonState();  
+    updateStickyButtonState();   
     adjustStickyHeaderPosition(); // Ajusta a posição ao remover tabela
     
     saveToLocalStorage(); // Salva as alterações no Local Storage
@@ -208,7 +209,7 @@
             document.getElementById(`wrapper-${tableData.id}`).style.display = (index === currentTableIndex) ? 'block' : 'none';
         });
       } else {
-        addNewTable();  
+        addNewTable();   
       }
       
       return true;
@@ -410,6 +411,32 @@
       saveToLocalStorage();
       document.getElementById('newHeaderName').value = '';
     }
+  }
+
+  /**
+   * Renomeia a tabela atualmente selecionada.
+   */
+  function renameTable() {
+    const currentTableData = tables[currentTableIndex];
+    if (!currentTableData) {
+      alert("Nenhuma tabela selecionada para renomear.");
+      return;
+    }
+
+    const newTableNameInput = document.getElementById('newTableName');
+    const newName = newTableNameInput.value.trim();
+
+    if (newName.length === 0) {
+      alert("Por favor, insira um novo nome para a tabela.");
+      return;
+    }
+
+    currentTableData.title = newName; // Atualiza o título no array de tabelas
+    document.getElementById(`title-${currentTableData.id}`).textContent = newName; // Atualiza o título no HTML
+    updateTableSelector(); // Atualiza o seletor de tabelas para mostrar o novo nome
+    saveToLocalStorage(); // Salva a alteração no localStorage
+    newTableNameInput.value = ''; // Limpa o campo de input
+    alert(`Tabela renomeada para "${newName}".`);
   }
 
   function clearTable() {
@@ -677,10 +704,10 @@
   }
 
   function toggleSticky() {
-    const currentTable = getCurrentTable();  
-    if (!currentTable) return;  
+    const currentTable = getCurrentTable();   
+    if (!currentTable) return;   
 
-    currentTable.classList.toggle('sticky-header');  
+    currentTable.classList.toggle('sticky-header');   
     
     if (currentTable.classList.contains('sticky-header')) {
       adjustStickyHeaderPosition(); // Ajusta a posição quando ativado
@@ -712,7 +739,7 @@
     attachCellInputListeners();
     updateTableSelector();
     updateSelectors();
-    updateStickyButtonState();  
+    updateStickyButtonState();   
 
     window.addEventListener('resize', adjustStickyHeaderPosition);
 
