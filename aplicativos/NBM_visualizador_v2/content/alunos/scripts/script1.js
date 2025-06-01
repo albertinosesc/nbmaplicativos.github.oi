@@ -1,4 +1,3 @@
-
 const searchInput = document.getElementById('search');
 const resultsDiv = document.getElementById('results');
 
@@ -19,7 +18,15 @@ searchInput.addEventListener('keydown', function(e) {
 function updateResults() {
     const searchTerm = searchInput.value.trim().toLowerCase();
     const selectedType = document.querySelector('input[name="type"]:checked').value;
-    const list = selectedType === 'music' ? musicList : textList;
+    
+    let list;
+    if (selectedType === 'music') {
+        list = musicList;
+    } else if (selectedType === 'abordagem') {
+        list = abordagemList;
+    } else {
+        list = textList;
+    }
 
     const filtered = list.filter(item => item.name.toLowerCase().includes(searchTerm));
 
