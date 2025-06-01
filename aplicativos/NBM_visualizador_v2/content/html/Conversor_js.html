@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Conversor JS</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      line-height: 1.6;
+    }
+    textarea {
+      width: 100%;
+      height: 400px;
+      font-family: monospace;
+      padding: 10px;
+      margin-bottom: 15px;
+    }
+    button {
+      padding: 12px 20px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      border-radius: 4px;
+      transition: background 0.3s;
+      margin-right: 10px;
+      margin-bottom: 10px;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    .mode-selector {
+      margin-bottom: 15px;
+    }
+    .mode-btn {
+      background: #555;
+    }
+    .mode-btn.active {
+      background: #4CAF50;
+    }
+    #fileList {
+      margin-top: 20px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 5px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    .file-item {
+      margin-bottom: 8px;
+      padding: 8px;
+      background: #fff;
+      border-radius: 3px;
+      border-left: 4px solid #4CAF50;
+    }
+    .progress-bar {
+      width: 100%;
+      background-color: #f1f1f1;
+      border-radius: 4px;
+      margin: 15px 0;
+      display: none;
+    }
+    #progress {
+      height: 24px;
+      border-radius: 4px;
+      background-color: #4CAF50;
+      width: 0%;
+      text-align: center;
+      line-height: 24px;
+      color: white;
+    }
+      p4{
+    font-size: 24px;
+  }
+  </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+</head>
+<body>
+  <p4><a href="../alunos/Lista_Geral_Arquivo/Lista_Geral_Arquivo.html" class="voltar-link">← Home</a></p4>
+  <h1>Conversor JS</h1>
+  <h2>Conversor de Texto para Music, Text e Abordagem</h2>
+  
+  <div class="mode-selector">
+    <button id="musicMode" class="mode-btn active" onclick="setMode('music')">Music</button>
+    <button id="textMode" class="mode-btn" onclick="setMode('text')">Text</button>
+    <button id="abordMode" class="mode-btn" onclick="setMode('abord')">Abordagem</button>
+  </div>
+  
+  <textarea id="abcInput" placeholder="Cada música ou texto começa com X: e T:"></textarea>
+  
+  <button onclick="processAll()">Gerar/Baixar (ZIP)</button>
+  
+  <div class="progress-bar" id="progressContainer">
+    <div id="progress">0%</div>
+  </div>
+  
+  <h2>Arquivos que serão gerados:</h2>
+  <div id="fileList">Nenhum conteúdo detectado ainda...</div>
+
+  <script>
+    let currentMode = 'music';
+
+    function setMode(mode) {
+      currentMode = mode;
+      ['musicMode', 'textMode', 'abordMode'].forEach(id => {
+        document.getElementById(id).classList.remove('active');
+      });
+      document.getElementById(mode + 'Mode').classList.add('active');
+
+      const textarea = document.getElementById('abcInput');
+      textarea.placeholder = mode === 'music' 
+        ? "Cole suas notações ABC aqui, cada música começando com X:" 
+        : "Cole seus textos aqui, cada bloco começando com X: e T:";
+      
+      updatePreview();
+    }
+
+    function processAll() {
+      const inputText = document.getElementById('abcInput').value;
+      if (!inputText.trim()) {
+        alert("Por favor, cole seu conteúdo primeiro!");
+        return;
+      }
+
+      const progressBar = document.getElementById('progress');
+      const progressContainer = document.getElementById('progressContainer');
+      progressContainer.style.display = 'block';
+      progressBar.style.width = '0%';
+      progressBar.textContent = '0%';
+
+      setTimeout(() => {
+        let result;
+        if (currentMode === 'music') {
+          result = processMusic(inputText);
+        } else if (currentMode === 'text') {
+          result = processText(inputText);
+        } else {
+          result = processAbord(inputText);
+        }
+
+        updateFileList(result.items);
+
+        progressBar.style.width = '50%';
+        progressBar.textContent = '50%';
+
+        setTimeout(() => {
+          generateZip(result.items).then(() => {
+            progressBar.style.width = '100%';
+            progressBar.textContent = '100% - Download completo!';
+          });
+        }, 100);
+      }, 100);
+    }
+
+    function processMusic(abcText) {
+      const sections = abcText.split(/^X:/m).filter(s => s.trim() !== '');
+      const items = [];
+
+      sections.forEach(section => {
+        const fullSection = 'X:' + section.trim();
+        const lines = fullSection.split('\n');
+
+        const titleLine = lines.find(line => line.startsWith('T:'));
+        let number = '00000';
+        let title = 'Sem Título';
+
+        if (titleLine) {
+          title = titleLine.substring(2).trim();
+          const numberMatch = title.match(/^\d+/);
+          if (numberMatch) {
+            number = numberMatch[0];
+            title = title.replace(number, '').replace(/^[\s\-]+/, '').trim();
+          }
+        }
+
+        items.push({
+          id: `music${number}`,
+          title: title,
+          content: fullSection,
+          filename: `music${number}.js`,
+          type: 'music'
+        });
+      });
+
+      return { items };
+    }
+
+    function processText(text) {
+      const today = getTodayFormatted();
+      const entries = text.split(/\n(?=X:\d+)/g).filter(e => e.trim() !== '');
+      const items = [];
+
+      entries.forEach(entry => {
+        const lines = ('X:' + entry.trim()).split('\n');
+        const titleLine = lines.find(line => line.startsWith('T:'));
+        if (!titleLine) return;
+
+        const title = titleLine.replace('T:', '').trim();
+        const match = title.match(/^(\d+)\s*-\s*(.+)$/);
+        if (!match) return;
+
+        const number = match[1];
+        const titleText = match[2];
+
+        const contentLines = lines.filter(line => !line.startsWith('X:') && !line.startsWith('T:'));
+        const htmlBody = contentLines.join('\n');
+
+        const fullContent = `
+<p2>última atualização - ${today}</p2>
+<h2>${title}</h2>
+${htmlBody}`;
+
+        items.push({
+          id: `text${number}`,
+          title: title,
+          content: fullContent,
+          filename: `text${number}.js`,
+          type: 'text'
+        });
+      });
+
+      return { items };
+    }
+
+    function processAbord(text) {
+      const today = getTodayFormatted();
+      const entries = text.split(/\n(?=X:\d+)/g).filter(e => e.trim() !== '');
+      const items = [];
+
+      entries.forEach(entry => {
+        const lines = ('X:' + entry.trim()).split('\n');
+        const titleLine = lines.find(line => line.startsWith('T:'));
+        if (!titleLine) return;
+
+        const title = titleLine.replace('T:', '').trim();
+        const match = title.match(/^(\d+)\s*-\s*(.+)$/);
+        if (!match) return;
+
+        const number = match[1];
+        const titleText = match[2];
+
+        const contentLines = lines.filter(line => !line.startsWith('X:') && !line.startsWith('T:'));
+        const abordBody = contentLines.join('\n');
+
+        const fullContent = `
+<p2>última atualização - ${today}</p2>
+<h2>${title}</h2>
+${abordBody}`;
+
+        items.push({
+          id: `abord${number}`,
+          title: title,
+          content: fullContent,
+          filename: `abord${number}.js`,
+          type: 'abord'
+        });
+      });
+
+      return { items };
+    }
+
+    function getTodayFormatted() {
+      const today = new Date();
+      const dd = String(today.getDate()).padStart(2, '0');
+      const mm = String(today.getMonth() + 1).padStart(2, '0');
+      const yy = String(today.getFullYear()).slice(2);
+      return `${dd}-${mm}-${yy}`;
+    }
+
+    function updateFileList(items) {
+      const fileList = document.getElementById('fileList');
+
+      if (items.length === 0) {
+        fileList.innerHTML = currentMode === 'music' 
+          ? 'Nenhuma música detectada.' 
+          : 'Nenhum bloco de texto detectado.';
+        return;
+      }
+
+      fileList.innerHTML = items.map(item => 
+        `<div class="file-item">
+          <strong>${item.filename}</strong><br>
+          <em>${item.title}</em> (ID: ${item.id})
+        </div>`
+      ).join('');
+    }
+
+    function generateZip(items) {
+      const zip = new JSZip();
+
+      items.forEach(item => {
+        let content;
+        if (item.type === 'music') {
+          content = `registerSong({\n  id: '${item.id}',\n  title: '${item.title.replace(/'/g, "\\'")}',\n  abc: \`${item.content}\`\n});`;
+        } else if (item.type === 'text') {
+          content = `registerTextBlock({\n  id: "${item.id}",\n  content: \`${item.content}\n  \`\n});`;
+        } else if (item.type === 'abord') {
+          content = `registerAbordagem({\n  id: "${item.id}",\n  content: \`${item.content}\n  \`\n});`;
+        }
+        zip.file(item.filename, content);
+      });
+
+      const zipName = currentMode === 'music' 
+        ? 'music_files.zip' 
+        : currentMode === 'text' 
+          ? 'text_files.zip' 
+          : 'abord_files.zip';
+
+      return zip.generateAsync({ type: 'blob' }).then(content => {
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = zipName;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
+    }
+
+    function updatePreview() {
+      const inputText = document.getElementById('abcInput').value;
+      if (inputText.trim()) {
+        let result;
+        if (currentMode === 'music') {
+          result = processMusic(inputText);
+        } else if (currentMode === 'text') {
+          result = processText(inputText);
+        } else {
+          result = processAbord(inputText);
+        }
+        updateFileList(result.items);
+      } else {
+        document.getElementById('fileList').innerHTML = 
+          currentMode === 'music' 
+            ? 'Nenhuma música detectada ainda...' 
+            : 'Nenhum bloco detectado ainda...';
+      }
+    }
+
+    document.getElementById('abcInput').addEventListener('input', updatePreview);
+  </script>
+</body>
+</html>

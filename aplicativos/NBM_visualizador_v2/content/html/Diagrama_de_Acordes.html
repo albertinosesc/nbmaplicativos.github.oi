@@ -1,0 +1,804 @@
+<!--Diagrama de Acordes-->
+<!--Atualização: 23-05-25-->
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Diagrama de Acordes</title>
+    <style>
+        input, select, button { margin: 4px; }
+        #saida svg { border: 1px solid #ccc; margin-top: 10px; }
+        #editor-dedos {
+            position: absolute;
+            background: white;
+            border: 1px solid #ccc;
+            padding: 10px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.2);
+            display: none;
+            z-index: 100;
+        }
+        .botao-dedo {
+            width: 30px;
+            height: 30px;
+            margin: 2px;
+            font-size: 14px;
+        }
+          p4{
+    font-size: 24px;
+  }
+    </style>
+</head>
+<body>
+<p4><a href="../alunos/Lista_Geral_Arquivo/Lista_Geral_Arquivo.html" class="voltar-link">← Home</a></p4>
+<h1>Gerador de Diagrama de Acordes</h1>
+
+<label for="titulo">Título:</label>
+<input type="text" id="titulo" placeholder="C" />
+
+<label for="cordas">Número de cordas:</label>
+<input type="number" id="cordas" value="6" min="1" max="12" />
+
+<label for="trasteInicial">Traste inicial:</label>
+<input type="number" id="trasteInicial" value="1" min="1" />
+
+<label for="trastes">Número de trastes:</label>
+<input type="number" id="trastes" value="4" min="1" />
+
+<label for="orientacao">Orientação:</label>
+<select id="orientacao">
+    <option value="normal">Normal</option>
+    <option value="invertida">Invertida</option>
+    <option value="horizontal">Horizontal</option>
+    <option value="vertical">Vertical</option>
+</select>
+<h3>Cor das Notas:</h3>
+<input type="color" id="corNota" value="#000000" />
+
+
+<h3>Notas das cordas (da mais grave para a mais aguda):</h3>
+<div>
+    <label for="nota-corda-1">Corda 6:</label>
+    <input type="text" id="nota-corda-1" value="E" />
+</div>
+<div>
+    <label for="nota-corda-2">Corda 5:</label>
+    <input type="text" id="nota-corda-2" value="A" />
+</div>
+<div>
+    <label for="nota-corda-3">Corda 4:</label>
+    <input type="text" id="nota-corda-3" value="D" />
+</div>
+<div>
+    <label for="nota-corda-4">Corda 3:</label>
+    <input type="text" id="nota-corda-4" value="G" />
+</div>
+<div>
+    <label for="nota-corda-5">Corda 2:</label>
+    <input type="text" id="nota-corda-5" value="B" />
+</div>
+<div>
+    <label for="nota-corda-6">Corda 1:</label>
+    <input type="text" id="nota-corda-6" value="E" />
+</div>
+
+<button id="definirNotas">Definir Notas</button>
+
+<h3>Pestana</h3>
+<label>Traste:</label>
+<input type="number" id="trastePestana" value="1" min="1">
+<label>Corda Inicial:</label>
+<input type="number" id="cordaInicioPestana" value="1" min="1">
+<label>Corda Final:</label>
+<input type="number" id="cordaFimPestana" value="6" min="1">
+<button id="adicionarPestana">Adicionar Pestana</button>
+
+<h3>Exibir:</h3>
+<select id="exibirNotas">
+    <option value="notas">Notas</option>
+    <option value="dedos">Números dos Dedos</option>
+    <option value="graus">Graus</option>
+</select>
+
+<button id="gerarDiagrama">Gerar Diagrama</button>
+<button id="limparDiagrama">Limpar Diagrama</button>
+<button id="exportarAcorde">Exportar Acorde</button>
+<button id="salvarComoSVG">Salvar como SVG</button>
+
+<div id="editor-dedos">
+    <p>Selecione o dedo:</p>
+    <button class="botao-dedo" data-dedo="1">1</button>
+    <button class="botao-dedo" data-dedo="2">2</button>
+    <button class="botao-dedo" data-dedo="3">3</button>
+    <button class="botao-dedo" data-dedo="4">4</button>
+    <button class="botao-dedo" data-dedo="T">T</button>
+    <button class="botao-dedo" data-dedo="">Nota</button>
+    <button class="botao-dedo" data-dedo="close">X</button>
+</div>
+
+<div id="saida"></div>
+
+<script>
+// Objeto principal que armazena todo o estado do aplicativo
+const appState = {
+    orientacao: "normal",
+    notasPorCorda: ['E', 'A', 'D', 'G', 'B', 'E'],
+    exibirTipo: "notas",
+    pestanas: [],
+    notasCasaZero: {}, // Estado das cordas soltas (casa zero)
+    dedosNotas: {},
+    notasAtivas: {},
+    notaEditando: null,
+    tonicaAcorde: null
+};
+
+// Constantes de configuração
+const CONFIG = {
+    larguraPadrao: 300,
+    alturaPadrao: 400,
+    margemPadrao: 60,
+    alturaCasaZero: 55,
+    raioNota: 13,
+    cores: {
+        padrao: "#000000",
+        texto: "#ffffff",
+        fundo: "#ffffff",
+        borda: "#cccccc"
+    }
+};
+
+// Mapeamento de notas por corda e traste
+const cordasViolao = {
+    // 6ª corda (E2 - mais grave)
+    '6': {
+        '0': 'E2', '1': 'F2', '2': 'F#2', '3': 'G2', '4': 'G#2', '5': 'A2',
+        '6': 'A#2', '7': 'B2', '8': 'C3', '9': 'C#3', '10': 'D3', '11': 'D#3', '12': 'E3'
+    },
+    // 5ª corda (A2)
+    '5': {
+        '0': 'A2', '1': 'A#2', '2': 'B2', '3': 'C3', '4': 'C#3', '5': 'D3',
+        '6': 'D#3', '7': 'E3', '8': 'F3', '9': 'F#3', '10': 'G3', '11': 'G#3', '12': 'A3'
+    },
+    // 4ª corda (D3)
+    '4': {
+        '0': 'D3', '1': 'D#3', '2': 'E3', '3': 'F3', '4': 'F#3', '5': 'G3',
+        '6': 'G#3', '7': 'A3', '8': 'A#3', '9': 'B3', '10': 'C4', '11': 'C#4', '12': 'D4'
+    },
+    // 3ª corda (G3)
+    '3': {
+        '0': 'G3', '1': 'G#3', '2': 'A3', '3': 'A#3', '4': 'B3', '5': 'C4',
+        '6': 'C#4', '7': 'D4', '8': 'D#4', '9': 'E4', '10': 'F4', '11': 'F#4', '12': 'G4'
+    },
+    // 2ª corda (B3)
+    '2': {
+        '0': 'B3', '1': 'C4', '2': 'C#4', '3': 'D4', '4': 'D#4', '5': 'E4',
+        '6': 'F4', '7': 'F#4', '8': 'G4', '9': 'G#4', '10': 'A4', '11': 'A#4', '12': 'B4'
+    },
+    // 1ª corda (E4 - mais aguda)
+    '1': {
+        '0': 'E4', '1': 'F4', '2': 'F#4', '3': 'G4', '4': 'G#4', '5': 'A4',
+        '6': 'A#4', '7': 'B4', '8': 'C5', '9': 'C#5', '10': 'D5', '11': 'D#5', '12': 'E5'
+    }
+};
+
+const notasComSustenidos = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+
+// Inicialização do aplicativo
+function inicializarAplicativo() {
+    try {
+        // Configura eventos
+        document.getElementById('orientacao').addEventListener('change', alterarOrientacao);
+        document.getElementById('exibirNotas').addEventListener('change', alternarExibicaoNotas);
+        document.getElementById('definirNotas').addEventListener('click', definirNotasCordas);
+        document.getElementById('adicionarPestana').addEventListener('click', adicionarPestana);
+        document.getElementById('gerarDiagrama').addEventListener('click', gerarDiagrama);
+        document.getElementById('limparDiagrama').addEventListener('click', limparDiagrama);
+        document.getElementById('exportarAcorde').addEventListener('click', exportarAcorde);
+        document.getElementById('salvarComoSVG').addEventListener('click', salvarComoSVG);
+
+        // Configura eventos dos botões de dedos
+        document.querySelectorAll('.botao-dedo').forEach(botao => {
+            botao.addEventListener('click', function() {
+                const dedo = this.getAttribute('data-dedo');
+                if (dedo === 'close') {
+                    fecharEditor();
+                } else {
+                    definirDedo(dedo);
+                }
+            });
+        });
+
+        // Inicializa a casa zero
+        inicializarCasaZero();
+        
+        // Cria SVG inicial
+        criarSVGInicial();
+    } catch (error) {
+        console.error("Erro na inicialização:", error);
+        alert("Ocorreu um erro ao inicializar o aplicativo. Por favor, recarregue a página.");
+    }
+}
+
+// Inicializa o estado da casa zero
+function inicializarCasaZero() {
+    // Definimos 4 estados possíveis para a casa zero:
+    // null: sem marcação (totalmente vazia)
+    // true: bolinha vazia (corda solta tocada)
+    // 'X': X (corda abafada)
+    // 'nota': bolinha preta com a nota/grau (corda solta que faz parte do acorde e é exibida)
+    for (let i = 0; i < 6; i++) {
+        appState.notasCasaZero[i] = null; 
+    }
+}
+
+// Funções de manipulação de estado
+function alterarOrientacao() {
+    try {
+        appState.orientacao = document.getElementById("orientacao").value;
+        gerarDiagrama();
+    } catch (error) {
+        console.error("Erro ao alterar orientação:", error);
+    }
+}
+
+function definirNotasCordas() {
+    try {
+        appState.notasPorCorda = [];
+        for (let i = 1; i <= 6; i++) {
+            const input = document.getElementById(`nota-corda-${i}`);
+            if (input) {
+                appState.notasPorCorda.push(input.value.toUpperCase());
+            }
+        }
+        gerarDiagrama();
+    } catch (error) {
+        console.error("Erro ao definir notas das cordas:", error);
+        alert("Erro ao definir notas das cordas. Verifique os valores informados.");
+    }
+}
+
+function alternarExibicaoNotas() {
+    try {
+        appState.exibirTipo = document.getElementById("exibirNotas").value;
+        gerarDiagrama();
+    } catch (error) {
+        console.error("Erro ao alternar exibição de notas:", error);
+    }
+}
+
+function adicionarPestana() {
+    try {
+        const traste = parseInt(document.getElementById("trastePestana").value) || 1;
+        const inicio = parseInt(document.getElementById("cordaInicioPestana").value) - 1 || 0;
+        const fim = parseInt(document.getElementById("cordaFimPestana").value) - 1 || 5;
+        
+        if (inicio < 0 || fim < 0 || inicio > fim) {
+            throw new Error("Intervalo de cordas inválido para pestana");
+        }
+
+        appState.pestanas.push({ traste, inicio, fim });
+        gerarDiagrama();
+    } catch (error) {
+        console.error("Erro ao adicionar pestana:", error);
+        alert("Erro ao adicionar pestana. Verifique os valores informados.");
+    }
+}
+
+// Funções de renderização
+function criarSVGInicial() {
+    try {
+        const saida = document.getElementById("saida");
+        if (saida && !saida.querySelector("svg")) {
+            saida.innerHTML = `
+                <svg id="svg-diagrama" 
+                     width="${CONFIG.larguraPadrao}" 
+                     height="${CONFIG.alturaPadrao}" 
+                     viewBox="0 0 ${CONFIG.larguraPadrao} ${CONFIG.alturaPadrao}" 
+                     xmlns="http://www.w3.org/2000/svg">
+                </svg>`;
+        }
+    } catch (error) {
+        console.error("Erro ao criar SVG inicial:", error);
+    }
+}
+
+function gerarDiagrama() {
+    try {
+        const titulo = document.getElementById("titulo").value || "Diagrama";
+        const cordas = parseInt(document.getElementById("cordas").value) || 6;
+        const trastes = parseInt(document.getElementById("trastes").value) || 4;
+        const trasteInicial = parseInt(document.getElementById("trasteInicial").value) || 1;
+
+        const { larguraPadrao: largura, alturaPadrao: altura, margemPadrao: margem } = CONFIG;
+        const espacamentoCordas = (largura - 2 * margem) / Math.max(1, cordas - 1);
+        const espacamentoTrastes = (altura - 2 * margem - CONFIG.alturaCasaZero) / trastes;
+
+        // Tenta determinar a tônica do acorde com base na primeira nota do título
+        const match = titulo.match(/^[A-G][b#]?/);
+        appState.tonicaAcorde = match ? match[0] : null;
+
+        let svg = `
+            <svg id="svg-diagrama" 
+                 width="${largura}" 
+                 height="${altura}" 
+                 viewBox="0 0 ${largura} ${altura}" 
+                 xmlns="http://www.w3.org/2000/svg">
+                <text x="${largura / 2}" y="60" font-size="60" text-anchor="middle">${titulo}</text>
+                <line x1="${margem}" y1="${margem + CONFIG.alturaCasaZero}" 
+                      x2="${largura - margem}" y2="${margem + CONFIG.alturaCasaZero}" 
+                      stroke="#000" stroke-width="4" />`;
+
+        // Desenha cordas e casa zero
+        for (let i = 0; i < cordas; i++) {
+            const x = margem + i * espacamentoCordas;
+            svg += `
+                <line x1="${x}" y1="${margem + CONFIG.alturaCasaZero}" 
+                      x2="${x}" y2="${altura - margem}" 
+                      stroke="#000" stroke-width="2"/>`;
+
+            // Renderiza a casa zero (corda solta)
+            const yCasaZero = margem + CONFIG.alturaCasaZero / 2;
+            const estadoCasaZero = appState.notasCasaZero[i];
+            
+            if (estadoCasaZero === 'X') {
+                svg += `<text x="${x}" y="${yCasaZero + 8}" font-size="26" text-anchor="middle">X</text>`;
+            } else if (estadoCasaZero === true) { // Bolinha vazia
+                svg += `<circle cx="${x}" cy="${yCasaZero}" r="${CONFIG.raioNota}" 
+                                 fill="none" stroke="#000" stroke-width="2" class="casa-zero-circulo" />`;
+            } else if (estadoCasaZero === 'nota') { // Bolinha preta com nota/grau
+                const cordaNum = 6 - i; // Para mapear cordasViolao (1-6)
+                const notaCordaSoltaCompleta = cordasViolao[cordaNum.toString()]['0'];
+                let valorExibido;
+
+                if (appState.exibirTipo === "notas") {
+                    valorExibido = notaCordaSoltaCompleta.replace(/[0-9]/g, ''); // Apenas o nome da nota
+                } else if (appState.exibirTipo === "graus") {
+                    valorExibido = calcularGrauDaNota(notaCordaSoltaCompleta, appState.tonicaAcorde);
+                } else { // Para "dedos" ou outro caso, não faz sentido exibir aqui
+                    valorExibido = ''; 
+                }
+
+                if (valorExibido !== '') {
+                    svg += `<circle cx="${x}" cy="${yCasaZero}" r="${CONFIG.raioNota}" 
+                                 fill="#000" class="casa-zero-circulo" />
+                             <text x="${x}" y="${yCasaZero + 4}" font-size="14" fill="#fff" 
+                                 text-anchor="middle" dominant-baseline="middle">${valorExibido}</text>`;
+                }
+            }
+            // Se estadoCasaZero é null, não renderiza nada para a casa zero
+        }
+
+        // Desenha trastes
+        for (let i = 0; i <= trastes; i++) {
+            const y = margem + CONFIG.alturaCasaZero + i * espacamentoTrastes;
+            svg += `
+                <line x1="${margem}" y1="${y}" 
+                      x2="${largura - margem}" y2="${y}" 
+                      stroke="#000" stroke-width="${i === 0 ? 4 : 2}" />`;
+        }
+
+        // Desenha pestanas
+        appState.pestanas.forEach(p => {
+            const y = margem + CONFIG.alturaCasaZero + (p.traste - 0.5) * espacamentoTrastes;
+            const x1 = margem + p.inicio * espacamentoCordas;
+            const x2 = margem + p.fim * espacamentoCordas;
+            svg += `
+                <line x1="${x1}" y1="${y}" 
+                      x2="${x2}" y2="${y}" 
+                      stroke="black" stroke-width="20" stroke-linecap="round"/>`;
+        });
+
+        // Desenha notas ativas
+        for (const key in appState.notasAtivas) {
+            if (appState.notasAtivas.hasOwnProperty(key)) {
+                const [corda, traste] = key.split('-').map(Number);
+                const x = margem + corda * espacamentoCordas;
+                const y = margem + CONFIG.alturaCasaZero + (traste - 0.5) * espacamentoTrastes;
+                const nota = appState.notasAtivas[key];
+
+                svg += `
+                    <circle cx="${x}" cy="${y}" r="${CONFIG.raioNota}" 
+                                 fill="${nota.cor || CONFIG.cores.padrao}" 
+                                 data-key="${key}" />`;
+
+                let valorExibido;
+                const notaReal = notaPorCordaETraste(corda, trasteInicial + traste - 1);
+                
+                if (appState.exibirTipo === "notas") {
+                    valorExibido = notaReal;
+                } else if (appState.exibirTipo === "dedos") {
+                    valorExibido = appState.dedosNotas[key] || (trasteInicial + traste - 1);
+                } else if (appState.exibirTipo === "graus") {
+                    valorExibido = calcularGrauDaNota(notaReal, appState.tonicaAcorde);
+                }
+
+                svg += `
+                    <text x="${x}" y="${y + 4}" font-size="14" 
+                                 fill="${CONFIG.cores.texto}" text-anchor="middle" 
+                                 dominant-baseline="middle" data-key="${key}">
+                        ${valorExibido}
+                    </text>`;
+            }
+        }
+
+        svg += `</svg>`;
+        document.getElementById("saida").innerHTML = svg;
+        configurarEventosSVG(cordas, trastes, espacamentoCordas, espacamentoTrastes);
+    } catch (error) {
+        console.error("Erro ao gerar diagrama:", error);
+        alert("Ocorreu um erro ao gerar o diagrama. Por favor, verifique os dados e tente novamente.");
+    }
+}
+// Funções auxiliares
+function notaPorCordaETraste(corda, traste) {
+    try {
+        // A corda aqui é o índice (0 a 5). Precisamos converter para o índice da cordasViolao (6 a 1)
+        const cordaViolaoNum = (6 - corda).toString();
+        // O traste também é corrigido para o índice real do traste (0 a 12)
+        const trasteReal = Math.min(12, traste); 
+        
+        if (cordasViolao[cordaViolaoNum] && cordasViolao[cordaViolaoNum][trasteReal.toString()]) {
+            return cordasViolao[cordaViolaoNum][trasteReal.toString()];
+        } else {
+            console.warn(`Nota não encontrada para Corda: ${cordaViolaoNum}, Traste: ${trasteReal}`);
+            return "?";
+        }
+    } catch (error) {
+        console.error("Erro ao calcular nota:", error);
+        return "?";
+    }
+}
+
+function calcularGrauDaNota(notaCompleta, tonica) {
+    if (!tonica || !notaCompleta) return '?';
+
+    // Remove o número da oitava para obter apenas o nome da nota
+    const nomeNota = notaCompleta.replace(/[0-9]/g, ''); 
+    const nomeTonica = tonica.replace(/[0-9]/g, '');
+
+    const indexTonica = notasComSustenidos.indexOf(nomeTonica);
+    const indexNota = notasComSustenidos.indexOf(nomeNota);
+
+    if (indexTonica === -1 || indexNota === -1) {
+        return '?';
+    }
+
+    let diff = indexNota - indexTonica;
+    if (diff < 0) {
+        diff += 12; // Garante que a diferença seja positiva
+    }
+
+    const graus = {
+        0: '1',  // Tônica
+        1: 'b2', // Segunda Menor
+        2: '2',  // Segunda Maior
+        3: 'b3', // Terça Menor
+        4: '3',  // Terça Maior
+        5: '4',  // Quarta Justa
+        6: 'b5', // Quinta Diminuta (ou #4)
+        7: '5',  // Quinta Justa
+        8: 'b6', // Sexta Menor
+        9: '6',  // Sexta Maior
+        10: 'b7',// Sétima Menor
+        11: '7'  // Sétima Maior
+    };
+
+    return graus[diff] || '?';
+}
+
+
+function configurarEventosSVG(cordas, trastes, espacamentoCordas, espacamentoTrastes) {
+    try {
+        const svgElement = document.getElementById("svg-diagrama");
+        if (!svgElement) return;
+
+        svgElement.addEventListener("click", function(e) {
+            try {
+                const rect = svgElement.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const corda = Math.round((mouseX - CONFIG.margemPadrao) / espacamentoCordas);
+                const trasteY = mouseY - (CONFIG.margemPadrao + CONFIG.alturaCasaZero);
+                const traste = Math.round(trasteY / espacamentoTrastes);
+                
+                if (corda >= 0 && corda < cordas) {
+                    const yCasaZeroArea = CONFIG.margemPadrao <= mouseY && 
+                                          mouseY <= CONFIG.margemPadrao + CONFIG.alturaCasaZero;
+                    const yTrasteArea = mouseY > CONFIG.margemPadrao + CONFIG.alturaCasaZero && 
+                                       mouseY <= CONFIG.alturaPadrao - CONFIG.margemPadrao;
+
+                    if (yCasaZeroArea) {
+                        manipularCasaZero(corda); // Removido e.shiftKey para simplificar o ciclo
+                    } else if (yTrasteArea && traste >= 1 && traste <= trastes) {
+                        manipularNota(corda, traste, e);
+                    }
+                }
+            } catch (error) {
+                console.error("Erro no evento de clique:", error);
+            }
+        });
+    } catch (error) {
+        console.error("Erro ao configurar eventos SVG:", error);
+    }
+}
+
+function manipularCasaZero(corda) {
+    try {
+        // Ciclo: null (sem marcação) -> true (bolinha vazia) -> 'X' (X) -> 'nota' (bolinha preta com texto) -> null
+        const currentState = appState.notasCasaZero[corda];
+        let nextState;
+
+        if (currentState === null) {
+            nextState = true; // Próximo: bolinha vazia
+        } else if (currentState === true) {
+            nextState = 'X'; // Próximo: X
+        } else if (currentState === 'X') {
+            nextState = 'nota'; // Próximo: bolinha preta com nota/grau
+        } else {
+            nextState = null; // Próximo: sem marcação
+        }
+        appState.notasCasaZero[corda] = nextState;
+        gerarDiagrama();
+    } catch (error) {
+        console.error("Erro ao manipular casa zero:", error);
+    }
+}
+
+function manipularNota(corda, traste, evento) {
+    try {
+        const key = `${corda}-${traste}`;
+        const clickedElement = evento.target;
+
+        if (clickedElement.tagName === 'circle' && !clickedElement.classList.contains('casa-zero-circulo')) {
+            if (evento.ctrlKey) {
+                // Alterar cor
+                const novaCor = document.getElementById("corNota").value;
+                appState.notasAtivas[key].cor = novaCor;
+                gerarDiagrama();
+            } else if (evento.shiftKey) {
+                // Editar dedo
+                mostrarEditorDedos(evento.clientX, evento.clientY, corda, traste);
+            } else {
+                // Remover nota
+                delete appState.notasAtivas[key];
+                delete appState.dedosNotas[key];
+                gerarDiagrama();
+            }
+        } else if (clickedElement.tagName === 'svg') {
+            // Adicionar nova nota
+            const cor = document.getElementById("corNota").value;
+            appState.notasAtivas[key] = { cor };
+            
+            if (evento.shiftKey) {
+                mostrarEditorDedos(evento.clientX, evento.clientY, corda, traste);
+            }
+            
+            gerarDiagrama();
+        }
+    } catch (error) {
+        console.error("Erro ao manipular nota:", error);
+    }
+}
+
+// Funções do editor de dedos
+function mostrarEditorDedos(x, y, corda, traste) {
+    try {
+        const editor = document.getElementById("editor-dedos");
+        if (!editor) return;
+
+        editor.style.display = "block";
+        editor.style.left = `${x + 10}px`;
+        editor.style.top = `${y + 10}px`;
+        appState.notaEditando = `${corda}-${traste}`;
+    } catch (error) {
+        console.error("Erro ao mostrar editor de dedos:", error);
+    }
+}
+
+function fecharEditor() {
+    try {
+        const editor = document.getElementById("editor-dedos");
+        if (editor) {
+            editor.style.display = "none";
+        }
+        appState.notaEditando = null;
+    } catch (error) {
+        console.error("Erro ao fechar editor:", error);
+    }
+}
+
+function definirDedo(dedo) {
+    try {
+        if (appState.notaEditando) {
+            if (dedo === '') {
+                delete appState.dedosNotas[appState.notaEditando];
+            } else {
+                appState.dedosNotas[appState.notaEditando] = dedo;
+            }
+            gerarDiagrama();
+            fecharEditor();
+        }
+    } catch (error) {
+        console.error("Erro ao definir dedo:", error);
+    }
+}
+
+// Função para ordenar notas da mais grave para a mais aguda
+function ordenarNotas(notas) {
+    const ordemNotas = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    
+    const getIndice = (nota) => {
+        const oitava = parseInt(nota.slice(-1));
+        const nomeNota = nota.replace(/[0-9]/g, ''); // Remove o número da oitava
+        const indiceNota = ordemNotas.indexOf(nomeNota);
+        return oitava * 12 + indiceNota;
+    };
+    
+    return notas.sort((a, b) => getIndice(a) - getIndice(b));
+}
+
+// Função para calcular as notas do acorde
+function calcularNotasAcorde() {
+    const notas = [];
+    const cordas = parseInt(document.getElementById("cordas").value) || 6;
+    const trasteInicial = parseInt(document.getElementById("trasteInicial").value) || 1;
+
+    // Processa pestanas primeiro
+    appState.pestanas.forEach(pestana => {
+        const trastePestana = pestana.traste;
+        
+        for (let cordaIdx = pestana.inicio; cordaIdx <= pestana.fim; cordaIdx++) {
+            // As cordas em cordasViolao são indexadas de 1 a 6, onde 1 é a mais aguda e 6 a mais grave.
+            // cordaIdx (0 a 5) corresponde à corda mais grave (0) até a mais aguda (5).
+            // Convertemos para o índice correto de cordasViolao (6 para a corda 0, 1 para a corda 5)
+            const cordaNum = 6 - cordaIdx; 
+            if (cordaNum >= 1 && cordaNum <= 6) {
+                const trasteFinal = Math.min(12, trastePestana);
+                const nota = cordasViolao[cordaNum.toString()][trasteFinal.toString()];
+                if (nota && !notas.includes(nota)) {
+                    notas.push(nota);
+                }
+            }
+        }
+    });
+
+    // Verifica as cordas soltas (casa zero)
+    for (let i = 0; i < cordas; i++) {
+        const cordaIndex = 6 - i; // Para mapear cordasViolao (1-6)
+        const cobertaPorPestana = appState.pestanas.some(p => 
+            p.inicio <= i && i <= p.fim && p.traste === trasteInicial
+        );
+        
+        // Se a corda não está coberta por uma pestana e está marcada como 'true' (bolinha vazia) ou 'nota'
+        if (!cobertaPorPestana && (appState.notasCasaZero[i] === true || appState.notasCasaZero[i] === 'nota')) {
+            const nota = cordasViolao[cordaIndex.toString()]['0'];
+            if (nota && !notas.includes(nota)) {
+                notas.push(nota);
+            }
+        }
+    }
+
+    // Verifica as notas pressionadas (que não estão em pestanas)
+    for (const key in appState.notasAtivas) {
+        const [cordaIndex, trasteIndex] = key.split('-').map(Number);
+        const trasteReal = trasteInicial + trasteIndex - 1;
+        const cordaNum = 6 - cordaIndex; // Para mapear cordasViolao (1-6)
+        
+        const emPestana = appState.pestanas.some(p => {
+            const trastePestana = p.traste;
+            return p.inicio <= cordaIndex && cordaIndex <= p.fim && 
+                           trasteReal === trastePestana;
+        });
+        
+        if (!emPestana && cordaNum >= 1 && cordaNum <= 6) {
+            const trasteFinal = Math.min(12, trasteReal);
+            const nota = cordasViolao[cordaNum.toString()][trasteFinal.toString()];
+            if (nota && !notas.includes(nota)) {
+                notas.push(nota);
+            }
+        }
+    }
+
+    if (notas.length === 0) {
+        // Se não houver notas, retorna um acorde padrão (Ex: E maior aberto)
+        return ['E2', 'B2', 'E3', 'G#3', 'B3', 'E4'];
+    }
+    
+    return ordenarNotas(notas);
+}
+
+// Funções de exportação
+function exportarAcorde() {
+    try {
+        const svgElement = document.getElementById("svg-diagrama");
+        if (!svgElement) {
+            throw new Error("Nenhum diagrama para exportar");
+        }
+
+        // Obtém o título do acorde
+        const titulo = document.getElementById("titulo").value || "Acorde";
+        
+        // Calcula as notas do acorde (ordem original: grave → agudo)
+        const notas = calcularNotasAcorde();
+        
+        // Cria a ordem espelhada: grave → agudo → grave
+        const notasEspelhadas = [...notas, ...notas.slice(0, -1).reverse()];
+        
+        // Cria o HTML completo no formato desejado
+        const acordeHTML = `
+<div class="acorde" data-notas="${notasEspelhadas.join(' ')}">
+    <svg width="180" height="220" viewBox="0 0 300 400" xmlns="http://www.w3.org/2000/svg">
+        <text x="150" y="60" font-size="60" text-anchor="middle">${titulo}</text>
+        ${svgElement.innerHTML}
+    </svg>
+    <button class="playButton">Tocar</button>
+</div>
+`;
+
+        const blob = new Blob([acordeHTML], { type: "text/html" });
+        const url = URL.createObjectURL(blob);
+
+        // Substitui caracteres inválidos no nome do arquivo
+        const nomeArquivo = `${titulo.replace(/[\\/:*?"<>|]/g, '-')}.html`;
+
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = nomeArquivo;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+        
+    } catch (error) {
+        console.error("Erro ao exportar acorde:", error);
+        alert("Erro ao exportar acorde. Por favor, tente novamente.");
+    }
+}
+
+
+function salvarComoSVG() {
+    try {
+        const svgElement = document.getElementById("svg-diagrama");
+        if (!svgElement) {
+            throw new Error("Nenhum diagrama para salvar");
+        }
+
+        const svg = svgElement.outerHTML;
+        const blob = new Blob([svg], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        
+        const link = document.createElement("a");
+        link.href = url;
+        link.download = "diagrama.svg";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    } catch (error) {
+        console.error("Erro ao salvar SVG:", error);
+        alert("Erro ao salvar diagrama. Por favor, tente novamente.");
+    }
+}
+
+function limparDiagrama() {
+    try {
+        appState.pestanas = [];
+        appState.notasCasaZero = {};
+        appState.dedosNotas = {};
+        appState.notasAtivas = {};
+        inicializarCasaZero();
+        document.getElementById("saida").innerHTML = "";
+        criarSVGInicial();
+    } catch (error) {
+        console.error("Erro ao limpar diagrama:", error);
+        alert("Erro ao limpar diagrama. Por favor, tente novamente.");
+    }
+}
+
+// Inicializa o aplicativo quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', inicializarAplicativo);
+</script>
+
+</body>
+</html>

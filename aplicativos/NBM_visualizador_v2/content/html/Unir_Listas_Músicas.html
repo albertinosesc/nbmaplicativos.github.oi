@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Unir Listas JSON</title>
+<style>
+    body { font-family: Arial; margin: 20px; }
+    button, input { margin: 5px; padding: 10px; }
+    pre { background: #eee; padding: 10px; border-radius: 5px; max-height: 300px; overflow: auto; }
+</style>
+</head>
+<body>
+
+<h1>Unir Listas de Músicas</h1>
+
+<input type="file" id="fileInput" multiple accept=".json"><br>
+<button onclick="processarArquivos()">Unir Listas</button>
+<button onclick="baixarLista()">Baixar lista-unificada.json</button>
+
+<h2>Lista Unificada:</h2>
+<pre id="saida"></pre>
+
+<script>
+let listaUnificada = [];
+
+function processarArquivos() {
+    const input = document.getElementById('fileInput');
+    const arquivos = input.files;
+    listaUnificada = [];
+
+    if (arquivos.length === 0) {
+        alert('Nenhum arquivo selecionado.');
+        return;
+    }
+
+    let arquivosLidos = 0;
+
+    for (let arquivo of arquivos) {
+        const leitor = new FileReader();
+        leitor.onload = function(e) {
+            try {
+                const conteudo = JSON.parse(e.target.result);
+
+                if (Array.isArray(conteudo)) {
+                    listaUnificada.push(...conteudo);
+                } else {
+                    alert(`O arquivo ${arquivo.name} não contém um array JSON.`);
+                }
+
+            } catch (erro) {
+                alert(`Erro ao ler ${arquivo.name}: ${erro}`);
+            }
+
+            arquivosLidos++;
+            if (arquivosLidos === arquivos.length) {
+                finalizarProcessamento();
+            }
+        };
+        leitor.readAsText(arquivo);
+    }
+}
+
+function finalizarProcessamento() {
+    // Remover duplicatas e ordenar
+    listaUnificada = Array.from(new Set(listaUnificada)).sort();
+    document.getElementById('saida').textContent = JSON.stringify(listaUnificada, null, 2);
+}
+
+function baixarLista() {
+    if (listaUnificada.length === 0) {
+        alert('Nenhuma lista carregada.');
+        return;
+    }
+
+    const blob = new Blob([JSON.stringify(listaUnificada, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lista-musicas.json';
+    a.click();
+    URL.revokeObjectURL(url);
+}
+</script>
+
+</body>
+</html>
