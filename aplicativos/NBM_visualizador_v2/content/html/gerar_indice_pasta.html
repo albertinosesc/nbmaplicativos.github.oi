@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -8,7 +7,13 @@
 <style>
    p4{
     font-size: 24px;
-  }
+   }
+   pre {
+    background-color: #f5f5f5;
+    padding: 10px;
+    border-radius: 5px;
+    overflow-x: auto;
+   }
 </style>
 <body>
 <p4><a href="../alunos/Lista_Geral_Arquivo/Lista_Geral_Arquivo.html" class="voltar-link">← Home</a></p4>
@@ -25,6 +30,12 @@
 <h2>Música</h2>
 <pre id="saidaMusica"></pre>
 
+<h2>Cifra</h2>
+<pre id="saidaCifra"></pre>
+
+<h2>Diagrama</h2>
+<pre id="saidaDiagrama"></pre>
+
 <script>
 async function selecionarPasta() {
   const pasta = await window.showDirectoryPicker();
@@ -32,45 +43,146 @@ async function selecionarPasta() {
   const listaAbordagem = [];
   const listaTexto = [];
   const listaMusica = [];
+  const listaCifra = [];
+  const listaDiagrama = [];
 
   for await (const entry of pasta.values()) {
     if (entry.kind === 'file' && entry.name.endsWith('.js')) {
       const file = await entry.getFile();
       const texto = await file.text();
+      const fileName = entry.name.replace('.js', '');
 
-      // Captura id e título dentro do conteúdo
-      const idMatch = texto.match(/id:\s*["'](.*?)["']/);
-      const titleMatch = texto.match(/<h2>(.*?)<\/h2>/);
+      // console.log(`Processando arquivo: ${fileName}`); // Para depuração
 
-      if (idMatch && titleMatch) {
-        const id = idMatch[1];  
-        const titulo = titleMatch[1];
+      // 1. Verifica se é MÚSICA (formato registerSong)
+      // Esta verificação deve ser a primeira para garantir que o arquivo seja corretamente classificado
+      if (texto.includes('registerSong({') && texto.includes('id:') && texto.includes('title:') && texto.includes('abc:')) {
+        const titleMatch = texto.match(/title:\s*['"]([^'"]+)['"]/);
+        const idMatch = texto.match(/id:\s*['"]([^'"]+)['"]/); // Captura o ID para usar no link
 
-        if (id.startsWith('abord')) {
-          listaAbordagem.push({ name: titulo, link: `abordagem.html#${id}` });
-        } else if (id.startsWith('text')) {
-          listaTexto.push({ name: titulo, link: `text.html#${id}` });
-        } else if (id.startsWith('music')) {
-          listaMusica.push({ name: titulo, link: `music.html#${id}` });
+        if (titleMatch && idMatch) {
+          const title = titleMatch[1].trim();
+          const id = idMatch[1];
+          listaMusica.push({ 
+            name: title, 
+            link: `music.html#${id}` // Usa o ID extraído
+          });
+          // console.log(`  -> Classificado como Música: ${title}`); // Para depuração
+          continue; // Pula para a próxima entrada, pois já foi classificado
         }
       }
-    }
+      
+      // 2. Verifica se é cifra (formato específico)
+      else if (texto.includes('window.currentSong = {') && texto.includes('cifra:')) {
+        const cifraMatch = texto.match(/titulo:\s*"([^"]+)"/);
+        const artistaMatch = texto.match(/artista:\s*"([^"]+)"/);
+        
+        if (cifraMatch && artistaMatch) {
+          listaCifra.push({
+            id: fileName,
+            title: cifraMatch[1],
+            artist: artistaMatch[1]
+          });
+        }
+        // console.log(`  -> Classificado como Cifra`); // Para depuração
+      }
+      // 3. Verifica se é diagrama (formato específico)
+      else if (texto.includes('chords:')) {
+        const titleMatch = texto.match(/title:\s*"([^"]+)"/);
+        const artistMatch = texto.match(/artist:\s*"([^"]+)"/);
+        
+        if (titleMatch && artistMatch) {
+          listaDiagrama.push({
+            id: fileName,
+            title: titleMatch[1],
+            artist: artistMatch[1],
+            filename: entry.name
+          });
+        }
+        // console.log(`  -> Classificado como Diagrama`); // Para depuração
+      }
+      // 4. Processa abordagem e texto (se não se encaixou em nenhuma das anteriores)
+      else {
+        // console.log(`  -> Chegou no bloco genérico (texto/abordagem)`); // Para depuração
+        // Extrai o título do conteúdo (para abordagem e texto, que podem ter <h2> ou title/name)
+        let titleMatch = texto.match(/<h2>(.*?)<\/h2>/) || 
+                             texto.match(/title:\s*["'](.*?)["']/) ||
+                             texto.match(/name:\s*["'](.*?)["']/);
+        
+        const title = titleMatch ? titleMatch[1].trim() : fileName;
+        // console.log(`  -> Título extraído para genérico: ${title}`); // Para depuração
+
+        // Classifica pelo nome do arquivo
+        if (fileName.startsWith('text')) {
+          listaTexto.push({ 
+            name: title, 
+            link: `text.html#${fileName}` 
+          });
+          // console.log(`  -> Classificado como Texto`); // Para depuração
+        } 
+        else if (fileName.startsWith('abord')) {
+          listaAbordagem.push({ 
+            name: title, 
+            link: `abordagem.html#${fileName}` 
+          });
+          // console.log(`  -> Classificado como Abordagem`); // Para depuração
+        } else {
+          // console.log(`  -> Não classificado por prefixo após tentar todas as categorias: ${fileName}`); // Para depuração
+        }
+      }
+    } 
+    // else {
+    //   console.log(`Ignorando entrada: ${entry.name} (não é arquivo .js ou não é arquivo)`); // Para depuração
+    // }
   }
 
-  gerarCodigoJS(listaAbordagem, 'saidaAbordagem');
-  gerarCodigoJS(listaTexto, 'saidaTexto');
-  gerarCodigoJS(listaMusica, 'saidaMusica');
+  // Ordena as listas
+  listaAbordagem.sort((a, b) => a.name.localeCompare(b.name));
+  listaTexto.sort((a, b) => a.name.localeCompare(b.name));
+  listaMusica.sort((a, b) => a.name.localeCompare(b.name)); // Certifique-se de que a listaMusica está sendo ordenada
+
+  // Gera as saídas
+  gerarSaidaAbordagem(listaAbordagem);
+  gerarSaidaTexto(listaTexto);
+  gerarSaidaMusica(listaMusica);
+  gerarListaCifra(listaCifra, 'saidaCifra');
+  gerarListaDiagrama(listaDiagrama, 'saidaDiagrama');
 }
 
-function gerarCodigoJS(lista, elementoId) {
+function gerarSaidaAbordagem(lista) {
   const linhas = lista.map(item => {
-    return `{ name: "${item.name}", link: "${item.link}" },`;
+    return `    { name: "${item.name.replace(/"/g, '\\"')}", link: "${item.link}" },`;
   });
-
-  const codigo = linhas.join('\n');
-  document.getElementById(elementoId).textContent = codigo;
+  document.getElementById('saidaAbordagem').textContent = linhas.join('\n');
 }
 
+function gerarSaidaTexto(lista) {
+  const linhas = lista.map(item => {
+    return `text  { name: "${item.name.replace(/"/g, '\\"')}", link: "${item.link}" },`;
+  });
+  document.getElementById('saidaTexto').textContent = linhas.join('\n');
+}
+
+function gerarSaidaMusica(lista) {
+  const linhas = lista.map(item => {
+    return `    { name: "${item.name.replace(/"/g, '\\"')}", link: "${item.link}" },`;
+  });
+  document.getElementById('saidaMusica').textContent = linhas.join('\n');
+}
+
+function gerarListaCifra(lista, elementoId) {
+  const linhas = lista.map(item => {
+    return `"${item.id}.js",`;
+  });
+  document.getElementById(elementoId).textContent = linhas.join('\n');
+}
+
+function gerarListaDiagrama(lista, elementoId) {
+  const linhas = lista.map(item => {
+    return `{ id: "${item.id}", title: "${item.title.replace(/"/g, '\\"')}", artist: "${item.artist.replace(/"/g, '\\"')}" },`;
+  });
+  document.getElementById(elementoId).textContent = linhas.join('\n');
+}
 </script>
 
 </body>
