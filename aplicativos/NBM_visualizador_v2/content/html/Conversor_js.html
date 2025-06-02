@@ -71,24 +71,26 @@
       line-height: 24px;
       color: white;
     }
-      p4{
-    font-size: 24px;
-  }
+    p4 {
+      font-size: 24px;
+    }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
   <p4><a href="../alunos/Lista_Geral_Arquivo/Lista_Geral_Arquivo.html" class="voltar-link">← Home</a></p4>
   <h1>Conversor JS</h1>
-  <h2>Conversor de Texto para Music, Text e Abordagem</h2>
+  <h2>Conversor de Texto para Music, Text, Abordagem, Cifra e Diagrama</h2>
   
   <div class="mode-selector">
-    <button id="musicMode" class="mode-btn active" onclick="setMode('music')">Music</button>
+    <button id="musicMode" class="mode-btn" onclick="setMode('music')">Music</button>
     <button id="textMode" class="mode-btn" onclick="setMode('text')">Text</button>
     <button id="abordMode" class="mode-btn" onclick="setMode('abord')">Abordagem</button>
+    <button id="cifraMode" class="mode-btn active" onclick="setMode('cifra')">Cifra</button>
+    <button id="chordMode" class="mode-btn" onclick="setMode('chord')">Diagrama</button>
   </div>
   
-  <textarea id="abcInput" placeholder="Cada música ou texto começa com X: e T:"></textarea>
+  <textarea id="abcInput" placeholder="Cole suas cifras aqui no formato 'Título - Artista' seguido pelas linhas da cifra"></textarea>
   
   <button onclick="processAll()">Gerar/Baixar (ZIP)</button>
   
@@ -100,19 +102,33 @@
   <div id="fileList">Nenhum conteúdo detectado ainda...</div>
 
   <script>
-    let currentMode = 'music';
+    let currentMode = 'cifra';
 
     function setMode(mode) {
       currentMode = mode;
-      ['musicMode', 'textMode', 'abordMode'].forEach(id => {
+      ['musicMode', 'textMode', 'abordMode', 'cifraMode', 'chordMode'].forEach(id => {
         document.getElementById(id).classList.remove('active');
       });
       document.getElementById(mode + 'Mode').classList.add('active');
 
       const textarea = document.getElementById('abcInput');
-      textarea.placeholder = mode === 'music' 
-        ? "Cole suas notações ABC aqui, cada música começando com X:" 
-        : "Cole seus textos aqui, cada bloco começando com X: e T:";
+      switch(mode) {
+        case 'music':
+          textarea.placeholder = "Cole suas notações ABC aqui, cada música começando com X:";
+          break;
+        case 'text':
+          textarea.placeholder = "Cole seus textos aqui, cada bloco começando com X: e T:";
+          break;
+        case 'abord':
+          textarea.placeholder = "Cole suas abordagens aqui, cada bloco começando com X: e T:";
+          break;
+        case 'cifra':
+          textarea.placeholder = "Cole suas cifras aqui no formato 'Título - Artista' seguido pelas linhas da cifra";
+          break;
+        case 'chord':
+          textarea.placeholder = "Cole seus diagramas aqui no formato '// cifras/musica1.js' seguido pelo conteúdo";
+          break;
+      }
       
       updatePreview();
     }
@@ -136,8 +152,12 @@
           result = processMusic(inputText);
         } else if (currentMode === 'text') {
           result = processText(inputText);
-        } else {
+        } else if (currentMode === 'abord') {
           result = processAbord(inputText);
+        } else if (currentMode === 'cifra') {
+          result = processCifra(inputText);
+        } else if (currentMode === 'chord') {
+          result = processChord(inputText);
         }
 
         updateFileList(result.items);
@@ -207,8 +227,7 @@
         const contentLines = lines.filter(line => !line.startsWith('X:') && !line.startsWith('T:'));
         const htmlBody = contentLines.join('\n');
 
-        const fullContent = `
-<p2>última atualização - ${today}</p2>
+        const fullContent = `<p2>última atualização - ${today}</p2>
 <h2>${title}</h2>
 ${htmlBody}`;
 
@@ -244,8 +263,7 @@ ${htmlBody}`;
         const contentLines = lines.filter(line => !line.startsWith('X:') && !line.startsWith('T:'));
         const abordBody = contentLines.join('\n');
 
-        const fullContent = `
-<p2>última atualização - ${today}</p2>
+        const fullContent = `<p2>última atualização - ${today}</p2>
 <h2>${title}</h2>
 ${abordBody}`;
 
@@ -261,6 +279,83 @@ ${abordBody}`;
       return { items };
     }
 
+    function processCifra(text) {
+  const songs = text.split(/\n\s*\n/).filter(s => s.trim() !== '');
+  const items = [];
+
+  songs.forEach(song => {
+    const lines = song.trim().split('\n');
+    if (lines.length < 2) return;
+
+    // Extrai título e artista
+    const firstLine = lines[0].trim();
+    const titleArtistMatch = firstLine.match(/^(\d+)\s*-\s*(.+?)\s*-\s*(.+)/);
+    if (!titleArtistMatch) return;
+
+    const number = titleArtistMatch[1].trim();
+    const title = titleArtistMatch[2].trim();
+    const artist = titleArtistMatch[3].trim();
+
+    // Processa as linhas da cifra
+    const cifraLines = [];
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim();
+      if (line) cifraLines.push(line);
+    }
+
+    // Formata o conteúdo
+    const content = `window.currentSong = { 
+    titulo: "${title.replace(/"/g, '\\"')}",
+    artista: "${artist.replace(/"/g, '\\"')}",
+    cifra: [
+        "${cifraLines.join('",\n        "')}"
+    ]
+};`;
+
+    items.push({
+      id: `cifra${number}`,
+      title: `${number} - ${title} - ${artist}`,
+      content: content,
+      filename: `exemplo${number}.js`,
+      type: 'cifra'
+    });
+  });
+
+  return { items };
+}
+
+    function processChord(text) {
+  const sections = text.split(/^\/\/ cifras\/musica\d+\.js/m).filter(s => s.trim() !== '');
+  const items = [];
+  
+  sections.forEach(section => {
+    const content = section.trim();
+    if (!content.startsWith('window.currentSong')) return;
+
+    // Extrai informações básicas
+    const titleMatch = content.match(/title:\s*"([^"]+)"/);
+    const artistMatch = content.match(/artist:\s*"([^"]+)"/);
+    const chordsMatch = content.match(/chords:\s*"([^"]+)"/);
+
+    const title = titleMatch ? titleMatch[1] : 'Sem Título';
+    const artist = artistMatch ? artistMatch[1] : 'Artista Desconhecido';
+    const chords = chordsMatch ? chordsMatch[1] : '';
+    
+    // Extrai o número do título (ex: "9 - Kumbaya" → "9")
+    const numberMatch = title.match(/^(\d+)/);
+    const number = numberMatch ? numberMatch[1] : items.length + 1;
+
+    items.push({
+      id: `chord${number}`,
+      title: `${title} - ${artist}`,
+      content: `// cifras/musica${number}.js\n${content}`,
+      filename: `musica${number}.js`,
+      type: 'chord'
+    });
+  });
+
+  return { items };
+}
     function getTodayFormatted() {
       const today = new Date();
       const dd = String(today.getDate()).padStart(2, '0');
@@ -273,9 +368,7 @@ ${abordBody}`;
       const fileList = document.getElementById('fileList');
 
       if (items.length === 0) {
-        fileList.innerHTML = currentMode === 'music' 
-          ? 'Nenhuma música detectada.' 
-          : 'Nenhum bloco de texto detectado.';
+        fileList.innerHTML = getDefaultEmptyMessage();
         return;
       }
 
@@ -287,6 +380,17 @@ ${abordBody}`;
       ).join('');
     }
 
+    function getDefaultEmptyMessage() {
+      switch(currentMode) {
+        case 'music': return 'Nenhuma música detectada.';
+        case 'text': return 'Nenhum bloco de texto detectado.';
+        case 'abord': return 'Nenhuma abordagem detectada.';
+        case 'cifra': return 'Nenhuma cifra detectada.';
+        case 'chord': return 'Nenhum diagrama detectado.';
+        default: return 'Nenhum conteúdo detectado ainda...';
+      }
+    }
+
     function generateZip(items) {
       const zip = new JSZip();
 
@@ -295,18 +399,18 @@ ${abordBody}`;
         if (item.type === 'music') {
           content = `registerSong({\n  id: '${item.id}',\n  title: '${item.title.replace(/'/g, "\\'")}',\n  abc: \`${item.content}\`\n});`;
         } else if (item.type === 'text') {
-          content = `registerTextBlock({\n  id: "${item.id}",\n  content: \`${item.content}\n  \`\n});`;
+          content = `registerTextBlock({\n  id: "${item.id}",\n  content: \`${item.content}\`\n});`;
         } else if (item.type === 'abord') {
-          content = `registerAbordagem({\n  id: "${item.id}",\n  content: \`${item.content}\n  \`\n});`;
+          content = `registerAbordagem({\n  id: "${item.id}",\n  content: \`${item.content}\`\n});`;
+        } else if (item.type === 'cifra') {
+          content = item.content;
+        } else if (item.type === 'chord') {
+          content = item.content;
         }
         zip.file(item.filename, content);
       });
 
-      const zipName = currentMode === 'music' 
-        ? 'music_files.zip' 
-        : currentMode === 'text' 
-          ? 'text_files.zip' 
-          : 'abord_files.zip';
+      const zipName = getZipName();
 
       return zip.generateAsync({ type: 'blob' }).then(content => {
         const url = URL.createObjectURL(content);
@@ -320,6 +424,17 @@ ${abordBody}`;
       });
     }
 
+    function getZipName() {
+      switch(currentMode) {
+        case 'music': return 'music_files.zip';
+        case 'text': return 'text_files.zip';
+        case 'abord': return 'abord_files.zip';
+        case 'cifra': return 'cifra_files.zip';
+        case 'chord': return 'chord_files.zip';
+        default: return 'files.zip';
+      }
+    }
+
     function updatePreview() {
       const inputText = document.getElementById('abcInput').value;
       if (inputText.trim()) {
@@ -328,15 +443,16 @@ ${abordBody}`;
           result = processMusic(inputText);
         } else if (currentMode === 'text') {
           result = processText(inputText);
-        } else {
+        } else if (currentMode === 'abord') {
           result = processAbord(inputText);
+        } else if (currentMode === 'cifra') {
+          result = processCifra(inputText);
+        } else if (currentMode === 'chord') {
+          result = processChord(inputText);
         }
         updateFileList(result.items);
       } else {
-        document.getElementById('fileList').innerHTML = 
-          currentMode === 'music' 
-            ? 'Nenhuma música detectada ainda...' 
-            : 'Nenhum bloco detectado ainda...';
+        document.getElementById('fileList').innerHTML = getDefaultEmptyMessage();
       }
     }
 
