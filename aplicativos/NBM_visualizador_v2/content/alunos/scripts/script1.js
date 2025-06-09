@@ -1,14 +1,11 @@
-//script1.js corrigido
 const searchInput = document.getElementById('search');
 const resultsDiv = document.getElementById('results');
 
-// Adiciona os listeners para o campo de busca e os rádios de tipo
 searchInput.addEventListener('input', updateResults);
 document.querySelectorAll('input[name="type"]').forEach(radio => {
     radio.addEventListener('change', updateResults);
 });
 
-// Permite navegar para o primeiro resultado ao pressionar Enter
 searchInput.addEventListener('keydown', function(e) {
     if (e.key === 'Enter') {
         const firstLink = resultsDiv.querySelector('a');
@@ -21,48 +18,53 @@ searchInput.addEventListener('keydown', function(e) {
 function updateResults() {
     const searchTerm = searchInput.value.trim().toLowerCase();
     const selectedType = document.querySelector('input[name="type"]:checked').value;
-
-    let list = []; 
-    let linkPrefix = ''; 
-    let itemTitleProperty = 'name'; 
-    let itemLinkProperty = 'link'; 
-
+    
+    let list;
+    let itemTitleProperty = 'name';
+    let itemLinkProperty = 'link';
+    let linkPrefix = '';
+    
     if (selectedType === 'music') {
-        list = musicList; 
-        itemTitleProperty = 'title';
-        itemLinkProperty = 'link';
+        list = musicList;
     } else if (selectedType === 'abordagem') {
-        list = abordagemList; 
-        itemTitleProperty = 'title';
-        itemLinkProperty = 'link';
+        list = abordagemList;
     } else if (selectedType === 'questao') {
-        list = questoesData; 
+        list = typeof questoesData !== 'undefined' ? questoesData : [];
         itemTitleProperty = 'titulo';
         itemLinkProperty = 'id';
-        // CORREÇÃO AQUI - caminho relativo correto para questao.html
         linkPrefix = '../Lista_Geral_Arquivo/questao.html?id=';
-    } else if (selectedType === 'text') { 
-        list = textList; 
-        itemTitleProperty = 'title';
-        itemLinkProperty = 'link';
+        console.log("Questão List loaded:", list.length > 0);
+    } else {
+        list = textList;
     }
 
-    const filtered = list.filter(item => 
-        item[itemTitleProperty] && item[itemTitleProperty].toLowerCase().includes(searchTerm)
-        || (selectedType === 'questao' && item.enunciadoCurto && item.enunciadoCurto.toLowerCase().includes(searchTerm))
-    );
+    // If list is empty after selecting a type, it's a problem with script loading or variable name
+    if (list.length === 0 && selectedType !== 'questao') {
+        console.warn(`List for type '${selectedType}' is empty or not loaded.`);
+        resultsDiv.innerHTML = ''; // Clear results if list is empty
+        return; // Exit the function early
+    }
+
+    const filtered = list.filter(item => {
+        const titleMatch = item[itemTitleProperty] && item[itemTitleProperty].toLowerCase().includes(searchTerm);
+        const enunciadoMatch = selectedType === 'questao' && item.enunciadoCurto && item.enunciadoCurto.toLowerCase().includes(searchTerm);
+        return titleMatch || enunciadoMatch;
+    });
+
+    console.log("Filtered Results Count:", filtered.length);
 
     resultsDiv.innerHTML = filtered.map(item => {
-        const itemText = item[itemTitleProperty] || item.id; 
+        const itemText = item[itemTitleProperty] || '';
         const regex = new RegExp(`(${searchTerm})`, 'gi');
         const highlighted = itemText.replace(regex, '<span class="highlight">$1</span>');
         
         let itemLink;
         if (selectedType === 'questao') {
-            itemLink = `${linkPrefix}${item[itemLinkProperty]}`; 
+            itemLink = `${linkPrefix}${item[itemLinkProperty]}`;
         } else {
-            itemLink = item[itemLinkProperty]; 
+            itemLink = item[itemLinkProperty];
         }
+        console.log(`Generated link for ${itemText}: ${itemLink}`);
 
         return `<div class="result-item"><a href="${itemLink}">${highlighted}</a></div>`;
     }).join('');
