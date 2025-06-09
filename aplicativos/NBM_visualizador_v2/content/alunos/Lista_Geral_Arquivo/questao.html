@@ -1,0 +1,116 @@
+<!--questao.html-->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="utf-8">
+    <title>Detalhes da Questão</title>
+    <link rel="stylesheet" href="../../../content/css/examples-styles.css"/>
+    <link rel="stylesheet" href="../../../content/css/texto.css"/>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' data: blob:;">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Detalhes da Questão</h1>
+            <p><a href="Lista_Geral_Arquivo.html" class="voltar-link">← Home</a></p> 
+        </header>
+        <main id="question-detail-container"></main>
+        <br><br><br>
+        <p3>NBM - Escola de Música - Albertino Moura</p3>
+        <br><br>
+    </div>
+
+    <script>
+        // Sistema de registro de questões: essencial para arquivos individuais QXXX.js
+        const registeredQuestions = {};
+        
+        function registerQuestionBlock({ id, content }) {
+            registeredQuestions[id] = content;
+        }
+
+        // Função para exibir a questão no container
+        function showQuestion(questionId) {
+            const container = document.getElementById('question-detail-container');
+            
+            if (registeredQuestions[questionId]) {
+                container.innerHTML = registeredQuestions[questionId];
+                // Configura os botões de áudio APÓS o HTML ser inserido
+                // Certifique-se de que configureAudioButtons existe e é global
+                if (typeof configureAudioButtons === 'function') {
+                    configureAudioButtons(); 
+                } else {
+                    console.warn("configureAudioButtons não está disponível. Verifique player_audio_questao.js");
+                }
+            } else {
+                container.innerHTML = `
+                    <div class="error-message">
+                        <p>Questão não encontrada: ${questionId}</p>
+                        <p>Verifique se o arquivo da questão (ex: Q101.js) existe e foi carregado corretamente.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Carrega a questão quando a página estiver pronta
+        window.addEventListener('DOMContentLoaded', () => {
+            const params = new URLSearchParams(window.location.search);
+            const questionId = params.get('id');
+
+            if (questionId) {
+                // Primeiro carrega o player de áudio (se ainda não carregado)
+                const playerScript = document.createElement('script');
+                playerScript.src = "../js/player_audio_questao.js";
+                // Para evitar carregar múltiplas vezes se o script já estiver na DOM
+                playerScript.onload = () => {
+                    // Depois carrega o script da questão específica (QXXX.js)
+                    const questionScript = document.createElement('script');
+                    questionScript.src = `../questao/text/${questionId}.js`;
+
+                    questionScript.onload = () => {
+                        // Após o QXXX.js carregar e chamar registerQuestionBlock, exibe a questão
+                        showQuestion(questionId);
+                    };
+                    
+                    questionScript.onerror = () => {
+                        console.error(`Falha ao carregar o arquivo da questão: ${questionId}.js`);
+                        showQuestion(questionId); // Mostra mensagem de erro
+                    };
+                    
+                    document.body.appendChild(questionScript);
+                };
+                
+                playerScript.onerror = () => {
+                    console.error("Falha ao carregar player_audio_questao.js");
+                    // Ainda tenta mostrar a questão mesmo sem o player de áudio
+                    const questionScript = document.createElement('script');
+                    questionScript.src = `../../questao/text/${questionId}.js`; 
+                    questionScript.onload = () => showQuestion(questionId);
+                    questionScript.onerror = () => console.error(`Falha ao carregar a questão ${questionId} sem o player.`);
+                    document.body.appendChild(questionScript);
+                };
+
+                // Adiciona o script do player apenas se não estiver presente
+                if (!document.querySelector(`script[src="${playerScript.src}"]`)) {
+                    document.body.appendChild(playerScript);
+                } else {
+                    // Se já existe, apenas carrega a questão
+                    const questionScript = document.createElement('script');
+                    questionScript.src = `../../questao/text/${questionId}.js`; 
+                    questionScript.onload = () => showQuestion(questionId);
+                    questionScript.onerror = () => console.error(`Falha ao carregar a questão ${questionId} com player já existente.`);
+                    document.body.appendChild(questionScript);
+                }
+
+            } else {
+                document.getElementById('question-detail-container').innerHTML = `
+                    <div class="error-message">
+                        <p>Nenhuma questão especificada.</p>
+                        <p>Volte à lista de questões e clique em uma questão válida.</p>
+                    </div>
+                `;
+            }
+        });
+    </script>
+    
+    </body>
+</html>
