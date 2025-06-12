@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <title>Treino Auditivo</title>
+  <style>
+    body { font-family: sans-serif; background: #f0f0f0; padding: 20px; }
+    h1 { color: #333; }
+    select, button { margin: 5px; padding: 10px; font-size: 16px; }
+    .result { margin-top: 15px; font-size: 20px; font-weight: bold; }
+    #stats { margin-top: 10px; font-size: 18px; }
+    /* Estilo para o botão de ativar/desativar automático */
+    #toggleAutoPlayNextNoteButton.active {
+        background-color: #28a745; /* Verde quando ativo */
+        color: white;
+    }
+    #toggleAutoPlayNextNoteButton.inactive {
+        background-color: #dc3545; /* Vermelho quando inativo */
+        color: white;
+    }
+  </style>
+</head>
+<body>
+  <h1>🎵 Treino Auditivo com Timbres</h1>
+
+  <label for="instrument">🎼 Timbre:</label>
+  <select id="instrument" onchange="changeInstrument()">
+    <option value="acoustic_grand_piano-mp3">🎹 Piano (Acoustic Grand)</option>
+    <option value="acoustic_guitar_nylon-mp3">🎸 Guitar (Acoustic Nylon)</option>
+    <option value="cello-mp3">🎻 Cello</option>
+    <option value="flute-mp3">🎶 Flauta</option>
+    <option value="church_organ-mp3">⛪ Órgão de Igreja</option>
+    <option value="trumpet-mp3">🎺 Trompete</option>
+    <option value="tenor_sax-mp3">🎷 Saxofone Tenor</option>
+    </select>
+
+  <label for="octave">🎶 Oitava:</label>
+  <select id="octave" onchange="changeOctave()">
+    <option value="3">3</option>
+    <option value="4" selected>4</option>
+    <option value="5">5</option>
+  </select>
+
+  <button onclick="playNote()">🔊 Tocar Nota</button>
+  <button onclick="resetCounters()">🔄 Reiniciar Contadores</button>
+  
+  <button id="toggleAutoPlayNextNoteButton" onclick="toggleAutoPlayNextNote()" class="inactive">
+    ▶️ Próxima Nota Automático (Desativado)
+  </button>
+
+  <div id="buttons"></div>
+  <div class="result" id="result"></div>
+  <div id="stats"></div>
+
+  <script>
+    const baseNotes = ["C", "Gb", "A", "E", "D", "Ab", "B", "Eb", "G", "Db", "F", "Bb"];
+    const baseDisplayNames = {
+      "C": "Dó", "Db": "Dó♯", "D": "Ré", "Eb": "Ré♯", "E": "Mi", "F": "Fá",
+      "Gb": "Fá♯", "G": "Sol", "Ab": "Sol♯", "A": "Lá", "Bb": "Lá♯", "B": "Si"
+    };
+    const keyBindings = ['c','j','a','e','d','k','b','i','g','u','f','l'];
+
+    let audioBase = "./acoustic_grand_piano-mp3/";
+    let currentLevel = 2;
+    let streak = 0;
+    let streakToAdvance = 3;
+    let currentNote = "";
+    let currentOctave = 4;
+
+    let total = 0;
+    let acertos = 0;
+    let erros = 0;
+
+    let currentPlayingAudio = null; 
+    let autoPlayNextNote = false; 
+    let autoPlayTimeout = null; 
+
+    let noteSequence = baseNotes.map(note => note + currentOctave);
+    let displayNames = {};
+    baseNotes.forEach(note => {
+      displayNames[note + currentOctave] = baseDisplayNames[note];
+    });
+
+    function updateButtons() {
+      const buttonsDiv = document.getElementById("buttons");
+      buttonsDiv.innerHTML = "";
+      for (let i = 0; i < currentLevel; i++) {
+        const note = noteSequence[i];
+        const btn = document.createElement("button");
+        btn.textContent = `${displayNames[note]} [${keyBindings[i].toUpperCase()}]`;
+        btn.onclick = () => checkAnswer(note);
+        buttonsDiv.appendChild(btn);
+      }
+    }
+
+    function updateStats() {
+      const statsDiv = document.getElementById("stats");
+      const porcentagem = total > 0 ? ((acertos / total) * 100).toFixed(1) : "0.0";
+      statsDiv.innerHTML = `🎯 Notas tocadas: ${total} | ✅ Acertos: ${acertos} | ❌ Erros: ${erros} | 📊 Precisão: ${porcentagem}%`;
+    }
+
+    function resetCounters() {
+      total = 0;
+      acertos = 0;
+      erros = 0;
+      updateStats();
+      document.getElementById("result").textContent = "🔄 Contadores reiniciados.";
+      document.getElementById("result").style.color = "blue";
+      if (currentPlayingAudio) {
+        currentPlayingAudio.pause();
+        currentPlayingAudio.currentTime = 0;
+        currentPlayingAudio = null;
+      }
+      currentNote = ""; 
+      
+      if (autoPlayTimeout) {
+        clearTimeout(autoPlayTimeout);
+        autoPlayTimeout = null;
+      }
+      if (autoPlayNextNote) {
+        toggleAutoPlayNextNote(); 
+      }
+    }
+
+    function playRealNote(note) {
+      if (currentPlayingAudio) {
+        currentPlayingAudio.pause();
+        currentPlayingAudio.currentTime = 0; 
+      }
+      const audio = new Audio(audioBase + note + ".mp3");
+      audio.volume = 0.7; 
+      audio.play().then(() => {
+        currentPlayingAudio = audio; 
+      }).catch(e => console.error(`Erro ao tocar ${note}.mp3:`, e));
+    }
+
+    function playNote() {
+      const index = Math.floor(Math.random() * currentLevel);
+      currentNote = noteSequence[index];
+      playRealNote(currentNote);
+      document.getElementById("result").textContent = "Qual nota foi tocada?";
+      document.getElementById("result").style.color = "black";
+      
+      total++; 
+      updateStats(); 
+
+      if (autoPlayTimeout) {
+        clearTimeout(autoPlayTimeout);
+        autoPlayTimeout = null;
+      }
+    }
+
+    function checkAnswer(note) {
+      const resultDiv = document.getElementById("result");
+      if (!currentNote) {
+        resultDiv.textContent = "Pressione 'Tocar Nota' ou espaço para começar.";
+        resultDiv.style.color = "orange";
+        return;
+      }
+      
+      if (note === currentNote) {
+        acertos++;
+        streak++;
+        resultDiv.textContent = `✅ Correto! Era ${displayNames[note]}`;
+        resultDiv.style.color = "green";
+        if (streak >= streakToAdvance && currentLevel < noteSequence.length) {
+          currentLevel++;
+          streak = 0;
+          streakToAdvance++; 
+          updateButtons();
+          alert("🎉 Novo nível! Nota adicionada.");
+        }
+      } else {
+        erros++;
+        streak = 0;
+        resultDiv.textContent = `❌ Errado! Era ${displayNames[currentNote]}`;
+        resultDiv.style.color = "red";
+      }
+
+      currentNote = ""; 
+      updateStats();
+
+      if (autoPlayNextNote) {
+        autoPlayTimeout = setTimeout(() => {
+          playNote();
+        }, 1500); 
+      }
+    }
+
+    function repeatNote() {
+      if (currentNote) {
+        playRealNote(currentNote);
+        document.getElementById("result").textContent = `🔁 Repetindo: ${displayNames[currentNote]}`;
+        document.getElementById("result").style.color = "blue";
+      } else {
+        document.getElementById("result").textContent = "Não há nota para repetir. Pressione 'Tocar Nota' ou espaço.";
+        document.getElementById("result").style.color = "orange";
+      }
+    }
+
+    function changeInstrument() {
+      const selected = document.getElementById("instrument").value;
+      audioBase = `./${selected}/`;
+      currentNote = "";
+      // Updated message to remove .mp3 from instrument name
+      document.getElementById("result").textContent = `🎼 Timbre alterado para: ${selected.replace(/_/g, ' ').replace(/-/g, ' ').replace('.mp3', '').trim()}`;
+      document.getElementById("result").style.color = "darkgreen";
+      if (currentPlayingAudio) {
+        currentPlayingAudio.pause();
+        currentPlayingAudio.currentTime = 0;
+        currentPlayingAudio = null;
+      }
+      if (autoPlayTimeout) {
+        clearTimeout(autoPlayTimeout);
+        autoPlayTimeout = null;
+      }
+    }
+
+    function changeOctave() {
+      currentOctave = document.getElementById("octave").value;
+      noteSequence = baseNotes.map(note => note + currentOctave);
+      displayNames = {};
+      baseNotes.forEach(note => {
+        displayNames[note + currentOctave] = baseDisplayNames[note];
+      });
+      updateButtons();
+      currentNote = ""; 
+      document.getElementById("result").textContent = `🎶 Oitava alterada para ${currentOctave}`;
+      document.getElementById("result").style.color = "purple";
+      if (currentPlayingAudio) {
+        currentPlayingAudio.pause();
+        currentPlayingAudio.currentTime = 0;
+        currentPlayingAudio = null;
+      }
+      if (autoPlayTimeout) {
+        clearTimeout(autoPlayTimeout);
+        autoPlayTimeout = null;
+      }
+    }
+
+    function toggleAutoPlayNextNote() {
+      autoPlayNextNote = !autoPlayNextNote; 
+      const button = document.getElementById("toggleAutoPlayNextNoteButton");
+      if (autoPlayNextNote) {
+        button.textContent = "▶️ Próxima Nota Automático (Ativado)";
+        button.classList.remove('inactive');
+        button.classList.add('active');
+        if (!currentNote) {
+            playNote(); 
+        }
+      } else {
+        button.textContent = "▶️ Próxima Nota Automático (Desativado)";
+        button.classList.remove('active');
+        button.classList.add('inactive');
+        if (autoPlayTimeout) {
+          clearTimeout(autoPlayTimeout);
+          autoPlayTimeout = null;
+        }
+      }
+      document.getElementById("result").textContent = `Modo automático: ${autoPlayNextNote ? 'ATIVADO' : 'DESATIVADO'}`;
+      document.getElementById("result").style.color = autoPlayNextNote ? "green" : "red";
+    }
+
+    document.addEventListener("keydown", (e) => {
+      const key = e.key.toLowerCase();
+      if (e.key === "Enter") {
+        e.preventDefault();
+        repeatNote();
+        return; 
+      }
+      if (e.key === " ") { 
+        e.preventDefault();
+        playNote(); 
+        return; 
+      }
+      
+      const index = keyBindings.indexOf(key);
+      if (index >= 0 && index < currentLevel) {
+        checkAnswer(noteSequence[index]);
+      }
+    });
+
+    updateButtons();
+    updateStats();
+  </script>
+</body>
+</html>
