@@ -1,3 +1,4 @@
+
   let midiData = null;
   let scheduled = [];
   let samplers = {};
@@ -9,9 +10,11 @@
   let loopStartTime = 0; 
   let loopEndTime = 0;   
   let midiDuration = 0;
+  let selectedMidiItem = null;
 
   // Lista de MIDIs pré-definidos - ADICIONE SEUS PRÓPRIOS ARQUIVOS AQUI
-  
+
+
   const DRUM_MAPPING = {
     36: ["C1", "kick.wav"],
     38: ["D1", "snare.wav"],
@@ -158,24 +161,56 @@
     Tone.Transport.playbackRate = playbackRate;
   }
 
-  function updateProgressBar() {
-    if (!midiData) return;
+function updateProgressBar() {
+  if (!midiData) return;
 
-    const totalDuration = Tone.Transport.loop ? Tone.Transport.loopEnd : midiDuration / playbackRate;
-    const currentSeconds = Tone.Transport.seconds;
-    let percent = (currentSeconds / totalDuration) * 100;
+  const totalDuration = Tone.Transport.loop ? Tone.Transport.loopEnd : midiDuration / playbackRate;
+  const currentSeconds = Tone.Transport.seconds;
+  let percent = (currentSeconds / totalDuration) * 100;
 
-    document.getElementById("progress").style.width = Math.min(percent, 100) + "%";
-    
-    const indicator = document.getElementById("progressIndicator");
-    indicator.style.left = `${Math.min(percent, 100)}%`;
+  document.getElementById("progress").style.width = Math.min(percent, 100) + "%";
+  
+  const indicator = document.getElementById("progressIndicator");
+  indicator.style.left = `${Math.min(percent, 100)}%`;
 
-    if (currentSeconds >= totalDuration && !Tone.Transport.loop) {
-        clearInterval(progressInterval);
-        document.getElementById("status").textContent = "Reprodução concluída.";
-        isPlaying = false;
-    }
+  if (currentSeconds >= totalDuration && !Tone.Transport.loop) {
+      clearInterval(progressInterval);
+      document.getElementById("status").textContent = "Reprodução concluída. Clique em Tocar para reiniciar.";
+      isPlaying = false;
+      // Reseta a posição de reprodução para o início
+      Tone.Transport.seconds = 0;
+      // Para o transporte (equivalente a clicar em Stop)
+      Tone.Transport.stop();
+      Tone.Transport.cancel();
   }
+}
+
+document.getElementById("btnPlay").addEventListener("click", async () => {
+  if (!midiData) {
+    document.getElementById("status").textContent = "Carregue um MIDI.";
+    return;
+  }
+
+  try {
+    await Tone.start();
+    
+    // Se o transporte já tiver terminado, reinicia do início
+    if (Tone.Transport.state === "stopped") {
+      Tone.Transport.seconds = 0;
+      scheduleTracks();
+    }
+    
+    Tone.Transport.start();
+    isPlaying = true;
+    document.getElementById("status").textContent = "Tocando...";
+
+    clearInterval(progressInterval);
+    progressInterval = setInterval(updateProgressBar, 50);
+  } catch (err) {
+    console.error("Erro ao iniciar reprodução:", err);
+    document.getElementById("status").textContent = "Erro ao iniciar reprodução";
+  }
+});
 
   function updateLoopMarkers() {
     const loopStartMarker = document.getElementById("loopStartMarker");
@@ -215,58 +250,72 @@
   // Funções para a lista de MIDIs
   function loadMidiList() {
     document.getElementById("status").textContent = "Carregando lista de MIDIs...";
-    const midiList = document.getElementById("midiList");
-    midiList.innerHTML = '';
+    const midiListContainer = document.getElementById("midiListContainer");
+    midiListContainer.innerHTML = '';
     
     if (availableMidis.length === 0) {
-      midiList.innerHTML = '<option value="">Nenhum arquivo MIDI encontrado</option>';
+      midiListContainer.innerHTML = '<div class="midi-list-item">Nenhum arquivo MIDI encontrado</div>';
       document.getElementById("status").textContent = "Nenhum MIDI disponível";
       return;
     }
     
     availableMidis.forEach(midi => {
-      const option = document.createElement('option');
-      option.value = midi.path;
-      option.textContent = midi.name;
-      midiList.appendChild(option);
+      const item = document.createElement('div');
+      item.className = 'midi-list-item';
+      item.textContent = midi.name;
+      item.dataset.path = midi.path;
+      
+      item.addEventListener('click', () => {
+        // Remove a seleção anterior
+        if (selectedMidiItem) {
+          selectedMidiItem.classList.remove('active');
+        }
+        
+        // Adiciona seleção ao item clicado
+        item.classList.add('active');
+        selectedMidiItem = item;
+        
+        // Carrega o MIDI imediatamente
+        loadMidiFile(midi.path, midi.name);
+      });
+      
+      midiListContainer.appendChild(item);
     });
     
-    document.getElementById("status").textContent = "Selecione um MIDI da lista ou faça upload";
+    document.getElementById("status").textContent = "Clique em um MIDI para carregar";
   }
 
-  function filterMidiList() {
-    const searchTerm = document.getElementById("midiSearch").value.toLowerCase();
-    const options = document.getElementById("midiList").options;
-    
-    for (let i = 0; i < options.length; i++) {
-      const text = options[i].text.toLowerCase();
-      options[i].style.display = text.includes(searchTerm) ? '' : 'none';
-    }
-  }
-
-  async function loadSelectedMidi() {
-    const midiList = document.getElementById("midiList");
-    const selectedOption = midiList.options[midiList.selectedIndex];
-    
-    if (!selectedOption || !selectedOption.value) {
-      document.getElementById("status").textContent = "Selecione um arquivo MIDI";
-      return;
-    }
-    
+  async function loadMidiFile(path, name) {
     try {
-      document.getElementById("status").textContent = `Carregando ${selectedOption.text}...`;
-      const response = await fetch(selectedOption.value);
+      document.getElementById("status").textContent = `Carregando ${name}...`;
+      const response = await fetch(path);
       
       if (!response.ok) {
         throw new Error(`Erro ao carregar: ${response.statusText}`);
       }
       
       const arrayBuffer = await response.arrayBuffer();
-      processMidiFile(arrayBuffer, selectedOption.text);
+      processMidiFile(arrayBuffer, name);
     } catch (err) {
       console.error("Erro ao carregar MIDI:", err);
-      document.getElementById("status").textContent = `Erro ao carregar ${selectedOption.text}`;
+      document.getElementById("status").textContent = `Erro ao carregar ${name}`;
+      
+      // Remove a seleção em caso de erro
+      if (selectedMidiItem) {
+        selectedMidiItem.classList.remove('active');
+        selectedMidiItem = null;
+      }
     }
+  }
+
+  function filterMidiList() {
+    const searchTerm = document.getElementById("midiSearch").value.toLowerCase();
+    const items = document.querySelectorAll('.midi-list-item');
+    
+    items.forEach(item => {
+      const text = item.textContent.toLowerCase();
+      item.style.display = text.includes(searchTerm) ? '' : 'none';
+    });
   }
 
   async function processMidiFile(arrayBuffer, fileName = "Arquivo MIDI") {
@@ -366,6 +415,12 @@
     try {
       const arrayBuffer = await e.target.files[0].arrayBuffer();
       processMidiFile(arrayBuffer, e.target.files[0].name);
+      
+      // Remove a seleção da lista de MIDIs se houver
+      if (selectedMidiItem) {
+        selectedMidiItem.classList.remove('active');
+        selectedMidiItem = null;
+      }
     } catch (err) {
       console.error("Erro ao carregar MIDI:", err);
       document.getElementById("status").textContent = "Erro ao carregar arquivo MIDI";
@@ -481,7 +536,6 @@
 
   // Event listeners para a lista de MIDIs
   document.getElementById("btnRefreshList").addEventListener("click", loadMidiList);
-  document.getElementById("btnLoadSelected").addEventListener("click", loadSelectedMidi);
   document.getElementById("midiSearch").addEventListener("input", filterMidiList);
 
   // Carrega a lista quando a página é aberta
