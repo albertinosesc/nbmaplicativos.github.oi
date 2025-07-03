@@ -15,9 +15,9 @@ document.addEventListener('DOMContentLoaded', async function () {
     const fileTypeElement = document.getElementById('fileType');
 
     // Estado da aplicação
-    let allMusicasLoadedFromScripts = []; // Todas as músicas agrupadas carregadas dos scripts (para pesquisa global)
-    let currentMusicasDisplaySource = []; // Músicas carregadas pelo SELECT de nível (ex: musicas de Beethoven)
-    let currentPdfUrl = '';
+    let allMusicasLoadedFromScripts = []; // Todas as músicas AGRUPADAS carregadas dos scripts (para pesquisa global)
+    let currentMusicasDisplaySource = []; // Músicas AGRUPADAS carregadas pelo SELECT de nível (ex: musicas de Beethoven)
+    let currentPdfUrl = ''; // Mantido para compatibilidade, mas considera "currentFileUrl" como mais genérico
     const loadedScripts = new Set(); // Para controlar scripts já carregados
     let lastActiveLevelIndex = -1; // Índice do último select de nível com uma seleção válida
 
@@ -147,9 +147,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             // Se o item não tem um 'arquivo', mas há um próximo nível globalmente definido (não carregado via arquivo)
             const nextLevelData = window[`nivel${currentSelectIndex + 2}`];
             if (nextLevelData) {
-                 // Popula o próximo select, filtrando pelo 'nome' do item pai, se aplicável
-                 // NOTE: Seu nivel2.js não tem 'pai', então ele simplesmente carrega todas as opções de nivel2
-                 // Se você quiser filtragem aqui, precisaria de 'pai' nos seus dados de nível.
+                // Popula o próximo select, filtrando pelo 'nome' do item pai, se aplicável
+                // NOTE: Seu nivel2.js não tem 'pai', então ele simplesmente carrega todas as opções de nivel2
+                // Se você quiser filtragem aqui, precisaria de 'pai' nos seus dados de nível.
                 populateSelect(selects[currentSelectIndex + 1], nextLevelData);
             }
             currentMusicasDisplaySource = []; // Nenhuma música direta ainda
@@ -172,12 +172,12 @@ document.addEventListener('DOMContentLoaded', async function () {
         else {
             // Se um item de nível foi selecionado e ele não carregou músicas diretas,
             // então filtramos do allMusicasLoadedFromScripts pelo "nome" desse nível.
-            if (lastActiveLevelIndex !== -1) {
+            if (lastActiveLevelIndex !== -1 && selects[lastActiveLevelIndex].value !== '') {
                 const selectedLevelData = window[`nivel${lastActiveLevelIndex + 1}`][parseInt(selects[lastActiveLevelIndex].value)];
                 if (selectedLevelData && selectedLevelData.nome) {
                     musicsToProcess = allMusicasLoadedFromScripts.filter(m => 
-                        m.composer && m.composer.toLowerCase().includes(selectedLevelData.nome.toLowerCase()) || // Busca por compositor
-                        m.level && m.level.toLowerCase().includes(selectedLevelData.nome.toLowerCase()) // Busca por nível
+                        (m.composer && m.composer.toLowerCase().includes(selectedLevelData.nome.toLowerCase())) || // Busca por compositor
+                        (m.level && m.level.toLowerCase().includes(selectedLevelData.nome.toLowerCase())) // Busca por nível
                         // Adicione mais condições se o "nome" do nível puder ser outras propriedades da música
                     );
                 } else {
@@ -214,18 +214,16 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
 
     // Renderiza a lista de músicas no HTML
-// ... (código anterior)
-
-    // Renderiza a lista de músicas no HTML
     function renderMusicListHtml(musicasToRender) {
         if (!musicList) return;
 
         musicList.innerHTML = musicasToRender.map(music => `
             <div class="music-item">
                 <div class="music-info">
-                    <strong>${music.name || 'Sem nome'} -</strong>
-                    ${music.composer ? `<div class="composer">${music.composer}</div>` : ''}
-                    ${music.reference ? `<div class="reference">Referência: ${music.reference}</div>` : ''} ${music.level ? `<div class="level">Nível: ${music.level}</div>` : ''} <div class="formats">${
+                    <strong>${music.name || 'Sem nome'}</strong> ${music.composer ? `<div class="composer">${music.composer}</div>` : ''}
+                    ${music.reference ? `<div class="reference">Referência: ${music.reference}</div>` : ''} 
+                    ${music.level ? `<div class="level">Nível: ${music.level}</div>` : ''} 
+                    <div class="formats">${
                         music.versions.map(v =>
                             `<span class="file-badge ${v.type}"
                                 data-file="${v.file}"
@@ -250,8 +248,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     }
 
-// ... (restante do seu código main.js)
-    // ==================== FUNÇÕES DE UTALITÁRIAS ====================
+    // ==================== FUNÇÕES DE UTILITÁRIAS ====================
 
     // Carrega um script dinamicamente
     async function loadScript(src) {
@@ -266,7 +263,10 @@ document.addEventListener('DOMContentLoaded', async function () {
                 loadedScripts.add(src);
                 resolve();
             };
-            script.onerror = reject;
+            script.onerror = (e) => {
+                console.error(`Falha ao carregar script: ${src}`, e);
+                reject(e);
+            };
             document.head.appendChild(script);
         });
     }
@@ -274,7 +274,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Escaneia e carrega todos os scripts que contêm músicas para o pool global
     async function scanAndLoadAllMusicScripts() {
         try {
-            allMusicasLoadedFromScripts = []; // Reseta o pool global
+            let rawMusicas = []; // Lista temporária para todas as músicas ANTES de agrupar
             const musicScriptSources = [
                 'js/todaspartituraspdf.js',
                 'js/todaspartiturasmp3.js',
@@ -286,13 +286,17 @@ document.addEventListener('DOMContentLoaded', async function () {
                 try {
                     await loadScript(src);
                     if (window.musicas && Array.isArray(window.musicas)) {
-                        allMusicasLoadedFromScripts.push(...agruparMusicas(window.musicas));
+                        rawMusicas.push(...window.musicas); // Adiciona as músicas cruas
                         window.musicas = undefined; // Limpa para o próximo script
                     }
                 } catch (error) {
                     console.warn(`Erro ao carregar script musical: ${src}`, error);
                 }
             }
+            // AGORA, agrupa TODAS as músicas uma única vez
+            allMusicasLoadedFromScripts = agruparMusicas(rawMusicas); 
+            console.log("Todas as músicas carregadas e agrupadas para o pool global. Total de músicas agrupadas:", allMusicasLoadedFromScripts.length);
+
         } catch (error) {
             console.error('Erro ao escanear e carregar todos os scripts de música:', error);
             throw error;
@@ -305,7 +309,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         musicasArray.forEach(musica => {
             const fileName = musica.file.split('/').pop();
             const idMatch = fileName.match(/^(\d+)/); // Pega números no início do nome do arquivo
-            const id = idMatch ? idMatch[1] : 'UNKNOWN_ID'; // Fallback para ID se não encontrar
+            const id = idMatch ? idMatch[1] : `UNKNOWN_ID_${musica.name || 'Sem nome'}`; // Fallback mais robusto
 
             if (!musicasAgrupadas[id]) {
                 musicasAgrupadas[id] = {
@@ -331,7 +335,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     async function showMedia(url, type) {
         if (!url || !type) return;
         
-        currentPdfUrl = url;
+        currentPdfUrl = url; // Mantendo o nome da variável, mas ela contém a URL da mídia atual
         fileTypeElement.textContent = `Tipo: ${type.toUpperCase()}`;
         
         pdfViewer.style.display = 'none';
@@ -352,7 +356,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         noPdfMessage.style.display = 'none';
         pdfActions.style.display = 'flex';
         downloadBtn.textContent = `Baixar ${type.toUpperCase()}`;
-        printBtn.textContent = `Imprimir ${type.toUpperCase()}`;
+        printBtn.textContent = `Imprimir ${type.toUpperCase()}`; // O texto do botão de imprimir também pode se ajustar
     }
 
     // Esconde visualizador de mídia
