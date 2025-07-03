@@ -1,4 +1,3 @@
-// main.js - Sistema Completo de Gerenciamento de Partituras Musicais
 document.addEventListener('DOMContentLoaded', async function () {
     // Elementos do DOM
     const selects = Array.from(document.querySelectorAll('[id^="nivel"]')).sort((a, b) =>
@@ -12,307 +11,403 @@ document.addEventListener('DOMContentLoaded', async function () {
     const downloadBtn = document.getElementById('downloadPdf');
     const printBtn = document.getElementById('printPdf');
     const loadingIndicator = document.getElementById('loadingIndicator');
+    const audioPlayer = document.getElementById('audioPlayer');
+    const fileTypeElement = document.getElementById('fileType');
 
     // Estado da aplicação
-    let allMusicas = [];
-    let filteredMusicas = [];
+    let allMusicasLoadedFromScripts = []; // Todas as músicas agrupadas carregadas dos scripts (para pesquisa global)
+    let currentMusicasDisplaySource = []; // Músicas carregadas pelo SELECT de nível (ex: musicas de Beethoven)
     let currentPdfUrl = '';
-    const loadedScripts = new Set();
-    let currentSelectedLevel = null;
+    const loadedScripts = new Set(); // Para controlar scripts já carregados
+    let lastActiveLevelIndex = -1; // Índice do último select de nível com uma seleção válida
 
     // ==================== FUNÇÕES PRINCIPAIS ====================
 
-    // Inicialização do sistema
     async function init() {
         try {
             showLoading(true);
             setupInitialSelects();
             setupEventListeners();
             
-            // Carrega o primeiro nível se existir
+            // Carrega todos os scripts de música na inicialização para o pool de pesquisa global
+            await scanAndLoadAllMusicScripts();
+
+            // Carrega o primeiro nível de selects
             if (window.nivel1) {
-                await loadLevel(0, window.nivel1);
+                populateSelect(selects[0], window.nivel1);
             }
             
-            // Habilita a busca
             searchInput.disabled = false;
-            
-            // Pré-carrega todas as músicas disponíveis
-            await scanAndLoadScriptsComMusicas();
+            showInfoMessage('Selecione uma categoria ou digite para pesquisar em todas as partituras.');
+
         } catch (error) {
             console.error('Erro na inicialização:', error);
-            showErrorMessage('Erro ao carregar partituras');
+            showErrorMessage('Erro ao iniciar o sistema. Tente novamente mais tarde.');
         } finally {
             showLoading(false);
         }
     }
 
-    // Configura os selects iniciais
     function setupInitialSelects() {
         selects.forEach((select, index) => {
-            if (select) {
-                select.disabled = index > 0;
-                select.innerHTML = '<option value="">Selecione...</option>';
-            }
+            select.disabled = index > 0;
+            select.innerHTML = '<option value="">Selecione...</option>';
         });
     }
 
-    // Configura os eventos
     function setupEventListeners() {
-        // Eventos de mudança nos selects
+        // Eventos de mudança nos selects de nível
         selects.forEach((select, index) => {
-            if (select) {
-                select.addEventListener('change', async () => {
-                    try {
-                        showLoading(true);
-                        const nivelKey = `nivel${index + 1}`;
-                        const data = window[nivelKey];
-                        if (data) {
-                            currentSelectedLevel = index;
-                            await handleSelectChange(index, data);
-                        }
-                    } catch (error) {
-                        console.error('Erro ao mudar nível:', error);
-                        showErrorMessage('Erro ao carregar nível selecionado');
-                    } finally {
-                        showLoading(false);
-                    }
-                });
-            }
-        });
-
-        // Evento de busca
-        if (searchInput) {
-            searchInput.addEventListener('input', () => {
-                handleSearch();
+            select.addEventListener('change', async () => {
+                await handleLevelSelectChange(index);
             });
-        }
-
-        // Eventos do PDF
-        if (downloadBtn) downloadBtn.addEventListener('click', downloadPdf);
-        if (printBtn) printBtn.addEventListener('click', printPdf);
-    }
-
-    // Carrega um nível específico
-    async function loadLevel(levelIndex, data) {
-        const select = selects[levelIndex];
-        if (!select) return;
-
-        select.innerHTML = '<option value="">Selecione...</option>';
-        data.forEach((item, index) => {
-            const option = new Option(item.nome, index);
-            select.add(option);
         });
-        select.disabled = false;
+
+        // Evento de busca no campo de texto
+        searchInput.addEventListener('input', () => {
+            filterAndRenderMusicList();
+        });
+
+        // Eventos dos botões de ação
+        downloadBtn.addEventListener('click', downloadFile);
+        printBtn.addEventListener('click', printFile);
     }
 
-    // ==================== FUNÇÕES DE GERENCIAMENTO ====================
-
-    // Manipula a mudança de seleção
-async function handleSelectChange(levelIndex, currentData) {
-    const selectedIndex = selects[levelIndex].value;
-    if (selectedIndex === '') return;
-
-    await clearLevelsBelow(levelIndex);
-
-    const selectedItem = currentData[selectedIndex];
-    if (!selectedItem) return;
-
-    // Carrega o script se necessário
-    if (selectedItem.arquivo) {
-        await loadScript(selectedItem.arquivo);
+    // Popula um select com opções
+    function populateSelect(selectElement, data) {
+        selectElement.innerHTML = '<option value="">Selecione...</option>';
+        data.forEach((item, index) => {
+            // Usamos o índice como valor porque seus itens não têm 'id'
+            selectElement.add(new Option(item.nome, index)); 
+        });
+        selectElement.disabled = false;
     }
 
-    // Verifica se há músicas para mostrar
-    if (window.musicas) {
-        await renderMusicList(window.musicas);
-        return;
-    }
+    // ==================== LÓGICA DE FILTRAGEM E EXIBIÇÃO ====================
 
-    // Verifica próximo nível
-    const nextLevelIndex = levelIndex + 1;
-    const nextLevelKey = `nivel${nextLevelIndex + 1}`;
-    if (window[nextLevelKey]) {
-        await loadLevel(nextLevelIndex, window[nextLevelKey]);
-    }
-}
-
-    // Limpa os níveis abaixo do selecionado
-    async function clearLevelsBelow(levelIndex) {
-        for (let i = levelIndex + 1; i < selects.length; i++) {
-            if (selects[i]) {
-                selects[i].innerHTML = '<option value="">Selecione...</option>';
-                selects[i].disabled = true;
-            }
+    // Manipula a mudança de seleção nos selects de nível
+    async function handleLevelSelectChange(currentSelectIndex) {
+        showLoading(true);
+        const selectedValue = selects[currentSelectIndex].value; // É o índice do item
+        
+        // Limpa selects subsequentes
+        for (let i = currentSelectIndex + 1; i < selects.length; i++) {
+            selects[i].innerHTML = '<option value="">Selecione...</option>';
+            selects[i].disabled = true;
         }
-
-        if (musicList) musicList.innerHTML = '';
-        if (searchInput) searchInput.value = '';
-        await hidePdfViewer();
-    }
-
-    // Carrega um script dinamicamente
-async function loadScript(src) {
-    return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = src;
-        script.onload = resolve;
-        script.onerror = reject;
-        document.head.appendChild(script);
-    });
-}
-    // ==================== FUNÇÕES DE EXIBIÇÃO ====================
-
-    // Renderiza a lista de músicas
-    async function renderMusicList(musicas) {
-        if (!musicList) return;
-
-        const searchTerm = searchInput?.value?.trim().toLowerCase() || '';
-        filteredMusicas = await filterMusicas(musicas, searchTerm);
-
+        
+        // Esconde visualizador de mídia e limpa lista de músicas
         musicList.innerHTML = '';
+        await hideMediaViewer();
+        currentMusicasDisplaySource = []; // Reseta a fonte de exibição de músicas
 
-        if (filteredMusicas.length === 0) {
-            const msg = searchTerm
-                ? `Nenhuma partitura encontrada para "${searchInput.value}"`
-                : 'Nenhuma partitura disponível';
-            showInfoMessage(msg);
+        if (selectedValue === '') {
+            // Se "Selecione..." foi escolhido no select atual, resetamos os níveis abaixo e filtramos no pool principal
+            lastActiveLevelIndex = currentSelectIndex - 1; // O nível anterior é o último ativo
+            filterAndRenderMusicList();
+            showLoading(false);
             return;
         }
 
-        filteredMusicas.forEach(music => {
-            if (!music) return;
+        lastActiveLevelIndex = currentSelectIndex; // Atualiza o índice do último select ativo
 
-            const div = document.createElement('div');
-            div.className = 'music-item';
-            div.innerHTML = `
-                <div class="music-info">
-                    <strong>${music.name || 'Sem nome'}</strong>
-                    ${music.composer ? `<div class="music-meta">${music.composer}</div>` : ''}
-                    ${music.level ? `<div class="music-meta">Nível: ${music.level}</div>` : ''}
-                </div>
-            `;
-            div.addEventListener('click', () => showPdf(music.file));
-            musicList.appendChild(div);
-        });
-    }
-
-    // Filtra músicas conforme termo de busca
-    async function filterMusicas(musicas, term) {
-        if (!musicas || !Array.isArray(musicas)) return [];
-        if (!term) return musicas;
+        const currentLevelData = window[`nivel${currentSelectIndex + 1}`];
+        const selectedItem = currentLevelData[parseInt(selectedValue)]; // O item selecionado
         
-        return musicas.filter(m => {
-            if (!m) return false;
-            return (
-                (m.name && m.name.toLowerCase().includes(term)) ||
-                (m.composer && m.composer.toLowerCase().includes(term)) ||
-                (m.level && m.level.toString().toLowerCase().includes(term))
+        if (!selectedItem) {
+            showErrorMessage('Item de nível não encontrado.');
+            showLoading(false);
+            return;
+        }
+
+        // Se o item selecionado tem um 'arquivo' (script de músicas ou próximo nível)
+        if (selectedItem.arquivo) {
+            try {
+                await loadScript(selectedItem.arquivo);
+                
+                // Se o script carregou 'window.musicas' (músicas diretas para este item)
+                if (window.musicas && Array.isArray(window.musicas)) {
+                    currentMusicasDisplaySource = agruparMusicas(window.musicas); // Agrupa as músicas recém-carregadas
+                    window.musicas = undefined; // Limpa window.musicas para o próximo carregamento
+                } 
+                // Se o script carregou um 'nivelX' (próximo nível de selects)
+                else if (window[`nivel${currentSelectIndex + 2}`]) {
+                    populateSelect(selects[currentSelectIndex + 1], window[`nivel${currentSelectIndex + 2}`]);
+                    currentMusicasDisplaySource = []; // Nenhuma música direta ainda
+                } else {
+                    // Script carregado, mas sem window.musicas ou próximo nível. Pode ser um script vazio ou de configuração.
+                    currentMusicasDisplaySource = []; 
+                }
+            } catch (error) {
+                console.error(`Erro ao carregar script para ${selectedItem.nome}:`, error);
+                showErrorMessage(`Erro ao carregar dados para "${selectedItem.nome}".`);
+                currentMusicasDisplaySource = [];
+            }
+        } else {
+            // Se o item não tem um 'arquivo', mas há um próximo nível globalmente definido (não carregado via arquivo)
+            const nextLevelData = window[`nivel${currentSelectIndex + 2}`];
+            if (nextLevelData) {
+                 // Popula o próximo select, filtrando pelo 'nome' do item pai, se aplicável
+                 // NOTE: Seu nivel2.js não tem 'pai', então ele simplesmente carrega todas as opções de nivel2
+                 // Se você quiser filtragem aqui, precisaria de 'pai' nos seus dados de nível.
+                populateSelect(selects[currentSelectIndex + 1], nextLevelData);
+            }
+            currentMusicasDisplaySource = []; // Nenhuma música direta ainda
+        }
+        
+        filterAndRenderMusicList(); // Aplica o filtro de texto ao que foi carregado/determinado
+        showLoading(false);
+    }
+
+    // Função unificada para filtrar e renderizar a lista de músicas
+    function filterAndRenderMusicList() {
+        let musicsToProcess = [];
+
+        // Determine a base para a filtragem:
+        // 1. Se músicas foram carregadas por um select de nível (currentMusicasDisplaySource tem prioridade)
+        if (currentMusicasDisplaySource.length > 0) {
+            musicsToProcess = currentMusicasDisplaySource;
+        } 
+        // 2. Senão, se estamos em um nível "pai" sem um script de músicas, ou no início (pool principal)
+        else {
+            // Se um item de nível foi selecionado e ele não carregou músicas diretas,
+            // então filtramos do allMusicasLoadedFromScripts pelo "nome" desse nível.
+            if (lastActiveLevelIndex !== -1) {
+                const selectedLevelData = window[`nivel${lastActiveLevelIndex + 1}`][parseInt(selects[lastActiveLevelIndex].value)];
+                if (selectedLevelData && selectedLevelData.nome) {
+                    musicsToProcess = allMusicasLoadedFromScripts.filter(m => 
+                        m.composer && m.composer.toLowerCase().includes(selectedLevelData.nome.toLowerCase()) || // Busca por compositor
+                        m.level && m.level.toLowerCase().includes(selectedLevelData.nome.toLowerCase()) // Busca por nível
+                        // Adicione mais condições se o "nome" do nível puder ser outras propriedades da música
+                    );
+                } else {
+                    musicsToProcess = allMusicasLoadedFromScripts; // Default para todas se não puder filtrar por nome
+                }
+            } else {
+                musicsToProcess = allMusicasLoadedFromScripts; // Quando nenhum nível está selecionado
+            }
+        }
+
+        // Aplica filtro por termo de busca
+        const searchTerm = searchInput.value.toLowerCase().trim();
+        let finalFilteredMusicas = musicsToProcess;
+
+        if (searchTerm) {
+            finalFilteredMusicas = musicsToProcess.filter(m =>
+                (m.name && m.name.toLowerCase().includes(searchTerm)) ||
+                (m.composer && m.composer.toLowerCase().includes(searchTerm)) ||
+                (m.level && m.level.toLowerCase().includes(searchTerm)) ||
+                (m.id && m.id.includes(searchTerm)) || // Verifica se m.id existe antes de usar
+                (m.reference && m.reference.toLowerCase().includes(searchTerm))
             );
+        }
+
+        // Renderiza os resultados ou a mensagem apropriada
+        if (finalFilteredMusicas.length === 0) {
+            const msg = searchTerm
+                ? `Nenhuma partitura encontrada para "${searchInput.value}"`
+                : 'Nenhuma partitura disponível para este critério.';
+            showInfoMessage(msg);
+        } else {
+            renderMusicListHtml(finalFilteredMusicas);
+        }
+    }
+
+    // Renderiza a lista de músicas no HTML
+// ... (código anterior)
+
+    // Renderiza a lista de músicas no HTML
+    function renderMusicListHtml(musicasToRender) {
+        if (!musicList) return;
+
+        musicList.innerHTML = musicasToRender.map(music => `
+            <div class="music-item">
+                <div class="music-info">
+                    <strong>${music.name || 'Sem nome'} -</strong>
+                    ${music.composer ? `<div class="composer">${music.composer}</div>` : ''}
+                    ${music.reference ? `<div class="reference">Referência: ${music.reference}</div>` : ''} ${music.level ? `<div class="level">Nível: ${music.level}</div>` : ''} <div class="formats">${
+                        music.versions.map(v =>
+                            `<span class="file-badge ${v.type}"
+                                data-file="${v.file}"
+                                data-type="${v.type}">
+                                ${v.type.toUpperCase()}
+                            </span>`
+                        ).join(' ')
+                    }</div>
+                </div>
+            </div>`
+        ).join('');
+
+        // Adiciona eventos aos badges
+        document.querySelectorAll('.file-badge').forEach(badge => {
+            badge.addEventListener('click', (e) => {
+                e.stopPropagation(); 
+                showMedia(
+                    e.target.getAttribute('data-file'),
+                    e.target.getAttribute('data-type')
+                );
+            });
         });
     }
 
-    // Manipula a busca
-    async function handleSearch() {
-        try {
-            if (currentSelectedLevel !== null) {
-                await renderMusicList(filteredMusicas);
-            } else {
-                await renderMusicList(allMusicas);
+// ... (restante do seu código main.js)
+    // ==================== FUNÇÕES DE UTALITÁRIAS ====================
+
+    // Carrega um script dinamicamente
+    async function loadScript(src) {
+        return new Promise((resolve, reject) => {
+            if (loadedScripts.has(src)) {
+                resolve();
+                return;
             }
-        } catch (error) {
-            console.error('Erro na busca:', error);
-            showErrorMessage('Erro ao realizar busca');
-        }
+            const script = document.createElement('script');
+            script.src = src;
+            script.onload = () => {
+                loadedScripts.add(src);
+                resolve();
+            };
+            script.onerror = reject;
+            document.head.appendChild(script);
+        });
     }
 
-    // Mostra o PDF
-    async function showPdf(url) {
-        if (!url || !pdfViewer) return;
+    // Escaneia e carrega todos os scripts que contêm músicas para o pool global
+    async function scanAndLoadAllMusicScripts() {
         try {
-            currentPdfUrl = url;
-            pdfViewer.src = url;
-            pdfViewer.style.display = 'block';
-            if (noPdfMessage) noPdfMessage.style.display = 'none';
-            if (pdfActions) pdfActions.style.display = 'flex';
-        } catch (error) {
-            console.error('Erro ao carregar PDF:', error);
-            showErrorMessage('Erro ao carregar partitura');
-        }
-    }
+            allMusicasLoadedFromScripts = []; // Reseta o pool global
+            const musicScriptSources = [
+                'js/todaspartituraspdf.js',
+                'js/todaspartiturasmp3.js',
+                'js/todaspartiturasmid.js',
+                'js/todaspartiturasabc.js'
+            ];
 
-    // Esconde o visualizador de PDF
-    async function hidePdfViewer() {
-        if (pdfViewer) pdfViewer.style.display = 'none';
-        if (noPdfMessage) noPdfMessage.style.display = 'block';
-        if (pdfActions) pdfActions.style.display = 'none';
-        currentPdfUrl = '';
-    }
-
-    // ==================== FUNÇÕES UTILITÁRIAS ====================
-
-    // Escaneia e carrega scripts que contêm músicas
-    async function scanAndLoadScriptsComMusicas() {
-        try {
-            allMusicas = [];
-
-            const scripts = Array.from(document.querySelectorAll('script[src]'));
-            for (const script of scripts) {
-                const src = script.getAttribute('src');
-                if (!loadedScripts.has(src)) {
-                    try {
-                        await loadScript(src);
-                    } catch {
-                        console.warn('Erro ao carregar script:', src);
+            for (const src of musicScriptSources) {
+                try {
+                    await loadScript(src);
+                    if (window.musicas && Array.isArray(window.musicas)) {
+                        allMusicasLoadedFromScripts.push(...agruparMusicas(window.musicas));
+                        window.musicas = undefined; // Limpa para o próximo script
                     }
-                }
-
-                if (window.musicas && Array.isArray(window.musicas)) {
-                    allMusicas = allMusicas.concat(window.musicas);
-                    window.musicas = undefined;
+                } catch (error) {
+                    console.warn(`Erro ao carregar script musical: ${src}`, error);
                 }
             }
         } catch (error) {
-            console.error('Erro ao carregar músicas:', error);
+            console.error('Erro ao escanear e carregar todos os scripts de música:', error);
             throw error;
         }
     }
+    
+    // Agrupa músicas por ID para evitar duplicatas e gerenciar versões
+    function agruparMusicas(musicasArray) {
+        const musicasAgrupadas = {};
+        musicasArray.forEach(musica => {
+            const fileName = musica.file.split('/').pop();
+            const idMatch = fileName.match(/^(\d+)/); // Pega números no início do nome do arquivo
+            const id = idMatch ? idMatch[1] : 'UNKNOWN_ID'; // Fallback para ID se não encontrar
 
-    // Download do PDF
-    function downloadPdf() {
+            if (!musicasAgrupadas[id]) {
+                musicasAgrupadas[id] = {
+                    id: id,
+                    name: musica.name || 'Sem nome',
+                    composer: musica.composer || 'Desconhecido',
+                    level: musica.level || 'Não especificado',
+                    reference: musica.reference || '',
+                    versions: []
+                };
+            }
+            
+            const tipo = musica.file.split('.').pop().toLowerCase();
+            musicasAgrupadas[id].versions.push({
+                type: tipo,
+                file: musica.file
+            });
+        });
+        return Object.values(musicasAgrupadas);
+    }
+
+    // Mostra PDF ou MP3
+    async function showMedia(url, type) {
+        if (!url || !type) return;
+        
+        currentPdfUrl = url;
+        fileTypeElement.textContent = `Tipo: ${type.toUpperCase()}`;
+        
+        pdfViewer.style.display = 'none';
+        audioPlayer.style.display = 'none';
+
+        if (type === 'pdf') {
+            pdfViewer.src = url;
+            pdfViewer.style.display = 'block';
+        } else if (type === 'mp3') {
+            audioPlayer.src = url;
+            audioPlayer.load();
+            audioPlayer.play();
+            audioPlayer.style.display = 'block';
+        } else {
+            console.warn('Tipo de arquivo não suportado para visualização direta:', type);
+        }
+        
+        noPdfMessage.style.display = 'none';
+        pdfActions.style.display = 'flex';
+        downloadBtn.textContent = `Baixar ${type.toUpperCase()}`;
+        printBtn.textContent = `Imprimir ${type.toUpperCase()}`;
+    }
+
+    // Esconde visualizador de mídia
+    async function hideMediaViewer() {
+        pdfViewer.style.display = 'none';
+        if (audioPlayer) {
+            audioPlayer.pause();
+            audioPlayer.src = '';
+            audioPlayer.style.display = 'none';
+        }
+        noPdfMessage.style.display = 'block';
+        pdfActions.style.display = 'none';
+        currentPdfUrl = '';
+        fileTypeElement.textContent = 'Tipo: N/A';
+    }
+
+    // Download do arquivo
+    function downloadFile() {
         if (!currentPdfUrl) return;
         const a = document.createElement('a');
         a.href = currentPdfUrl;
-        a.download = currentPdfUrl.split('/').pop() || 'partitura.pdf';
+        a.download = currentPdfUrl.split('/').pop() || 'arquivo';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
     }
 
-    // Impressão do PDF
-    function printPdf() {
+    // Impressão do arquivo
+    function printFile() {
         if (!currentPdfUrl) return;
-        const printWindow = window.open(currentPdfUrl, '_blank');
-        if (printWindow) {
-            printWindow.onload = function() {
-                printWindow.print();
-            };
+        const fileExtension = currentPdfUrl.split('.').pop().toLowerCase();
+        if (fileExtension === 'pdf') {
+            const printWindow = window.open(currentPdfUrl, '_blank');
+            if (printWindow) {
+                printWindow.onload = function() {
+                    printWindow.print();
+                };
+            }
+        } else {
+            alert(`A função de impressão direta é suportada apenas para arquivos PDF. Tipo atual: ${fileExtension.toUpperCase()}.`);
+            window.open(currentPdfUrl, '_blank');
         }
     }
 
-    // Mostra mensagem de erro
+    // Exibe mensagens de status
     function showErrorMessage(message) {
         if (!musicList) return;
         musicList.innerHTML = `<div class="error-message">${message}</div>`;
     }
 
-    // Mostra mensagem informativa
     function showInfoMessage(message) {
         if (!musicList) return;
         musicList.innerHTML = `<div class="info-message">${message}</div>`;
     }
 
-    // Mostra/oculta indicador de carregamento
     function showLoading(show) {
         if (!loadingIndicator) return;
         loadingIndicator.style.display = show ? 'block' : 'none';
@@ -320,49 +415,40 @@ async function loadScript(src) {
 
     // ==================== FUNÇÕES DE DEBUG ====================
 
-    // Verifica a estrutura de dados atual
     window.verificarEstrutura = function() {
-        if (currentSelectedLevel === null) {
-            console.log('Nenhum nível selecionado');
-            return;
-        }
-
-        const nivelKey = `nivel${currentSelectedLevel + 1}`;
-        const data = window[nivelKey];
-        const selectedIndex = selects[currentSelectedLevel].value;
-        const selectedItem = data[selectedIndex];
-
         console.group('Verificação de Estrutura');
-        console.log('Nível atual:', nivelKey);
-        console.log('Item selecionado:', selectedItem);
-        
-        if (selectedItem.arquivo) {
-            console.log('Arquivo a carregar:', selectedItem.arquivo);
-            console.log('Já carregado?', loadedScripts.has(selectedItem.arquivo));
+        console.log('lastActiveLevelIndex:', lastActiveLevelIndex);
+        console.log('currentMusicasDisplaySource (Músicas carregadas pelo SELECT de nível):', currentMusicasDisplaySource.length, currentMusicasDisplaySource);
+        console.log('allMusicasLoadedFromScripts (Todas as músicas do pool principal):', allMusicasLoadedFromScripts.length, allMusicasLoadedFromScripts);
+        console.log('Termo de busca:', searchInput.value.trim());
+
+        if (lastActiveLevelIndex !== -1) {
+            const currentSelect = selects[lastActiveLevelIndex];
+            if (currentSelect && currentSelect.value !== '') {
+                 const currentLevelData = window[`nivel${lastActiveLevelIndex + 1}`];
+                 const selectedItem = currentLevelData[parseInt(currentSelect.value)];
+                 console.log('Item de nível selecionado atualmente:', selectedItem);
+            } else {
+                console.log('Nível ativo, mas select vazio.');
+            }
+        } else {
+            console.log('Nenhum nível está ativamente selecionado.');
         }
         
-        console.log('Tem músicas diretamente?', !!selectedItem.musicas);
-        console.log('window.musicas definido?', !!window.musicas);
+        console.log('Scripts carregados:', Array.from(loadedScripts));
         console.groupEnd();
     };
 
-    // Mostra estado completo da aplicação
     window.debugApp = function() {
-        console.group('Estado da Aplicação');
-        console.log('Nível selecionado:', currentSelectedLevel);
-        console.log('Total músicas carregadas:', allMusicas.length);
-        console.log('Músicas filtradas:', filteredMusicas.length);
-        console.log('PDF atual:', currentPdfUrl);
+        console.group('Estado da Aplicação Completo');
+        console.log('lastActiveLevelIndex:', lastActiveLevelIndex);
+        console.log('Total músicas carregadas (allMusicasLoadedFromScripts):', allMusicasLoadedFromScripts.length);
+        console.log('Músicas para exibição atual (currentMusicasDisplaySource):', currentMusicasDisplaySource.length);
+        console.log('PDF/Mídia atual:', currentPdfUrl);
         console.log('Scripts carregados:', Array.from(loadedScripts));
-        
-        if (currentSelectedLevel !== null) {
-            const nivelKey = `nivel${currentSelectedLevel + 1}`;
-            console.log('Dados do nível atual:', window[nivelKey]);
-        }
-        
         console.groupEnd();
     };
 
     // Inicializa a aplicação
-    await init();
+    init();
 });
