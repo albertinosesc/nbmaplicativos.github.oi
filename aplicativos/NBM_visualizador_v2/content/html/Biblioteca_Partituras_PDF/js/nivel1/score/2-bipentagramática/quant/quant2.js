@@ -1,4 +1,0 @@
-window.nivel4 = [
-
-  
-];
