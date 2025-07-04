@@ -1,3 +1,4 @@
+
 document.addEventListener('DOMContentLoaded', async function () {
     // Elementos do DOM
     const selects = Array.from(document.querySelectorAll('[id^="nivel"]')).sort((a, b) =>
@@ -190,7 +191,9 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
     }
 
-    function filterAndRenderMusicList() {
+// ... (seu código anterior) ...
+
+function filterAndRenderMusicList() {
         let musicsToFilter = [...allMusicasLoadedFromScripts]; 
         let currentFilterTerm = '';
 
@@ -202,6 +205,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const levelNameLower = selectedItem.nome.toLowerCase();
                 currentFilterTerm = selectedItem.nome;
 
+                // Crie uma regex para corresponder ao INÍCIO da string (para nota e id)
+                // Escapa caracteres especiais do termo para não quebrar a regex
+                const escapedLevelNameLower = levelNameLower.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+                const startsWithRegex = new RegExp(`^${escapedLevelNameLower}`);
+
                 musicsToFilter = allMusicasLoadedFromScripts.filter(m => {
                     const matchesComposer = m.composer && m.composer.toLowerCase().includes(levelNameLower);
                     const matchesLevelProperty = m.level && m.level.toLowerCase().includes(levelNameLower);
@@ -209,12 +217,16 @@ document.addEventListener('DOMContentLoaded', async function () {
                     const matchesReference = m.reference && m.reference.toLowerCase().includes(levelNameLower);
                     const matchesInstrument = m.instrument && m.instrument.toLowerCase().includes(levelNameLower);
                     const matchesBook = m.book && m.book.toLowerCase().includes(levelNameLower);
-                    const matchesNota = m.nota && m.nota.toLowerCase().includes(levelNameLower); 
+                    
+                    // MODIFICAÇÃO AQUI: Para `nota` e `id` no filtro de nível
+                    // Usar regex para "começa com"
+                    const matchesNota = m.nota && startsWithRegex.test(m.nota.toLowerCase());
+                    const matchesId = m.id && startsWithRegex.test(m.id.toLowerCase());
 
                     const matchesAnyFileVersionPath = m.versions.some(v => v.file.toLowerCase().includes(levelNameLower));
 
                     return matchesComposer || matchesLevelProperty || matchesName || matchesReference ||
-                        matchesInstrument || matchesBook || matchesNota || 
+                        matchesInstrument || matchesBook || matchesNota || matchesId ||
                         matchesAnyFileVersionPath;
                 });
             }
@@ -225,15 +237,25 @@ document.addEventListener('DOMContentLoaded', async function () {
 
         if (searchTerm) {
             currentFilterTerm = searchTerm;
+            
+            // MODIFICAÇÃO CRUCIAL AQUI: Para ID e NOTA
+            // Crie uma regex para corresponder ao INÍCIO da string
+            // Escapa caracteres especiais do termo para não quebrar a regex
+            const escapedSearchTerm = searchTerm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const startsWithRegexForSearch = new RegExp(`^${escapedSearchTerm}`);
+
             finalFilteredMusicas = musicsToFilter.filter(m =>
                 (m.name && m.name.toLowerCase().includes(searchTerm)) ||
                 (m.composer && m.composer.toLowerCase().includes(searchTerm)) ||
                 (m.level && m.level.toLowerCase().includes(searchTerm)) ||
-                (m.id && m.id.includes(searchTerm)) ||
+                
+                // Use a regex para "começa com" para ID e NOTA
+                (m.id && startsWithRegexForSearch.test(m.id.toLowerCase())) ||
+                (m.nota && startsWithRegexForSearch.test(m.nota.toLowerCase())) ||
+
                 (m.reference && m.reference.toLowerCase().includes(searchTerm)) ||
                 (m.instrument && m.instrument.toLowerCase().includes(searchTerm)) ||
-                (m.book && m.book.toLowerCase().includes(searchTerm)) ||
-                (m.nota && m.nota.toLowerCase().includes(searchTerm)) 
+                (m.book && m.book.toLowerCase().includes(searchTerm))
             );
         }
 
@@ -247,6 +269,8 @@ document.addEventListener('DOMContentLoaded', async function () {
             musicList.scrollTop = 0; 
         }
     }
+
+// ... (o restante do seu código) ...
 
     function renderMusicListHtml(musicasToRender) {
         if (!musicList) return;
