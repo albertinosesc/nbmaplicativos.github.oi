@@ -1,4 +1,3 @@
-//main3.js
 document.addEventListener('DOMContentLoaded', async function () {
     // Elementos do DOM
     const selects = Array.from(document.querySelectorAll('[id^="nivel"]')).sort((a, b) =>
@@ -10,23 +9,30 @@ document.addEventListener('DOMContentLoaded', async function () {
     const noPdfMessage = document.querySelector('.no-pdf');
     const pdfActions = document.querySelector('.pdf-actions');
     const downloadBtn = document.getElementById('downloadPdf');
-    const printBtn = document.getElementById('printPdf');
+    const printBtn = document.getElementById('printBtn'); // THIS LINE IS CRUCIAL
     const loadingIndicator = document.getElementById('loadingIndicator');
     const audioPlayer = document.getElementById('audioPlayer');
     const fileTypeElement = document.getElementById('fileType');
-    const resetFiltersBtn = document.getElementById('resetFiltersBtn'); // <--- NOVO ELEMENTO
+    const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+
+    // MUDANÇA AQUI: Ajuste na declaração dos selects de exibição/layout
+    const displayOptionsCommon = document.getElementById('displayOptionsCommon');
+    const layoutOptions = document.getElementById('layoutOptions'); // Novo select de layout (CORRIGIDO)
+    // ... rest of your main3.js code
 
     // Estado da aplicação
     let allMusicasLoadedFromScripts = [];
-    let currentPdfUrl = '';
+    let currentMediaUrl = ''; 
     const loadedScripts = new Set();
     let lastActiveLevelIndex = -1;
-    let searchTimeout; // Variável para o debounce da busca
+    let searchTimeout;
 
     // Chaves para o localStorage
     const STORAGE_KEY_LEVEL_SELECTIONS = 'nivelSelections';
     const STORAGE_KEY_SEARCH_TERM = 'searchTerm';
     const STORAGE_KEY_LAST_MEDIA = 'lastMedia';
+    // MUDANÇA AQUI: Nova chave para controlar o modo de exibição ativo
+    const STORAGE_KEY_ACTIVE_DISPLAY_MODE = 'activeDisplayMode'; // 'common' ou 'detailed' // Considerar mudar para 'layoutMode' ou similar
 
     // --- FUNÇÕES PRINCIPAIS ---
 
@@ -38,14 +44,12 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             await scanAndLoadAllMusicScripts();
 
-            // Carrega o primeiro nível e tenta restaurar o estado
             if (window.nivel1) {
                 populateSelect(selects[0], window.nivel1);
-                restoreAppState();
+                await restoreAppState(); 
             }
 
             searchInput.disabled = false;
-            // Só mostra a mensagem inicial se nada foi restaurado ou se o campo de busca e selects estão vazios
             if (!searchInput.value.trim() && selects.every(s => s.value === '')) {
                 showInfoMessage('Selecione uma categoria ou digite para pesquisar em todas as partituras.');
             }
@@ -63,41 +67,56 @@ document.addEventListener('DOMContentLoaded', async function () {
             select.disabled = index > 0;
             select.innerHTML = '<option value="">Selecione...</option>';
         });
+        // Defina o valor padrão para o select comum
+        // CORRIGIDO: Agora setupInitialSelects define o valor padrão para o layoutOptions
+        layoutOptions.value = localStorage.getItem('layoutOption') || 'list'; // Assume 'list' é o padrão
+        
+        // As opções de displayCommon devem estar sempre habilitadas, a menos que você tenha uma lógica específica
+        displayOptionsCommon.disabled = false;
+        displayOptionsCommon.value = localStorage.getItem('displayOption') || 'name,composer,id,level,instrument,nota';
     }
 
     function setupEventListeners() {
-        // Eventos de mudança nos selects de nível
         selects.forEach((select, index) => {
             select.addEventListener('change', async () => {
-                searchInput.value = ''; // Limpa o campo de busca ao mudar o select
+                searchInput.value = ''; 
                 saveLevelSelections();
                 await handleLevelSelectChange(index);
             });
         });
 
-        // Evento de busca no campo de texto (com debounce)
         searchInput.addEventListener('input', () => {
             saveSearchTerm();
             clearTimeout(searchTimeout);
             searchTimeout = setTimeout(() => {
                 filterAndRenderMusicList();
-            }, 300); // Atraso de 300ms antes de filtrar
+            }, 300); 
         });
 
-        // Evento para o novo botão "Limpar Tudo"
-        resetFiltersBtn.addEventListener('click', resetAllFiltersAndViewer); // <--- NOVO LISTENER
+        resetFiltersBtn.addEventListener('click', resetAllFiltersAndViewer);
 
-        // Eventos dos botões de ação
         downloadBtn.addEventListener('click', downloadFile);
         printBtn.addEventListener('click', printFile);
+
+        // MUDANÇA AQUI: Evento para o select de opções COMUNS
+        displayOptionsCommon.addEventListener('change', () => {
+            // Salva a opção de exibição comum
+            localStorage.setItem('displayOption', displayOptionsCommon.value); // Use 'displayOption' como chave
+            filterAndRenderMusicList(); 
+        });
+
+        // MUDANÇA AQUI: Evento para o select de LAYOUT (CORRIGIDO)
+        layoutOptions.addEventListener('change', () => {
+            localStorage.setItem('layoutOption', layoutOptions.value); // Salva a opção de layout
+            filterAndRenderMusicList(); 
+        });
     }
 
-    // Popula um select com opções
     function populateSelect(selectElement, data) {
         selectElement.innerHTML = '<option value="">Selecione...</option>';
         if (Array.isArray(data)) {
             data.forEach((item, index) => {
-                selectElement.add(new Option(item.nome, index));
+                selectElement.add(new Option(item.nome || `Item ${index}`, index));
             });
         }
         selectElement.disabled = false;
@@ -105,12 +124,11 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // --- LÓGICA DE FILTRAGEM E EXIBIÇÃO ---
 
-    // Manipula a mudança de seleção nos selects de nível
     async function handleLevelSelectChange(currentSelectIndex, isRestoring = false) {
         if (!isRestoring) {
             showLoading(true);
         }
-        
+
         const selectedValue = selects[currentSelectIndex].value;
 
         for (let i = currentSelectIndex + 1; i < selects.length; i++) {
@@ -135,10 +153,10 @@ document.addEventListener('DOMContentLoaded', async function () {
         lastActiveLevelIndex = currentSelectIndex;
 
         const currentLevelData = window[`nivel${currentSelectIndex + 1}`];
-        const selectedItem = currentLevelData[parseInt(selectedValue)];
+        const selectedItem = currentLevelData ? currentLevelData[parseInt(selectedValue)] : null;
 
         if (!selectedItem) {
-            showErrorMessage('Item de nível não encontrado.');
+            showErrorMessage('Item de nível não encontrado ou dados de nível ausentes.');
             if (!isRestoring) {
                 showLoading(false);
             }
@@ -150,12 +168,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                 await loadScript(selectedItem.arquivo);
                 if (window[`nivel${currentSelectIndex + 2}`]) {
                     populateSelect(selects[currentSelectIndex + 1], window[`nivel${currentSelectIndex + 2}`]);
-                    // Se estiver restaurando, tenta restaurar o próximo nível
                     if (isRestoring && currentSelectIndex + 1 < selects.length) {
                         const savedSelections = JSON.parse(localStorage.getItem(STORAGE_KEY_LEVEL_SELECTIONS));
                         if (savedSelections && savedSelections[currentSelectIndex + 1] !== undefined) {
                             selects[currentSelectIndex + 1].value = savedSelections[currentSelectIndex + 1];
-                            await handleLevelSelectChange(currentSelectIndex + 1, true); // Chamar recursivamente
+                            await handleLevelSelectChange(currentSelectIndex + 1, true); 
                         }
                     }
                 }
@@ -163,6 +180,8 @@ document.addEventListener('DOMContentLoaded', async function () {
                 console.error(`Erro ao carregar script para ${selectedItem.nome}:`, error);
                 showErrorMessage(`Erro ao carregar dados para "${selectedItem.nome}".`);
             }
+        } else {
+            console.log(`Nível ${currentSelectIndex + 1} selecionado sem arquivo associado.`);
         }
 
         filterAndRenderMusicList();
@@ -171,20 +190,18 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
     }
 
-    // Função unificada para filtrar e renderizar a lista de músicas
     function filterAndRenderMusicList() {
-        let musicsToFilter = allMusicasLoadedFromScripts;
+        let musicsToFilter = [...allMusicasLoadedFromScripts]; 
         let currentFilterTerm = '';
 
-        // 1. APLICA FILTRO POR NÍVEL
         if (lastActiveLevelIndex !== -1 && selects[lastActiveLevelIndex].value !== '') {
             const currentLevelData = window[`nivel${lastActiveLevelIndex + 1}`];
-            const selectedItem = currentLevelData[parseInt(selects[lastActiveLevelIndex].value)];
+            const selectedItem = currentLevelData ? currentLevelData[parseInt(selects[lastActiveLevelIndex].value)] : null;
 
             if (selectedItem && selectedItem.nome) {
                 const levelNameLower = selectedItem.nome.toLowerCase();
                 currentFilterTerm = selectedItem.nome;
-                
+
                 musicsToFilter = allMusicasLoadedFromScripts.filter(m => {
                     const matchesComposer = m.composer && m.composer.toLowerCase().includes(levelNameLower);
                     const matchesLevelProperty = m.level && m.level.toLowerCase().includes(levelNameLower);
@@ -192,19 +209,19 @@ document.addEventListener('DOMContentLoaded', async function () {
                     const matchesReference = m.reference && m.reference.toLowerCase().includes(levelNameLower);
                     const matchesInstrument = m.instrument && m.instrument.toLowerCase().includes(levelNameLower);
                     const matchesBook = m.book && m.book.toLowerCase().includes(levelNameLower);
+                    const matchesNota = m.nota && m.nota.toLowerCase().includes(levelNameLower); 
 
                     const matchesAnyFileVersionPath = m.versions.some(v => v.file.toLowerCase().includes(levelNameLower));
-                    
+
                     return matchesComposer || matchesLevelProperty || matchesName || matchesReference ||
-                           matchesInstrument || matchesBook ||
-                           matchesAnyFileVersionPath;
+                        matchesInstrument || matchesBook || matchesNota || 
+                        matchesAnyFileVersionPath;
                 });
             }
         }
-        
-        // 2. APLICA FILTRO POR TERMO DE BUSCA
+
         const searchTerm = searchInput.value.toLowerCase().trim();
-        let finalFilteredMusicas = musicsToFilter;
+        let finalFilteredMusicas = musicsToFilter; 
 
         if (searchTerm) {
             currentFilterTerm = searchTerm;
@@ -215,11 +232,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                 (m.id && m.id.includes(searchTerm)) ||
                 (m.reference && m.reference.toLowerCase().includes(searchTerm)) ||
                 (m.instrument && m.instrument.toLowerCase().includes(searchTerm)) ||
-                (m.book && m.book.toLowerCase().includes(searchTerm))
+                (m.book && m.book.toLowerCase().includes(searchTerm)) ||
+                (m.nota && m.nota.toLowerCase().includes(searchTerm)) 
             );
         }
 
-        // Renderiza os resultados ou a mensagem apropriada
         if (finalFilteredMusicas.length === 0) {
             const msg = currentFilterTerm
                 ? `Nenhuma partitura encontrada para "${currentFilterTerm}".`
@@ -227,55 +244,108 @@ document.addEventListener('DOMContentLoaded', async function () {
             showInfoMessage(msg);
         } else {
             renderMusicListHtml(finalFilteredMusicas);
-            musicList.scrollTop = 0; // Rola para o topo da lista após renderizar
+            musicList.scrollTop = 0; 
         }
     }
 
-    // Renderiza a lista de músicas no HTML
     function renderMusicListHtml(musicasToRender) {
         if (!musicList) return;
 
-        musicList.innerHTML = musicasToRender.map(music => `
-            <div class="music-item" data-music-id="${music.id}">
-                <div class="music-info">
-                    <strong>${music.name || 'Sem nome'}</strong> ${music.composer ? `<div class="composer">${music.composer}</div>` : ''}
-                    ${music.reference ? `<div class="reference">Referência: ${music.reference}</div>` : ''}
-                    ${music.level ? `<div class="level">Nível: ${music.level}</div>` : ''}
-                    ${music.instrument ? `<div class="instrument">Instrumento: ${music.instrument}</div>` : ''}
-                    ${music.book ? `<div class="book">Livro: ${music.book}</div>` : ''}
-                    <div class="formats">${
-                        music.versions.map(v =>
-                            `<span class="file-badge ${v.type}"
-                                data-file="${v.file}"
-                                data-type="${v.type}"
-                                data-music-id="${music.id}">
-                                ${v.type.toUpperCase()}
-                            </span>`
-                        ).join(' ')
-                    }</div>
-                </div>
-            </div>`
-        ).join('');
+        // MUDANÇA AQUI: Agora usa layoutOptions para determinar a classe e o formato
+        const selectedLayout = layoutOptions.value; // 'list' ou 'gallery'
+        const selectedDisplayFields = displayOptionsCommon.value.split(','); // Campos a serem exibidos
 
-        // Adiciona eventos aos badges para exibir a mídia
-        document.querySelectorAll('.file-badge').forEach(badge => {
-            badge.addEventListener('click', (e) => {
-                e.stopPropagation();
-                showMedia(
-                    e.target.getAttribute('data-file'),
-                    e.target.getAttribute('data-type')
-                );
-            });
+        // Adiciona ou remove a classe 'list-view' (ou 'gallery-view') com base na opção de layout
+        if (selectedLayout === 'list') {
+            musicList.classList.add('list-view'); // Mantém a classe 'list-view' para o layout de lista detalhada
+            musicList.classList.remove('gallery-view'); // Remove se existir
+        } else if (selectedLayout === 'gallery') {
+            musicList.classList.add('gallery-view'); // Adiciona classe para layout de galeria (ou o que for seu "detailed")
+            musicList.classList.remove('list-view'); // Remove se existir
+        }
+        // Se você não tem um layout de galeria ainda, remova a condição else if e apenas adicione/remova 'list-view'
+
+        let htmlContent = '';
+
+        musicasToRender.forEach(music => {
+            let musicInfoHtml = '';
+            let versionsHtml = '';
+
+            // Se o layout for 'list' (que é a sua lista detalhada atual), renderiza tudo em uma linha
+            if (selectedLayout === 'list') { // Este é o modo de "Lista" (o que você chamava de detalhado)
+                const selectedDisplayFields = displayOptionsCommon.value.split(','); // Obtenha os campos selecionados
+                let parts = [];
+
+                // Renderiza apenas os campos selecionados para o layout 'list'
+                if (selectedDisplayFields.includes('id') && music.id) parts.push(`ID: ${music.id}`);
+                if (selectedDisplayFields.includes('name') && music.name) parts.push(`<strong>${music.name}</strong>`);
+                if (selectedDisplayFields.includes('composer') && music.composer) parts.push(music.composer);
+                if (selectedDisplayFields.includes('instrument') && music.instrument) parts.push(music.instrument);
+                if (selectedDisplayFields.includes('level') && music.level) parts.push(`Nível: ${music.level}`);
+                if (selectedDisplayFields.includes('nota') && music.nota) parts.push(`Nota: ${music.nota}`);
+                if (selectedDisplayFields.includes('reference') && music.reference) parts.push(`Ref: ${music.reference}`);
+
+                musicInfoHtml = `<div class="list-detailed-line">${parts.join(' - ')}</div>`;
+
+            } else { // Para o layout 'gallery'
+                // Este bloco permanece como está, pois já está lendo selectedDisplayFields
+                const selectedDisplayFields = displayOptionsCommon.value.split(','); 
+
+                if (selectedDisplayFields.includes('name') && music.name) { // Adicionado music.name para evitar "undefined"
+                    musicInfoHtml += `<strong>${music.name || 'Sem nome'}</strong>`;
+                }
+                if (selectedDisplayFields.includes('composer') && music.composer) {
+                    musicInfoHtml += `<div class="composer">${music.composer}</div>`;
+                }
+                if (selectedDisplayFields.includes('id') && music.id) {
+                    musicInfoHtml += `<div class="music-id">ID: ${music.id}</div>`;
+                }
+                if (selectedDisplayFields.includes('level') && music.level) {
+                    musicInfoHtml += `<div class="level">Nível: ${music.level}</div>`;
+                }
+                if (selectedDisplayFields.includes('instrument') && music.instrument) {
+                    musicInfoHtml += `<div class="instrument">Instrumento: ${music.instrument}</div>`;
+                }
+                if (selectedDisplayFields.includes('nota') && music.nota) {
+                    musicInfoHtml += `<div class="nota">Nota/Score: ${music.nota}</div>`;
+                }
+                if (selectedDisplayFields.includes('reference') && music.reference) {
+                    musicInfoHtml += `<div class="reference">Referência: ${music.reference}</div>`;
+                }
+            }
+            
+            // Renderiza as versões para ambos os layouts
+            versionsHtml = `<div class="formats">${
+                music.versions.map(v =>
+                    `<span class="file-badge ${v.type}"
+                        data-file="${v.file}"
+                        data-type="${v.type}"
+                        data-music-id="${music.id}">
+                        ${v.type.toUpperCase()}
+                    </span>`
+                ).join(' ')
+            }</div>`;
+
+
+            htmlContent += `
+                <div class="music-item" data-music-id="${music.id}">
+                    <div class="music-info">
+                        ${musicInfoHtml}
+                    </div>
+                    ${versionsHtml}
+                </div>`;
         });
 
-        // Após renderizar a lista, tente aplicar o destaque do último badge ativo
-        const lastMedia = JSON.parse(localStorage.getItem(STORAGE_KEY_LAST_MEDIA));
-        if (lastMedia && lastMedia.file && lastMedia.type) {
-            const activeBadge = document.querySelector(`.file-badge[data-file="${lastMedia.file}"][data-type="${lastMedia.type}"]`);
-            if (activeBadge) {
-                activeBadge.classList.add('active');
-            }
-        }
+        musicList.innerHTML = htmlContent;
+
+        // Adiciona event listeners para os badges APÓS a lista ser renderizada
+        document.querySelectorAll('.file-badge').forEach(badge => {
+            badge.addEventListener('click', function() {
+                const file = this.dataset.file;
+                const type = this.dataset.type;
+                showMedia(file, type);
+            });
+        });
     }
 
     // --- FUNÇÕES DE PERSISTÊNCIA ---
@@ -293,75 +363,73 @@ document.addEventListener('DOMContentLoaded', async function () {
         localStorage.setItem(STORAGE_KEY_LAST_MEDIA, JSON.stringify({ file: url, type: type }));
     }
 
+    // MUDANÇA AQUI: Ajuste na função restoreAppState para lidar com os dois selects
     async function restoreAppState() {
         const savedSelections = JSON.parse(localStorage.getItem(STORAGE_KEY_LEVEL_SELECTIONS));
         const savedSearchTerm = localStorage.getItem(STORAGE_KEY_SEARCH_TERM);
         const lastMedia = JSON.parse(localStorage.getItem(STORAGE_KEY_LAST_MEDIA));
+        
+        // CORRIGIDO: Restaura as opções de display e layout separadamente
+        displayOptionsCommon.value = localStorage.getItem('displayOption') || 'name,composer,id,level,instrument,nota';
+        layoutOptions.value = localStorage.getItem('layoutOption') || 'list'; // Assume 'list' é o padrão
 
-        // Restaura o termo de busca
         if (savedSearchTerm) {
             searchInput.value = savedSearchTerm;
         }
 
-        // Restaura as seleções de nível
         if (savedSelections && Array.isArray(savedSelections)) {
-            // Tenta restaurar o primeiro select de nível
             if (savedSelections[0] !== undefined && selects[0]) {
                 selects[0].value = savedSelections[0];
                 if (savedSelections[0] !== '') {
-                    // Chama handleLevelSelectChange para carregar e preencher os próximos selects recursivamente
-                    await handleLevelSelectChange(0, true); 
+                    await handleLevelSelectChange(0, true);
                 } else {
-                    // Se o primeiro select estava vazio, apenas filtra o que tiver
                     filterAndRenderMusicList();
                 }
             }
         }
-        
-        // Se houver uma mídia salva, tenta exibi-la após tudo ser filtrado e renderizado
+
         if (lastMedia && lastMedia.file && lastMedia.type) {
-            // Um pequeno atraso garante que a lista de músicas esteja totalmente renderizada
-            // antes de tentar aplicar o highlight e mostrar a mídia.
             setTimeout(() => {
                 showMedia(lastMedia.file, lastMedia.type);
-            }, 100); 
+            }, 100);
         }
     }
 
     // --- NOVA FUNÇÃO: RESETAR TUDO ---
     async function resetAllFiltersAndViewer() {
         showLoading(true);
-        
-        // 1. Resetar selects de nível
+
         selects.forEach((select, index) => {
-            select.value = ''; // Define o valor para a opção "Selecione..."
-            if (index > 0) { // Desabilita selects subsequentes
+            select.value = ''; 
+            if (index > 0) { 
                 select.disabled = true;
                 select.innerHTML = '<option value="">Selecione...</option>';
             }
         });
-        lastActiveLevelIndex = -1; // Reseta o índice ativo
+        lastActiveLevelIndex = -1; 
 
-        // 2. Limpar campo de busca
         searchInput.value = '';
 
-        // 3. Esconder visualizador de mídia
         await hideMediaViewer();
 
-        // 4. Limpar localStorage
+        // MUDANÇA AQUI: Resetar ambos os selects de exibição para seus padrões
+        displayOptionsCommon.value = "name,composer,id,level,instrument,nota"; 
+        layoutOptions.value = "list"; // Resetar para o layout de lista padrão
+        displayOptionsCommon.disabled = false; // Garante que o select comum esteja habilitado
+        
         localStorage.removeItem(STORAGE_KEY_LEVEL_SELECTIONS);
         localStorage.removeItem(STORAGE_KEY_SEARCH_TERM);
         localStorage.removeItem(STORAGE_KEY_LAST_MEDIA);
+        localStorage.removeItem('displayOption'); // Remover a chave antiga se ainda estiver lá
+        localStorage.removeItem('layoutOption'); // Limpa a chave de layout
 
-        // 5. Refiltrar e renderizar a lista completa de músicas
         filterAndRenderMusicList();
         showInfoMessage('Filtros resetados. Selecione uma categoria ou digite para pesquisar em todas as partituras.');
-        
+
         showLoading(false);
     }
 
     // --- FUNÇÕES DE UTILITÁRIAS ---
-
     async function loadScript(src) {
         return new Promise((resolve, reject) => {
             if (loadedScripts.has(src)) {
@@ -397,10 +465,10 @@ document.addEventListener('DOMContentLoaded', async function () {
                     await loadScript(src);
                     if (window.musicas && Array.isArray(window.musicas)) {
                         rawMusicas.push(...window.musicas);
-                        window.musicas = undefined;
+                        window.musicas = undefined; 
                     }
                 } catch (error) {
-                    console.warn(`Erro ao carregar script musical: ${src}. Pode não ter sido definido window.musicas ou o script não existe.`, error);
+                    console.warn(`Erro ao carregar script musical: ${src}. Pode não ter definido window.musicas ou o script não existe.`, error);
                 }
             }
             allMusicasLoadedFromScripts = agruparMusicas(rawMusicas);
@@ -428,10 +496,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                     reference: musica.reference || '',
                     instrument: musica.instrument || '',
                     book: musica.book || '',
+                    nota: musica.nota || '',
                     versions: []
                 };
             }
-            
+
             const tipo = musica.file.split('.').pop().toLowerCase();
             if (!musicasAgrupadas[id].versions.some(v => v.file === musica.file)) {
                 musicasAgrupadas[id].versions.push({
@@ -443,81 +512,66 @@ document.addEventListener('DOMContentLoaded', async function () {
         return Object.values(musicasAgrupadas);
     }
 
+    async function showMedia(url, type) {
+        if (!url || !type) return;
 
-// Mostra PDF, MP3, MID ou ABC no visualizador
-// Mostra PDF, MP3, MID ou ABC no visualizador
-async function showMedia(url, type) {
-    if (!url || !type) return;
+        currentMediaUrl = url; 
+        fileTypeElement.textContent = `Tipo: ${type.toUpperCase()}`;
 
-    currentPdfUrl = url; // Mantendo o nome da variável, mas ela agora armazena qualquer URL de mídia
-    fileTypeElement.textContent = `Tipo: ${type.toUpperCase()}`;
+        pdfViewer.style.display = 'none';
+        audioPlayer.style.display = 'none';
+        noPdfMessage.style.display = 'none'; 
+        pdfActions.style.display = 'none';
 
-    // Esconde todos os visualizadores e ações por padrão antes de configurar
-    pdfViewer.style.display = 'none';
-    audioPlayer.style.display = 'none';
-    noPdfMessage.style.display = 'none'; // Esconde a mensagem "Nenhum arquivo selecionado"
-    pdfActions.style.display = 'none';   // Esconde os botões de ação inicialmente
+        document.querySelectorAll('.file-badge').forEach(badge => {
+            badge.classList.remove('active');
+        });
 
-    // Remove a classe 'active' de todos os badges
-    document.querySelectorAll('.file-badge').forEach(badge => {
-        badge.classList.remove('active');
-    });
+        if (type === 'pdf') {
+            pdfViewer.src = url;
+            pdfViewer.style.display = 'block';
+            pdfActions.style.display = 'flex'; 
+            downloadBtn.textContent = `Baixar PDF`;
+            printBtn.textContent = `Imprimir PDF`;
+            printBtn.style.display = 'inline-block';
+        } else if (type === 'mp3') {
+            audioPlayer.src = url;
+            audioPlayer.load();
+            audioPlayer.style.display = 'block';
+            pdfActions.style.display = 'flex';
+            downloadBtn.textContent = `Baixar MP3`;
+            printBtn.style.display = 'none';
+            noPdfMessage.style.display = 'none';
+        } else if (type === 'mid') {
+            noPdfMessage.innerHTML = `Nenhum visualizador disponível para MID. Clique em "Baixar" para abrir.`;
+            noPdfMessage.style.display = 'block';
+            pdfActions.style.display = 'flex';
+            downloadBtn.textContent = `Baixar MID`;
+            printBtn.style.display = 'none';
+        } else if (type === 'abc') {
+            noPdfMessage.innerHTML = `Nenhum visualizador direto para ABC. Clique em "Visualizar" ou "Baixar".`;
+            noPdfMessage.style.display = 'block';
+            pdfActions.style.display = 'flex';
+            downloadBtn.textContent = `Baixar ABC`;
+            printBtn.textContent = `Visualizar ABC`;
+            printBtn.style.display = 'inline-block';
+        } else {
+            console.warn('Tipo de arquivo não suportado para visualização direta:', type);
+            noPdfMessage.innerHTML = `Visualização direta de ${type.toUpperCase()} não suportada. Baixe o arquivo.`;
+            noPdfMessage.style.display = 'block';
+            pdfActions.style.display = 'flex';
+            downloadBtn.textContent = `Baixar ${type.toUpperCase()}`;
+            printBtn.style.display = 'none';
+        }
 
-    // Lógica para exibir a mídia e ajustar os botões de ação e mensagens
-    if (type === 'pdf') {
-        pdfViewer.src = url;
-        pdfViewer.style.display = 'block';
-        pdfActions.style.display = 'flex'; // Mostra os botões
-        downloadBtn.textContent = `Baixar PDF`;
-        printBtn.textContent = `Imprimir PDF`; // Renomeado para Impressão
-        printBtn.style.display = 'inline-block'; // Garante que o botão Imprimir aparece
-    } else if (type === 'mp3') {
-        audioPlayer.src = url;
-        audioPlayer.load();
-        // audioPlayer.play(); // REMOVA ESTA LINHA para que o MP3 não toque automaticamente
-        audioPlayer.style.display = 'block'; // O próprio player já "visualiza"
-        pdfActions.style.display = 'flex'; // Mostra os botões
-        downloadBtn.textContent = `Baixar MP3`;
-        printBtn.style.display = 'none'; // Esconde o botão de "Visualizar/Imprimir"
-        noPdfMessage.style.display = 'none'; // Sem mensagem, pois o player já é a visualização
-    } else if (type === 'mid') {
-        // Para MID, apenas o botão de baixar
-        noPdfMessage.innerHTML = `Nenhum visualizador disponível para MID. Clique em "Baixar" para abrir.`;
-        noPdfMessage.style.display = 'block'; // Mostra a mensagem
-        
-        pdfActions.style.display = 'flex'; // Mostra os botões
-        downloadBtn.textContent = `Baixar MID`;
-        printBtn.style.display = 'none'; // Esconde o segundo botão
-    } else if (type === 'abc') {
-        // Para ABC, queremos "Baixar" e "Visualizar" (Abrir em nova aba/app externo)
-        noPdfMessage.innerHTML = `Nenhum visualizador direto para ABC. Clique em "Visualizar" ou "Baixar".`;
-        noPdfMessage.style.display = 'block'; // Mostra a mensagem
-        
-        pdfActions.style.display = 'flex'; // Mostra os botões
-        downloadBtn.textContent = `Baixar ABC`;
-        printBtn.textContent = `Visualizar ABC`; // Muda para "Visualizar"
-        printBtn.style.display = 'inline-block'; // Garante que o botão Visualizar aparece
-    } else {
-        // Para tipos não suportados, mantém a mensagem padrão e apenas oferece o download
-        console.warn('Tipo de arquivo não suportado para visualização direta:', type);
-        noPdfMessage.innerHTML = `Visualização direta de ${type.toUpperCase()} não suportada. Baixe o arquivo.`; // Mensagem mais específica
-        noPdfMessage.style.display = 'block';
-        pdfActions.style.display = 'flex'; // Mostra os botões
-        downloadBtn.textContent = `Baixar ${type.toUpperCase()}`;
-        printBtn.style.display = 'none'; // Esconde o segundo botão
+        const activeBadge = document.querySelector(`.file-badge[data-file="${url}"][data-type="${type}"]`);
+        if (activeBadge) {
+            activeBadge.classList.add('active');
+        }
+
+        saveLastMedia(url, type);
     }
 
-    // Adiciona a classe 'active' ao badge clicado
-    const activeBadge = document.querySelector(`.file-badge[data-file="${url}"][data-type="${type}"]`);
-    if (activeBadge) {
-        activeBadge.classList.add('active');
-    }
-
-    // Salva a última mídia visualizada
-    saveLastMedia(url, type);
-}
-
-    // Esconde visualizador de mídia
     async function hideMediaViewer() {
         pdfViewer.style.display = 'none';
         if (audioPlayer) {
@@ -527,57 +581,46 @@ async function showMedia(url, type) {
         }
         noPdfMessage.style.display = 'block';
         pdfActions.style.display = 'none';
-        currentPdfUrl = '';
+        currentMediaUrl = ''; 
         fileTypeElement.textContent = 'Tipo: N/A';
 
-        // Remove a classe 'active' de todos os badges ao esconder o visualizador
         document.querySelectorAll('.file-badge').forEach(badge => {
             badge.classList.remove('active');
         });
         localStorage.removeItem(STORAGE_KEY_LAST_MEDIA);
     }
 
-    // Download do arquivo
     function downloadFile() {
-        if (!currentPdfUrl) return;
+        if (!currentMediaUrl) return; 
         const a = document.createElement('a');
-        a.href = currentPdfUrl;
-        a.download = currentPdfUrl.split('/').pop() || 'arquivo';
+        a.href = currentMediaUrl;
+        a.download = currentMediaUrl.split('/').pop() || 'arquivo';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
     }
 
+    function printFile() {
+        if (!currentMediaUrl) return;
+        const fileExtension = currentMediaUrl.split('.').pop().toLowerCase();
 
-// Ação para o segundo botão (Imprimir PDF / Visualizar ABC)
-function printFile() {
-    if (!currentPdfUrl) return; // currentPdfUrl agora é o URL da mídia atual
-    const fileExtension = currentPdfUrl.split('.').pop().toLowerCase();
-
-    if (fileExtension === 'pdf') {
-        // Lógica de impressão direta para PDF
-        const printWindow = window.open(currentPdfUrl, '_blank');
-        if (printWindow) {
-            printWindow.onload = function() {
-                try {
-                    printWindow.print();
-                } catch (e) {
-                    console.error('Erro ao tentar imprimir:', e);
-                    alert('Não foi possível iniciar a impressão. Verifique as configurações do navegador ou tente baixar o arquivo.');
-                }
-            };
+        if (fileExtension === 'pdf') {
+            const printWindow = window.open(currentMediaUrl, '_blank');
+            if (printWindow) {
+                printWindow.onload = function() {
+                    try {
+                        printWindow.print();
+                    } catch (e) {
+                        console.error('Erro ao tentar imprimir:', e);
+                        alert('Não foi possível iniciar a impressão. Verifique as configurações do navegador ou tente baixar o arquivo.');
+                    }
+                };
+            }
+        } else if (fileExtension === 'abc') {
+            window.open(currentMediaUrl, '_blank');
         }
-    } else if (fileExtension === 'abc') {
-        // Para ABC, apenas abre em uma nova aba (ação de "Visualizar")
-        window.open(currentPdfUrl, '_blank');
-    } 
-    // MP3 e MID não chegam aqui, pois o printBtn está escondido para eles na showMedia
-    // Se, por algum motivo, você quiser que "printFile" lide com um tipo não PDF/ABC,
-    // adicione um 'else' aqui com uma mensagem ou uma chamada para downloadFile().
-    // Por enquanto, não é necessário dada a nova lógica de showMedia.
-}
+    }
 
-    // Exibe mensagens de status na lista de músicas
     function showErrorMessage(message) {
         if (!musicList) return;
         musicList.innerHTML = `<div class="error-message">${message}</div>`;
@@ -590,16 +633,10 @@ function printFile() {
         musicList.scrollTop = 0;
     }
 
-    // Exibe/esconde indicador de carregamento
-// ... seu JS existente ...
-
-// Exibe/esconde indicador de carregamento
-function showLoading(show) {
-    if (!loadingIndicator) return;
-    loadingIndicator.style.display = show ? 'flex' : 'none'; // <--- Mude de 'block' para 'flex' aqui
-}
-
-// ... o restante do seu JS ...
+    function showLoading(show) {
+        if (!loadingIndicator) return;
+        loadingIndicator.style.display = show ? 'flex' : 'none';
+    }
 
     // --- FUNÇÕES DE DEBUG ---
     window.verificarEstrutura = function() {
@@ -612,7 +649,7 @@ function showLoading(show) {
             const currentSelect = selects[lastActiveLevelIndex];
             if (currentSelect && currentSelect.value !== '') {
                 const currentLevelData = window[`nivel${lastActiveLevelIndex + 1}`];
-                const selectedItem = currentLevelData[parseInt(currentSelect.value)];
+                const selectedItem = currentLevelData ? currentLevelData[parseInt(currentSelect.value)] : null;
                 console.log('Item de nível selecionado atualmente:', selectedItem);
             } else {
                 console.log('Nível ativo, mas select vazio.');
@@ -620,7 +657,7 @@ function showLoading(show) {
         } else {
             console.log('Nenhum nível está ativamente selecionado.');
         }
-        
+
         console.log('Scripts carregados:', Array.from(loadedScripts));
         console.groupEnd();
     };
@@ -629,11 +666,13 @@ function showLoading(show) {
         console.group('Estado da Aplicação Completo');
         console.log('lastActiveLevelIndex:', lastActiveLevelIndex);
         console.log('Total músicas carregadas (allMusicasLoadedFromScripts):', allMusicasLoadedFromScripts.length);
-        console.log('PDF/Mídia atual:', currentPdfUrl);
+        console.log('Mídia atual:', currentMediaUrl); 
         console.log('Scripts carregados:', Array.from(loadedScripts));
         console.log('LocalStorage - Seleções:', localStorage.getItem(STORAGE_KEY_LEVEL_SELECTIONS));
         console.log('LocalStorage - Termo Busca:', localStorage.getItem(STORAGE_KEY_SEARCH_TERM));
         console.log('LocalStorage - Última Mídia:', localStorage.getItem(STORAGE_KEY_LAST_MEDIA));
+        // CORRIGIDO: Referência à nova chave de layout
+        console.log('LocalStorage - Opção de Layout Ativa:', localStorage.getItem('layoutOption')); 
         console.groupEnd();
     };
 
