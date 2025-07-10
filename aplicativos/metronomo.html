@@ -1,84 +1,320 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Metrônomo</title>
-    <style>
-        body { font-family: Arial, sans-serif; text-align: center; margin-top: 50px; }
-        #tempo { font-size: 2em; }
-    </style>
+<meta charset="UTF-8" />
+<title>Registro de Músicas Executadas</title>
+<style>
+  body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+    background: #f4f4f4;
+  }
+  h1 {
+    text-align: center;
+  }
+  form, .music-list {
+    background: #fff;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 20px;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+  }
+  label {
+    display: block;
+    margin-top: 10px;
+  }
+  input[type="text"], textarea {
+    width: 100%;
+    padding: 8px;
+    margin-top: 5px;
+    box-sizing: border-box;
+  }
+  .tonalidade-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 5px;
+  }
+  .tonalidade-group label {
+    display: flex;
+    align-items: center;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  th, td {
+    border: 1px solid #ccc;
+    padding: 8px;
+    text-align: left;
+  }
+  th {
+    background: #eee;
+  }
+  .btn {
+    margin-top: 10px;
+    padding: 10px 15px;
+    cursor: pointer;
+  }
+  .btn-group {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .importar {
+    margin-top: 10px;
+  }
+  #status {
+    margin-top: 10px;
+    font-weight: bold;
+    color: green;
+  }
+</style>
 </head>
 <body>
-    <h1>Metrônomo</h1>
-    <div>
-        <label for="start-tempo">Tempo Inicial (BPM): </label>
-        <input type="number" id="start-tempo" value="60">
-    </div>
-    <div>
-        <label for="increment">Incremento (BPM): </label>
-        <input type="number" id="increment" value="5">
-    </div>
-    <div>
-        <label for="increment-beats">Incremento a cada Batida: </label>
-        <input type="number" id="increment-beats" value="10">
-    </div>
-    <div>
-        <label for="volume">Volume: </label>
-        <input type="range" id="volume" min="0" max="1" step="0.01" value="0.5">
-    </div>
-    <button onclick="startMetronome()">Iniciar</button>
-    <button onclick="stopMetronome()">Parar</button>
-    <div id="tempo">60 BPM</div>
 
-    <script>
-        let audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        let currentTempo;
-        let increment;
-        let incrementBeats;
-        let timer;
-        let beatCounter = 0;
-        let gainNode = audioContext.createGain(); // Criando um nó de ganho para controlar o volume
-        gainNode.connect(audioContext.destination); // Conectando o nó de ganho à saída de áudio
+<h1>🎼 Registro de Músicas Executadas</h1>
 
-        function playClick() {
-            let osc = audioContext.createOscillator();
-            osc.connect(gainNode); // Conectando o oscilador ao nó de ganho
-            osc.start();
-            osc.stop(audioContext.currentTime + 0.1);
-            gainNode.gain.value = parseFloat(document.getElementById('volume').value); // Definindo o volume
-        }
+<form id="musicForm">
+  <label for="titulo">Título da Música:</label>
+  <input type="text" id="titulo" required />
 
-        function startMetronome() {
-            currentTempo = parseInt(document.getElementById('start-tempo').value);
-            increment = parseInt(document.getElementById('increment').value);
-            incrementBeats = parseInt(document.getElementById('increment-beats').value);
+  <label for="data">Data da Execução (DD/MM/AAAA):</label>
+  <input type="text" id="data" placeholder="dd/mm/aaaa" required maxlength="10" />
 
-            document.getElementById('tempo').innerText = currentTempo + ' BPM';
+  <label>Tonalidades Tocadas:</label>
+  <div class="tonalidade-group" id="tonalidades"></div>
 
-            clearInterval(timer);
-            beatCounter = 0;
+  <label for="observacoes">Observações:</label>
+  <textarea id="observacoes" rows="3"></textarea>
 
-            function updateMetronome() {
-                playClick();
-                beatCounter++;
+  <button type="submit" class="btn">Adicionar Registro</button>
+</form>
 
-                if (beatCounter >= incrementBeats) {
-                    currentTempo += increment;
-                    document.getElementById('tempo').innerText = currentTempo + ' BPM';
-                    beatCounter = 0;
-                    clearInterval(timer);
-                    timer = setInterval(updateMetronome, (60 / currentTempo) * 1000);
-                }
-            }
+<div class="music-list">
+  <h2>🎶 Histórico</h2>
 
-            timer = setInterval(updateMetronome, (60 / currentTempo) * 1000);
-        }
+  <div class="btn-group">
+    <button class="btn" onclick="ordenarPorTitulo()">🔤 Ordenar por Título</button>
+    <button class="btn" onclick="ordenarPorData()">📅 Ordenar por Data</button>
+    <button class="btn" onclick="exportarCSV()">📁 Exportar CSV</button>
+    <button class="btn" onclick="enviarGoogle()">🌐 Enviar para Google Planilha</button>
+    <button class="btn" onclick="importarGoogle()">⬇️ Importar do Google Planilha</button>
+  </div>
 
-        function stopMetronome() {
-            clearInterval(timer);
-            document.getElementById('tempo').innerText = 'Parado';
-        }
-    </script>
+  <input type="file" id="importarArquivo" class="importar" accept=".csv" onchange="importarCSV(event)" />
+
+  <table id="tabelaMusicas">
+    <thead>
+      <tr>
+        <th>Título</th>
+        <th>Data</th>
+        <th>Tonalidades</th>
+        <th>Observações</th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <div id="status"></div>
+</div>
+
+<script>
+const tonalidades = ["C", "C#", "D", "Eb", "E", "F", "F#", "G", "Ab", "A", "Bb", "B"];
+
+// Preenche tonalidades
+function gerarCheckboxes() {
+  const container = document.getElementById('tonalidades');
+  tonalidades.forEach(t => {
+    const label = document.createElement('label');
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.value = t;
+    label.appendChild(checkbox);
+    label.appendChild(document.createTextNode(" " + t));
+    container.appendChild(label);
+  });
+}
+
+// Converte "DD/MM/AAAA" para "YYYY-MM-DD" para ordenar
+function dataParaISO(dataStr) {
+  const partes = dataStr.split('/');
+  if (partes.length !== 3) return null;
+  const [dia, mes, ano] = partes;
+  if (ano && mes && dia) return `${ano}-${mes.padStart(2,'0')}-${dia.padStart(2,'0')}`;
+  return null;
+}
+
+// Converte ISO para "DD/MM/AAAA" para exibir
+function isoParaData(isoStr) {
+  if (!isoStr) return '';
+  const [ano, mes, dia] = isoStr.split('-');
+  return `${dia}/${mes}/${ano}`;
+}
+
+function salvarMusica(musica) {
+  const dados = JSON.parse(localStorage.getItem('musicas') || '[]');
+  dados.push(musica);
+  localStorage.setItem('musicas', JSON.stringify(dados));
+}
+
+function carregarMusicas(dadosExternos = null) {
+  const dados = dadosExternos || JSON.parse(localStorage.getItem('musicas') || '[]');
+  const tbody = document.querySelector('#tabelaMusicas tbody');
+  tbody.innerHTML = '';
+  dados.forEach(musica => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${musica.titulo}</td>
+      <td>${musica.data}</td>
+      <td>${musica.tonalidades.join(', ')}</td>
+      <td>${musica.observacoes}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function exportarCSV() {
+  const dados = JSON.parse(localStorage.getItem('musicas') || '[]');
+  let csv = 'Título,Data,Tonalidades,Observações\n';
+  dados.forEach(m => {
+    csv += `"${m.titulo}","${m.data}","${m.tonalidades.join(' / ')}","${m.observacoes}"\n`;
+  });
+
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "registro_musicas.csv";
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importarCSV(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const linhas = e.target.result.split('\n').slice(1);
+    const registros = linhas.map(linha => {
+      const [titulo, data, tons, obs] = linha.split(',');
+      return {
+        titulo: titulo?.replace(/"/g, '').trim(),
+        data: data?.replace(/"/g, '').trim(),
+        tonalidades: tons?.replace(/"/g, '').split(' / ').map(t => t.trim()),
+        observacoes: obs?.replace(/"/g, '').trim()
+      };
+    }).filter(m => m.titulo);
+    localStorage.setItem('musicas', JSON.stringify(registros));
+    carregarMusicas(registros);
+  };
+  reader.readAsText(file);
+}
+
+function ordenarPorTitulo() {
+  const dados = JSON.parse(localStorage.getItem('musicas') || '[]');
+  dados.sort((a, b) => a.titulo.localeCompare(b.titulo));
+  localStorage.setItem('musicas', JSON.stringify(dados));
+  carregarMusicas(dados);
+}
+
+function ordenarPorData() {
+  const dados = JSON.parse(localStorage.getItem('musicas') || '[]');
+  dados.sort((a, b) => {
+    const d1 = dataParaISO(a.data) || '';
+    const d2 = dataParaISO(b.data) || '';
+    return d1.localeCompare(d2);
+  });
+  localStorage.setItem('musicas', JSON.stringify(dados));
+  carregarMusicas(dados);
+}
+
+document.getElementById('musicForm').addEventListener('submit', function(e) {
+  e.preventDefault();
+  const titulo = document.getElementById('titulo').value.trim();
+  let data = document.getElementById('data').value.trim();
+  const observacoes = document.getElementById('observacoes').value.trim();
+  const tonalidadeCheckboxes = document.querySelectorAll('#tonalidades input[type="checkbox"]');
+  const tonalidadesSelecionadas = Array.from(tonalidadeCheckboxes).filter(cb => cb.checked).map(cb => cb.value);
+
+  // Validação simples data dd/mm/aaaa
+  if (!/^\d{2}\/\d{2}\/\d{4}$/.test(data)) {
+    alert('Data inválida! Use o formato DD/MM/AAAA.');
+    return;
+  }
+
+  const musica = { titulo, data, tonalidades: tonalidadesSelecionadas, observacoes };
+  salvarMusica(musica);
+  carregarMusicas();
+  this.reset();
+  preencherDataAtual(); // para preencher data novamente
+});
+
+// Preenche o campo data com a data atual em dd/mm/aaaa
+function preencherDataAtual() {
+  const hoje = new Date();
+  const dia = String(hoje.getDate()).padStart(2, '0');
+  const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+  const ano = hoje.getFullYear();
+  document.getElementById('data').value = `${dia}/${mes}/${ano}`;
+}
+
+// --------- Google Sheets Integration ---------
+// IMPORTANTE: Você precisa criar seu Google Apps Script e publicar como web app
+// para usar as URLs abaixo. 
+// Aqui usamos exemplos fictícios de endpoints. Ajuste para os seus.
+
+// URL do Web App para enviar dados (POST)
+const GOOGLE_SHEETS_POST_URL = 'https://script.google.com/macros/s/AKfycbzEUAOL-eGfZirXpN3RmPGzhEMAdz_wnoanO4c_ZqyzzX5_GOfd70faSWv7hcBQKo62/exec';
+
+// URL para pegar dados da planilha (GET)
+const GOOGLE_SHEETS_GET_URL = 'https://script.google.com/macros/s/AKfycbzEUAOL-eGfZirXpN3RmPGzhEMAdz_wnoanO4c_ZqyzzX5_GOfd70faSWv7hcBQKo62/exec';
+
+async function enviarGoogle() {
+  const status = document.getElementById('status');
+  status.textContent = 'Enviando dados para Google Planilha...';
+  const dados = JSON.parse(localStorage.getItem('musicas') || '[]');
+  try {
+    const response = await fetch(GOOGLE_SHEETS_POST_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ registros: dados })
+    });
+    if (response.ok) {
+      status.textContent = 'Dados enviados com sucesso!';
+    } else {
+      status.textContent = 'Erro ao enviar dados.';
+    }
+  } catch (e) {
+    status.textContent = 'Erro: ' + e.message;
+  }
+}
+
+async function importarGoogle() {
+  const status = document.getElementById('status');
+  status.textContent = 'Importando dados do Google Planilha...';
+  try {
+    const response = await fetch(GOOGLE_SHEETS_GET_URL);
+    if (!response.ok) throw new Error('Falha na requisição');
+    const data = await response.json();
+    if (data.registros && Array.isArray(data.registros)) {
+      localStorage.setItem('musicas', JSON.stringify(data.registros));
+      carregarMusicas(data.registros);
+      status.textContent = 'Dados importados com sucesso!';
+    } else {
+      status.textContent = 'Formato dos dados inválido.';
+    }
+  } catch (e) {
+    status.textContent = 'Erro: ' + e.message;
+  }
+}
+
+window.onload = () => {
+  gerarCheckboxes();
+  carregarMusicas();
+  preencherDataAtual();
+};
+</script>
+
 </body>
 </html>
