@@ -226,6 +226,7 @@
 
     // --- Funções de Utilitário ---
 
+    // A função está definida como 'gerarCheckboxes'
     function gerarCheckboxes(containerId, options, selectedValues = []) {
         const container = document.getElementById(containerId);
         container.innerHTML = '';
@@ -283,7 +284,15 @@
         // Precisa encontrar a música correta no `dados` a partir da linha da tabela
         const tbody = document.querySelector('#tabelaMusicas tbody');
         const linhaTabela = tbody.children[index];
+        // Adiciona uma verificação para garantir que linhaTabela e cells[0] existem
+        if (!linhaTabela || !linhaTabela.cells[0]) {
+            console.error("Linha da tabela ou célula de título não encontrada para atualização local.");
+            showStatus('Erro: Linha da tabela não encontrada para atualização local.', true);
+            return;
+        }
         const tituloMusica = linhaTabela.cells[0].textContent;
+        // Considerar adicionar um 'id' único às músicas no localStorage também,
+        // para evitar problemas se houver músicas com o mesmo título.
         let musicaParaAtualizar = dados.find(m => m.titulo === tituloMusica);
         
         if (musicaParaAtualizar) {
@@ -304,6 +313,12 @@
         let dados = JSON.parse(localStorage.getItem('musicas') || '[]');
         const tbody = document.querySelector('#tabelaMusicas tbody');
         const row = tbody.children[index]; // Pega a linha HTML clicada
+        // Adiciona uma verificação para garantir que row e cells[0] existem
+        if (!row || !row.cells[0]) {
+            console.error("Linha da tabela ou célula de título não encontrada para exclusão local.");
+            showStatus('Erro: Linha da tabela não encontrada para exclusão local.', true);
+            return;
+        }
         const tituloParaExcluir = row.cells[0].textContent; // Pega o título da música na linha
 
         const realIndex = dados.findIndex(m => m.titulo === tituloParaExcluir);
@@ -341,9 +356,23 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
             body: JSON.stringify(dataToSend) // <-- Converte o objeto JS para JSON string
         });
         const result = await response.json();
-        // ... resto da lógica
+
+        // O Apps Script retorna { status: 'success', data: { id: '...', message: '...' } }
+        if (result.status === 'success') {
+            showStatus('Registro adicionado na planilha com ID: ' + result.data.id, false);
+            // Opcional: Se você quiser, pode associar este ID de volta à música no localStorage
+            // para facilitar edições/exclusões futuras na planilha pelo ID.
+            // Isso exigiria que você passasse o ID para o localStorage quando a música é salva
+            // ou atualizasse o registro local após a resposta da planilha.
+        } else {
+            showStatus('Erro ao adicionar registro na planilha: ' + result.message, true);
+            console.error("Erro do Apps Script:", result.message);
+        }
+        return result; // Retorna o resultado para quem chamou
     } catch (error) {
-        // ... tratamento de erro
+        showStatus('Erro de conexão ou ao enviar para a planilha: ' + error.message, true);
+        console.error(`Erro de conexão ao enviar "${musica.titulo}":`, error);
+        throw error; // Propaga o erro para o chamador
     }
 }
 
@@ -433,8 +462,11 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
             return;
         }
 
-        // Seus headers definidos no Apps Script
-        const headersDisplay = ["ID", "Título", "Data", "Tonalidades", "Instrumentos", "Observações", "DataCadastro", "UltimaAtualizacao"];
+        // Seus headers definidos no Apps Script (devem ser os mesmos da CONFIG.HEADERS do Code.gs)
+        // Note que a ordem aqui deve refletir a ordem que você quer exibir,
+        // mas o nome da chave deve ser o que vem do Apps Script (que por sua vez segue o header da planilha)
+        const headersDisplay = ["Título", "Data", "Tonalidades", "Instrumentos", "Observações", "ID", "DataCadastro", "UltimaAtualizacao", "Ações"];
+
 
         // Cria o cabeçalho da tabela
         const thead = document.createElement('thead');
@@ -459,13 +491,16 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
                 if ((headerKey === 'Data' || headerKey === 'DataCadastro' || headerKey === 'UltimaAtualizacao') && cellValue) {
                     try {
                         const dateObj = new Date(cellValue);
-                        if (!isNaN(dateObj)) { // Verifica se é uma data válida
+                        if (!isNaN(dateObj.getTime())) { // Verifica se é uma data válida usando getTime()
                              // Formata para DD/MM/AAAA e HH:MM:SS para DataCadastro/UltimaAtualizacao, ou apenas data para Data
                             if (headerKey === 'Data') {
                                 cellValue = dateObj.toLocaleDateString('pt-BR');
                             } else {
                                 cellValue = `${dateObj.toLocaleDateString('pt-BR')} ${dateObj.toLocaleTimeString('pt-BR')}`;
                             }
+                        } else {
+                            // Se a data for inválida, manter o valor original ou exibir um placeholder
+                            cellValue = cellValue; // Mantém o que veio se não for uma data válida
                         }
                     } catch (e) {
                         // Se houver erro na conversão, mantém o valor original
@@ -494,9 +529,10 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
         tbody.innerHTML = '';
 
         const instrumentosUnicos = new Set();
-        instrumentos.forEach(i => instrumentosUnicos.add(i));
+        instrumentos.forEach(i => instrumentosUnicos.add(i)); // Adiciona os instrumentos pré-definidos
         dados.forEach(m => {
-            (m.instrumentos || []).forEach(i => instrumentosUnicos.add(i));
+            // Garante que m.instrumentos é um array antes de iterar
+            (Array.isArray(m.instrumentos) ? m.instrumentos : []).forEach(i => instrumentosUnicos.add(i));
         });
 
         const select = document.getElementById('filtroInstrumento');
@@ -511,7 +547,7 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
         });
 
         const filtrados = filtroInstrumento
-            ? dados.filter(m => (m.instrumentos || []).includes(filtroInstrumento))
+            ? dados.filter(m => (Array.isArray(m.instrumentos) ? m.instrumentos : []).includes(filtroInstrumento))
             : dados;
 
         filtrados.forEach((musica, index) => {
@@ -537,13 +573,13 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
             tr.appendChild(tdData);
 
             const tdTons = document.createElement('td');
-            tdTons.textContent = (musica.tonalidades || []).join(', ');
+            tdTons.textContent = (Array.isArray(musica.tonalidades) ? musica.tonalidades : []).join(', ');
             tdTons.style.cursor = 'pointer';
             tdTons.addEventListener('click', () => editarMultiSelecao(index, 'tonalidades', tonalidades, 'Tonalidades'));
             tr.appendChild(tdTons);
 
             const tdInst = document.createElement('td');
-            tdInst.textContent = (musica.instrumentos || []).join(', ');
+            tdInst.textContent = (Array.isArray(musica.instrumentos) ? musica.instrumentos : []).join(', ');
             tdInst.style.cursor = 'pointer';
             tdInst.addEventListener('click', () => editarMultiSelecao(index, 'instrumentos', instrumentos, 'Instrumentos'));
             tr.appendChild(tdInst);
@@ -581,7 +617,7 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
 
     function ordenarPorTitulo() {
         const dados = JSON.parse(localStorage.getItem('musicas') || '[]');
-        dados.sort((a, b) => a.titulo.localeCompare(b.titulo));
+        dados.sort((a, b) => (a.titulo || '').localeCompare(b.titulo || '')); // Adiciona fallback para string vazia
         localStorage.setItem('musicas', JSON.stringify(dados));
         carregarMusicas(dados, document.getElementById('filtroInstrumento').value);
         showStatus('Ordenado por título.', false);
@@ -590,8 +626,8 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
     function ordenarPorData() {
         const dados = JSON.parse(localStorage.getItem('musicas') || '[]');
         dados.sort((a, b) => {
-            const d1 = dataParaISO(a.data) || '';
-            const d2 = dataParaISO(b.data) || '';
+            const d1 = dataParaISO(a.data || '') || ''; // Adiciona fallback para string vazia
+            const d2 = dataParaISO(b.data || '') || ''; // Adiciona fallback para string vazia
             return d1.localeCompare(d2);
         });
         localStorage.setItem('musicas', JSON.stringify(dados));
@@ -605,6 +641,12 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
         const dados = JSON.parse(localStorage.getItem('musicas') || '[]');
         const tbody = document.querySelector('#tabelaMusicas tbody');
         const linhaTabela = tbody.children[index];
+        // Adiciona uma verificação para garantir que linhaTabela e cells[0] existem
+        if (!linhaTabela || !linhaTabela.cells[0]) {
+            console.error("Linha da tabela ou célula de título não encontrada para edição de multi-seleção.");
+            showStatus('Erro: Linha da tabela não encontrada para edição.', true);
+            return;
+        }
         const tituloMusica = linhaTabela.cells[0].textContent;
         const musica = dados.find(m => m.titulo === tituloMusica);
 
@@ -679,11 +721,11 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
 
         dados.forEach(musica => {
             const row = [
-                `"${musica.titulo.replace(/"/g, '""')}"`,
-                `"${musica.data.replace(/"/g, '""')}"`,
-                `"${(musica.tonalidades || []).join('; ').replace(/"/g, '""')}"`,
-                `"${(musica.instrumentos || []).join('; ').replace(/"/g, '""')}"`,
-                `"${musica.observacoes.replace(/"/g, '""')}"`
+                `"${(musica.titulo || '').replace(/"/g, '""')}"`,
+                `"${(musica.data || '').replace(/"/g, '""')}"`,
+                `"${(Array.isArray(musica.tonalidades) ? musica.tonalidades.join('; ') : '').replace(/"/g, '""')}"`,
+                `"${(Array.isArray(musica.instrumentos) ? musica.instrumentos.join('; ') : '').replace(/"/g, '""')}"`,
+                `"${(musica.observacoes || '').replace(/"/g, '""')}"`
             ];
             csvRows.push(row.join(','));
         });
@@ -726,11 +768,14 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
                 const line = lines[i].trim();
                 if (!line) continue;
 
-                const values = line.match(/(".*?"|[^",]+)(?=\s*,|\s*$)/g).map(val => {
+                // Regex ajustado para lidar melhor com campos vazios e aspas
+                const values = line.match(/(?:^|,)(\"(?:[^\"]|\"\")*\"|[^,]*)/g).map(val => {
+                    val = val.startsWith(',') ? val.slice(1) : val; // Remove vírgula inicial se presente
                     return val.startsWith('"') && val.endsWith('"') ? val.slice(1, -1).replace(/""/g, '"') : val;
                 });
 
-                if (values.length >= 5) {
+
+                if (values.length >= 5) { // Certifique-se de que há pelo menos os 5 campos esperados
                     const musica = {
                         titulo: values[0] || '',
                         data: values[1] || '',
@@ -739,6 +784,8 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
                         observacoes: values[4] || ''
                     };
                     newMusicas.push(musica);
+                } else {
+                     console.warn("Linha CSV ignorada devido a número incorreto de colunas:", line);
                 }
             }
 
@@ -782,6 +829,10 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
             alert('Data inválida! Use o formato DD/MM/AAAA e certifique-se de que é uma data real.');
             return;
         }
+        if (!titulo) {
+            alert('O título da música é obrigatório!');
+            return;
+        }
 
         const musica = {
             titulo,
@@ -797,8 +848,9 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
 
         this.reset(); // Limpa o formulário
         preencherDataAtual(); // Preenche a data novamente
-        generarCheckboxes('tonalidades', tonalidades); // Redefine checkboxes
-        generarCheckboxes('instrumentos', instrumentos); // Redefine checkboxes
+        // CORREÇÃO AQUI: Chamar a função com a grafia correta 'gerarCheckboxes'
+        gerarCheckboxes('tonalidades', tonalidades); // Redefine checkboxes
+        gerarCheckboxes('instrumentos', instrumentos); // Redefine checkboxes
         showStatus('Registro adicionado localmente e enviado para a planilha!', false);
     });
 
@@ -806,8 +858,9 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
     document.getElementById('btnCarregarPlanilha').addEventListener('click', carregarDadosDaPlanilha);
 
     window.onload = () => {
-        generarCheckboxes('tonalidades', tonalidades);
-        generarCheckboxes('instrumentos', instrumentos);
+        // CORREÇÃO AQUI: Chamar a função com a grafia correta 'gerarCheckboxes'
+        gerarCheckboxes('tonalidades', tonalidades);
+        gerarCheckboxes('instrumentos', instrumentos);
         carregarMusicas();
         preencherDataAtual();
         document.getElementById('filtroInstrumento').addEventListener('change', carregarMusicasFiltradas);
