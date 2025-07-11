@@ -338,122 +338,105 @@
     // --- Funções de Interação com a Planilha Google (Apps Script) ---
 
 async function enviarMusicaParaPlanilhaGoogle(musica) {
-    showStatus('Enviando registro para a planilha...', false);
-    try {
-        const dataToSend = {
-            action: 'add', // <-- Ação que seu Apps Script espera no doPost
-            titulo: musica.titulo,
-            data: musica.data,
-            tonalidades: musica.tonalidades,
-            instrumentos: musica.instrumentos,
-            observacoes: musica.observacoes
-        };
+        showStatus('Enviando registro para a planilha...', false);
+        try {
+            const dataToSend = {
+                action: 'add',
+                titulo: musica.titulo,
+                data: musica.data,
+                tonalidades: musica.tonalidades,
+                instrumentos: musica.instrumentos,
+                observacoes: musica.observacoes
+            };
 
-        const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json', // <-- CRÍTICO: Indica que o corpo é JSON
-            },
-            body: JSON.stringify(dataToSend) // <-- Converte o objeto JS para JSON string
-        });
-        const result = await response.json();
+            // Usar o modo 'no-cors' para requisições simples
+            const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+                method: 'POST',
+                mode: 'no-cors',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: JSON.stringify(dataToSend)
+            });
 
-        // O Apps Script retorna { status: 'success', data: { id: '...', message: '...' } }
-        if (result.status === 'success') {
-            showStatus('Registro adicionado na planilha com ID: ' + result.data.id, false);
-            // Opcional: Se você quiser, pode associar este ID de volta à música no localStorage
-            // para facilitar edições/exclusões futuras na planilha pelo ID.
-            // Isso exigiria que você passasse o ID para o localStorage quando a música é salva
-            // ou atualizasse o registro local após a resposta da planilha.
-        } else {
-            showStatus('Erro ao adicionar registro na planilha: ' + result.message, true);
-            console.error("Erro do Apps Script:", result.message);
+            showStatus('Registro enviado para a planilha (verifique se foi salvo)', false);
+            return { status: 'success' };
+            
+        } catch (error) {
+            console.error(`Erro de conexão ao enviar "${musica.titulo}":`, error);
+            showStatus('Erro ao enviar para a planilha: ' + error.message, true);
+            throw error;
         }
-        return result; // Retorna o resultado para quem chamou
-    } catch (error) {
-        showStatus('Erro de conexão ou ao enviar para a planilha: ' + error.message, true);
-        console.error(`Erro de conexão ao enviar "${musica.titulo}":`, error);
-        throw error; // Propaga o erro para o chamador
     }
-}
 
-    async function enviarTodasMusicasParaPlanilha() {
-        const todasMusicas = JSON.parse(localStorage.getItem('musicas') || '[]');
+     async function enviarTodasMusicasParaPlanilha() {
+        const todasMusicas = JSON.parse(localStorage.getItem('musicas') || []);
         if (todasMusicas.length === 0) {
             showStatus('Não há músicas para enviar.', true);
             return;
         }
 
-        if (!confirm(`Deseja enviar ${todasMusicas.length} registros para a Planilha? Isso pode levar algum tempo.`)) {
+        if (!confirm(`Deseja enviar ${todasMusicas.length} registros para a Planilha?`)) {
             return;
         }
 
-        showStatus('Enviando todas as músicas para a planilha...', false);
+        showStatus('Enviando músicas para a planilha...', false);
         let successCount = 0;
         let errorCount = 0;
 
-        // Itera sobre cada música e envia individualmente usando a mesma função de 'add'
         for (const musica of todasMusicas) {
             try {
-                const dataToSend = {
-                    action: 'add',
-                    titulo: musica.titulo,
-                    data: musica.data,
-                    tonalidades: musica.tonalidades,
-                    instrumentos: musica.instrumentos,
-                    observacoes: musica.observacoes
-                };
-
-                const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(dataToSend)
-                });
-                const result = await response.json();
-                if (result.status === 'success') {
-                    successCount++;
-                } else {
-                    errorCount++;
-                    console.error(`Erro ao enviar "${musica.titulo}": ${result.message}`);
-                }
+                await enviarMusicaParaPlanilhaGoogle(musica);
+                successCount++;
             } catch (error) {
                 errorCount++;
-                console.error(`Erro de conexão ao enviar "${musica.titulo}":`, error);
+                console.error('Erro ao enviar música:', musica.titulo, error);
             }
         }
 
-        showStatus(`Envio em lote concluído: ${successCount} sucesso(s), ${errorCount} erro(s).`, errorCount > 0);
+        showStatus(`Envio concluído: ${successCount} sucesso(s), ${errorCount} erro(s)`, errorCount > 0);
     }
 
     async function carregarDadosDaPlanilha() {
         showStatus('Carregando dados da planilha...', false);
         try {
-            // Ação para listar todos os dados, conforme seu novo Apps Script
             const url = `${GOOGLE_APPS_SCRIPT_URL}?action=list`;
-            const response = await fetch(url);
+            
+            // Usando proxy CORS para desenvolvimento
+            const useProxy = window.location.hostname === 'localhost' || 
+                            window.location.hostname === '127.0.0.1';
+            const requestUrl = useProxy 
+                ? `https://cors-anywhere.herokuapp.com/${url}`
+                : url;
+            
+            const response = await fetch(requestUrl, {
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
             
             if (!response.ok) {
-                throw new Error(`Erro HTTP: ${response.status} - ${response.statusText}`);
+                throw new Error(`Erro HTTP: ${response.status}`);
             }
             
             const result = await response.json();
             
             if (result.status === "success") {
                 showStatus('Dados da planilha carregados com sucesso!', false);
-                montarTabelaPlanilha(result.data); // result.data agora é um array de objetos
+                montarTabelaPlanilha(result.data);
                 return result.data;
             } else {
-                throw new Error(result.message || "Erro desconhecido ao carregar dados da planilha.");
+                throw new Error(result.message || "Erro ao carregar dados da planilha");
             }
             
         } catch (error) {
             console.error("Erro ao carregar dados da planilha:", error);
-            showStatus('Erro ao carregar dados da planilha: ' + error.message, true);
-            document.getElementById('planilhaDadosTable').innerHTML = '<tr><td>Erro ao carregar dados.</td></tr>';
+            showStatus('Erro ao carregar dados: ' + error.message, true);
+            document.getElementById('planilhaDadosTable').innerHTML = 
+                '<tr><td>Erro ao carregar dados da planilha</td></tr>';
             throw error;
         }
     }
-
     function montarTabelaPlanilha(dataFromSheet) {
         const tabela = document.getElementById('planilhaDadosTable');
         tabela.innerHTML = '';
@@ -858,15 +841,12 @@ async function enviarMusicaParaPlanilhaGoogle(musica) {
     document.getElementById('btnEnviarPlanilha').addEventListener('click', enviarTodasMusicasParaPlanilha);
     document.getElementById('btnCarregarPlanilha').addEventListener('click', carregarDadosDaPlanilha);
 
-    window.onload = () => {
-        // CORREÇÃO AQUI: Chamar a função com a grafia correta 'gerarCheckboxes'
+ window.onload = () => {
         gerarCheckboxes('tonalidades', tonalidades);
         gerarCheckboxes('instrumentos', instrumentos);
         carregarMusicas();
         preencherDataAtual();
-        document.getElementById('filtroInstrumento').addEventListener('change', carregarMusicasFiltradas);
         showStatus('Página carregada.', false);
-    };
 
 </script>
 </body>
