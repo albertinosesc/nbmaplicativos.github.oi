@@ -388,36 +388,44 @@ function filterAndRenderMusicList() {
     }
 
     // MUDANÇA AQUI: Ajuste na função restoreAppState para lidar com os dois selects
-    async function restoreAppState() {
-        const savedSelections = JSON.parse(localStorage.getItem(STORAGE_KEY_LEVEL_SELECTIONS));
-        const savedSearchTerm = localStorage.getItem(STORAGE_KEY_SEARCH_TERM);
-        const lastMedia = JSON.parse(localStorage.getItem(STORAGE_KEY_LAST_MEDIA));
-        
-        // CORRIGIDO: Restaura as opções de display e layout separadamente
-        displayOptionsCommon.value = localStorage.getItem('displayOption') || 'name,composer,id,level,instrument,nota';
-        layoutOptions.value = localStorage.getItem('layoutOption') || 'list'; // Assume 'list' é o padrão
+async function restoreAppState() {
+    const savedSelections = JSON.parse(localStorage.getItem(STORAGE_KEY_LEVEL_SELECTIONS));
+    const savedSearchTerm = localStorage.getItem(STORAGE_KEY_SEARCH_TERM);
+    const lastMedia = JSON.parse(localStorage.getItem(STORAGE_KEY_LAST_MEDIA));
+    
+    displayOptionsCommon.value = localStorage.getItem('displayOption') || 'name,composer,id,level,instrument,nota';
+    layoutOptions.value = localStorage.getItem('layoutOption') || 'list';
 
-        if (savedSearchTerm) {
-            searchInput.value = savedSearchTerm;
-        }
+    if (savedSearchTerm) {
+        searchInput.value = savedSearchTerm;
+    }
 
-        if (savedSelections && Array.isArray(savedSelections)) {
-            if (savedSelections[0] !== undefined && selects[0]) {
-                selects[0].value = savedSelections[0];
-                if (savedSelections[0] !== '') {
-                    await handleLevelSelectChange(0, true);
-                } else {
-                    filterAndRenderMusicList();
-                }
+    if (savedSelections && Array.isArray(savedSelections)) {
+        if (savedSelections[0] !== undefined && selects[0]) {
+            selects[0].value = savedSelections[0];
+            if (savedSelections[0] !== '') {
+                await handleLevelSelectChange(0, true);
+            } else {
+                filterAndRenderMusicList();
             }
         }
-
-        if (lastMedia && lastMedia.file && lastMedia.type) {
-            setTimeout(() => {
-                showMedia(lastMedia.file, lastMedia.type);
-            }, 100);
-        }
     }
+
+    if (lastMedia && lastMedia.file && lastMedia.type) {
+        setTimeout(() => {
+            showMedia(lastMedia.file, lastMedia.type);
+        }, 100);
+    }
+
+    // ✅ Adicione este trecho no final:
+    if (
+        (!savedSelections || savedSelections.every(v => v === '')) &&
+        (!savedSearchTerm || savedSearchTerm.trim() === '')
+    ) {
+        filterAndRenderMusicList(); // Força renderização com as opções restauradas
+    }
+}
+
 
     // --- NOVA FUNÇÃO: RESETAR TUDO ---
     async function resetAllFiltersAndViewer() {
@@ -481,7 +489,10 @@ function filterAndRenderMusicList() {
                 'js/todaspartituraspdf.js',
                 'js/todaspartiturasmp3.js',
                 'js/todaspartiturasmid.js',
-                'js/todaspartiturasabc.js'
+                'js/todaspartiturasabc.js',
+                'js/todaspartiturasxml.js',
+                'js/todaspartiturasbb.js',
+                'js/todaspartiturasgtp.js'
             ];
 
             for (const src of musicScriptSources) {
@@ -572,6 +583,28 @@ function filterAndRenderMusicList() {
             pdfActions.style.display = 'flex';
             downloadBtn.textContent = `Baixar MID`;
             printBtn.style.display = 'none';
+
+        } else if (type === 'xml') {
+            noPdfMessage.innerHTML = `Nenhum visualizador disponível para xml. Clique em "Baixar" para abrir.`;
+            noPdfMessage.style.display = 'block';
+            pdfActions.style.display = 'flex';
+            downloadBtn.textContent = `Baixar xml`;
+            printBtn.style.display = 'none';
+        
+
+            } else if (type === 'bb') {
+            noPdfMessage.innerHTML = `Nenhum visualizador disponível para bb. Clique em "Baixar" para abrir.`;
+            noPdfMessage.style.display = 'block';
+            pdfActions.style.display = 'flex';
+            downloadBtn.textContent = `Baixar bb`;
+            printBtn.style.display = 'none';
+
+            } else if (type === 'gtp') {
+            noPdfMessage.innerHTML = `Nenhum visualizador disponível para gtp. Clique em "Baixar" para abrir.`;
+            noPdfMessage.style.display = 'block';
+            pdfActions.style.display = 'flex';
+            downloadBtn.textContent = `Baixar gtp`;
+            printBtn.style.display = 'none';
         } else if (type === 'abc') {
             noPdfMessage.innerHTML = `Nenhum visualizador direto para ABC. Clique em "Visualizar" ou "Baixar".`;
             noPdfMessage.style.display = 'block';
@@ -614,15 +647,58 @@ function filterAndRenderMusicList() {
         localStorage.removeItem(STORAGE_KEY_LAST_MEDIA);
     }
 
-    function downloadFile() {
-        if (!currentMediaUrl) return; 
-        const a = document.createElement('a');
-        a.href = currentMediaUrl;
-        a.download = currentMediaUrl.split('/').pop() || 'arquivo';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-    }
+function forceDownload(url, filename) {
+    fetch(url)
+        .then(res => res.blob())
+        .then(blob => {
+            const blobUrl = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = blobUrl;
+            a.download = filename || 'arquivo';
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(blobUrl);
+            document.body.removeChild(a);
+        });
+}
+
+
+function downloadFile() {
+    if (!currentMediaUrl) return;
+
+    const filename = currentMediaUrl.split('/').pop() || 'arquivo';
+
+    // Tenta forçar o download via fetch
+    fetch(currentMediaUrl)
+        .then(response => {
+            if (!response.ok) throw new Error('Fetch falhou');
+            return response.blob();
+        })
+        .then(blob => {
+            const blobUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = blobUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(blobUrl);
+        })
+        .catch(error => {
+            console.warn('Fetch falhou, usando fallback simples:', error);
+            // Fallback se fetch falhar (abrirá em nova aba se não suportar)
+            const a = document.createElement('a');
+            a.href = currentMediaUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        });
+}
+
+
 
     function printFile() {
         if (!currentMediaUrl) return;
