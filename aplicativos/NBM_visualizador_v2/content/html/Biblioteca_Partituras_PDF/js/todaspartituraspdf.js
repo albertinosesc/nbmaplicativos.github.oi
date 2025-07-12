@@ -2,18 +2,18 @@
 window.musicas = window.musicas || []; // Garante que o array existe
 window.musicas.push(
 
-{ id: "23581", name: "Hot Cross Buns", file: "pdf/23581 - Hot Cross Buns - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"123A", },
-{ id: "23582", name: "Mary Had a Little Lamb", file: "pdf/23582 - Mary Had a Little Lamb - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"123A", },
-{ id: "23583", name: "Au Clair de la Lune", file: "pdf/23583 - Au Clair de la Lune - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"123A", },
-{ id: "23584", name: "Rain, Rain, Go Away", file: "pdf/23584 - Rain, Rain, Go Away - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"356A", },
-{ id: "23585", name: "Jingle Bells", file: "pdf/23585 - Jingle Bells - J. Pierpont - A.pdf", composer: "J. Pierpont", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23586", name: "Aura Lee", file: "pdf/23586 - Aura Lee - George R. Poulton - A.pdf", composer: "George R. Poulton", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23587", name: "Do, Do l'Enfant Do", file: "pdf/23587 - Do, Do l'Enfant Do - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23588", name: "A Tisket, a Tasket", file: "pdf/23588 - A Tisket, a Tasket - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23589", name: "Ode to Joy", file: "pdf/23589 - Ode to Joy - Beethoven - A.pdf", composer: "Beethoven", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23590", name: "Good King Wenceslas", file: "pdf/23590 - Good King Wenceslas - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23591", name: "Sweetly Sings the Donkey", file: "pdf/23591 - Sweetly Sings the Donkey - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23592", name: "Go Tell Aunt Rhodie", file: "pdf/23592 - Go Tell Aunt Rhodie - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
+{ id: "23581", name: "Hot Cross Buns", file: "pdf/23581 - Hot Cross Buns - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"123A", },
+{ id: "23582", name: "Mary Had a Little Lamb", file: "pdf/23582 - Mary Had a Little Lamb - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"123A", },
+{ id: "23583", name: "Au Clair de la Lune", file: "pdf/23583 - Au Clair de la Lune - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"123A", },
+{ id: "23584", name: "Rain, Rain, Go Away", file: "pdf/23584 - Rain, Rain, Go Away - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"356A", },
+{ id: "23585", name: "Jingle Bells", file: "pdf/23585 - Jingle Bells - J. Pierpont - FirstPiecesA.pdf", composer: "J. Pierpont", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
+{ id: "23586", name: "Aura Lee", file: "pdf/23586 - Aura Lee - George R. Poulton - FirstPiecesA.pdf", composer: "George R. Poulton", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
+{ id: "23587", name: "Do, Do l'Enfant Do", file: "pdf/23587 - Do, Do l'Enfant Do - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
+{ id: "23588", name: "A Tisket, a Tasket", file: "pdf/23588 - A Tisket, a Tasket - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
+{ id: "23589", name: "Ode to Joy", file: "pdf/23589 - Ode to Joy - Beethoven - FirstPiecesA.pdf", composer: "Beethoven", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
+{ id: "23590", name: "Good King Wenceslas", file: "pdf/23590 - Good King Wenceslas - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
+{ id: "23591", name: "Sweetly Sings the Donkey", file: "pdf/23591 - Sweetly Sings the Donkey - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
+{ id: "23592", name: "Go Tell Aunt Rhodie", file: "pdf/23592 - Go Tell Aunt Rhodie - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
 { id: "23593", name: "Row, Row, Row Your Boat", file: "pdf/23593 - Row, Row, Row Your Boat - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"123458A", },
 { id: "23594", name: "Camptown Races", file: "pdf/23594 - Camptown Races - Stephen Foster - A.pdf", composer: "Stephen Foster", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12356A", },
 { id: "23597", name: "I Saw Three Ships", file: "pdf/23597 - I Saw Three Ships - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
@@ -21,9 +21,9 @@ window.musicas.push(
 { id: "23599", name: "In the Field Stood a Birch Tree", file: "pdf/23599 - In the Field Stood a Birch Tree - Tradtional Russian - A.pdf", composer: "Tradtional Russian", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"67123A", },
 { id: "23603", name: "Away in the Deep Forest", file: "pdf/23603 - Away in the Deep Forest - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
 { id: "23606", name: "Fais Dodo", file: "pdf/23606 - Fais Dodo - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23645", name: "Bullock Cart", file: "pdf/23645 - Bullock Cart - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23646", name: "Fathers Whiskers", file: "pdf/23646 - Fathers Whiskers - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
-{ id: "23647", name: "Oats Peas Beans and Barley Grow", file: "pdf/23647 - Oats Peas Beans and Barley Grow - Traditional - A.pdf", composer: "Traditional", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"12345A", },
+{ id: "23645", name: "Bullock Cart", file: "pdf/23645 - Bullock Cart - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
+{ id: "23646", name: "Fathers Whiskers", file: "pdf/23646 - Fathers Whiskers - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
+{ id: "23647", name: "Oats Peas Beans and Barley Grow", file: "pdf/23647 - Oats Peas Beans and Barley Grow - Traditional -  FirstPiecesA.pdf", composer: "Traditional", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota:"12345A", },
 { id: "23651", name: "Nobody Likes Me", file: "pdf/23651 - Nobody Likes Me - Arr Gilbert DeBenedetti - A.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"56712A", },
 { id: "23595", name: "For Health and Strength", file: "pdf/23595 - For Health and Strength - Arr Gilbert DeBenedetti - PrimerA - 512345B.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"512345B", },
 { id: "23596", name: "We Three Kings", file: "pdf/23596 - We Three Kings - John Henry Hopkins - PrimerA - 67123B.pdf", composer: "John Henry Hopkins", reference: "6991-PDF-Piano", level: "A", instrument: "Piano", nota:"67123B", },
@@ -118,8 +118,11 @@ window.musicas.push(
 { id: "23692", name: "Hindi Counting Song", file: "pdf/23692 - Hindi Counting Song - India - Beginner1B.pdf", composer: "India", reference: "6991-PDF-Piano", level: "1B", instrument: "Piano", nota:"C-Piano", },
 { id: "23693", name: "I Heard a Robin Singing", file: "pdf/23693 - I Heard a Robin Singing - Arr Gilbert DeBenedetti - Beginner1B.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "1B", instrument: "Piano", nota:"C-Piano", },
 { id: "23694", name: "Old Blue", file: "pdf/23694 - Old Blue - Arr Gilbert DeBenedetti - Beginner1B.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "1B", instrument: "Piano", nota:"C-Piano", },
-{ id: "23695", name: "Second Story Window", file: "pdf/23695 - Second Story Window - Arr Gilbert DeBenedetti - Beginner1B.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "1B", instrument: "Piano", nota:"C-Piano", }
-
+{ id: "23695", name: "Second Story Window", file: "pdf/23695 - Second Story Window - Arr Gilbert DeBenedetti - Beginner1B.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "1B", instrument: "Piano", nota:"C-Piano", },
+//23696
+//23697
+{ id: "23698", name: "To Market,To market", file: "pdf/23698 - To Market,To market - Arr Gilbert DeBenedetti - FirstPiecesA.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesA", instrument: "Piano", nota: "123A", },
+{ id: "23699", name: "Whirling 'Round & 'Round", file: "pdf/23699 - Whirling 'Round & 'Round - Arr Gilbert DeBenedetti - FirstPiecesB.pdf", composer: "Arr Gilbert DeBenedetti", reference: "6991-PDF-Piano", level: "FirstPiecesB", instrument: "Piano", nota: "123A", },
 
 );
 
