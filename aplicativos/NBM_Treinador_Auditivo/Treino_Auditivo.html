@@ -647,7 +647,7 @@
     <ul>
       <li><kbd>Barra de Espaço</kbd> (<kbd>Spacebar</kbd>): Toca uma **nova nota**.</li>
       <li><kbd>Enter</kbd>: **Repete** a nota tocada no momento e **mostra qual é a nota**. Útil se você não tem certeza e quer uma segunda chance para identificar. Esta repetição **não afeta** seus contadores de estatísticas.</li>
-      <li><kbd>Backspace</kbd>: Apenas **repete** a nota tocada no momento, **sem revelar** qual é e **sem afetar** seus contadores. Perfeito para uma audição extra.</li>
+      <li><kbd>R</kbd>: Apenas **repete** a nota tocada no momento, **sem revelar** qual é e **sem afetar** seus contadores. Perfeito para uma audição extra.</li>
       <li><strong>Teclas de Notas</strong> (<kbd>C</kbd>, <kbd>J</kbd>, <kbd>A</kbd>, <kbd>E</kbd>, <kbd>D</kbd>, <kbd>K</kbd>, <kbd>B</kbd>, <kbd>I</kbd>, <kbd>G</kbd>, <kbd>U</kbd>, <kbd>F</kbd>, <kbd>L</kbd>): Use essas teclas para **responder** qual nota você ouviu. O mapeamento é fixo e segue a sua preferência:
         <ul>
           <li><kbd>C</kbd> = Dó</li>
@@ -782,7 +782,7 @@
         goalTypeTime: false // Se a meta por tempo está ativa
     };
     const GOALS_KEY = 'trainingAppGoals'; // Chave para o localStorage das metas
-    const CELEBRATION_SOUND_PATH = './son/celebration.mp3'; // Som de comemoração
+    const CELEBRATION_SOUND_PATH = './sounds/celebration.mp3'; // Som de comemoração
     let goalAchievedDuringSession = {
         notes: false,
         accuracy: false,
@@ -793,8 +793,8 @@
     let playCorrectSound = true; // Padrão: tocar som de acerto
     let playWrongSound = true;  // Padrão: tocar som de erro
     let feedbackVolume = 0.5; // Volume padrão para sons de acerto/erro (0.0 a 1.0)
-    const CORRECT_SOUND_PATH = './son/correct.mp3';
-    const WRONG_SOUND_PATH = './son/wrong.mp3';
+    const CORRECT_SOUND_PATH = './sounds/correct.mp3';
+    const WRONG_SOUND_PATH = './sounds/wrong.mp3';
 
     // --- Chaves para localStorage do Nível e Configurações ---
     const TRAINING_LEVEL_KEY = 'trainingAppLevel';
@@ -1582,27 +1582,33 @@
 
       // Pega as notas base que estão no nível atual da sequência escolhida
       // E que também estão entre as notas selecionadas para estudo (se houver)
-      let notesToDisplayOnButtons = noteSequenceForLevel.slice(0, currentLevel);
-      
-      // Se houver notas selecionadas, filtra os botões para mostrar apenas as selecionadas
-      if (selectedNotesForStudy.length > 0) {
-          notesToDisplayOnButtons = notesToDisplayOnButtons.filter(note => selectedNotesForStudy.includes(note));
-      }
+      let notesToDisplayOnButtons = [];
 
+      if (selectedNotesForStudy.length > 0) {
+        // Se há notas selecionadas, usa a ordem cromática para determinar o subconjunto visível
+        // com base no currentLevel.
+        // Isso simula o crescimento da dificuldade dentro da seleção do usuário.
+        const sortedSelectedNotes = allNotesChromatic.filter(note => selectedNotesForStudy.includes(note));
+        notesToDisplayOnButtons = sortedSelectedNotes.slice(0, currentLevel);
+      } else {
+        // Se não há notas selecionadas, volta ao comportamento original usando noteSequenceForLevel
+        notesToDisplayOnButtons = noteSequenceForLevel.slice(0, currentLevel);
+      }
+      
       // Se não houver notas para exibir (ex: todas as selecionadas já foram dominadas ou nenhuma selecionada e nível baixo)
       // Usamos todas as notas do nível atual da sequência para evitar botões vazios
-      if (notesToDisplayOnButtons.length === 0 && selectedNotesForStudy.length > 0) {
+      if (notesToDisplayOnButtons.length === 0) {
           // Isso pode acontecer se o currentLevel for muito baixo e as notas selecionadas não estiverem no início da sequência.
           // Para garantir que sempre haja botões, podemos usar todas as notas selecionadas.
-          notesToDisplayOnButtons = selectedNotesForStudy;
-          // Ou, se preferir, um aviso e não mostrar botões, dependendo da UX desejada.
-          // Por enquanto, vou garantir que o playNote ainda consiga tocar algo.
-      } else if (notesToDisplayOnButtons.length === 0 && selectedNotesForStudy.length === 0) {
-          // Se não há seleção e o nível é 0 (o que não deveria acontecer com currentLevel=2),
-          // voltamos a usar as notas iniciais da sequência padrão.
-          notesToDisplayOnButtons = noteSequenceForLevel.slice(0, currentLevel);
+          // Mas isso só se aplica se houver selectedNotesForStudy, caso contrário, deve usar a sequência padrão.
+          if (selectedNotesForStudy.length > 0) {
+              notesToDisplayOnButtons = selectedNotesForStudy;
+          } else {
+              // Se nenhuma nota selecionada e nível 0, volta para as 2 primeiras da sequência padrão
+              notesToDisplayOnButtons = noteSequenceForLevel.slice(0, 2); 
+              currentLevel = 2; // Garante que o nível mínimo seja 2 se não houver seleção
+          }
       }
-
 
       notesToDisplayOnButtons.forEach(noteBase => {
         const btn = document.createElement("button");
@@ -1696,7 +1702,27 @@
               return; // Sai da função
           }
       } else if (selectedNotesForStudy.length > 0) {
-          availableNotesForPlay = [...selectedNotesForStudy];
+          // Se o usuário selecionou notas para estudo no modo normal,
+          // o pool de notas para tocar será limitado pelo currentLevel
+          // e as notas devem estar na sequência cromática para manter a ordem de progressão
+          const sortedSelectedNotes = allNotesChromatic.filter(note => selectedNotesForStudy.includes(note));
+          availableNotesForPlay = sortedSelectedNotes.slice(0, currentLevel);
+
+          // Garante que o pool não esteja vazio se currentLevel for 0 ou 1 quando deveria ter 2 notas.
+          if (availableNotesForPlay.length === 0 && sortedSelectedNotes.length >= 2) {
+            availableNotesForPlay = sortedSelectedNotes.slice(0, 2);
+            currentLevel = 2; // Garante que o nível mínimo seja 2 ao iniciar com seleção de notas
+          } else if (availableNotesForPlay.length === 0 && sortedSelectedNotes.length > 0) {
+            // Se só tem 1 nota selecionada, tocará apenas ela
+            availableNotesForPlay = sortedSelectedNotes;
+            currentLevel = 1;
+          } else if (availableNotesForPlay.length === 0) {
+            // Caso raro onde selectedNotesForStudy está vazio mas a condição passou, impede erro
+            document.getElementById("result").textContent = "Nenhuma nota selecionada para tocar.";
+            document.getElementById("result").style.color = "orange";
+            currentNote = "";
+            return;
+          }
       } else {
           // Usa as notas da sequência gerada, limitada pelo currentLevel
           availableNotesForPlay = noteSequenceForLevel.slice(0, currentLevel);
@@ -1782,7 +1808,7 @@
         }
 
         // --- Lógica de Aumento de Nível (Dificuldade Dinâmica) ---
-        // O limite agora é o número total de notas na sequência gerada
+        // O limite agora é o número total de notas na sequência gerada OU o número de notas selecionadas
         // Se o modo foco estiver ativo, o nível não aumenta/diminui
         if (!focusModeActive) {
             const maxNotesForLevel = selectedNotesForStudy.length > 0 ? selectedNotesForStudy.length : noteSequenceForLevel.length;
@@ -1840,8 +1866,8 @@
       }
     }
 
-    // Função repeatNote_Backspace: Apenas toca a nota sem feedback visual extra
-    function repeatNote_Backspace() {
+    // Função repeatNote_R: Apenas toca a nota sem feedback visual extra
+    function repeatNote_R() {
       if (currentNote) {
         playRealNote(currentNote);
         // Não altera a mensagem no resultDiv nem a cor, apenas toca a nota
@@ -2060,10 +2086,10 @@
         playNote();
         return;
       }
-      // Tecla Backspace para repetir a nota (não conta no contador, não mostra nome)
-      if (e.key === "Backspace") {
-        e.preventDefault(); // Evita a navegação de volta do navegador
-        repeatNote_Backspace(); // Chama a função que apenas toca a nota
+      // Tecla 'R' para repetir a nota (não conta no contador, não mostra nome)
+      if (key === "r") {
+        e.preventDefault(); 
+        repeatNote_R(); // Chama a função que apenas toca a nota
         return;
       }
 
@@ -2092,8 +2118,10 @@
                 return; 
             }
         } else if (selectedNotesForStudy.length > 0) {
+            // Se há notas selecionadas para estudo, o input é limitado a elas
             availableNotesForInputCheck = [...selectedNotesForStudy];
         } else {
+            // Se não há notas selecionadas para estudo, usa as notas do nível atual da sequência
             availableNotesForInputCheck = noteSequenceForLevel.slice(0, currentLevel);
         }
         
