@@ -215,6 +215,52 @@
         color: #0056b3;
     }
 
+    /* Estilos para a nova seção de seleção de notas no modo foco */
+    #focusModeNoteSelection {
+        margin-top: 20px;
+        padding: 15px;
+        background-color: #ffe6f2; /* Rosa claro */
+        border-radius: 8px;
+        border: 1px solid #ffccdd;
+    }
+    #focusModeNoteSelection h4 {
+        color: #c2185b; /* Rosa escuro */
+        margin-top: 0;
+        margin-bottom: 10px;
+    }
+    #focusModeNoteSelection label {
+        display: inline-block;
+        margin-right: 15px;
+        margin-bottom: 8px;
+        font-size: 16px;
+        cursor: pointer;
+    }
+    #focusModeNoteSelection input[type="checkbox"] {
+        margin-right: 5px;
+        transform: scale(1.2);
+    }
+    #focusModeNoteSelection button {
+        margin-left: 10px;
+        padding: 8px 12px;
+        font-size: 14px;
+        background-color: #e91e63; /* Rosa mais forte */
+        border: none;
+        border-radius: 4px;
+        color: white;
+        cursor: pointer;
+    }
+    #focusModeNoteSelection button:hover {
+        background-color: #c2185b;
+    }
+    #focusModeNoteSelection input[type="number"] {
+        padding: 8px;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        width: 60px;
+        margin-right: 5px;
+    }
+
+
     /* Estilos para o histórico de sessões */
     #sessionHistorySection {
         margin-top: 30px;
@@ -514,15 +560,48 @@
       <span id="focusModeStatus"></span>
   </div>
 
+  <div id="focusModeNoteSelection">
+    <h4>⚙️ Seleção de Notas no Modo Foco:</h4>
+    <div>
+        <label for="focusModeErrorThreshold">Notas com erro acima de:</label>
+        <input type="number" id="focusModeErrorThreshold" value="20" min="0" max="100" onchange="updateFocusModeNoteSelection()">%
+        <button onclick="updateFocusModeNoteSelection()">Atualizar Notas Fracas</button>
+    </div>
+    <div id="focusModeNotesCheckboxes" style="margin-top: 10px;">
+        </div>
+    <button onclick="selectAllFocusNotes()">Selecionar Todas as Fracas</button>
+    <button onclick="clearAllFocusNotes()">Limpar Seleção</button>
+  </div>
+
+
   <div id="goalsSection">
     <h3>🏅 Minhas Metas de Treino</h3>
+    <div style="margin-bottom: 15px;">
+        <label>Selecione os tipos de meta:</label><br>
+        <label>
+            <input type="checkbox" id="goalTypeNotes" onchange="toggleGoalInput('goalQuantityNotes', this.checked)">
+            Por Quantidade de Notas
+        </label>
+        <label>
+            <input type="checkbox" id="goalTypeAccuracy" onchange="toggleGoalInput('minAccuracy', this.checked)">
+            Por Porcentagem de Precisão
+        </label>
+        <label>
+            <input type="checkbox" id="goalTypeTime" onchange="toggleGoalInput('minSessionTime', this.checked)">
+            Por Tempo
+        </label>
+    </div>
+    <div>
+        <label for="goalQuantityNotes">Quantidade de notas total por sessão:</label>
+        <input type="number" id="goalQuantityNotes" value="50" min="1" disabled>
+    </div>
     <div>
         <label for="minSessionTime">Tempo mínimo por sessão (minutos):</label>
-        <input type="number" id="minSessionTime" value="10" min="1">
+        <input type="number" id="minSessionTime" value="10" min="1" disabled>
     </div>
     <div>
         <label for="minAccuracy">Precisão mínima geral (%):</label>
-        <input type="number" id="minAccuracy" value="80" min="0" max="100">
+        <input type="number" id="minAccuracy" value="80" min="0" max="100" disabled>
     </div>
     <button onclick="saveGoals()">Definir Metas</button>
     <div id="currentGoalsStatus" class="goal-status">
@@ -673,6 +752,7 @@
 
     // --- Variáveis para o registro de tempo ---
     let sessionStartTime = null; // Timestamp quando a sessão começou
+    let currentSessionTotalNotes = 0; // Notas tocadas na sessão atual
     let currentSessionAcertos = 0; // Acertos na sessão atual
     let currentSessionErros = 0;   // Erros na sessão atual
     let totalTrainingDuration = 0; // Duração total acumulada em milissegundos
@@ -682,7 +762,11 @@
     // --- Variável para o modo de foco ---
     let focusModeActive = false;
     const FOCUS_MODE_MIN_ATTEMPTS = 5; // Mínimo de tentativas para uma nota ser considerada no modo foco
-    const FOCUS_MODE_NUM_NOTES = 3; // Número de notas para focar
+    // const FOCUS_MODE_NUM_NOTES = 3; // Removido, agora o usuário seleciona
+    let focusModeErrorThreshold = 20; // Nova variável para o limiar de erro do modo foco
+    let selectedFocusNotes = []; // Array para armazenar as notas selecionadas no modo foco
+    const FOCUS_MODE_SETTINGS_KEY = 'trainingAppFocusModeSettings'; // Chave para o localStorage das configurações do modo foco
+
 
     // --- Nova variável para o histórico de sessões ---
     let sessionHistory = []; // Array de objetos de sessão
@@ -691,9 +775,19 @@
     // --- Novas variáveis para metas ---
     let trainingGoals = {
         minSessionTimeMinutes: 10, // Meta padrão: 10 minutos por sessão
-        minAccuracyPercentage: 80  // Meta padrão: 80% de precisão geral
+        minAccuracyPercentage: 80,  // Meta padrão: 80% de precisão geral
+        goalQuantityNotes: 50, // Nova meta: Quantidade total de notas tocadas na sessão
+        goalTypeNotes: false, // Se a meta por quantidade de notas está ativa
+        goalTypeAccuracy: false, // Se a meta por precisão está ativa
+        goalTypeTime: false // Se a meta por tempo está ativa
     };
     const GOALS_KEY = 'trainingAppGoals'; // Chave para o localStorage das metas
+    const CELEBRATION_SOUND_PATH = './son/celebration.mp3'; // Som de comemoração
+    let goalAchievedDuringSession = {
+        notes: false,
+        accuracy: false,
+        time: false
+    }; // Para controlar se o som já foi tocado para a meta atual
 
     // --- Variáveis de som de feedback ---
     let playCorrectSound = true; // Padrão: tocar som de acerto
@@ -701,11 +795,11 @@
     let feedbackVolume = 0.5; // Volume padrão para sons de acerto/erro (0.0 a 1.0)
     const CORRECT_SOUND_PATH = './son/correct.mp3';
     const WRONG_SOUND_PATH = './son/wrong.mp3';
-    //const AUDIO_FEEDBACK_SETTINGS_KEY = 'trainingAppAudioFeedbackSettings'; // Esta chave pode ser removida se tudo for para SETTINGS_KEY
 
     // --- Chaves para localStorage do Nível e Configurações ---
     const TRAINING_LEVEL_KEY = 'trainingAppLevel';
-    const SETTINGS_KEY = 'trainingAppSettings';
+    const SETTINGS_KEY = 'trainingAppGeneralSettings'; // Alterado para ser mais geral
+
 
     // --- Variáveis para Ranking Local ---
     let topScores = []; // Array de objetos de melhores pontuações
@@ -725,6 +819,9 @@
         if (key === 'playCorrectSound') playCorrectSound = value;
         if (key === 'playWrongSound') playWrongSound = value;
         if (key === 'feedbackVolume') feedbackVolume = parseFloat(value); // Salva o volume
+        if (key === 'selectedNotesForStudy') selectedNotesForStudy = value;
+        if (key === 'focusModeErrorThreshold') focusModeErrorThreshold = parseInt(value, 10);
+        if (key === 'selectedFocusNotes') selectedFocusNotes = value;
     }
 
     function loadSettings() {
@@ -767,11 +864,20 @@
         document.getElementById('feedbackVolume').value = feedbackVolume;
         document.getElementById('feedbackVolumeValue').textContent = `${(feedbackVolume * 100).toFixed(0)}%`;
 
-        // Notas selecionadas para estudo
+        // Notas selecionadas para estudo (geral)
         const savedSelectedNotes = settings.selectedNotesForStudy;
         if (savedSelectedNotes && Array.isArray(savedSelectedNotes)) {
             selectedNotesForStudy = savedSelectedNotes;
             // Marca os checkboxes correspondentes (será feito em generateNoteSelectionCheckboxes)
+        }
+
+        // Configurações do modo foco
+        focusModeErrorThreshold = settings.focusModeErrorThreshold !== undefined ? parseInt(settings.focusModeErrorThreshold, 10) : 20;
+        document.getElementById('focusModeErrorThreshold').value = focusModeErrorThreshold;
+        
+        const savedSelectedFocusNotes = settings.selectedFocusNotes;
+        if (savedSelectedFocusNotes && Array.isArray(savedSelectedFocusNotes)) {
+            selectedFocusNotes = savedSelectedFocusNotes;
         }
     }
 
@@ -809,6 +915,7 @@
             initializeNoteStats(); // Reinicializa com zeros
             saveNoteStats();
             updateNoteStatsDisplay();
+            updateFocusModeNoteSelection(); // Atualiza a seleção de notas fracas
             document.getElementById("result").textContent = "Estatísticas por nota reiniciadas.";
             document.getElementById("result").style.color = "blue";
         }
@@ -870,37 +977,100 @@
             chartDiv.appendChild(itemDiv);
         });
 
-        // Sugestão de notas para melhorar
-        const notesToFocusForDisplay = getNotesToFocus();
+        // Sugestão de notas para melhorar (sempre as 3 piores com min tentativas)
+        const notesToFocusForDisplay = getNotesForFocusMode(3); // Obtém as 3 piores para exibição
         if (notesToFocusForDisplay.length > 0) {
-            notesToImproveList.textContent = notesToFocusForDisplay.map(note => `${note.displayName} (${note.accuracy.toFixed(0)}%)`).join(', ');
+            notesToImproveList.textContent = notesToFocusForDisplay.map(note => `${note.displayName} (${note.errorRate.toFixed(0)}% erros)`).join(', ');
         } else {
-            notesToImproveList.textContent = "Continue praticando para coletar dados!";
+            notesToImproveList.textContent = "Continue praticando para coletar dados e obter sugestões!";
         }
     }
 
-    // --- Funções do Modo de Foco ---
+    // --- Funções do Modo de Foco (ATUALIZADO) ---
     
-    // Retorna as notas com menor % de acerto, com no mínimo FOCUS_MODE_MIN_ATTEMPTS tentativas
-    function getNotesToFocus() {
-        let notesPerformance = [];
+    // Retorna as notas que se qualificam para o modo foco, considerando o threshold e min tentativas
+    function getNotesForFocusMode(limit = Infinity) {
+        let qualifiedNotes = [];
         allNotesChromatic.forEach(noteBase => {
             const stats = noteStats[noteBase] || { acertos: 0, erros: 0 };
             const totalAttempts = stats.acertos + stats.erros;
-            const accuracy = totalAttempts > 0 ? (stats.acertos / totalAttempts) * 100 : 0;
+            const errorRate = totalAttempts > 0 ? (stats.erros / totalAttempts) * 100 : 0;
 
-            if (totalAttempts >= FOCUS_MODE_MIN_ATTEMPTS) {
-                notesPerformance.push({
+            if (totalAttempts >= FOCUS_MODE_MIN_ATTEMPTS && errorRate >= focusModeErrorThreshold) {
+                qualifiedNotes.push({
                     noteBase: noteBase,
                     displayName: baseDisplayNames[noteBase],
-                    accuracy: accuracy,
+                    errorRate: errorRate,
                     totalAttempts: totalAttempts
                 });
             }
         });
 
-        notesPerformance.sort((a, b) => a.accuracy - b.accuracy); // Ordena pela menor precisão (do pior para o melhor)
-        return notesPerformance.slice(0, FOCUS_MODE_NUM_NOTES); // Retorna as X piores notas
+        qualifiedNotes.sort((a, b) => b.errorRate - a.errorRate); // Ordena pela maior taxa de erro (do pior para o melhor)
+        return qualifiedNotes.slice(0, limit);
+    }
+
+    // Gerar checkboxes para as notas no modo foco
+    function updateFocusModeNoteSelection() {
+        const checkboxesDiv = document.getElementById("focusModeNotesCheckboxes");
+        checkboxesDiv.innerHTML = "";
+        
+        // As notas que se qualificam para o modo foco
+        const notesToQualify = getNotesForFocusMode();
+        
+        if (notesToQualify.length === 0) {
+            checkboxesDiv.textContent = "Nenhuma nota atende aos critérios de erro ou tentativas mínimas.";
+            return;
+        }
+
+        notesToQualify.forEach(note => {
+            const label = document.createElement("label");
+            const checkbox = document.createElement("input");
+            checkbox.type = "checkbox";
+            checkbox.value = note.noteBase;
+            checkbox.id = `focus-note-${note.noteBase}`;
+            // Marca o checkbox se a nota já estava selecionada no modo foco (do localStorage)
+            checkbox.checked = selectedFocusNotes.includes(note.noteBase);
+            checkbox.onchange = updateSelectedFocusNotes;
+
+            label.appendChild(checkbox);
+            label.appendChild(document.createTextNode(`${note.displayName} (${note.errorRate.toFixed(0)}% erros - ${note.totalAttempts} tentativas)`));
+            checkboxesDiv.appendChild(label);
+        });
+
+        // Certifica-se de que o input de threshold esteja com o valor correto
+        document.getElementById('focusModeErrorThreshold').value = focusModeErrorThreshold;
+        saveSetting('focusModeErrorThreshold', focusModeErrorThreshold);
+    }
+
+    // Atualiza o array `selectedFocusNotes` e salva no localStorage
+    function updateSelectedFocusNotes() {
+        selectedFocusNotes = [];
+        const checkboxes = document.querySelectorAll('#focusModeNotesCheckboxes input[type="checkbox"]:checked');
+        checkboxes.forEach(checkbox => {
+            selectedFocusNotes.push(checkbox.value);
+        });
+        saveSetting('selectedFocusNotes', selectedFocusNotes);
+        // Não reseta o nível aqui, pois o modo foco é um filtro.
+        // A lógica de playNote vai usar selectedFocusNotes se o modo foco estiver ativo.
+    }
+
+    // Seleciona todas as notas qualificadas no modo foco
+    function selectAllFocusNotes() {
+        const checkboxes = document.querySelectorAll('#focusModeNotesCheckboxes input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = true;
+        });
+        updateSelectedFocusNotes();
+    }
+
+    // Limpa todas as seleções de notas no modo foco
+    function clearAllFocusNotes() {
+        const checkboxes = document.querySelectorAll('#focusModeNotesCheckboxes input[type="checkbox"]');
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = false;
+        });
+        updateSelectedFocusNotes();
     }
 
     function toggleFocusMode() {
@@ -909,9 +1079,15 @@
         const statusSpan = document.getElementById("focusModeStatus");
         
         if (focusModeActive) {
-            const notesToFocus = getNotesToFocus();
-            if (notesToFocus.length === 0) {
-                alert(`Não há notas suficientes com ${FOCUS_MODE_MIN_ATTEMPTS} ou mais tentativas para ativar o Modo Foco. Continue praticando no modo normal primeiro!`);
+            // Garante que a lista de notas fracas esteja atualizada antes de ativar o modo foco
+            updateFocusModeNoteSelection();
+            
+            // As notas a serem focadas são as que o usuário SELECIONOU na interface de "Seleção de Notas no Modo Foco"
+            // E que também satisfazem os critérios de erro/tentativas
+            const qualifiedAndSelectedFocusNotes = getNotesForFocusMode().filter(note => selectedFocusNotes.includes(note.noteBase));
+
+            if (qualifiedAndSelectedFocusNotes.length === 0) {
+                alert(`Para ativar o Modo Foco, selecione pelo menos uma nota com taxa de erro acima de ${focusModeErrorThreshold}% e ${FOCUS_MODE_MIN_ATTEMPTS} ou mais tentativas.`);
                 focusModeActive = false; // Desativa se não há notas para focar
                 toggleButton.classList.remove('active');
                 toggleButton.textContent = "🎯 Ativar Modo Foco nas Notas Fracas (Desativado)";
@@ -921,9 +1097,9 @@
             }
             toggleButton.classList.add('active');
             toggleButton.textContent = "🎯 Modo Foco nas Notas Fracas (Ativado)";
-            statusSpan.textContent = `Focando em: ${notesToFocus.map(n => n.displayName).join(', ')}`;
+            statusSpan.textContent = `Focando em: ${qualifiedAndSelectedFocusNotes.map(n => n.displayName).join(', ')}`;
             statusSpan.style.color = "#20c997"; // Cor de ativo
-            document.getElementById("result").textContent = "Modo Foco ATIVADO!";
+            document.getElementById("result").textContent = "Modo Foco ATIVADO! Tocando notas fracas selecionadas.";
             document.getElementById("result").style.color = "darkblue";
             playNote(); // Toca a primeira nota no modo foco
         } else {
@@ -985,8 +1161,12 @@
     function startTrainingSession() {
         if (!sessionStartTime) { // Apenas se uma sessão não estiver ativa
             sessionStartTime = Date.now();
+            currentSessionTotalNotes = 0;
             currentSessionAcertos = 0; // Zera contadores da sessão
             currentSessionErros = 0;
+            // Reseta o status das metas para a nova sessão
+            goalAchievedDuringSession = { notes: false, accuracy: false, time: false };
+
             document.getElementById("startSessionBtn").disabled = true;
             document.getElementById("endSessionBtn").disabled = false;
             document.getElementById("result").textContent = "Sessão de treino iniciada!";
@@ -1010,8 +1190,9 @@
                 sessionAcertos: currentSessionAcertos,
                 sessionErros: currentSessionErros,
                 focusMode: focusModeActive,
-                focusedNotes: focusModeActive ? getNotesToFocus().map(n => n.noteBase) : [],
-                accuracyAtSessionEnd: total > 0 ? ((acertos / total) * 100) : 0 // Precisão geral no fim da sessão
+                focusedNotes: focusModeActive ? getNotesForFocusMode().filter(n => selectedFocusNotes.includes(n.noteBase)).map(n => n.noteBase) : [],
+                accuracyAtSessionEnd: total > 0 ? ((acertos / total) * 100) : 0, // Precisão geral no fim da sessão
+                sessionTotalNotes: currentSessionTotalNotes
             };
             sessionHistory.push(sessionData);
             saveSessionHistory(); // Salva o histórico atualizado
@@ -1021,6 +1202,7 @@
             addSessionToTopScores(sessionData);
 
             sessionStartTime = null; // Reseta o tempo de início
+            currentSessionTotalNotes = 0;
             currentSessionAcertos = 0; // Zera contadores da sessão
             currentSessionErros = 0;
             saveTotalTrainingDuration(); // Salva o novo total
@@ -1031,7 +1213,7 @@
             document.getElementById("result").textContent = `Sessão finalizada. Duração: ${formatDuration(sessionDuration)}`;
             document.getElementById("result").style.color = "red";
             updateTrainingTimerDisplay(); // Atualiza a exibição final
-            updateGoalStatus(); // Verifica e atualiza o status das metas após a sessão
+            checkGoals(true); // Verifica e atualiza o status das metas após a sessão
         }
     }
 
@@ -1080,7 +1262,7 @@
             listItem.innerHTML = `
                 <span><strong>Data:</strong> ${dateString}</span>
                 <span><strong>Duração:</strong> ${formatDuration(session.durationMs)}</span>
-                <span><strong>Acertos:</strong> ${session.sessionAcertos} | <strong>Erros:</strong> ${session.sessionErros} | <strong>Precisão da sessão:</strong> ${sessionAccuracy}%</span>
+                <span><strong>Total Notas:</strong> ${session.sessionTotalNotes} | <strong>Acertos:</strong> ${session.sessionAcertos} | <strong>Erros:</strong> ${session.sessionErros} | <strong>Precisão da sessão:</strong> ${sessionAccuracy}%</span>
                 <span><strong>Modo Foco:</strong> ${session.focusMode ? 'Ativo' : 'Inativo'} ${session.focusMode && session.focusedNotes.length > 0 ? `<span class="focus-notes">(Notas: ${session.focusedNotes.map(n => baseDisplayNames[n]).join(', ')})</span>` : ''}</span>
             `;
             list.appendChild(listItem);
@@ -1098,70 +1280,147 @@
         }
     }
 
-    // --- Funções de Metas ---
+    // --- Funções de Metas (ATUALIZADO) ---
+    
+    // Toca o som de comemoração
+    function playCelebrationSound() {
+        const audio = new Audio(CELEBRATION_SOUND_PATH);
+        audio.volume = 0.8; // Volume um pouco mais alto para comemoração
+        audio.play().catch(e => console.error("Erro ao tocar som de comemoração:", e));
+    }
+
     function loadGoals() {
         const savedGoals = localStorage.getItem(GOALS_KEY);
         if (savedGoals) {
             trainingGoals = JSON.parse(savedGoals);
         }
         // Define os valores nos inputs
+        document.getElementById("goalQuantityNotes").value = trainingGoals.goalQuantityNotes;
         document.getElementById("minSessionTime").value = trainingGoals.minSessionTimeMinutes;
         document.getElementById("minAccuracy").value = trainingGoals.minAccuracyPercentage;
+
+        // Define o estado dos checkboxes e a habilitação dos inputs
+        document.getElementById("goalTypeNotes").checked = trainingGoals.goalTypeNotes;
+        toggleGoalInput('goalQuantityNotes', trainingGoals.goalTypeNotes);
+        
+        document.getElementById("goalTypeAccuracy").checked = trainingGoals.goalTypeAccuracy;
+        toggleGoalInput('minAccuracy', trainingGoals.goalTypeAccuracy);
+        
+        document.getElementById("goalTypeTime").checked = trainingGoals.goalTypeTime;
+        toggleGoalInput('minSessionTime', trainingGoals.goalTypeTime);
+
         updateGoalStatus(); // Atualiza o status das metas na interface
     }
 
     function saveGoals() {
+        trainingGoals.goalQuantityNotes = parseInt(document.getElementById("goalQuantityNotes").value, 10);
         trainingGoals.minSessionTimeMinutes = parseInt(document.getElementById("minSessionTime").value, 10);
         trainingGoals.minAccuracyPercentage = parseInt(document.getElementById("minAccuracy").value, 10);
+        
+        trainingGoals.goalTypeNotes = document.getElementById("goalTypeNotes").checked;
+        trainingGoals.goalTypeAccuracy = document.getElementById("goalTypeAccuracy").checked;
+        trainingGoals.goalTypeTime = document.getElementById("goalTypeTime").checked;
+
         localStorage.setItem(GOALS_KEY, JSON.stringify(trainingGoals));
         document.getElementById("result").textContent = "Metas de treino salvas!";
         document.getElementById("result").style.color = "darkgreen";
         updateGoalStatus();
     }
 
-    function updateGoalStatus() {
+    function toggleGoalInput(inputId, isChecked) {
+        document.getElementById(inputId).disabled = !isChecked;
+    }
+
+    // `checkGoals` agora recebe um parâmetro `isEndOfSession`
+    function checkGoals(isEndOfSession = false) {
         const statusDiv = document.getElementById("currentGoalsStatus");
-        
-        const minTimeGoalMs = trainingGoals.minSessionTimeMinutes * 60 * 1000;
-        const currentAccuracy = total > 0 ? ((acertos / total) * 100) : 0;
-
         let statusHtml = `
-            <span><strong>Meta de Tempo por Sessão:</strong> ${trainingGoals.minSessionTimeMinutes} minutos</span><br>
-            <span><strong>Meta de Precisão Geral:</strong> ${trainingGoals.minAccuracyPercentage}%</span><br><br>
+            <span><strong>Metas Ativas:</strong></span><br>
         `;
+        let allGoalsAchieved = true; // Assume que todas as metas ativas foram atingidas
 
-        let allGoalsAchieved = true;
-        
-        // Verifica a meta de tempo da ÚLTIMA sessão
-        const lastSession = sessionHistory.length > 0 ? sessionHistory[sessionHistory.length - 1] : null;
-        if (lastSession) {
-            if (lastSession.durationMs >= minTimeGoalMs) {
-                statusHtml += `<span>✅ Última sessão atingiu a meta de tempo (${formatDuration(lastSession.durationMs)}).</span><br>`;
+        // Meta por Quantidade de Notas
+        if (trainingGoals.goalTypeNotes) {
+            if (sessionStartTime) { // Só verifica se há uma sessão ativa
+                if (currentSessionTotalNotes >= trainingGoals.goalQuantityNotes) {
+                    statusHtml += `<span>✅ Notas (${currentSessionTotalNotes}/${trainingGoals.goalQuantityNotes}): Atingida!</span><br>`;
+                    if (!goalAchievedDuringSession.notes) {
+                        playCelebrationSound();
+                        goalAchievedDuringSession.notes = true;
+                    }
+                } else {
+                    statusHtml += `<span>⏳ Notas (${currentSessionTotalNotes}/${trainingGoals.goalQuantityNotes}): Progresso.</span><br>`;
+                    allGoalsAchieved = false;
+                }
             } else {
-                statusHtml += `<span>⚠️ Última sessão não atingiu a meta de tempo (${formatDuration(lastSession.durationMs)}).</span><br>`;
+                statusHtml += `<span>(Para meta de Notas, inicie uma sessão)</span><br>`;
                 allGoalsAchieved = false;
             }
-        } else {
-            statusHtml += `<span>Comece uma sessão de treino para verificar a meta de tempo.</span><br>`;
-            allGoalsAchieved = false; // Não há sessão para verificar a meta de tempo
         }
 
-        // Verifica a meta de precisão geral (contadores globais)
-        if (total > 0) {
-            if (currentAccuracy >= trainingGoals.minAccuracyPercentage) {
-                statusHtml += `<span>✅ Precisão geral atual: ${currentAccuracy.toFixed(1)}% (Meta atingida!).</span>`;
+        // Meta por Precisão
+        if (trainingGoals.goalTypeAccuracy) {
+            const currentAccuracy = total > 0 ? ((acertos / total) * 100) : 0;
+            if (total > 0) {
+                if (currentAccuracy >= trainingGoals.minAccuracyPercentage) {
+                    statusHtml += `<span>✅ Precisão (${currentAccuracy.toFixed(1)}% / ${trainingGoals.minAccuracyPercentage}%): Atingida!</span><br>`;
+                    if (!goalAchievedDuringSession.accuracy) {
+                        playCelebrationSound();
+                        goalAchievedDuringSession.accuracy = true;
+                    }
+                } else {
+                    statusHtml += `<span>⏳ Precisão (${currentAccuracy.toFixed(1)}% / ${trainingGoals.minAccuracyPercentage}%): Progresso.</span><br>`;
+                    allGoalsAchieved = false;
+                }
             } else {
-                statusHtml += `<span>⚠️ Precisão geral atual: ${currentAccuracy.toFixed(1)}% (Abaixo da meta).</span>`;
+                statusHtml += `<span>(Para meta de Precisão, toque algumas notas)</span><br>`;
                 allGoalsAchieved = false;
             }
-        } else {
-            statusHtml += `<span>Comece a treinar para verificar a meta de precisão.</span>`;
-            allGoalsAchieved = false; // Não há dados para verificar a precisão
+        }
+
+        // Meta por Tempo (apenas verificada no final da sessão)
+        if (trainingGoals.goalTypeTime) {
+            const minTimeGoalMs = trainingGoals.minSessionTimeMinutes * 60 * 1000;
+            if (isEndOfSession) {
+                const lastSession = sessionHistory.length > 0 ? sessionHistory[sessionHistory.length - 1] : null;
+                if (lastSession && lastSession.durationMs >= minTimeGoalMs) {
+                    statusHtml += `<span>✅ Tempo (${formatDuration(lastSession.durationMs)} / ${trainingGoals.minSessionTimeMinutes}m): Atingida!</span><br>`;
+                    if (!goalAchievedDuringSession.time) {
+                        playCelebrationSound();
+                        goalAchievedDuringSession.time = true;
+                    }
+                } else if (lastSession) {
+                    statusHtml += `<span>❌ Tempo (${formatDuration(lastSession.durationMs)} / ${trainingGoals.minSessionTimeMinutes}m): Não Atingida.</span><br>`;
+                    allGoalsAchieved = false;
+                } else {
+                    statusHtml += `<span>(Para meta de Tempo, finalize uma sessão)</span><br>`;
+                    allGoalsAchieved = false;
+                }
+            } else {
+                // Durante a sessão, apenas mostra a meta
+                statusHtml += `<span>⏳ Tempo: ${trainingGoals.minSessionTimeMinutes} minutos por sessão.</span><br>`;
+                allGoalsAchieved = false; // Não pode ser considerada atingida até o final
+            }
+        }
+
+        // Se nenhuma meta estiver ativa, exibe uma mensagem padrão
+        if (!trainingGoals.goalTypeNotes && !trainingGoals.goalTypeAccuracy && !trainingGoals.goalTypeTime) {
+            statusHtml += `<span>Nenhuma meta ativa. Selecione um tipo de meta acima para começar!</span>`;
+            allGoalsAchieved = false; // Não há metas para atingir
         }
 
         statusDiv.innerHTML = statusHtml;
-        statusDiv.classList.remove('warning');
-        statusDiv.classList.add(allGoalsAchieved ? '' : 'warning'); // Adiciona classe 'warning' se alguma meta não foi atingida
+        statusDiv.classList.remove('warning', 'success'); // Remove ambas as classes para redefinir
+        
+        // Se todas as metas ativas foram atingidas, ou se não há metas ativas, marca como sucesso ou neutro
+        if (allGoalsAchieved && (trainingGoals.goalTypeNotes || trainingGoals.goalTypeAccuracy || trainingGoals.goalTypeTime)) {
+            statusDiv.classList.add('success'); // Todas as ativas foram atingidas
+        } else if (!allGoalsAchieved && (trainingGoals.goalTypeNotes || trainingGoals.goalTypeAccuracy || trainingGoals.goalTypeTime)) {
+            statusDiv.classList.add('warning'); // Pelo menos uma ativa não foi atingida ou está em progresso
+        } else {
+             // Nenhuma meta ativa ou nenhuma verificação de tempo ainda
+            statusDiv.classList.remove('warning', 'success'); // Garante que não tenha cor
+        }
     }
 
 
@@ -1189,9 +1448,11 @@
     // Função para atualizar o array selectedNotesForStudy
     function updateSelectedNotes() {
         selectedNotesForStudy = [];
-        const checkboxes = document.querySelectorAll('#noteCheckboxes input[type="checkbox"]:checked');
+        const checkboxes = document.querySelectorAll('#noteCheckboxes input[type="checkbox"]');
         checkboxes.forEach(checkbox => {
-            selectedNotesForStudy.push(checkbox.value);
+            if (checkbox.checked) {
+                selectedNotesForStudy.push(checkbox.value);
+            }
         });
         saveSetting('selectedNotesForStudy', selectedNotesForStudy); // Salva a seleção
         
@@ -1356,7 +1617,7 @@
       const statsDiv = document.getElementById("stats");
       const porcentagem = total > 0 ? ((acertos / total) * 100).toFixed(1) : "0.0";
       statsDiv.innerHTML = `🎯 Notas tocadas: ${total} | ✅ Acertos: ${acertos} | ❌ Erros: ${erros} | 📊 Precisão: ${porcentagem}%`;
-      updateGoalStatus(); // Também atualiza o status das metas quando as estatísticas gerais mudam
+      checkGoals(); // Também atualiza o status das metas quando as estatísticas gerais mudam
     }
 
     function resetCounters() {
@@ -1411,30 +1672,33 @@
       let availableNotesForPlay = [];
 
       if (focusModeActive) {
-          const notesToFocus = getNotesToFocus();
-          if (notesToFocus.length > 0) {
-              availableNotesForPlay = notesToFocus.map(n => n.noteBase);
-              // Para garantir que notas com zero tentativas que foram "piores" entrem
-              // Mas apenas se selectedNotesForStudy não estiver ativo.
+          // As notas que serão tocadas no modo foco são as QUALIFICADAS E SELECIONADAS PELO USUÁRIO
+          const qualifiedAndSelectedFocusNotes = getNotesForFocusMode().filter(note => selectedFocusNotes.includes(note.noteBase));
+          
+          if (qualifiedAndSelectedFocusNotes.length > 0) {
+              availableNotesForPlay = qualifiedAndSelectedFocusNotes.map(n => n.noteBase);
+              
+              // Se o usuário também selecionou notas para estudo no modo geral,
+              // o modo foco atua como um filtro SOBRE essas notas selecionadas
               if (selectedNotesForStudy.length > 0) {
-                  // Se o usuário selecionou notas, o modo foco só vai focar entre as selecionadas
                   availableNotesForPlay = availableNotesForPlay.filter(note => selectedNotesForStudy.includes(note));
-                  if (availableNotesForPlay.length === 0) { // Se as notas focadas não estão nas selecionadas
-                      console.warn("Modo Foco: Nenhuma das notas a focar está entre as notas selecionadas. Tocando notas aleatórias das selecionadas.");
-                      availableNotesForPlay = [...selectedNotesForStudy];
+                  if (availableNotesForPlay.length === 0) {
+                      console.warn("Modo Foco: Nenhuma das notas fracas selecionadas está entre as notas gerais selecionadas para estudo. Revertendo para notas fracas selecionadas.");
+                      availableNotesForPlay = qualifiedAndSelectedFocusNotes.map(n => n.noteBase); // Volta a usar apenas as fracas selecionadas
                   }
               }
           } else {
-              // Se o modo foco está ativo mas não há notas com tentativas suficientes,
-              // voltamos para o comportamento normal de playNote
-              console.warn("Modo Foco ativo mas sem notas para focar. Revertendo para seleção normal.");
-              focusModeActive = false; // Desativa o modo foco para evitar loop
+              // Se o modo foco está ativo mas não há notas que satisfaçam os critérios e/ou foram selecionadas,
+              // avisamos o usuário e desativamos o modo foco.
+              alert(`Nenhuma nota selecionada no Modo Foco atende aos critérios (erro acima de ${focusModeErrorThreshold}% e ${FOCUS_MODE_MIN_ATTEMPTS} tentativas). Desativando Modo Foco.`);
+              focusModeActive = false;
               toggleFocusMode(); // Atualiza o botão e mensagem
-              return; // Tenta tocar novamente com o modo foco desativado
+              return; // Sai da função
           }
       } else if (selectedNotesForStudy.length > 0) {
           availableNotesForPlay = [...selectedNotesForStudy];
       } else {
+          // Usa as notas da sequência gerada, limitada pelo currentLevel
           availableNotesForPlay = noteSequenceForLevel.slice(0, currentLevel);
       }
 
@@ -1457,6 +1721,10 @@
         document.getElementById("result").textContent = ""; // Oculta a mensagem no modo automático
       }
       total++; // Aumenta o contador APENAS ao tocar uma nova nota (não ao repetir)
+      if (sessionStartTime) { // Se uma sessão está ativa, incrementa o contador de notas da sessão
+          currentSessionTotalNotes++;
+          checkGoals(); // Verifica as metas ao tocar uma nova nota
+      }
       updateStats();
 
       if (autoPlayTimeout) {
@@ -1495,7 +1763,9 @@
       const playedNoteBase = currentNote.slice(0, -1); // Ex: "C4" -> "C"
       const selectedNoteBase = selectedNoteWithOctave.slice(0, -1); // Ex: "C4" -> "C"
 
-      if (selectedNoteWithOctave === currentNote) {
+      let isCorrectAnswer = (selectedNoteWithOctave === currentNote);
+
+      if (isCorrectAnswer) {
         acertos++;
         currentSessionAcertos++; // Registra acerto para a sessão atual
         streak++;
@@ -1513,13 +1783,16 @@
 
         // --- Lógica de Aumento de Nível (Dificuldade Dinâmica) ---
         // O limite agora é o número total de notas na sequência gerada
-        const maxNotesForLevel = selectedNotesForStudy.length > 0 ? selectedNotesForStudy.length : noteSequenceForLevel.length;
-        if (streak >= STREAK_TO_ADVANCE && currentLevel < maxNotesForLevel) {
-            currentLevel++;
-            streak = 0; // Reseta a streak ao aumentar o nível
-            updateButtons(); // Atualiza os botões para incluir a nova nota
-            document.getElementById("result").textContent += ` 🎉 Subiu de nível para ${currentLevel} notas!`;
-            document.getElementById("result").style.color = "darkgreen";
+        // Se o modo foco estiver ativo, o nível não aumenta/diminui
+        if (!focusModeActive) {
+            const maxNotesForLevel = selectedNotesForStudy.length > 0 ? selectedNotesForStudy.length : noteSequenceForLevel.length;
+            if (streak >= STREAK_TO_ADVANCE && currentLevel < maxNotesForLevel) {
+                currentLevel++;
+                streak = 0; // Reseta a streak ao aumentar o nível
+                updateButtons(); // Atualiza os botões para incluir a nova nota
+                document.getElementById("result").textContent += ` 🎉 Subiu de nível para ${currentLevel} notas!`;
+                document.getElementById("result").style.color = "darkgreen";
+            }
         }
 
       } else { // Resposta Incorreta
@@ -1540,12 +1813,15 @@
 
         // --- Lógica de Diminuição de Nível (Dificuldade Dinâmica) ---
         // Garante que o nível mínimo seja 2 (pelo menos 2 notas para escolher)
-        if (errorStreak >= ERRORS_TO_REDUCE_LEVEL && currentLevel > 2) {
-            currentLevel--;
-            errorStreak = 0; // Reseta a sequência de erros ao diminuir o nível
-            updateButtons(); // Atualiza os botões para remover a nota mais recente
-            document.getElementById("result").textContent += ` 📉 Nível diminuído para ${currentLevel} notas para ajudar no foco.`;
-            document.getElementById("result").style.color = "darkred";
+        // Se o modo foco estiver ativo, o nível não aumenta/diminui
+        if (!focusModeActive) {
+            if (errorStreak >= ERRORS_TO_REDUCE_LEVEL && currentLevel > 2) {
+                currentLevel--;
+                errorStreak = 0; // Reseta a sequência de erros ao diminuir o nível
+                updateButtons(); // Atualiza os botões para remover a nota mais recente
+                document.getElementById("result").textContent += ` 📉 Nível diminuído para ${currentLevel} notas para ajudar no foco.`;
+                document.getElementById("result").style.color = "darkred";
+            }
         }
       }
 
@@ -1554,6 +1830,8 @@
       updateStats();
       saveNoteStats(); // Salva as estatísticas por nota a cada resposta
       updateNoteStatsDisplay(); // Atualiza o gráfico de desempenho
+      updateFocusModeNoteSelection(); // Atualiza a lista de notas fracas no modo foco
+      checkGoals(); // Verifica as metas ao responder uma nota
 
       if (autoPlayNextNote) {
         autoPlayTimeout = setTimeout(() => {
@@ -1794,36 +2072,31 @@
       if (pressedNoteBase) { // Se a tecla pressionada está no nosso mapeamento fixo
         const fullPressedNote = pressedNoteBase + currentOctave; // Cria a nota completa com a oitava atual
 
-        // Verifica se a nota *base* que corresponde à tecla pressionada
-        // está entre as notas base disponíveis para o treino (selecionadas ou do nível atual)
         let availableNotesForInputCheck = [];
-        // Se o modo foco está ativo, verifica nas notas que estão sendo focadas
+
         if (focusModeActive) {
-            const notesToFocus = getNotesToFocus();
-            if (notesToFocus.length > 0) {
-                availableNotesForInputCheck = notesToFocus.map(n => n.noteBase);
-                 if (selectedNotesForStudy.length > 0) { // Se houver seleção, foca entre as selecionadas
-                    availableNotesForInputCheck = availableNotesForInputCheck.filter(note => selectedNotesForStudy.includes(note));
-                    if (availableNotesForInputCheck.length === 0) { // Se não encontrou notas focadas entre as selecionadas, usa todas as selecionadas
-                        availableNotesForInputCheck = [...selectedNotesForStudy];
-                    }
-                }
-            } else { // Se não tem notas para focar, volta para o padrão
-                 if (selectedNotesForStudy.length > 0) {
-                    availableNotesForInputCheck = [...selectedNotesForStudy];
-                } else {
-                    availableNotesForInputCheck = noteSequenceForLevel.slice(0, currentLevel);
-                }
-            }
-        } else {
+            // No modo foco, as notas válidas para input são as que o usuário SELECIONOU
+            // dentro da seção de "Seleção de Notas no Modo Foco".
+            // Não importa se elas se qualificam ou não, o usuário já as selecionou.
+            availableNotesForInputCheck = [...selectedFocusNotes];
+
+            // Se o usuário também selecionou notas para estudo no modo geral,
+            // o modo foco atua como um filtro SOBRE essas notas selecionadas
             if (selectedNotesForStudy.length > 0) {
-                availableNotesForInputCheck = [...selectedNotesForStudy];
-            } else {
-                availableNotesForInputCheck = noteSequenceForLevel.slice(0, currentLevel);
+                availableNotesForInputCheck = availableNotesForInputCheck.filter(note => selectedNotesForStudy.includes(note));
             }
+
+            if (availableNotesForInputCheck.length === 0) {
+                // Se o modo foco está ativo mas nenhuma nota foi selecionada (ou as selecionadas não estão nas gerais),
+                // o input da tecla não deve ser processado como resposta.
+                return; 
+            }
+        } else if (selectedNotesForStudy.length > 0) {
+            availableNotesForInputCheck = [...selectedNotesForStudy];
+        } else {
+            availableNotesForInputCheck = noteSequenceForLevel.slice(0, currentLevel);
         }
         
-
         if (availableNotesForInputCheck.includes(pressedNoteBase)) {
             checkAnswer(fullPressedNote); // Passa a nota completa para a checagem
         }
@@ -1832,7 +2105,7 @@
 
     // --- Inicialização do aplicativo ---
     // A ordem de carregamento é importante aqui
-    loadSettings(); // Carrega todas as configurações salvas PRIMEIRO (instrumento, oitava, sequenceType, autoplay, feedback, selectedNotes, volume feedback)
+    loadSettings(); // Carrega todas as configurações salvas PRIMEIRO (instrumento, oitava, sequenceType, autoplay, feedback, selectedNotes, volume feedback, foco)
     generateNoteSelectionCheckboxes(); // Gera os checkboxes de seleção de notas e os marca com base em selectedNotesForStudy carregado
     updateSelectedNotes(); // Garante que `selectedNotesForStudy` esteja populado e a lógica de nível seja resetada se necessário
     updateDisplayNames();
@@ -1842,6 +2115,7 @@
     updateStats();
     loadTotalTrainingDuration(); // Carrega o tempo total de treino ao iniciar o app
     loadNoteStats(); // Carrega as estatísticas por nota ao iniciar o app
+    updateFocusModeNoteSelection(); // Gera os checkboxes das notas fracas com base nas estatísticas carregadas
     loadSessionHistory(); // Carrega o histórico de sessões ao iniciar o app
     loadGoals(); // Carrega as metas ao iniciar o app
     loadTopScores(); // Carrega o ranking ao iniciar o app
@@ -1859,8 +2133,9 @@
                 sessionAcertos: currentSessionAcertos,
                 sessionErros: currentSessionErros,
                 focusMode: focusModeActive,
-                focusedNotes: focusModeActive ? getNotesToFocus().map(n => n.noteBase) : [],
-                accuracyAtSessionEnd: total > 0 ? ((acertos / total) * 100) : 0
+                focusedNotes: focusModeActive ? getNotesForFocusMode().filter(n => selectedFocusNotes.includes(n.noteBase)).map(n => n.noteBase) : [],
+                accuracyAtSessionEnd: total > 0 ? ((acertos / total) * 100) : 0,
+                sessionTotalNotes: currentSessionTotalNotes
             };
             sessionHistory.push(sessionData);
             // Também adiciona ao ranking ao fechar a página, se a sessão foi relevante
