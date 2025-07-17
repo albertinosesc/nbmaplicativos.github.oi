@@ -2,13 +2,20 @@
 <html lang="pt-br">
 <head>
   <meta charset="UTF-8" />
-  <title>Treino Auditivo</title>
+  <title>🎵 Treino Auditivo com Timbres</title>
   <style>
     body { font-family: sans-serif; background: #f0f0f0; padding: 20px; }
     h1 { color: #333; }
-    select, button { margin: 5px; padding: 10px; font-size: 16px; }
-    .result { margin-top: 15px; font-size: 20px; font-weight: bold; }
-    #stats { margin-top: 10px; font-size: 18px; }
+    select, button { margin: 5px; padding: 10px; font-size: 16px; border-radius: 5px; border: 1px solid #ccc; cursor: pointer; }
+    select:focus, button:focus { outline: none; border-color: #007bff; box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25); }
+    button { background-color: #007bff; color: white; transition: background-color 0.2s ease; }
+    button:hover { background-color: #0056b3; }
+    .result { margin-top: 15px; font-size: 20px; font-weight: bold; padding: 10px; border-radius: 5px; }
+    #stats { margin-top: 10px; font-size: 18px; background-color: #e9ecef; padding: 10px; border-radius: 5px; }
+    #buttons { margin-top: 20px; display: flex; flex-wrap: wrap; gap: 10px; }
+    #buttons button { flex: 1 1 auto; min-width: 120px; max-width: 180px; background-color: #6c757d; }
+    #buttons button:hover { background-color: #5a6268; }
+
     /* Estilo para o botão de ativar/desativar automático */
     #toggleAutoPlayNextNoteButton.active {
         background-color: #28a745; /* Verde quando ativo */
@@ -32,7 +39,7 @@
     <option value="church_organ-mp3">⛪ Órgão de Igreja</option>
     <option value="trumpet-mp3">🎺 Trompete</option>
     <option value="tenor_sax-mp3">🎷 Saxofone Tenor</option>
-    </select>
+  </select>
 
   <label for="octave">🎶 Oitava:</label>
   <select id="octave" onchange="changeOctave()">
@@ -41,9 +48,17 @@
     <option value="5">5</option>
   </select>
 
+  <label for="sequenceType">🔄 Sequência de Notas:</label>
+  <select id="sequenceType" onchange="changeSequenceType()">
+    <option value="random">Aleatória</option>
+    <option value="fourths">Intervalo de Quartas</option>
+    <option value="fifths">Intervalo de Quintas</option>
+    <option value="chromaticAsc">Cromática Ascendente</option>
+    <option value="chromaticDesc">Cromática Descendente</option>
+  </select>
+
   <button onclick="playNote()">🔊 Tocar Nota</button>
   <button onclick="resetCounters()">🔄 Reiniciar Contadores</button>
-  
   <button id="toggleAutoPlayNextNoteButton" onclick="toggleAutoPlayNextNote()" class="inactive">
     ▶️ Próxima Nota Automático (Desativado)
   </button>
@@ -53,44 +68,114 @@
   <div id="stats"></div>
 
   <script>
-    const baseNotes = ["C", "Gb", "A", "E", "D", "Ab", "B", "Eb", "G", "Db", "F", "Bb"];
+    // Todas as 12 notas cromáticas em ordem padrão (para cálculos de intervalos)
+    const allNotesChromatic = ["C", "Db", "D", "Eb", "E", "F", "Gb", "G", "Ab", "A", "Bb", "B"];
+
+    // SEUS ARRAYS ORIGINAIS para mapeamento fixo de nota-tecla
+    const originalBaseNotesOrder = ["C", "Gb", "A", "E", "D", "Ab", "B", "Eb", "G", "Db", "F", "Bb"];
+    const originalKeyBindingsOrder = ['c','j','a','e','d','k','b','i','g','u','f','l'];
+
+    // Mapeamentos diretos de Nota Base para Tecla e de Tecla para Nota Base
+    const noteToKeyMap = {};
+    const keyToNoteMap = {};
+    for (let i = 0; i < originalBaseNotesOrder.length; i++) {
+        const note = originalBaseNotesOrder[i];
+        const key = originalKeyBindingsOrder[i];
+        noteToKeyMap[note] = key;
+        keyToNoteMap[key] = note;
+    }
+
     const baseDisplayNames = {
       "C": "Dó", "Db": "Dó♯", "D": "Ré", "Eb": "Ré♯", "E": "Mi", "F": "Fá",
       "Gb": "Fá♯", "G": "Sol", "Ab": "Sol♯", "A": "Lá", "Bb": "Lá♯", "B": "Si"
     };
-    const keyBindings = ['c','j','a','e','d','k','b','i','g','u','f','l'];
 
     let audioBase = "./acoustic_grand_piano-mp3/";
-    let currentLevel = 2;
+    let currentLevel = 2; // Começa com 2 notas disponíveis
     let streak = 0;
     let streakToAdvance = 3;
-    let currentNote = "";
+    let currentNote = ""; // A nota que está tocando atualmente (ex: "C4")
     let currentOctave = 4;
+    let currentSequenceType = "random"; // Tipo de sequência de notas (aleatória, quartas, etc.)
 
     let total = 0;
     let acertos = 0;
     let erros = 0;
 
-    let currentPlayingAudio = null; 
-    let autoPlayNextNote = false; 
-    let autoPlayTimeout = null; 
+    let currentPlayingAudio = null;
+    let autoPlayNextNote = false;
+    let autoPlayTimeout = null;
 
-    let noteSequence = baseNotes.map(note => note + currentOctave);
-    let displayNames = {};
-    baseNotes.forEach(note => {
-      displayNames[note + currentOctave] = baseDisplayNames[note];
-    });
+    // noteSequenceForLevel conterá APENAS as NOTAS BASE (ex: "C", "F", "Bb") que são relevantes para o nível atual
+    // A oitava é adicionada na hora de tocar ou verificar.
+    let noteSequenceForLevel = [];
+    let displayNames = {}; // Mapeia "C4" para "Dó", etc.
 
+    // Mapeia notas cromáticas para seus índices em allNotesChromatic para cálculo de intervalos
+    const noteToIndexChromatic = Object.fromEntries(allNotesChromatic.map((note, index) => [note, index]));
+
+    // Função para gerar a sequência de notas base (sem a oitava) com base no tipo selecionado
+    function generateNoteSequenceBase() {
+      let sequence = [];
+
+      switch (currentSequenceType) {
+        case "random":
+          // Para o modo aleatório, usamos a ordem original das notas do seu baseNotes
+          sequence = [...originalBaseNotesOrder];
+          break;
+        case "fourths":
+          let currentNoteIndexForth = noteToIndexChromatic["C"]; // Começa em C cromático
+          for (let i = 0; i < allNotesChromatic.length; i++) {
+            sequence.push(allNotesChromatic[currentNoteIndexForth]);
+            currentNoteIndexForth = (currentNoteIndexForth + 5) % allNotesChromatic.length; // Avança 5 semitons (quarta perfeita)
+          }
+          break;
+        case "fifths":
+          let currentNoteIndexFifth = noteToIndexChromatic["C"]; // Começa em C cromático
+          for (let i = 0; i < allNotesChromatic.length; i++) {
+            sequence.push(allNotesChromatic[currentNoteIndexFifth]);
+            currentNoteIndexFifth = (currentNoteIndexFifth + 7) % allNotesChromatic.length; // Avança 7 semitons (quinta perfeita)
+          }
+          break;
+        case "chromaticAsc":
+          sequence = [...allNotesChromatic]; // Todas as notas em ordem ascendente
+          break;
+        case "chromaticDesc":
+          sequence = [...allNotesChromatic].reverse(); // Todas as notas em ordem descendente
+          break;
+        default:
+          sequence = [...originalBaseNotesOrder]; // Padrão para aleatório (sua ordem original)
+      }
+      return sequence;
+    }
+
+    // Atualiza os nomes de exibição completos (ex: "C4" -> "Dó")
+    function updateDisplayNames() {
+      displayNames = {};
+      allNotesChromatic.forEach(noteBase => { // Usa allNotesChromatic para garantir que todos os displayNames sejam criados
+        displayNames[noteBase + currentOctave] = baseDisplayNames[noteBase];
+      });
+    }
+
+    // Cria/Atualiza os botões na interface
     function updateButtons() {
       const buttonsDiv = document.getElementById("buttons");
       buttonsDiv.innerHTML = "";
-      for (let i = 0; i < currentLevel; i++) {
-        const note = noteSequence[i];
+
+      // Pega as notas base que estão no nível atual da sequência escolhida
+      const notesBaseForCurrentLevel = noteSequenceForLevel.slice(0, currentLevel);
+
+      notesBaseForCurrentLevel.forEach(noteBase => {
         const btn = document.createElement("button");
-        btn.textContent = `${displayNames[note]} [${keyBindings[i].toUpperCase()}]`;
-        btn.onclick = () => checkAnswer(note);
+        // Usa o noteToKeyMap para obter a tecla correta para a nota base
+        const keyText = noteToKeyMap[noteBase] ? `[${noteToKeyMap[noteBase].toUpperCase()}]` : '';
+
+        // O texto do botão mostra a nota e a tecla correspondente
+        btn.textContent = `${baseDisplayNames[noteBase]} ${keyText}`;
+        // O onclick passa a nota COMPLETA (ex: "C4") para a função checkAnswer
+        btn.onclick = () => checkAnswer(noteBase + currentOctave);
         buttonsDiv.appendChild(btn);
-      }
+      });
     }
 
     function updateStats() {
@@ -111,38 +196,44 @@
         currentPlayingAudio.currentTime = 0;
         currentPlayingAudio = null;
       }
-      currentNote = ""; 
-      
+      currentNote = "";
       if (autoPlayTimeout) {
         clearTimeout(autoPlayTimeout);
         autoPlayTimeout = null;
       }
       if (autoPlayNextNote) {
-        toggleAutoPlayNextNote(); 
+        toggleAutoPlayNextNote(); // Desativa o modo automático ao reiniciar
       }
     }
 
-    function playRealNote(note) {
+    function playRealNote(noteWithOctave) { // Ex: "C4"
       if (currentPlayingAudio) {
         currentPlayingAudio.pause();
-        currentPlayingAudio.currentTime = 0; 
+        currentPlayingAudio.currentTime = 0;
       }
-      const audio = new Audio(audioBase + note + ".mp3");
-      audio.volume = 0.7; 
+      const audioPath = `${audioBase}${noteWithOctave}.mp3`;
+      const audio = new Audio(audioPath);
+      audio.volume = 0.7;
       audio.play().then(() => {
-        currentPlayingAudio = audio; 
-      }).catch(e => console.error(`Erro ao tocar ${note}.mp3:`, e));
+        currentPlayingAudio = audio;
+      }).catch(e => {
+        console.error(`Erro ao tocar ${audioPath}:`, e);
+        document.getElementById("result").textContent = "Erro ao carregar o som. Verifique o console do navegador (F12) e os arquivos MP3.";
+        document.getElementById("result").style.color = "red";
+      });
     }
 
     function playNote() {
-      const index = Math.floor(Math.random() * currentLevel);
-      currentNote = noteSequence[index];
+      // Seleciona uma nota base do subconjunto permitido pelo nível atual da sequência
+      const notesBaseAvailableForLevel = noteSequenceForLevel.slice(0, currentLevel);
+      const randomBaseNote = notesBaseAvailableForLevel[Math.floor(Math.random() * notesBaseAvailableForLevel.length)];
+      currentNote = randomBaseNote + currentOctave; // Armazena a nota completa (ex: "C4")
+
       playRealNote(currentNote);
       document.getElementById("result").textContent = "Qual nota foi tocada?";
       document.getElementById("result").style.color = "black";
-      
-      total++; 
-      updateStats(); 
+      total++;
+      updateStats();
 
       if (autoPlayTimeout) {
         clearTimeout(autoPlayTimeout);
@@ -150,40 +241,42 @@
       }
     }
 
-    function checkAnswer(note) {
+    function checkAnswer(selectedNoteWithOctave) { // A nota completa que foi clicada/pressionada (ex: "C4")
       const resultDiv = document.getElementById("result");
-      if (!currentNote) {
+      if (!currentNote) { // Se nenhuma nota foi tocada ainda
         resultDiv.textContent = "Pressione 'Tocar Nota' ou espaço para começar.";
         resultDiv.style.color = "orange";
         return;
       }
-      
-      if (note === currentNote) {
+
+      if (selectedNoteWithOctave === currentNote) {
         acertos++;
         streak++;
-        resultDiv.textContent = `✅ Correto! Era ${displayNames[note]}`;
+        resultDiv.textContent = `✅ Correto! Era ${displayNames[currentNote]}`;
         resultDiv.style.color = "green";
-        if (streak >= streakToAdvance && currentLevel < noteSequence.length) {
+        // Avança de nível se atingir a sequência de acertos e ainda houver notas para adicionar
+        // O limite agora é o número total de notas na sequência gerada (que pode ser originalBaseNotesOrder.length ou allNotesChromatic.length)
+        if (streak >= streakToAdvance && currentLevel < noteSequenceForLevel.length) {
           currentLevel++;
           streak = 0;
-          streakToAdvance++; 
-          updateButtons();
-          alert("🎉 Novo nível! Nota adicionada.");
+          streakToAdvance++; // Aumenta a sequência necessária para o próximo nível
+          updateButtons(); // Atualiza os botões para incluir a nova nota
+          alert(`🎉 Novo nível! Agora com ${currentLevel} notas.`);
         }
       } else {
         erros++;
-        streak = 0;
+        streak = 0; // Zera a sequência de acertos
         resultDiv.textContent = `❌ Errado! Era ${displayNames[currentNote]}`;
         resultDiv.style.color = "red";
       }
 
-      currentNote = ""; 
+      currentNote = ""; // Reseta a nota atual para que uma nova seja tocada
       updateStats();
 
       if (autoPlayNextNote) {
         autoPlayTimeout = setTimeout(() => {
           playNote();
-        }, 1500); 
+        }, 1500); // Toca a próxima nota automaticamente após 1.5 segundos
       }
     }
 
@@ -201,8 +294,7 @@
     function changeInstrument() {
       const selected = document.getElementById("instrument").value;
       audioBase = `./${selected}/`;
-      currentNote = "";
-      // Updated message to remove .mp3 from instrument name
+      currentNote = ""; // Limpa a nota atual para evitar que tente tocar com o timbre antigo
       document.getElementById("result").textContent = `🎼 Timbre alterado para: ${selected.replace(/_/g, ' ').replace(/-/g, ' ').replace('.mp3', '').trim()}`;
       document.getElementById("result").style.color = "darkgreen";
       if (currentPlayingAudio) {
@@ -218,13 +310,15 @@
 
     function changeOctave() {
       currentOctave = document.getElementById("octave").value;
-      noteSequence = baseNotes.map(note => note + currentOctave);
-      displayNames = {};
-      baseNotes.forEach(note => {
-        displayNames[note + currentOctave] = baseDisplayNames[note];
-      });
-      updateButtons();
-      currentNote = ""; 
+      updateDisplayNames(); // Atualiza os nomes de exibição com a nova oitava
+      // A sequência base não muda, mas a representação completa muda (ex: C3 -> C4)
+      currentLevel = 2; // Reinicia o nível ao mudar a oitava
+      streak = 0;
+      streakToAdvance = 3;
+      // Regenera a sequência para garantir que as notas completas estejam corretas se a lógica de sequência depender da oitava (embora aqui só a nota base seja usada para a sequência)
+      noteSequenceForLevel = generateNoteSequenceBase();
+      updateButtons(); // Recria os botões com a nova oitava nos nomes completos para checagem
+      currentNote = "";
       document.getElementById("result").textContent = `🎶 Oitava alterada para ${currentOctave}`;
       document.getElementById("result").style.color = "purple";
       if (currentPlayingAudio) {
@@ -238,15 +332,36 @@
       }
     }
 
+    function changeSequenceType() {
+      currentSequenceType = document.getElementById("sequenceType").value;
+      noteSequenceForLevel = generateNoteSequenceBase(); // Gera a nova sequência de notas base
+      currentLevel = 2; // Reinicia o nível ao mudar a sequência
+      streak = 0;
+      streakToAdvance = 3;
+      updateButtons(); // Atualiza os botões com as notas da nova sequência
+      currentNote = "";
+      document.getElementById("result").textContent = `🔄 Sequência alterada para: ${document.getElementById("sequenceType").options[document.getElementById("sequenceType").selectedIndex].text}`;
+      document.getElementById("result").style.color = "darkblue";
+      if (currentPlayingAudio) {
+        currentPlayingAudio.pause();
+        currentPlayingAudio.currentTime = 0;
+        currentPlayingAudio = null;
+      }
+      if (autoPlayTimeout) {
+        clearTimeout(autoPlayTimeout);
+        autoPlayTimeout = null;
+      }
+    }
+
     function toggleAutoPlayNextNote() {
-      autoPlayNextNote = !autoPlayNextNote; 
+      autoPlayNextNote = !autoPlayNextNote;
       const button = document.getElementById("toggleAutoPlayNextNoteButton");
       if (autoPlayNextNote) {
         button.textContent = "▶️ Próxima Nota Automático (Ativado)";
         button.classList.remove('inactive');
         button.classList.add('active');
-        if (!currentNote) {
-            playNote(); 
+        if (!currentNote) { // Se não houver nota tocando, já inicia
+            playNote();
         }
       } else {
         button.textContent = "▶️ Próxima Nota Automático (Desativado)";
@@ -261,27 +376,39 @@
       document.getElementById("result").style.color = autoPlayNextNote ? "green" : "red";
     }
 
+    // Listener para as teclas do teclado
     document.addEventListener("keydown", (e) => {
       const key = e.key.toLowerCase();
       if (e.key === "Enter") {
-        e.preventDefault();
+        e.preventDefault(); // Evita que a tecla Enter ative outros botões
         repeatNote();
-        return; 
+        return;
       }
-      if (e.key === " ") { 
-        e.preventDefault();
-        playNote(); 
-        return; 
+      if (e.key === " ") {
+        e.preventDefault(); // Evita que a barra de espaço role a página
+        playNote();
+        return;
       }
-      
-      const index = keyBindings.indexOf(key);
-      if (index >= 0 && index < currentLevel) {
-        checkAnswer(noteSequence[index]);
+
+      // Usa o keyToNoteMap para encontrar a nota base correspondente à tecla pressionada
+      const pressedNoteBase = keyToNoteMap[key];
+      if (pressedNoteBase) { // Se a tecla pressionada está no nosso mapeamento fixo
+        const fullPressedNote = pressedNoteBase + currentOctave; // Cria a nota completa com a oitava atual
+
+        // Verifica se a nota *base* que corresponde à tecla pressionada
+        // está entre as notas base disponíveis no nível atual da sequência.
+        const notesBaseAvailableForLevel = noteSequenceForLevel.slice(0, currentLevel);
+        if (notesBaseAvailableForLevel.includes(pressedNoteBase)) {
+            checkAnswer(fullPressedNote); // Passa a nota completa para a checagem
+        }
       }
     });
 
-    updateButtons();
-    updateStats();
+    // --- Inicialização do aplicativo ---
+    updateDisplayNames(); // Preenche os nomes de exibição (e.g., "C4" -> "Dó")
+    noteSequenceForLevel = generateNoteSequenceBase(); // Gera a sequência inicial de notas base (aleatória por padrão)
+    updateButtons(); // Cria os botões iniciais com as notas base e seus keybindings fixos
+    updateStats(); // Exibe as estatísticas iniciais
   </script>
 </body>
 </html>
