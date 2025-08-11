@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Visualizador de Acordes</title>
+    <style>
+        body { font-family: sans-serif; padding: 20px; }
+        textarea { width: 90%; height: 200px; margin-bottom: 10px; }
+        #visualizador { border: 1px solid #ccc; padding: 10px; margin-top: 10px; text-align: center; }
+        .controles { margin-top: 10px; }
+        button, select { margin: 4px; padding: 8px 12px; cursor: pointer; }
+        .acorde { display: inline-block; }
+        #nome-acorde-transposto { font-size: 24px; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<h1>Visualizador de Acordes</h1>
+
+<p>Cole o código HTML do acorde exportado do editor abaixo:</p>
+<textarea id="acorde-input"></textarea>
+
+<div class="controles">
+    <button id="carregar-acorde">Carregar Acorde</button>
+</div>
+
+<hr>
+
+<div id="visualizador">
+    <p>Nenhum acorde carregado.</p>
+</div>
+
+<div class="controles" id="controles-acorde" style="display: none;">
+    <h3>Controles do Acorde</h3>
+    <label for="exibir-opcoes">Exibir:</label>
+    <select id="exibir-opcoes">
+        <option value="notas">Notas</option>
+        <option value="graus">Graus da Escala</option>
+        <option value="dedos">Números dos Dedos</option>
+    </select>
+    <button id="tocar-acorde">Tocar</button>
+    <br>
+    <button id="transpor-down">-1</button>
+    <button id="transpor-up">+1</button>
+    <div id="nome-acorde-transposto"></div>
+</div>
+
+<script>
+// Mapeamento de notas para frequências (simplificado para demonstração)
+const notasParaFrequencias = {
+    'C': 261.63, 'C#': 277.18, 'D': 293.66, 'D#': 311.13, 'E': 329.63, 'F': 349.23,
+    'F#': 369.99, 'G': 392.00, 'G#': 415.30, 'A': 440.00, 'A#': 466.16, 'B': 493.88
+};
+
+const ordemNotas = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const notasPorCorda = ['E', 'A', 'D', 'G', 'B', 'E'];
+
+let svgAcorde = null;
+let nomeAcordeOriginal = '';
+let transposicaoAtual = 0;
+let dadosDedos = {};
+let dadosGraus = {};
+
+document.getElementById('carregar-acorde').addEventListener('click', carregarAcorde);
+document.getElementById('tocar-acorde').addEventListener('click', tocarAcorde);
+document.getElementById('exibir-opcoes').addEventListener('change', atualizarDiagrama);
+document.getElementById('transpor-up').addEventListener('click', () => transporAcorde(1));
+document.getElementById('transpor-down').addEventListener('click', () => transporAcorde(-1));
+
+function carregarAcorde() {
+    const acordeHTML = document.getElementById('acorde-input').value;
+    const visualizador = document.getElementById('visualizador');
+
+    if (!acordeHTML.trim()) {
+        visualizador.innerHTML = '<p>Nenhum acorde carregado.</p>';
+        document.getElementById('controles-acorde').style.display = 'none';
+        return;
+    }
+
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = acordeHTML;
+    const acordeDiv = tempDiv.querySelector('.acorde');
+
+    if (acordeDiv) {
+        svgAcorde = acordeDiv.querySelector('svg');
+        if (svgAcorde) {
+            visualizador.innerHTML = '';
+            visualizador.appendChild(svgAcorde);
+            document.getElementById('controles-acorde').style.display = 'block';
+
+            // Pega o nome original do título do SVG
+            const tituloElement = svgAcorde.querySelector('text:first-of-type');
+            nomeAcordeOriginal = tituloElement ? tituloElement.textContent.trim() : '';
+
+            // NOVO: Extrai os dados de dedos e graus do elemento de exportação
+            const dadosExportacao = svgAcorde.querySelector('.dados-exportacao');
+            if(dadosExportacao) {
+                dadosDedos = JSON.parse(dadosExportacao.getAttribute('data-dedos')) || {};
+                dadosGraus = JSON.parse(dadosExportacao.getAttribute('data-graus')) || {};
+            } else {
+                dadosDedos = {};
+                dadosGraus = {};
+            }
+
+            // Reseta a transposição
+            transposicaoAtual = 0;
+
+            // Adiciona a indicação do traste inicial
+            adicionarIndicacaoTraste();
+
+            // Transpõe o título para baixo do diagrama
+            document.getElementById('nome-acorde-transposto').textContent = nomeAcordeOriginal;
+            
+            // Renderiza o diagrama com as notas originais
+            atualizarDiagrama();
+        } else {
+            visualizador.innerHTML = '<p>Código inválido. O acorde não contém um SVG.</p>';
+            document.getElementById('controles-acorde').style.display = 'none';
+        }
+    } else {
+        visualizador.innerHTML = '<p>Código inválido. Certifique-se de que é um código de acorde SVG válido.</p>';
+        document.getElementById('controles-acorde').style.display = 'none';
+    }
+}
+
+function tocarAcorde() {
+    if (!svgAcorde) return;
+
+    const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    
+    const notasParaTocar = [];
+    svgAcorde.querySelectorAll('circle[data-key]').forEach(circleElem => {
+        const key = circleElem.getAttribute('data-key');
+        const [corda, traste] = key.split('-').map(Number);
+        
+        const nota = notaPorCordaETraste(corda, traste + transposicaoAtual);
+        if (nota) {
+            notasParaTocar.push(nota);
+        }
+    });
+
+    notasParaTocar.forEach(nota => {
+        const [nomeNota, oitava] = dividirNotaEOitava(nota);
+        const osc = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+
+        let frequenciaBase = notasParaFrequencias[nomeNota];
+        let frequencia = frequenciaBase * Math.pow(2, (oitava - 4));
+        
+        osc.frequency.setValueAtTime(frequencia, audioContext.currentTime);
+        osc.type = 'triangle';
+
+        gainNode.gain.setValueAtTime(0, audioContext.currentTime);
+        gainNode.gain.linearRampToValueAtTime(0.5, audioContext.currentTime + 0.05);
+        gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 1);
+
+        osc.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+
+        osc.start(0);
+        osc.stop(audioContext.currentTime + 1);
+    });
+}
+
+function transporAcorde(intervalo) {
+    if (!svgAcorde) return;
+    transposicaoAtual += intervalo;
+    atualizarDiagrama();
+
+    const novoNome = transporNomeAcorde(nomeAcordeOriginal, transposicaoAtual);
+    document.getElementById('nome-acorde-transposto').textContent = novoNome;
+}
+
+function atualizarDiagrama() {
+    if (!svgAcorde) return;
+
+    const tipoExibicao = document.getElementById('exibir-opcoes').value;
+    const notesTextElements = svgAcorde.querySelectorAll('text[data-key]');
+    
+    notesTextElements.forEach(textElem => {
+        const key = textElem.getAttribute('data-key');
+        const [corda, traste] = key.split('-').map(Number);
+        
+        let novoValor = '';
+        if (tipoExibicao === 'notas') {
+            const trasteOriginal = parseInt(traste);
+            novoValor = notaPorCordaETraste(corda, trasteOriginal + transposicaoAtual);
+        } else if (tipoExibicao === 'graus') {
+            novoValor = dadosGraus[key] || '';
+        } else if (tipoExibicao === 'dedos') {
+            novoValor = dadosDedos[key] || '';
+        }
+        
+        textElem.textContent = novoValor;
+    });
+
+    // Atualiza a indicação do traste inicial
+    const trasteElement = svgAcorde.querySelector('.traste-inicial-texto');
+    if (trasteElement) {
+        let trasteInicial = 1 + transposicaoAtual;
+        trasteElement.textContent = trasteInicial > 1 ? trasteInicial : '';
+    }
+}
+
+
+function adicionarIndicacaoTraste() {
+    const margem = 60;
+    const altura = 400;
+    const alturaCasaZero = 55;
+
+    // Remove a indicação anterior, se existir
+    const existingTrasteText = svgAcorde.querySelector('.traste-inicial-texto');
+    if (existingTrasteText) {
+        existingTrasteText.remove();
+    }
+
+    const trasteInicial = 1 + transposicaoAtual;
+    const trasteTexto = trasteInicial > 1 ? trasteInicial : '';
+
+    const textElement = document.createElementNS("http://www.w3.org/2000/svg", "text");
+    textElement.setAttribute("x", margem - 20); // Posição à esquerda do diagrama
+    textElement.setAttribute("y", margem + alturaCasaZero + (altura - 2 * margem - alturaCasaZero) / 8); // No meio do primeiro traste
+    textElement.setAttribute("font-size", "20");
+    textElement.setAttribute("text-anchor", "middle");
+    textElement.setAttribute("dominant-baseline", "middle");
+    textElement.setAttribute("class", "traste-inicial-texto");
+    textElement.textContent = trasteTexto;
+
+    svgAcorde.appendChild(textElement);
+}
+
+function notaPorCordaETraste(corda, traste) {
+    const notas = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const base = notasPorCorda[corda];
+    const indexBase = notas.indexOf(base);
+    if (indexBase === -1) {
+        return "?";
+    }
+    
+    const novaNotaIndex = (indexBase + traste) % 12;
+    return notas[novaNotaIndex];
+}
+
+function transporNomeAcorde(nome, intervalo) {
+    let [notaBase, ...rest] = nome.split(/(?=[#b])/);
+    const tipoAcorde = rest.join('');
+    const indexNotaBase = ordemNotas.indexOf(notaBase);
+    
+    if (indexNotaBase === -1) {
+        return nome;
+    }
+    
+    const novoIndex = (indexNotaBase + intervalo + 12) % 12;
+    const novaNotaBase = ordemNotas[novoIndex];
+    
+    return novaNotaBase + tipoAcorde;
+}
+
+function dividirNotaEOitava(notaCompleta) {
+    const match = notaCompleta.match(/([A-G]#?b?)(\d+)/);
+    if (match) {
+        return [match[1], parseInt(match[2])];
+    }
+    return [notaCompleta, 4];
+}
+</script>
+
+</body>
+</html>
