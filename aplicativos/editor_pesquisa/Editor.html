@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <title>NBM Editor</title>
+    <script src="https://unpkg.com/abcjs@6.3.1/dist/abcjs-basic-min.js"></script>
+    <style>
+        /* (Seu CSS completo, como fornecido nos prompts anteriores) */
+        #filter-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        .filter-field {
+            display: flex;
+            flex-direction: column;
+        }
+        #music-list {
+            margin-top: 20px;
+        }
+        .music-item {
+            cursor: pointer;
+            padding: 5px;
+            border: 1px solid #ccc;
+            margin: 5px 0;
+            background-color: #fff;
+            border-radius: 4px;
+        }
+        .music-item:hover {
+            background-color: #e6e6e6;
+        }
+        #loading {
+            display: none;
+            color: #5c6bc0;
+            font-weight: bold;
+        }
+        #no-results {
+            display: none;
+            color: red;
+        }
+        #notations-container {
+            margin-top: 20px;
+        }
+        #midi-player {
+            margin-top: 10px;
+        }
+
+        :root {
+            --primary-color: #5c6bc0;
+            --secondary-color: #7986cb;
+            --background-color: #f0f4f8;
+            --text-color: #2c3e50;
+            --white: #ffffff;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Manrope', sans-serif;
+            background-color: var(--background-color);
+            color: var(--text-color);
+            line-height: 1.6;
+            padding: 2rem;
+            max-width: auto;
+            margin: 0 auto;
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 2rem;
+            font-weight: 600;
+            letter-spacing: -1px;
+        }
+
+        #abc-options, #abc-input {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 1rem;
+            border: 2px solid var(--secondary-color);
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        #abc-options {
+            appearance: none;
+            background: var(--white) url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='6'><path d='M1 1 L5 5 L9 1' fill='none' stroke='%235c6bc0' stroke-width='2' stroke-linecap='round'/></svg>") no-repeat right 12px center;
+            background-size: 16px;
+        }
+
+        #abc-input {
+            resize: vertical;
+            min-height: 150px;
+        }
+
+        #abc-options:focus, #abc-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(92, 107, 192, 0.2);
+        }
+
+        #paper {
+            width: 1000px; /* Define largura fixa */
+            max-width: 100%; /* Evita que ultrapasse a tela */
+            overflow-x: auto; /* Permite rolagem se necessário */
+            margin: 0 auto;
+            height: auto; /* Garantir que o height se ajuste automaticamente */
+            display: block;
+        }
+
+        #paper svg {
+            width: 100% !important; /* Mantém o tamanho do SVG */
+            height: auto !important;
+            max-width: 100%; /* Evita distorções no SVG */
+            display: block;
+        }
+
+        /* Garantir que o conteúdo não se mova ou altere de tamanho ao interagir */
+        #paper.playing {
+            width: 1000px; /* Garante que a largura fique fixa durante a execução */
+            height: auto;
+        }
+
+        fieldset {
+            display: flex;
+            justify-content: space-between; /* Alinha as colunas */
+            align-items: flex-start; /* Alinha os itens no topo */
+            gap: 20px; /* Espaçamento entre as colunas */
+            padding: 1.5rem;
+            border: 2px solid var(--secondary-color);
+            border-radius: 8px;
+        }
+
+        legend {
+            padding: 0 10px;
+            color: var(--primary-color);
+            font-weight: 600;
+        }
+
+        label {
+            display: block;
+            margin: 0.5rem 0;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid var(--secondary-color);
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: var(--white);
+            border: none;
+            padding: 10px 15px;
+            margin: 5px;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: var(--secondary-color);
+            transform: translateY(-2px);
+        }
+
+        button:active {
+            transform: translateY(1px);
+        }
+
+        .audio-error {
+            color: #d32f2f;
+            font-weight: bold;
+            text-align: center;
+            margin: 1rem 0;
+        }
+
+        .right-section {
+            margin-left: -20px; /* Ajuste esse valor conforme necessário */
+        }
+
+        .container {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 20px;
+        }
+
+        .left-section, .right-section {
+            width: 50%;
+        }
+
+        .left-section {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+        }
+
+        .right-section {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .transpose-options {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .transpose-options label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .full-width {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .abc-buttons {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h1>NBM - Editor/Pesquisa</h1>
+    </div>
+    <div id="filter-container">
+        <div class="filter-field">
+            <label for="codigo">Código:</label>
+            <input type="text" id="codigo" placeholder="Filtrar por código...">
+        </div>
+        <div class="filter-field">
+            <label for="titulo">Título:</label>
+            <input type="text" id="titulo" placeholder="Filtrar por título...">
+        </div>
+        <div class="filter-field">
+            <label for="referencia">Referência:</label>
+            <input type="text" id="referencia" placeholder="Filtrar por referência...">
+        </div>
+        <div class="filter-field">
+            <label for="compositor">Compositor:</label>
+            <input type="text" id="compositor" placeholder="Filtrar por compositor...">
+        </div>
+        <div class="filter-field">
+            <label for="signo">Signo:</label>
+            <input type="text" id="signo" placeholder="Filtrar por signo...">
+        </div>
+        <div class="filter-field">
+            <label for="ritmo">Ritmo:</label>
+            <input type="text" id="ritmo" placeholder="Filtrar por ritmo...">
+        </div>
+        <div class="filter-field">
+            <label for="nota">Nota:</label>
+            <input type="text" id="nota" placeholder="Filtrar por nota...">
+        </div>
+        <div class="filter-field">
+            <label for="progressao">Progressão:</label>
+            <input type="text" id="progressao" placeholder="Filtrar por progressão...">
+        </div>
+        <div class="filter-field">
+            <label for="categoria">Categoria:</label>
+            <input type="text" id="categoria" placeholder="Filtrar por categoria...">
+        </div>
+    </div>
+    <div id="button-container">
+        <button onclick="filterMusic()">Buscar</button>
+        <button onclick="clearFilter()">Limpar Filtros</button>
+        <div id="loading">Carregando músicas...</div>
+    </div>
+
+    <hr style="margin: 20px 0;">
+    
+    <div id="notations-container">
+        <div class="notation-section">
+            <h3>Notação</h3>
+            <textarea id="abc-input" rows="10" cols="50" placeholder="A notação da música selecionada aparecerá aqui."></textarea>
+        </div>
+    </div>
+    
+    <fieldset>
+        <legend>Opções</legend>
+        <div class="fieldset-column">
+            <h3>Transposição</h3>
+            <div class="transpose-options">
+                <label>Visual:<input class="visual-transpose" type="number" min="-24" max="24" step="1" value="0"></label>
+                <label>Áudio:<input class="audio-transpose" type="number" min="-24" max="24" step="1" value="0"></label>
+            </div>
+        </div>
+        <div class="fieldset-column">
+            <h3>Comandos ABC</h3>
+            <div class="abc-buttons">
+                <button class="midi-command">Add %%MIDI</button>
+                <button class="key-command">Add to K:</button>
+                <button class="voice-command">Add to V:</button>
+            </div>
+        </div>
+    </fieldset>
+
+    <h2>Reprodução</h2>
+    <div id="playback-controls">
+        <button class="play-chords">Acordes</button>
+        <button class="play-melodies">V1 + V2</button>
+        <button class="play-harmony">V1 + Acordes</button>
+        <button class="play-melody">V2 + Acordes</button>
+        <button class="play-melody2">V1</button>
+        <button class="play-harmony2">V2</button>
+        <button class="play-all">Tocar tudo</button>
+        <button class="stop-audio" style="display:none;">Stop</button>
+    </div>
+    <div class="audio-error" style="display:none;">Áudio não suportado</div>
+    
+    <div id="paper"></div>
+
+    <div id="music-list">
+        <h2>Resultados da Busca</h2>
+        <div id="songs"></div>
+    </div>
+    <div id="no-results">Nenhuma música encontrada.</div>
+    <br><br><br><br><br><br><br>
+    <h3>Albertino Moura - 2025</h3>
+
+    <script type="text/javascript">
+        // SUBSTITUA ESTA URL PELA URL DE SUA API DO GOOGLE APPS SCRIPT
+        const WEBAPP_URL = 'SUA_URL_DA_WEB_APP';
+
+        let visualObj;
+        let midiBuffer = null;
+
+        window.onload = function() {
+            const abcTextarea = document.getElementById("abc-input");
+            const visualTransposeInput = document.querySelector(".visual-transpose");
+            
+            abcTextarea.addEventListener("input", renderABC);
+            visualTransposeInput.addEventListener("input", renderABC);
+
+            document.querySelector(".midi-command").addEventListener("click", onMidiCommand);
+            document.querySelector(".key-command").addEventListener("click", onKeyCommand);
+            document.querySelector(".voice-command").addEventListener("click", onVoiceCommand);
+            
+            document.querySelector(".play-chords").addEventListener("click", () => play({ voicesOff: true }));
+            document.querySelector(".play-melodies").addEventListener("click", () => play({ chordsOff: true }));
+            document.querySelector(".play-harmony").addEventListener("click", () => play({ voicesOff: [1] }));
+            document.querySelector(".play-melody").addEventListener("click", () => play({ voicesOff: [0] }));
+            document.querySelector(".play-melody2").addEventListener("click", () => play({ chordsOff: true, voicesOff: [1] }));
+            document.querySelector(".play-harmony2").addEventListener("click", () => play({ chordsOff: true, voicesOff: [0] }));
+            document.querySelector(".play-all").addEventListener("click", () => play({}));
+            document.querySelector(".stop-audio").addEventListener("click", stopAudio);
+
+            const filterInputs = document.querySelectorAll('#filter-container input');
+            filterInputs.forEach(input => {
+                input.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        filterMusic();
+                    }
+                });
+            });
+        };
+
+        function filterMusic() {
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+
+            const filters = {
+                codigo: document.getElementById('codigo').value,
+                titulo: document.getElementById('titulo').value,
+                referencia: document.getElementById('referencia').value,
+                compositor: document.getElementById('compositor').value,
+                signo: document.getElementById('signo').value,
+                ritmo: document.getElementById('ritmo').value,
+                nota: document.getElementById('nota').value,
+                progressao: document.getElementById('progressao').value,
+                categoria: document.getElementById('categoria').value
+            };
+
+            const hasFilter = Object.values(filters).some(value => value.trim() !== '');
+
+            if (!hasFilter) {
+                alert('Por favor, preencha pelo menos um filtro para pesquisar.');
+                loading.style.display = 'none';
+                return;
+            }
+
+            const params = new URLSearchParams(filters).toString();
+
+            fetch(`${WEBAPP_URL}?${params}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Erro na resposta da rede: ' + response.statusText);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    displayMusicList(data);
+                    loading.style.display = 'none';
+                })
+                .catch(error => {
+                    console.error('Erro ao buscar dados:', error);
+                    alert('Erro ao buscar dados: ' + error.message);
+                    loading.style.display = 'none';
+                });
+        }
+
+        function displayMusicList(data) {
+            const songsDiv = document.getElementById('songs');
+            const musicList = document.getElementById('music-list');
+            const noResults = document.getElementById('no-results');
+
+            songsDiv.innerHTML = '';
+
+            if (data.length === 0) {
+                musicList.style.display = 'none';
+                noResults.style.display = 'block';
+            } else {
+                musicList.style.display = 'block';
+                noResults.style.display = 'none';
+                data.forEach((row) => {
+                    const div = document.createElement('div');
+                    div.className = 'music-item';
+                    div.textContent = `(${row.id || ''}) ${row.titulo || 'Sem título'} - ${row.compositor || 'Desconhecido'}`;
+                    div.onclick = () => {
+                        document.getElementById('abc-input').value = row.notacaoabc || '';
+                        renderABC();
+                    };
+                    songsDiv.appendChild(div);
+                });
+            }
+        }
+
+        function clearFilter() {
+            const filterInputs = document.querySelectorAll('#filter-container input');
+            filterInputs.forEach(input => input.value = '');
+            document.getElementById('music-list').style.display = 'none';
+            document.getElementById('no-results').style.display = 'none';
+        }
+
+        function renderABC() {
+            const abcTextarea = document.getElementById("abc-input");
+            let abc = abcTextarea.value;
+            const visualTranspose = parseInt(document.querySelector(".visual-transpose").value, 10) || 0;
+
+            if (!abc.includes("%%staffwidth")) {
+                abc = "%%staffwidth 1000\n" + abc;
+            }
+
+            visualObj = ABCJS.renderAbc("paper", abc, {
+                responsive: "resize",
+                visualTranspose: visualTranspose,
+                staffwidth: 1000
+            })[0];
+        }
+
+        function play(options) {
+            const stopAudioButton = document.querySelector(".stop-audio");
+            const startButtons = document.querySelectorAll("#playback-controls button:not(.stop-audio)");
+            
+            startButtons.forEach(button => { button.style.display = "none"; });
+            stopAudioButton.style.display = "";
+
+            if (ABCJS.synth.supportsAudio()) {
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                audioContext.resume().then(() => {
+                    midiBuffer = new ABCJS.synth.CreateSynth();
+                    const audioTranspose = parseInt(document.querySelector(".audio-transpose").value, 10) || 0;
+                    options.midiTranspose = audioTranspose;
+
+                    return midiBuffer.init({
+                        visualObj: visualObj,
+                        audioContext: audioContext,
+                        millisecondsPerMeasure: visualObj.millisecondsPerMeasure(),
+                        options: options
+                    }).then(() => midiBuffer.prime())
+                      .then(() => midiBuffer.start())
+                      .catch(handlePlaybackError);
+                });
+            } else {
+                document.querySelector(".audio-error").style.display = "block";
+                stopAudio();
+            }
+        }
+        
+        function stopAudio() {
+            const stopAudioButton = document.querySelector(".stop-audio");
+            const startButtons = document.querySelectorAll("#playback-controls button:not(.stop-audio)");
+
+            startButtons.forEach(button => { button.style.display = ""; });
+            stopAudioButton.style.display = "none";
+
+            if (midiBuffer) {
+                midiBuffer.stop();
+            }
+        }
+
+        function handlePlaybackError(error) {
+            if (error.status === "NotSupported") {
+                document.querySelector(".audio-error").style.display = "block";
+            } else {
+                console.warn("synth error", error);
+            }
+            stopAudio();
+        }
+
+        function onMidiCommand() {
+            const abcTextarea = document.getElementById("abc-input");
+            abcTextarea.value = "%%MIDI transpose 2\n" + abcTextarea.value;
+            renderABC();
+        }
+
+        function onKeyCommand() {
+            const abcTextarea = document.getElementById("abc-input");
+            const originalValue = abcTextarea.value;
+            if (originalValue.includes("K:")) {
+                abcTextarea.value = originalValue.replace(/K:.*/, 'K:Em transpose=-2');
+            } else {
+                abcTextarea.value = originalValue.replace(/^(X:\d+)/m, '$1\nK:Em transpose=-2');
+            }
+            renderABC();
+        }
+
+        function onVoiceCommand() {
+            const abcTextarea = document.getElementById("abc-input");
+            const originalValue = abcTextarea.value;
+            if (originalValue.includes("V:")) {
+                abcTextarea.value = originalValue.replace(/V:.*/, 'V:Melody transpose=-2');
+            } else {
+                abcTextarea.value = originalValue.replace(/^(X:\d+)/m, '$1\nV:Melody transpose=-2');
+            }
+            renderABC();
+        }
+    </script>
+</body>
+</html>
