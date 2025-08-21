@@ -1,953 +1,305 @@
-
-    <!DOCTYPE html>
-<html lang="pt-BR">
+<!DOCTYPE html>
+<html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biblioteca Musical com Editor ABC</title>
-    <script src="dist/abcjs-basic.js" type="text/javascript"></script>
+    <title>Biblioteca Musical</title>
     <style>
-        :root {
-            --primary-color: #5c6bc0;
-            --secondary-color: #7986cb;
-            --background-color: #f0f4f8;
-            --text-color: #2c3e50;
-            --white: #ffffff;
-            --gray-light: #f5f5f5;
-            --gray: #e0e0e0;
-            --gray-dark: #9e9e9e;
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: var(--background-color);
-            color: var(--text-color);
-            line-height: 1.6;
-            padding: 20px;
-            max-width: 1400px;
-            margin: 0 auto;
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f4;
+            color: #333;
         }
 
-        h1, h2, h3 {
-            color: var(--primary-color);
-            margin-bottom: 1rem;
+        h1, h2 {
+            color: #4CAF50;
         }
 
-        h1 {
-            text-align: center;
-            margin-bottom: 2rem;
-            font-weight: 600;
-            letter-spacing: -1px;
-            border-bottom: 2px solid var(--secondary-color);
-            padding-bottom: 10px;
-        }
-
-        .container {
+        #filter-container {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
             margin-bottom: 20px;
-        }
-
-        .section {
-            background-color: var(--white);
+            padding: 15px;
+            background-color: #fff;
             border-radius: 8px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-            margin-bottom: 20px;
-        }
-
-        .full-width {
-            grid-column: 1 / -1;
-        }
-
-        .filter-field {
-            display: flex;
-            flex-direction: column;
-            margin-bottom: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
 
         .filter-field label {
-            font-weight: bold;
+            display: block;
             margin-bottom: 5px;
+            font-weight: bold;
         }
 
-        input, select, textarea {
-            padding: 10px;
-            border: 1px solid var(--gray);
+        .filter-field input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid #ddd;
             border-radius: 4px;
-            font-family: inherit;
         }
 
-        .button-group {
+        #button-container {
+            grid-column: 1 / -1;
             display: flex;
-            flex-wrap: wrap;
             gap: 10px;
-            margin: 15px 0;
+            justify-content: center;
+            margin-top: 10px;
         }
 
         button {
-            background-color: var(--primary-color);
-            color: var(--white);
+            padding: 10px 20px;
             border: none;
-            padding: 10px 15px;
-            border-radius: 6px;
+            border-radius: 4px;
             cursor: pointer;
-            transition: background-color 0.3s ease, transform 0.2s;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        button.search {
+            background-color: #4CAF50;
+            color: #fff;
+        }
+
+        button.clear {
+            background-color: #f44336;
+            color: #fff;
         }
 
         button:hover {
-            background-color: var(--secondary-color);
-            transform: translateY(-2px);
+            opacity: 0.8;
         }
-
-        button:active {
-            transform: translateY(1px);
-        }
-
-        button.secondary {
-            background-color: var(--gray-dark);
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
+        
+        #loading {
+            display: none;
+            text-align: center;
+            font-style: italic;
+            color: #666;
             margin-top: 20px;
         }
 
-        th, td {
-            border: 1px solid var(--gray);
-            padding: 10px;
-            text-align: left;
+        #music-list {
+            margin-top: 30px;
         }
 
-        th {
-            background-color: var(--gray-light);
-            font-weight: bold;
-        }
-
-        tr:nth-child(even) {
-            background-color: var(--gray-light);
-        }
-
-        tr:hover {
-            background-color: var(--gray);
-        }
-
-        #formMusica {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 15px;
-        }
-
-        #formMusica button {
-            grid-column: 1 / -1;
-            justify-self: start;
-        }
-
-        #abc-input {
-            width: 100%;
-            min-height: 150px;
-            font-family: monospace;
-            resize: vertical;
-        }
-
-        #paper {
-            width: 100%;
-            overflow-x: auto;
-            margin: 20px 0;
-            background-color: var(--white);
-            padding: 10px;
-            border-radius: 4px;
-            border: 1px solid var(--gray);
-        }
-
-        #midi-player {
-            margin: 15px 0;
-        }
-
-        .audio-error {
-            color: #d32f2f;
-            font-weight: bold;
-            text-align: center;
-            margin: 1rem 0;
-        }
-
-        fieldset {
-            border: 1px solid var(--secondary-color);
+        .music-item {
+            background-color: #fff;
+            border: 1px solid #ddd;
             border-radius: 8px;
             padding: 15px;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
-        legend {
-            padding: 0 10px;
-            color: var(--primary-color);
-            font-weight: 600;
+        .music-item strong {
+            color: #333;
         }
 
-        .transpose-options {
-            display: flex;
-            gap: 15px;
-            flex-wrap: wrap;
+        .music-item a {
+            color: #4CAF50;
+            text-decoration: none;
+            font-weight: bold;
         }
 
-        .abc-buttons {
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        #loading, #no-results {
-            padding: 10px;
-            text-align: center;
-            margin: 10px 0;
-            border-radius: 4px;
-        }
-
-        #loading {
-            background-color: #e3f2fd;
-            color: #1976d2;
+        .music-item a:hover {
+            text-decoration: underline;
         }
 
         #no-results {
-            background-color: #ffebee;
-            color: #d32f2f;
+            display: none;
+            text-align: center;
+            color: #f44336;
+            font-weight: bold;
+            margin-top: 20px;
         }
 
-        @media (max-width: 1024px) {
-            .container {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        @media (max-width: 768px) {
-            #filter-container, #formMusica {
-                grid-template-columns: 1fr;
-            }
-            
-            .button-group {
-                flex-direction: column;
-            }
-            
-            button {
-                width: 100%;
-            }
-        }
     </style>
 </head>
-<body>
-    <h1>Biblioteca Musical com Editor ABC</h1>
-    
-    <div class="container">
-        <!-- Seção de Filtros e Busca -->
-        <div class="section full-width">
-            <h2>Buscar na Biblioteca</h2>
-            <div id="filter-container">
-                <div class="filter-field">
-                    <label for="codigo">Código:</label>
-                    <input type="text" id="codigo" placeholder="Filtrar por código...">
-                </div>
-                <div class="filter-field">
-                    <label for="titulo">Título:</label>
-                    <input type="text" id="titulo" placeholder="Filtrar por título...">
-                </div>
-                <div class="filter-field">
-                    <label for="compositor">Compositor:</label>
-                    <input type="text" id="compositor" placeholder="Filtrar por compositor...">
-                </div>
-                <div class="filter-field">
-                    <label for="instrumento">Instrumento:</label>
-                    <input type="text" id="instrumento" placeholder="Filtrar por instrumento...">
-                </div>
-                <div class="filter-field">
-                    <label for="dificuldade">Dificuldade:</label>
-                    <input type="text" id="dificuldade" placeholder="Filtrar por dificuldade...">
-                </div>
-                <div class="filter-field">
-                    <label for="ritmo">Ritmo:</label>
-                    <input type="text" id="ritmo" placeholder="Filtrar por ritmo...">
-                </div>
-                <div class="filter-field">
-                    <label for="referencia">Referência:</label>
-                    <input type="text" id="referencia" placeholder="Filtrar por referência...">
-                </div>
-                <div class="filter-field">
-                    <label for="quantidade">Quantidade:</label>
-                    <input type="text" id="quantidade" placeholder="Filtrar por quantidade...">
-                </div>
-                <div class="filter-field">
-                    <label for="grau">Grau:</label>
-                    <input type="text" id="grau" placeholder="Filtrar por grau...">
-                </div>
-                <div class="filter-field">
-                    <label for="intervalos">Intervalos:</label>
-                    <input type="text" id="intervalos" placeholder="Filtrar por intervalos...">
-                </div>
-                <div class="filter-field">
-                    <label for="extensao">Extensão:</label>
-                    <input type="text" id="extensao" placeholder="Filtrar por extensão...">
-                </div>
-                <div class="filter-field">
-                    <label for="nivel">Nível:</label>
-                    <input type="text" id="nivel" placeholder="Filtrar por nível...">
-                </div>
-            </div>
-            
-            <div class="button-group">
-                <button onclick="buscarMusicas()">Buscar</button>
-                <button onclick="clearFilter()" class="secondary">Limpar Filtros</button>
-                <button onclick="preencherPlanilhaIncremental()">Atualizar Links do Drive</button>
-            </div>
-            
-            <div id="loading">Carregando músicas...</div>
-            <div id="no-results">Nenhum resultado encontrado.</div>
-            
-            <table id="tabelaMusicas">
-                <thead>
-                    <tr>
-                        <th>ID</th>
-                        <th>Título</th>
-                        <th>Compositor</th>
-                        <th>Instrumento</th>
-                        <th>Dificuldade</th>
-                        <th>Ritmo</th>
-                        <th>Nível</th>
-                        <th>Arquivos</th>
-                        <th>Ações</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <tr><td colspan="9">Use os filtros acima para iniciar sua busca.</td></tr>
-                </tbody>
-            </table>
+<body onload="loadSheet()">
+
+    <h1>Biblioteca de Músicas</h1>
+
+    <div id="filter-container">
+        <div class="filter-field">
+            <label for="id">Id:</label>
+            <input type="text" id="id" placeholder="ID...">
         </div>
-        
-        <!-- Seção de Formulário -->
-        <div class="section">
-            <h2>Adicionar/Editar Música</h2>
-            <form id="formMusica">
-                <input type="number" name="id" placeholder="ID (número)" required>
-                <input type="text" name="titulo" placeholder="Título da música" required>
-                <input type="text" name="compositor" placeholder="Compositor" required>
-                <input type="text" name="instrumento" placeholder="Instrumento">
-                <input type="text" name="dificuldade" placeholder="Dificuldade">
-                <input type="text" name="ritmo" placeholder="Ritmo" required>
-                <input type="text" name="referencia" placeholder="Referência">
-                <input type="number" name="quantidade" placeholder="Quantidade de notas" required>
-                <input type="text" name="grau" placeholder="Grau (função)" required>
-                <input type="text" name="intervalos" placeholder="Intervalos (ex: 123, 5671)" required>
-                <button type="submit">Adicionar</button>
-                <button type="button" onclick="salvarEdicao()" style="display:none;">Salvar Edição</button>
-            </form>
+        <div class="filter-field">
+            <label for="titulo">Título:</label>
+            <input type="text" id="titulo" placeholder="Título...">
         </div>
-        
-        <!-- Seção de Notação ABC -->
-        <div class="section">
-            <h2>Editor de Notação ABC</h2>
-            <textarea id="abc-input" rows="10" placeholder="Cole ou edite a notação ABC aqui..."></textarea>
-            
-            <fieldset>
-                <legend>Opções</legend>
-                <div class="transpose-options">
-                    <label>Visual:
-                        <input class="visual-transpose" type="number" min="-24" max="24" step="1" value="0">
-                    </label>
-                    <label>Audio:
-                        <input class="audio-transpose" type="number" min="-24" max="24" step="1" value="0">
-                    </label>
-                </div>
-                
-                <div class="abc-buttons">
-                    <button class="midi-command">Adicionar %%MIDI</button>
-                    <button class="key-command">Adicionar à K:</button>
-                    <button class="voice-command">Adicionar à V:</button>
-                </div>
-            </fieldset>
-            
-            <div class="button-group">
-                <button class="play-chords">Tocar Acordes</button>
-                <button class="play-melodies">Tocar V1 + V2</button>
-                <button class="play-harmony">Tocar V1+Acordes</button>
-                <button class="play-melody">Tocar V2+Acordes</button>
-                <button class="play-melody2">Tocar V1</button>
-                <button class="play-harmony2">Tocar V2</button>
-                <button class="play-all">Tocar Tudo</button>
-                <button class="stop-audio" style="display:none;">Parar</button>
-            </div>
-            
-            <div class="audio-error" style="display:none;">Áudio não suportado</div>
-            <div id="paper"></div>
+        <div class="filter-field">
+            <label for="compositor">Compositor:</label>
+            <input type="text" id="compositor" placeholder="Compositor...">
+        </div>
+        <div class="filter-field">
+            <label for="instrumento">Instrumento:</label>
+            <input type="text" id="instrumento" placeholder="Instrumento...">
+        </div>
+        <div class="filter-field">
+            <label for="dificuldade">Dificuldade:</label>
+            <input type="text" id="dificuldade" placeholder="Dificuldade...">
+        </div>
+        <div class="filter-field">
+            <label for="ritmo">Ritmo:</label>
+            <input type="text" id="ritmo" placeholder="Ritmo...">
+        </div>
+        <div class="filter-field">
+            <label for="quantidade">Quantidade:</label>
+            <input type="text" id="quantidade" placeholder="Quantidade...">
+        </div>
+        <div class="filter-field">
+            <label for="grau">Grau:</label>
+            <input type="text" id="grau" placeholder="Grau...">
+        </div>
+        <div class="filter-field">
+            <label for="intervalos">Intervalos:</label>
+            <input type="text" id="intervalos" placeholder="Intervalos...">
+        </div>
+        <div class="filter-field">
+            <label for="extensao">Extensão:</label>
+            <input type="text" id="extensao" placeholder="Extensão...">
+        </div>
+        <div class="filter-field">
+            <label for="nivel">Nível:</label>
+            <input type="text" id="nivel" placeholder="Nível...">
+        </div>
+        <div id="button-container">
+            <button class="search" onclick="filterMusic()">Buscar</button>
+            <button class="clear" onclick="clearFilter()">Limpar Filtros</button>
         </div>
     </div>
 
+    <div id="loading">Carregando dados da planilha...</div>
+    <div id="no-results">Nenhum resultado encontrado.</div>
+
+    <div id="music-list">
+        <h2>Resultados da Busca</h2>
+        <div id="songs"></div>
+    </div>
+    
     <script>
-        // URL do seu Web App do Google Apps Script
-        const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw8Rhr52ygm33SS67A6gEJFbR4WhOluTFZCKyeZINmYeXiRB5UHsNv0V6OUL9ssQ6YLFA/exec';
-        
-        // Variáveis globais
         let allMusicData = [];
-        let currentSynthControl = null;
-        let currentAbcNotation = '';
-        let midiBuffer = null;
-        let visualObj = null;
-        let editMode = false;
-        let currentEditId = null;
-        
-        // Inicialização
-        window.onload = function() {
-            loadSheet();
-            setupABCListeners();
-            setupFormListeners();
-        };
-        
-        // =========================================================================
-        // SOLUÇÃO PARA CORS - USANDO JSONP
-        // =========================================================================
-        
-        // Função para criar um script JSONP
-        function callGoogleScriptJSONP(functionName, data = {}, callbackName) {
-            return new Promise((resolve, reject) => {
-                // Criar um nome único para a função de callback
-                const callbackFunctionName = 'jsonp_callback_' + Math.round(100000 * Math.random());
-                
-                // Adicionar os dados como parâmetros de URL
-                let url = WEB_APP_URL + '?function=' + functionName + '&callback=' + callbackFunctionName;
-                
-                for (const key in data) {
-                    if (data.hasOwnProperty(key)) {
-                        url += '&' + encodeURIComponent(key) + '=' + encodeURIComponent(data[key]);
-                    }
-                }
-                
-                // Criar a função global de callback
-                window[callbackFunctionName] = function(response) {
-                    // Limpar o script e a função de callback
-                    delete window[callbackFunctionName];
-                    document.body.removeChild(script);
-                    
-                    // Resolver a promise com a resposta
-                    resolve(response);
-                };
-                
-                // Criar o elemento script
-                const script = document.createElement('script');
-                script.src = url;
-                
-                // Tratar erros
-                script.onerror = function() {
-                    delete window[callbackFunctionName];
-                    document.body.removeChild(script);
-                    reject(new Error('Erro ao carregar o script JSONP'));
-                };
-                
-                // Adicionar o script ao documento
-                document.body.appendChild(script);
-                
-                // Timeout para evitar que a promise fique pendente para sempre
-                setTimeout(() => {
-                    if (window[callbackFunctionName]) {
-                        delete window[callbackFunctionName];
-                        document.body.removeChild(script);
-                        reject(new Error('Timeout na requisição JSONP'));
-                    }
-                }, 10000);
-            });
-        }
-        
-        // Função para requisições POST (usando formulário)
-        function callGoogleScriptPost(functionName, data = {}) {
-            return new Promise((resolve, reject) => {
-                // Criar um iframe invisível
-                const iframe = document.createElement('iframe');
-                iframe.style.display = 'none';
-                iframe.name = 'post_target_' + Math.round(100000 * Math.random());
-                document.body.appendChild(iframe);
-                
-                // Criar um formulário
-                const form = document.createElement('form');
-                form.style.display = 'none';
-                form.method = 'POST';
-                form.action = WEB_APP_URL;
-                form.target = iframe.name;
-                
-                // Adicionar campos ao formulário
-                const functionInput = document.createElement('input');
-                functionInput.type = 'hidden';
-                functionInput.name = 'function';
-                functionInput.value = functionName;
-                form.appendChild(functionInput);
-                
-                for (const key in data) {
-                    if (data.hasOwnProperty(key)) {
-                        const input = document.createElement('input');
-                        input.type = 'hidden';
-                        input.name = key;
-                        input.value = typeof data[key] === 'object' ? JSON.stringify(data[key]) : data[key];
-                        form.appendChild(input);
-                    }
-                }
-                
-                // Adicionar o formulário ao documento e enviar
-                document.body.appendChild(form);
-                form.submit();
-                
-                // Limpar após um tempo
-                setTimeout(() => {
-                    document.body.removeChild(form);
-                    document.body.removeChild(iframe);
-                    resolve({success: true, message: 'Requisição enviada com sucesso'});
-                }, 3000);
-            });
-        }
-        
-        // Função para carregar músicas (GET com JSONP)
+        const WEBAPP_URL = 'https://script.google.com/macros/s/AKfycbzsyZlemRM6j0yuffX1GHjVL7z_3Aw10dHsMqbZNnwGhTtExq4GiKcAJh9wRQj-b9o6rQ/exec';
+
         async function loadSheet() {
+            const loading = document.getElementById('loading');
+            loading.style.display = 'block';
+
             try {
-                document.getElementById('loading').style.display = 'block';
-                const result = await callGoogleScriptJSONP('getMusicas');
-                
-                if (result && result.success) {
-                    allMusicData = result.data || [];
-                    document.getElementById('loading').style.display = 'none';
-                } else {
-                    throw new Error(result?.message || 'Resposta inválida do servidor');
-                }
+                const response = await fetch(WEBAPP_URL);
+                const data = await response.json();
+                allMusicData = data;
+                document.getElementById('music-list').style.display = 'none';
             } catch (error) {
-                console.error('Erro ao carregar dados:', error);
-                document.getElementById('loading').style.display = 'none';
-                document.getElementById('no-results').style.display = 'block';
-                document.getElementById('no-results').textContent = 'Erro ao carregar dados.';
+                console.error('Erro ao carregar os dados:', error);
+                alert('Erro ao carregar os dados. Por favor, verifique o URL do Web App e as permissões.');
+            } finally {
+                loading.style.display = 'none';
             }
         }
-        
-        // Função para buscar músicas (GET com JSONP)
-        async function buscarMusicas() {
+
+        function displayMusicList(data) {
+            const songsDiv = document.getElementById('songs');
+            const musicList = document.getElementById('music-list');
+            const noResults = document.getElementById('no-results');
+
+            songsDiv.innerHTML = '';
+
+            if (data.length === 0) {
+                musicList.style.display = 'none';
+                noResults.style.display = 'block';
+            } else {
+                musicList.style.display = 'block';
+                noResults.style.display = 'none';
+
+                data.forEach((row) => {
+                    const div = document.createElement('div');
+                    div.className = 'music-item';
+                    
+                    let content = `
+                        <strong>ID:</strong> ${row['Id'] || 'N/A'}<br>
+                        <strong>Título:</strong> ${row['Título'] || 'N/A'}<br>
+                        <strong>Compositor:</strong> ${row['Compositor'] || 'N/A'}<br>
+                        <strong>Instrumento:</strong> ${row['Instrumento'] || 'N/A'}<br>
+                        <strong>Dificuldade:</strong> ${row['Dificuldade'] || 'N/A'}<br>
+                        <strong>Ritmo:</strong> ${row['Ritmo'] || 'N/A'}<br>
+                    `;
+
+                    if (row['Link PDF']) {
+                        content += `
+                            <strong>Partitura:</strong> <a href="${row['Link PDF']}" target="_blank">Abrir PDF</a><br>
+                        `;
+                    }
+                    
+                    if (row['Link MP3']) {
+                        content += `
+                            <strong>Áudio:</strong> <a href="${row['Link MP3']}" target="_blank">Ouvir MP3</a>
+                        `;
+                    }
+                    
+                    div.innerHTML = content;
+                    songsDiv.appendChild(div);
+                });
+            }
+        }
+
+        function filterMusic() {
             const filters = {
-                texto: document.getElementById('codigo').value,
-                instrumento: document.getElementById('instrumento').value,
-                dificuldade: document.getElementById('dificuldade').value,
-                nivel: document.getElementById('nivel').value,
-                ritmo: document.getElementById('ritmo').value,
-                quantidade: document.getElementById('quantidade').value,
-                grau: document.getElementById('grau').value,
-                intervalos: document.getElementById('intervalos').value,
-                extensao: document.getElementById('extensao').value
+                id: document.getElementById('id').value.toLowerCase(),
+                titulo: document.getElementById('titulo').value.toLowerCase(),
+                compositor: document.getElementById('compositor').value.toLowerCase(),
+                instrumento: document.getElementById('instrumento').value.toLowerCase(),
+                dificuldade: document.getElementById('dificuldade').value.toLowerCase(),
+                ritmo: document.getElementById('ritmo').value.toLowerCase(),
+                quantidade: document.getElementById('quantidade').value.toLowerCase(),
+                grau: document.getElementById('grau').value.toLowerCase(),
+                intervalos: document.getElementById('intervalos').value.toLowerCase(),
+                extensao: document.getElementById('extensao').value.toLowerCase(),
+                nivel: document.getElementById('nivel').value.toLowerCase(),
             };
 
-            // Remover filtros vazios
-            Object.keys(filters).forEach(key => {
-                if (!filters[key]) delete filters[key];
-            });
+            const hasFilter = Object.values(filters).some(value => value.trim() !== '');
 
-            if (Object.keys(filters).length === 0) {
+            if (!hasFilter) {
                 alert('Por favor, preencha pelo menos um filtro para pesquisar.');
                 return;
             }
 
-            try {
-                const result = await callGoogleScriptJSONP('buscarMusicasFiltradas', { filtros: JSON.stringify(filters) });
-                
-                if (result && result.success) {
-                    displayMusicList(result.data);
-                } else {
-                    alert('Erro na busca: ' + (result?.message || 'Resposta inválida do servidor'));
-                }
-            } catch (error) {
-                console.error('Erro ao buscar músicas:', error);
-                alert('Erro ao buscar músicas. Verifique o console para mais detalhes.');
-            }
-        }
-        
-        // Função para adicionar/editar música (POST com formulário)
-        async function salvarEdicao() {
-            const form = document.getElementById('formMusica');
-            const dados = {
-                id: form.elements['id'].value,
-                titulo: form.elements['titulo'].value,
-                compositor: form.elements['compositor'].value,
-                instrumento: form.elements['instrumento'].value,
-                dificuldade: form.elements['dificuldade'].value,
-                ritmo: form.elements['ritmo'].value,
-                referencia: form.elements['referencia'].value,
-                quantidade: form.elements['quantidade'].value,
-                grau: form.elements['grau'].value,
-                intervalos: form.elements['intervalos'].value,
-                notacaoabc: document.getElementById('abc-input').value
-            };
-            
-            try {
-                let result;
-                if (editMode) {
-                    result = await callGoogleScriptPost('editMusica', { id: currentEditId, dados: JSON.stringify(dados) });
-                } else {
-                    result = await callGoogleScriptPost('addMusica', dados);
-                }
-                
-                if (result && result.success) {
-                    alert(result.message || 'Operação realizada com sucesso');
-                    // Limpar formulário
-                    form.reset();
-                    form.querySelector('button[type="submit"]').style.display = 'block';
-                    form.querySelector('button[onclick="salvarEdicao()"]').style.display = 'none';
-                    editMode = false;
-                    currentEditId = null;
-                    
-                    // Recarregar dados
-                    loadSheet();
-                } else {
-                    alert('Erro: ' + (result?.message || 'Resposta inválida do servidor'));
-                }
-            } catch (error) {
-                console.error('Erro ao salvar música:', error);
-                alert('Erro ao salvar música. Verifique o console para mais detalhes.');
-            }
-        }
-        
-        // Função para excluir música (POST com formulário)
-        async function excluirMusica(id) {
-            if (confirm("Tem certeza que deseja excluir esta música?")) {
-                try {
-                    const result = await callGoogleScriptPost('deleteMusica', { idMusica: id });
-                    
-                    if (result && result.success) {
-                        alert(result.message || 'Música excluída com sucesso');
-                        // Recarregar dados
-                        loadSheet();
-                    } else {
-                        alert('Erro: ' + (result?.message || 'Resposta inválida do servidor'));
-                    }
-                } catch (error) {
-                    console.error('Erro ao excluir música:', error);
-                    alert('Erro ao excluir música. Verifique o console para mais detalhes.');
-                }
-            }
-        }
-        
-        // Função para atualizar planilha (POST com formulário)
-        async function preencherPlanilhaIncremental() {
-            if (confirm("Esta operação pode demorar vários minutos. Deseja continuar?")) {
-                try {
-                    const result = await callGoogleScriptPost('preencherPlanilhaIncremental');
-                    alert(result.message || 'Operação realizada com sucesso');
-                    // Recarregar dados
-                    loadSheet();
-                } catch (error) {
-                    console.error('Erro ao atualizar links:', error);
-                    alert('Erro ao atualizar links do Drive. Verifique o console para mais detalhes.');
-                }
-            }
-        }
-        
-        // =========================================================================
-        // FUNÇÕES DE EXIBIÇÃO E INTERFACE
-        // =========================================================================
-        
-        function displayMusicList(data) {
-            const tbody = document.querySelector('#tabelaMusicas tbody');
-            const noResults = document.getElementById('no-results');
-            
-            tbody.innerHTML = '';
-            
-            if (!data || data.length === 0) {
-                noResults.style.display = 'block';
-                noResults.textContent = 'Nenhum resultado encontrado.';
-                return;
-            }
-            
-            noResults.style.display = 'none';
-            
-            data.forEach(m => {
-                const arquivos = [];
-                if (m['Link PDF']) arquivos.push(`<a href="${m['Link PDF']}" target="_blank">PDF</a>`);
-                if (m['Link MP3']) arquivos.push(`<a href="${m['Link MP3']}" target="_blank">MP3</a>`);
-                if (m['Link ABC']) arquivos.push(`<a href="${m['Link ABC']}" target="_blank">ABC</a>`);
-                if (m['Link MID']) arquivos.push(`<a href="${m['Link MID']}" target="_blank">MID</a>`);
-                if (m['Link HTML']) arquivos.push(`<a href="${m['Link HTML']}" target="_blank">HTML</a>`);
-                if (m['Link XML']) arquivos.push(`<a href="${m['Link XML']}" target="_blank">XML</a>`);
-                if (m['Link BB']) arquivos.push(`<a href="${m['Link BB']}" target="_blank">BB</a>`);
-                if (m['Link DOC']) arquivos.push(`<a href="${m['Link DOC']}" target="_blank">DOC</a>`);
-                if (m['Link GP']) arquivos.push(`<a href="${m['Link GP']}" target="_blank">GP</a>`);
-                if (m['Link IMG']) arquivos.push(`<a href="${m['Link IMG']}" target="_blank">IMG</a>`);
-                if (m['Link TXT']) arquivos.push(`<a href="${m['Link TXT']}" target="_blank">TXT</a>`);
-                if (m['Link XLS']) arquivos.push(`<a href="${m['Link XLS']}" target="_blank">XLS</a>`);
-                if (m['Link ZIP']) arquivos.push(`<a href="${m['Link ZIP']}" target="_blank">ZIP</a>`);
-
-                const linha = `<tr data-id="${m.Id}">
-                    <td>${m.Id || ''}</td>
-                    <td>${m.Título || ''}</td>
-                    <td>${m.Compositor || ''}</td>
-                    <td>${m.Instrumento || ''}</td>
-                    <td>${m.Dificuldade || ''}</td>
-                    <td>${m.Ritmo || ''}</td>
-                    <td>${m.Nível || ''}</td>
-                    <td>${arquivos.join(" | ")}</td>
-                    <td>
-                        <button onclick="preencherFormEdicao('${m.Id}')">Editar</button>
-                        <button onclick="excluirMusica('${m.Id}')">Excluir</button>
-                        <button onclick="carregarNotacaoABC('${m.Id}')">Carregar ABC</button>
-                    </td>
-                </tr>`;
-                tbody.innerHTML += linha;
+            const filteredData = allMusicData.filter(item => {
+                return (filters.id === '' || String(item.Id || '').toLowerCase().includes(filters.id)) &&
+                       (filters.titulo === '' || String(item.Título || '').toLowerCase().includes(filters.titulo)) &&
+                       (filters.compositor === '' || String(item.Compositor || '').toLowerCase().includes(filters.compositor)) &&
+                       (filters.instrumento === '' || String(item.Instrumento || '').toLowerCase().includes(filters.instrumento)) &&
+                       (filters.dificuldade === '' || String(item.Dificuldade || '').toLowerCase().includes(filters.dificuldade)) &&
+                       (filters.ritmo === '' || String(item.Ritmo || '').toLowerCase().includes(filters.ritmo)) &&
+                       (filters.quantidade === '' || String(item.Quantidade || '').toLowerCase().includes(filters.quantidade)) &&
+                       (filters.grau === '' || String(item.Grau || '').toLowerCase().includes(filters.grau)) &&
+                       (filters.intervalos === '' || String(item.Intervalos || '').toLowerCase().includes(filters.intervalos)) &&
+                       (filters.extensao === '' || String(item.Extensão || '').toLowerCase().includes(filters.extensao)) &&
+                       (filters.nivel === '' || String(item.Nível || '').toLowerCase().includes(filters.nivel));
             });
+
+            displayMusicList(filteredData);
         }
-        
-        function preencherFormEdicao(id) {
-            const musica = allMusicData.find(m => m.Id == id);
-            if (musica) {
-                const form = document.getElementById('formMusica');
-                form.elements['id'].value = musica.Id;
-                form.elements['titulo'].value = musica.Título;
-                form.elements['compositor'].value = musica.Compositor;
-                form.elements['instrumento'].value = musica.Instrumento;
-                form.elements['dificuldade'].value = musica.Dificuldade;
-                form.elements['ritmo'].value = musica.Ritmo;
-                form.elements['referencia'].value = musica.Referência;
-                form.elements['quantidade'].value = musica.Quantidade;
-                form.elements['grau'].value = musica.Grau;
-                form.elements['intervalos'].value = musica.Intervalos;
-                
-                // Preencher notação ABC se disponível
-                if (musica["Notação ABC"]) {
-                    document.getElementById('abc-input').value = musica["Notação ABC"];
-                    renderABC();
-                }
-                
-                // Mudar para modo edição
-                form.querySelector('button[type="submit"]').style.display = 'none';
-                form.querySelector('button[onclick="salvarEdicao()"]').style.display = 'block';
-                editMode = true;
-                currentEditId = id;
-            }
-        }
-        
-        function carregarNotacaoABC(id) {
-            const musica = allMusicData.find(m => m.Id == id);
-            if (musica && musica["Notação ABC"]) {
-                document.getElementById('abc-input').value = musica["Notação ABC"];
-                renderABC();
-            } else {
-                alert('Esta música não possui notação ABC.');
-            }
-        }
-        
+
         function clearFilter() {
-            const fields = ['codigo', 'titulo', 'compositor', 'instrumento', 'dificuldade', 'ritmo', 'referencia', 'quantidade', 'grau', 'intervalos', 'extensao', 'nivel'];
+            const fields = ['id', 'titulo', 'compositor', 'instrumento', 'dificuldade', 'ritmo', 'quantidade', 'grau', 'intervalos', 'extensao', 'nivel'];
             fields.forEach(field => {
                 document.getElementById(field).value = '';
             });
-            
-            const tbody = document.querySelector('#tabelaMusicas tbody');
-            tbody.innerHTML = '<tr><td colspan="9">Use os filtros acima para iniciar sua busca.</td></tr>';
+            document.getElementById('music-list').style.display = 'none';
             document.getElementById('no-results').style.display = 'none';
         }
-        
-        // =========================================================================
-        // FUNÇÕES DO EDITOR ABC (PERMANECEM IGUAIS)
-        // =========================================================================
-        
-        function setupABCListeners() {
-            const abcTextarea = document.getElementById("abc-input");
-            
-            // Renderizar ABC quando o conteúdo for alterado
-            abcTextarea.addEventListener("input", renderABC);
-            document.querySelector(".visual-transpose").addEventListener("input", renderABC);
-            
-            // Botões de inserção ABC
-            document.querySelector(".midi-command").addEventListener("click", onMidiCommand);
-            document.querySelector(".key-command").addEventListener("click", onKeyCommand);
-            document.querySelector(".voice-command").addEventListener("click", onVoiceCommand);
-            
-            // Botões de reprodução
-            document.querySelector(".play-chords").addEventListener("click", function() {
-                play({ voicesOff: true });
-            });
-            
-            document.querySelector(".play-melodies").addEventListener("click", function() {
-                play({ chordsOff: true });
-            });
-            
-            document.querySelector(".play-harmony").addEventListener("click", function() {
-                play({ voicesOff: [1] });
-            });
-            
-            document.querySelector(".play-harmony2").addEventListener("click", function() {
-                play({ chordsOff: true, voicesOff: [0] });
-            });
-            
-            document.querySelector(".play-melody").addEventListener("click", function() {
-                play({ voicesOff: [0] });
-            });
-            
-            document.querySelector(".play-melody2").addEventListener("click", function() {
-                play({ chordsOff: true, voicesOff: [1] });
-            });
-            
-            document.querySelector(".play-all").addEventListener("click", function() {
-                play({});
-            });
-            
-            document.querySelector(".stop-audio").addEventListener("click", function() {
-                stopAudio();
-            });
-            
-            // Renderização inicial
-            renderABC();
-        }
-        
-        function renderABC() {
-            let abc = document.getElementById("abc-input").value;
-            
-            if (!abc) {
-                document.getElementById("paper").innerHTML = "";
-                return;
-            }
-            
-            // Se não tiver '%%staffwidth', adicionamos automaticamente
-            if (!abc.includes("%%staffwidth")) {
-                abc = "%%staffwidth 1000\n" + abc;
-            }
-            
-            const visualTranspose = parseInt(document.querySelector(".visual-transpose").value, 10);
-            visualObj = ABCJS.renderAbc("paper", abc, { 
-                responsive: "resize", 
-                visualTranspose: visualTranspose,
-                staffwidth: 1000
-            })[0];
-        }
-        
-        function play(options) {
-            const stopAudioButton = document.querySelector(".stop-audio");
-            const startButtons = document.querySelectorAll(".play-chords, .play-melodies, .play-harmony, .play-harmony2, .play-melody, .play-melody2, .play-all");
-            const audioError = document.querySelector(".audio-error");
-            
-            // Esconde os botões de "Play" e mostra o de "Stop"
-            startButtons.forEach(button => {
-                button.style.display = "none";
-            });
-            stopAudioButton.style.display = "";
-            audioError.style.display = "none";
-            
-            if (ABCJS.synth.supportsAudio()) {
-                window.AudioContext = window.AudioContext ||
-                    window.webkitAudioContext ||
-                    navigator.mozAudioContext ||
-                    navigator.msAudioContext;
-                const audioContext = new window.AudioContext();
-                audioContext.resume().then(() => {
-                    midiBuffer = new ABCJS.synth.CreateSynth();
-                    const audioTranspose = parseInt(document.querySelector(".audio-transpose").value, 10);
-                    
-                    // Aplica a transposição de áudio
-                    options.midiTranspose = audioTranspose;
-                    
-                    return midiBuffer.init({
-                        visualObj: visualObj,
-                        audioContext: audioContext,
-                        millisecondsPerMeasure: visualObj.millisecondsPerMeasure(),
-                        options: options
-                    }).then(() => midiBuffer.prime())
-                      .then(() => midiBuffer.start())
-                      .catch(error => {
-                          if (error.status === "NotSupported") {
-                              stopAudioButton.style.display = "none";
-                              audioError.style.display = "";
-                              startButtons.forEach(button => {
-                                  button.style.display = "";
-                              });
-                          } else {
-                              console.warn("Erro na reprodução:", error);
-                          }
-                      });
-                });
-            } else {
-                stopAudioButton.style.display = "none";
-                audioError.style.display = "";
-                startButtons.forEach(button => {
-                    button.style.display = "";
-                });
-            }
-        }
-        
-        function stopAudio() {
-            const stopAudioButton = document.querySelector(".stop-audio");
-            const startButtons = document.querySelectorAll(".play-chords, .play-melodies, .play-harmony, .play-harmony2, .play-melody, .play-melody2, .play-all");
-            
-            // Mostra os botões de "Play" e esconde o de "Stop"
-            startButtons.forEach(button => {
-                button.style.display = "";
-            });
-            stopAudioButton.style.display = "none";
-            
-            if (midiBuffer) {
-                midiBuffer.stop();
-            }
-        }
-        
-        function onMidiCommand() {
-            let abc = document.getElementById("abc-input").value;
-            abc = abc.split("\n");
-            abc.splice(1, 0, "%%MIDI transpose 2");
-            abc = abc.join("\n");
-            document.getElementById("abc-input").value = abc;
-            renderABC();
-        }
-        
-        function onKeyCommand() {
-            let abc = document.getElementById("abc-input").value;
-            const lines = abc.split("\n");
-            for (let i = 0; i < lines.length; i++) {
-                if (lines[i].startsWith("K:")) {
-                    lines[i] = "K: Em transpose=-2";
-                    break;
+
+        const filterInputs = document.querySelectorAll('#filter-container input');
+        filterInputs.forEach(input => {
+            input.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    filterMusic();
                 }
-            }
-            abc = lines.join("\n");
-            document.getElementById("abc-input").value = abc;
-            renderABC();
-        }
-        
-        function onVoiceCommand() {
-            let abc = document.getElementById("abc-input").value;
-            const lines = abc.split("\n");
-            for (let i = 0; i < lines.length; i++) {
-                if (lines[i].startsWith("V:")) {
-                    lines[i] = "V: Melody transpose=-2";
-                    break;
-                }
-            }
-            abc = lines.join("\n");
-            document.getElementById("abc-input").value = abc;
-            renderABC();
-        }
-        
-        // =========================================================================
-        // CONFIGURAÇÃO DO FORMULÁRIO
-        // =========================================================================
-        
-        function setupFormListeners() {
-            const form = document.getElementById('formMusica');
-            form.addEventListener('submit', function(e) {
-                e.preventDefault();
-                salvarEdicao();
             });
-            
-            // Permitir busca com Enter nos campos de filtro
-            const filterInputs = document.querySelectorAll('#filter-container input');
-            filterInputs.forEach(input => {
-                input.addEventListener('keypress', function(e) {
-                    if (e.key === 'Enter') {
-                        buscarMusicas();
-                    }
-                });
-            });
-        }
+        });
     </script>
 </body>
 </html>
