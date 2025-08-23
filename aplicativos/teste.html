@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Visualizador de Partituras ABC</title>
-    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-min.js"></script>
+    <title>Editor de Partituras ABC com Normalização</title>
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.0/dist/abcjs-basic-min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.0/dist/abcjs-plugin-midi.js"></script>
     <style>
         * {
             box-sizing: border-box;
@@ -20,7 +21,7 @@
             min-height: 100vh;
         }
         .container {
-            max-width: 1000px;
+            max-width: 1100px;
             margin: 0 auto;
             background: white;
             border-radius: 15px;
@@ -66,10 +67,61 @@
             outline: none;
             border-color: #3498db;
         }
-        .buttons {
+        .controls {
             display: flex;
+            flex-wrap: wrap;
             gap: 15px;
             margin-top: 15px;
+            align-items: center;
+        }
+        .normalization-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+        }
+        .search-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            background: #fff4e6;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #ff922b;
+        }
+        .notes-per-line-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            background: #e8f4fc;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border-left: 4px solid #3498db;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .control-group label {
+            font-weight: 600;
+            color: #2c3e50;
+            font-size: 14px;
+        }
+        .control-group select, .control-group input {
+            padding: 8px 12px;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            font-size: 16px;
+            background: white;
         }
         button {
             padding: 12px 25px;
@@ -83,7 +135,6 @@
         #render-btn {
             background: #2ecc71;
             color: white;
-            flex: 2;
         }
         #render-btn:hover {
             background: #27ae60;
@@ -91,10 +142,47 @@
         #normalize-btn {
             background: #3498db;
             color: white;
-            flex: 1;
         }
         #normalize-btn:hover {
             background: #2980b9;
+        }
+        #reduce-btn {
+            background: #e74c3c;
+            color: white;
+        }
+        #reduce-btn:hover {
+            background: #c0392b;
+        }
+        #reduce-btn.active {
+            background: #27ae60;
+        }
+        #fetch-btn {
+            background: #ff922b;
+            color: white;
+        }
+        #fetch-btn:hover {
+            background: #f76707;
+        }
+        #notes-per-line-btn {
+            background: #9b59b6;
+            color: white;
+        }
+        #notes-per-line-btn:hover {
+            background: #8e44ad;
+        }
+        #play-btn {
+            background: #1abc9c;
+            color: white;
+        }
+        #play-btn:hover {
+            background: #148f77;
+        }
+        #stop-btn {
+            background: #e67e22;
+            color: white;
+        }
+        #stop-btn:hover {
+            background: #d35400;
         }
         .output-area {
             border: 2px solid #eee;
@@ -142,21 +230,69 @@
             font-size: 14px;
             color: #7f8c8d;
         }
-        .instructions {
+        .normalization-types {
+            margin-top: 20px;
             background: #e8f4fc;
             padding: 20px;
             border-radius: 8px;
-            margin-top: 30px;
         }
-        .instructions h3 {
+        .normalization-types h3 {
             color: #2980b9;
             margin-bottom: 15px;
         }
-        .instructions ul {
-            padding-left: 20px;
+        .type-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
         }
-        .instructions li {
+        .type-item {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #3498db;
+        }
+        .type-item h4 {
+            color: #2c3e50;
             margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .type-number {
+            background: #3498db;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        .type-item p {
+            margin: 0;
+            font-size: 14px;
+            color: #7f8c8d;
+        }
+        .loading {
+            display: none;
+            text-align: center;
+            padding: 10px;
+            color: #ff922b;
+        }
+        .loading span {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #ff922b;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
         footer {
             text-align: center;
@@ -166,8 +302,16 @@
             font-size: 0.9rem;
         }
         @media (max-width: 768px) {
-            .buttons {
+            .controls {
                 flex-direction: column;
+                align-items: stretch;
+            }
+            .normalization-controls, .search-controls, .notes-per-line-controls {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .type-grid {
+                grid-template-columns: 1fr;
             }
             .example-list {
                 grid-template-columns: 1fr;
@@ -178,22 +322,68 @@
 <body>
     <div class="container">
         <header>
-            <h1>Visualizador de Partituras ABC</h1>
-            <p class="description">Digite ou cole sua notação ABC abaixo para visualizar a partitura</p>
+            <h1>Editor de Partituras ABC com Normalização</h1>
+            <p class="description">Digite ou cole sua notação ABC abaixo e use as opções de normalização</p>
         </header>
 
         <div class="content">
             <div class="input-area">
+                <div class="search-controls">
+                    <div class="control-group">
+                        <label for="row-number">Buscar ID (Coluna A):</label>
+                        <input type="text" id="row-number" placeholder="Digite o número da coluna A">
+                    </div>
+                    <button id="fetch-btn">Buscar na Planilha</button>
+                </div>
+                
+                <div class="loading" id="loading">
+                    <span></span> Buscando dados...
+                </div>
+                
                 <textarea id="abc-input" placeholder="Cole sua notação ABC aqui...">X:1
 T:Exemplo de Música
 M:4/4
 L:1/4
 K:C
-C D E F | G A B c |</textarea>
+C C D E E C E D E E |</textarea>
                 
-                <div class="buttons">
+                <div class="normalization-controls">
+                    <div class="control-group">
+                        <label for="normalization-type">Tipo de Normalização:</label>
+                        <select id="normalization-type">
+                            <option value="0">0 </option>
+                            <option value="1">1 </option>
+                            <option value="2">2 </option>
+                            <option value="3">3 </option>
+                            <option value="4">4 </option>
+                            <option value="5">5 </option>
+                            <option value="6">6 </option>
+                            <option value="7">7 </option>
+                            <option value="8">8 </option>
+                            <option value="9">9 </option>
+                        </select>
+                    </div>
+                    
+                    <div class="control-group">
+                        <label for="note-duration">Duração base:</label>
+                        <input type="number" id="note-duration" min="1" max="16" value="4">
+                    </div>
+                </div>
+                
+                <div class="notes-per-line-controls">
+                    <div class="control-group">
+                        <label for="notes-per-line">Notas por linha:</label>
+                        <input type="number" id="notes-per-line" min="1" max="50" value="8" placeholder="Número de notas por linha">
+                    </div>
+                    <button id="notes-per-line-btn">Aplicar Quebras de Linha</button>
+                </div>
+                
+                <div class="controls">
                     <button id="render-btn">Visualizar Partitura</button>
-                    <button id="normalize-btn">Normalizar Notas</button>
+                    <button id="normalize-btn">Aplicar Normalização</button>
+                    <button id="reduce-btn">Redução</button>
+                    <button id="play-btn">Play</button>
+                    <button id="stop-btn">Stop</button>
                 </div>
             </div>
 
@@ -203,156 +393,474 @@ C D E F | G A B c |</textarea>
                 </p>
             </div>
 
-            <div class="examples">
-                <h3>Exemplos de Notação ABC</h3>
-                <div class="example-list">
-                    <div class="example" onclick="loadExample(1)">
-                        <h4>Escala de Dó Maior</h4>
-                        <pre>X:1
-T:Escala de Dó Maior
-M:4/4
-L:1/4
-K:C
-C D E F | G A B c |</pre>
+            <div class="normalization-types">
+                <h3>Tipos de Normalização</h3>
+                <div class="type-grid">
+                    <div class="type-item">
+                        <h4><span class="type-number">0</span> Notas Individuais</h4>
+                        <p>Cada nota recebe sua própria duração: C0 D0 E0 F0</p>
                     </div>
-                    <div class="example" onclick="loadExample(2)">
-                        <h4>Twinkle Twinkle Little Star</h4>
-                        <pre>X:1
-T:Twinkle Twinkle Little Star
-M:4/4
-L:1/4
-K:C
-C C G G | A A G2 | F F E E | D D C2 |</pre>
+                    <div class="type-item">
+                        <h4><span class="type-number">1</span> Mesma Duração</h4>
+                        <p>Todas as notas com a mesma duração: C4 D4 E4 F4</p>
                     </div>
-                    <div class="example" onclick="loadExample(3)">
-                        <h4>Canção Folclórica</h4>
-                        <pre>X:1
-T:Canção Folclórica
-M:3/4
-L:1/4
-K:G
-G G G | D D D | E E E | D4 |</pre>
+                    <div class="type-item">
+                        <h4><span class="type-number">2</span> Pares de Notas</h4>
+                        <p>Notas agrupadas em pares com mesma duração: C2D2 E2F2</p>
+                    </div>
+                    <div class="type-item">
+                        <h4><span class="type-number">3</span> Ligadura Maior</h4>
+                        <p>Pares de notas com ligadura para a direita: C2>D2 E2>F2</p>
+                    </div>
+                    <div class="type-item">
+                        <h4><span class="type-number">4</span> Ligadura Menor</h4>
+                        <p>Pares de notas ligadas para a esquerda: C2<D2 E2<F2</p>
+                    </div>
+                    <div class="type-item">
+                        <h4><span class="type-number">5</span> Primeira Nota</h4>
+                        <p>Primeira nota do grupo com duração: C2DE F2GA</p>
+                    </div>
+                    <div class="type-item">
+                        <h4><span class="type-number">6</span> Última Nota</h4>
+                        <p>Última nota do grupo com duração: CDE2 FGA2</p>
+                    </div>
+                    <div class="type-item">
+                        <h4><span class="type-number">7</span> Nota do Meio</h4>
+                        <p>Nota do meio do grupo com duração: CD2E FG2A</p>
+                    </div>
+                    <div class="type-item">
+                        <h4><span class="type-number">8</span> Três Notas Ligadas</h4>
+                        <p>Três notas com ligadura: (3C2D2E2 (3F2G2A2</p>
+                    </div>
+                    <div class="type-item">
+                        <h4><span class="type-number">9</span> Quatro Notas</h4>
+                        <p>Quatro notas sem duração individual: CDEF GABC</p>
                     </div>
                 </div>
             </div>
 
-            <div class="instructions">
-                <h3>Como usar a notação ABC</h3>
-                <ul>
-                    <li><strong>X:</strong> Número de referência da música</li>
-                    <li><strong>T:</strong> Título da música</li>
-                    <li><strong>M:</strong> Compasso (ex: 4/4, 3/4, 6/8)</li>
-                    <li><strong>L:</strong> Unidade de duração padrão (ex: 1/4, 1/8)</li>
-                    <li><strong>K:</strong> Clave (ex: C para Dó maior, G para Sol maior)</li>
-                    <li>Use letras de A a G para notas, números para durações e | para separar compassos</li>
-                </ul>
+            <div class="examples">
+                <h3>Exemplo de Notação ABC</h3>
+                <div class="example-list">
+                    <div class="example" onclick="loadExample(1)">
+                        <h4>Exemplo com Notas Repetidas</h4>
+                        <pre>X:1
+T:Exemplo com Notas Repetidas
+M:4/4
+L:1/4
+K:C
+C C D E E C E D E E |</pre>
+                    </div>
+                </div>
             </div>
         </div>
 
         <footer>
-            <p>Visualizador de Partituras ABC &copy; 2023</p>
+            <p>Editor de Partituras ABC &copy; 2023</p>
         </footer>
     </div>
 
-    <script>
-        // Elementos da UI
-        const abcInput = document.getElementById('abc-input');
-        const renderBtn = document.getElementById('render-btn');
-        const normalizeBtn = document.getElementById('normalize-btn');
-        const paper = document.getElementById('paper');
+<script>
+    // Elementos da UI
+    const abcInput = document.getElementById('abc-input');
+    const renderBtn = document.getElementById('render-btn');
+    const normalizeBtn = document.getElementById('normalize-btn');
+    const reduceBtn = document.getElementById('reduce-btn');
+    const fetchBtn = document.getElementById('fetch-btn');
+    const notesPerLineBtn = document.getElementById('notes-per-line-btn');
+    const playBtn = document.getElementById('play-btn');
+    const stopBtn = document.getElementById('stop-btn');
+    const rowNumberInput = document.getElementById('row-number');
+    const normalizationType = document.getElementById('normalization-type');
+    const noteDuration = document.getElementById('note-duration');
+    const notesPerLineInput = document.getElementById('notes-per-line');
+    const paper = document.getElementById('paper');
+    const loading = document.getElementById('loading');
 
-        // Renderizar a partitura
-        function render() {
-            const abc = abcInput.value;
-            
-            // Limpa o conteúdo anterior
-            paper.innerHTML = '';
-            
-            try {
-                // Renderiza a partitura
-                ABCJS.renderAbc('paper', abc, {
-                    responsive: 'resize',
-                    staffwidth: 700,
-                    paddingtop: 10,
-                    paddingbottom: 10,
-                    paddingleft: 5,
-                    paddingright: 5
-                });
-            } catch (error) {
-                paper.innerHTML = `
-                    <div style="color: #e74c3c; text-align: center; padding: 20px;">
-                        <h3>Erro ao renderizar a partitura</h3>
-                        <p>Verifique se a notação ABC está correta</p>
-                        <p>${error.message}</p>
-                    </div>
-                `;
-            }
+    // Estado da redução
+    let reducaoAtiva = false;
+    let textoOriginal = '';
+    
+    // Variáveis de controle de reprodução
+    let tune = null;
+    let midiPlayer = null;
+
+    // IDs fixos da planilha do Google
+    const SHEET_ID = '1GGruOUUFjKTOgN-_LxMtrG1fQC6TstvREkF66G1zRXU';
+    const SHEET_GID = '0';
+    
+    async function fetchNotation() {
+        const rowNumber = rowNumberInput.value.trim();
+        
+        if (!rowNumber) {
+            alert("Por favor, insira o número do ID.");
+            return;
         }
 
-        // Normalizar as notas (função original preservada)
-        function normalizar() {
-            let abc = abcInput.value;
+        loading.style.display = 'block';
 
-            // Divide cabeçalho e corpo da música
-            let partes = abc.split(/(K:[^\n]*\n)/);
+        try {
+            const appsScriptUrl = 'https://script.google.com/macros/s/AKfycbyuGilXrD323H0sBL71MXh9bCC5K8oE-4EBxztsugDPOOb33YXd8EUOp17FciNR8lKz/exec'; 
+            const url = `${appsScriptUrl}?gid=${SHEET_GID}&id=${rowNumber}`;
+
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data.error) {
+                alert(`Erro do Apps Script: ${data.error}`);
+            } else if (data.data) {
+                abcInput.value = data.data;
+                textoOriginal = abcInput.value;
+                reducaoAtiva = false;
+                render();
+            } else {
+                alert("Nenhum dado encontrado para o ID fornecido.");
+            }
+        } catch (error) {
+            alert("Erro ao conectar com a API. Verifique a conexão.");
+            console.error("Erro na busca do Apps Script:", error);
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
+    
+    function aplicarNotasPorLinha() {
+        const notasPorLinha = parseInt(notesPerLineInput.value) || 8;
+        let abc = abcInput.value;
+        
+        let partes = abc.split(/(K:[^\n]*\n)/);
+        if (partes.length < 3) {
+            alert("Não foi encontrado o campo K:");
+            return;
+        }
+
+        let cabecalho = partes[0] + partes[1];
+        let corpo = partes.slice(2).join("");
+
+        corpo = corpo.replace(/\|/g, '').trim();
+        
+        let notas = corpo.match(/(\(?\d*[A-Ga-g][,']*(?:[><]?\d*)*\)?)+/g) || [];
+        
+        let resultado = '';
+        let contador = 0;
+        
+        for (let i = 0; i < notas.length; i++) {
+            resultado += notas[i] + ' ';
+            contador++;
+            
+            if (contador >= notasPorLinha && i < notas.length - 1) {
+                resultado += '\n';
+                contador = 0;
+            }
+        }
+        
+        let finalizado = cabecalho + resultado.trim();
+        abcInput.value = finalizado;
+        render();
+    }
+    
+    function render() {
+        const abc = abcInput.value;
+        
+        paper.innerHTML = '';
+        
+        try {
+            // Correção: usar a sintaxe correta para renderAbc
+            ABCJS.renderAbc("paper", abc, {
+                responsive: "resize",
+                staffwidth: 700,
+                paddingtop: 10,
+                paddingbottom: 10,
+                paddingleft: 5,
+                paddingright: 5
+            });
+            
+            // Para a versão mais recente do abcjs, a função pode retornar um array de tunes
+            tune = ABCJS.renderAbc("paper", abc)[0];
+        } catch (error) {
+            paper.innerHTML = `
+                <div style="color: #e74c3c; text-align: center; padding: 20px;">
+                    <h3>Erro ao renderizar a partitura</h3>
+                    <p>Verifique se a notação ABC está correta</p>
+                    <p>${error.message}</p>
+                </div>
+            `;
+        }
+    }
+    
+    function normalizar() {
+        let abc = abcInput.value;
+        const type = parseInt(normalizationType.value);
+        const duration = parseInt(noteDuration.value);
+        
+        let partes = abc.split(/(K:[^\n]*\n)/);
+        if (partes.length < 3) {
+            alert("Não foi encontrado o campo K:");
+            return;
+        }
+
+        let cabecalho = partes[0] + partes[1];
+        let corpo = partes.slice(2).join("");
+
+        cabecalho = cabecalho.replace(/L:\s*\d+\/\d+/g, 'L:1/16');
+        
+        corpo = corpo.replace(/\|[:|\[\]]*/g, '').trim();
+        
+        corpo = corpo.replace(/\b[zxZX][0-9\/><\.]*\b/g, "");
+
+        let notas = corpo.match(/([A-Ga-g](?:\#|b)?(?:\+|,)?(?:\d*)?)/g) || [];
+        
+        let resultado = aplicarNormalizacao(notas, type, duration);
+
+        resultado = resultado.trim() + ' |';
+        
+        let finalizado = cabecalho + resultado;
+        abcInput.value = finalizado;
+        render();
+    }
+    
+    function aplicarNormalizacao(notas, type, duration) {
+        let resultado = '';
+        switch(type) {
+            case 0: 
+                resultado = notas.map(n => n.replace(/\d+/, '') + '0').join(' ');
+                break;
+            case 1: 
+                resultado = notas.map(n => n.replace(/\d+/, '') + duration).join(' ');
+                break;
+            case 2:
+                for (let i = 0; i < notas.length; i += 2) {
+                    if (i + 1 < notas.length) {
+                        let n1 = notas[i].replace(/\d+/, '');
+                        let n2 = notas[i+1].replace(/\d+/, '');
+                        resultado += n1 + duration + n2 + duration + ' ';
+                    } else {
+                        resultado += notas[i].replace(/\d+/, '') + duration + ' ';
+                    }
+                }
+                break;
+            case 3: 
+                for (let i = 0; i < notas.length; i += 2) {
+                    if (i + 1 < notas.length) {
+                        let n1 = notas[i].replace(/\d+/, '');
+                        let n2 = notas[i+1].replace(/\d+/, '');
+                        resultado += n1 + duration + '>' + n2 + duration + ' ';
+                    } else {
+                        resultado += notas[i].replace(/\d+/, '') + duration + ' ';
+                    }
+                }
+                break;
+            case 4:
+                for (let i = 0; i < notas.length; i += 2) {
+                    if (i + 1 < notas.length) {
+                        let n1 = notas[i].replace(/\d+/, '');
+                        let n2 = notas[i+1].replace(/\d+/, '');
+                        resultado += n1 + duration + '<' + n2 + duration + ' ';
+                    } else {
+                        resultado += notas[i].replace(/\d+/, '') + duration + ' ';
+                    }
+                }
+                break;
+            case 5:
+                for (let i = 0; i < notas.length; i += 3) {
+                    if (i + 2 < notas.length) {
+                        let n1 = notas[i].replace(/\d+/, '');
+                        let n2 = notas[i+1].replace(/\d+/, '');
+                        let n3 = notas[i+2].replace(/\d+/, '');
+                        resultado += n1 + duration + n2 + n3 + ' ';
+                    } else {
+                        for (let j = i; j < notas.length; j++) {
+                            resultado += notas[j].replace(/\d+/, '') + duration + ' ';
+                        }
+                    }
+                }
+                break;
+            case 6:
+                for (let i = 0; i < notas.length; i += 3) {
+                    if (i + 2 < notas.length) {
+                        let n1 = notas[i].replace(/\d+/, '');
+                        let n2 = notas[i+1].replace(/\d+/, '');
+                        let n3 = notas[i+2].replace(/\d+/, '');
+                        resultado += n1 + n2 + n3 + duration + ' ';
+                    } else {
+                        for (let j = i; j < notas.length; j++) {
+                            resultado += notas[j].replace(/\d+/, '') + duration + ' ';
+                        }
+                    }
+                }
+                break;
+            case 7:
+                for (let i = 0; i < notas.length; i += 3) {
+                    if (i + 2 < notas.length) {
+                        let n1 = notas[i].replace(/\d+/, '');
+                        let n2 = notas[i+1].replace(/\d+/, '');
+                        let n3 = notas[i+2].replace(/\d+/, '');
+                        resultado += n1 + n2 + duration + n3 + ' ';
+                    } else {
+                        for (let j = i; j < notas.length; j++) {
+                            resultado += notas[j].replace(/\d+/, '') + duration + ' ';
+                        }
+                    }
+                }
+                break;
+            case 8:
+                for (let i = 0; i < notas.length; i += 3) {
+                    if (i + 2 < notas.length) {
+                        let n1 = notas[i].replace(/\d+/, '');
+                        let n2 = notas[i+1].replace(/\d+/, '');
+                        let n3 = notas[i+2].replace(/\d+/, '');
+                        resultado += '(3' + n1 + duration + n2 + duration + n3 + duration + ' ';
+                    } else {
+                        for (let j = i; j < notas.length; j++) {
+                            resultado += notas[j].replace(/\d+/, '') + duration + ' ';
+                        }
+                    }
+                }
+                break;
+            case 9:
+                for (let i = 0; i < notas.length; i += 4) {
+                    if (i + 3 < notas.length) {
+                        let n1 = notas[i].replace(/\d+/, '');
+                        let n2 = notas[i+1].replace(/\d+/, '');
+                        let n3 = notas[i+2].replace(/\d+/, '');
+                        let n4 = notas[i+3].replace(/\d+/, '');
+                        resultado += n1 + n2 + n3 + n4 + ' ';
+                    } else {
+                        for (let j = i; j < notas.length; j++) {
+                            resultado += notas[j].replace(/\d+/, '') + duration + ' ';
+                        }
+                    }
+                }
+                break;
+        }
+        return resultado;
+    }
+    
+    function reduzirNotas() {
+        if (!reducaoAtiva) {
+            textoOriginal = abcInput.value;
+            let partes = textoOriginal.split(/(K:[^\n]*\n)/);
             if (partes.length < 3) {
                 alert("Não foi encontrado o campo K:");
                 return;
             }
-
             let cabecalho = partes[0] + partes[1];
             let corpo = partes.slice(2).join("");
-
-            // Remove pausas
-            corpo = corpo.replace(/\b[zxZX][0-9\/><\.]*\b/g, "");
-
-            // Substitui notas com duração/símbolos → Nota0
-            corpo = corpo.replace(/([A-Ga-g][,']*)([0-9\/><\.]+)/g, "$10");
-
-            // Notas sem nada → adiciona 0
-            corpo = corpo.replace(/([A-Ga-g][,']*)(?!0)/g, "$10");
-
-            // Limpeza extra
-            corpo = corpo.replace(/\s+/g, " ").trim();
-
-            let finalizado = cabecalho + corpo;
-            abcInput.value = finalizado;
-            render();
-        }
-
-        // Carregar exemplos
-        function loadExample(num) {
-            const examples = [
-                `X:1
-T:Escala de Dó Maior
-M:4/4
-L:1/4
-K:C
-C D E F | G A B c |`,
-                `X:1
-T:Twinkle Twinkle Little Star
-M:4/4
-L:1/4
-K:C
-C C G G | A A G2 | F F E E | D D C2 |`,
-                `X:1
-T:Canção Folclórica
-M:3/4
-L:1/4
-K:G
-G G G | D D D | E E E | D4 |`
-            ];
             
-            abcInput.value = examples[num - 1];
-            render();
+            corpo = corpo.replace(/\|[:|\[\]]*/g, '').trim();
+            corpo = corpo.replace(/\b[zxZX][0-9\/><\.]*\b/g, "");
+            
+            let notas = corpo.match(/([A-Ga-g](?:\#|b)?(?:\+|,)?(?:\d*)?)/g) || [];
+            
+            let notasReduzidas = [];
+            let ultimaNotaBase = '';
+            for (let nota of notas) {
+                let notaBase = nota.replace(/[\d\/<>]*/g, '');
+                if (notaBase !== ultimaNotaBase) {
+                    notasReduzidas.push(notaBase);
+                    ultimaNotaBase = notaBase;
+                }
+            }
+            
+            const type = parseInt(normalizationType.value);
+            const duration = parseInt(noteDuration.value);
+            
+            let corpoReduzido = aplicarNormalizacao(notasReduzidas, type, duration);
+            
+            if (!corpoReduzido.includes('|')) {
+                corpoReduzido += ' |';
+            }
+            
+            let finalizado = cabecalho + corpoReduzido;
+            abcInput.value = finalizado;
+            reduceBtn.classList.add('active');
+            reduceBtn.textContent = 'Desfazer Redução';
+            reducaoAtiva = true;
+        } else {
+            abcInput.value = textoOriginal;
+            reduceBtn.classList.remove('active');
+            reduceBtn.textContent = 'Redução';
+            reducaoAtiva = false;
         }
+        render();
+    }
+    
+    function loadExample(num) {
+        const examples = [
+            `X:1
+T:Exemplo com Notas Repetidas
+M:4/4
+L:1/4
+K:C
+C C D E E C E D E E |`
+        ];
+        
+        abcInput.value = examples[num - 1];
+        textoOriginal = abcInput.value;
+        reducaoAtiva = false;
+        reduceBtn.classList.remove('active');
+        reduceBtn.textContent = 'Redução';
+        render();
+    }
+    
+    function startPlay() {
+        if (!tune) {
+            alert('Por favor, renderize a partitura primeiro.');
+            return;
+        }
+        
+        if (midiPlayer) {
+            midiPlayer.stop();
+            midiPlayer = null;
+        }
+        
+        try {
+            // Usar a API MIDI do abcjs
+            const midiBuffer = new ABCJS.synth.CreateSynth();
+            midiBuffer.init({
+                visualObj: tune,
+                options: {
+                    soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/"
+                }
+            }).then(() => {
+                midiBuffer.prime().then(() => {
+                    midiBuffer.start();
+                    midiPlayer = midiBuffer;
+                });
+            }).catch(error => {
+                console.error("Erro ao inicializar MIDI:", error);
+                alert("Erro ao reproduzir a partitura. Verifique o console para detalhes.");
+            });
+        } catch (error) {
+            console.error("Erro ao reproduzir:", error);
+            alert("Erro ao reproduzir a partitura.");
+        }
+    }
+    
+    function stopPlay() {
+        if (midiPlayer) {
+            midiPlayer.stop();
+            midiPlayer = null;
+        }
+    }
 
-        // Event Listeners
-        renderBtn.addEventListener('click', render);
-        normalizeBtn.addEventListener('click', normalizar);
+    // Event Listeners
+    renderBtn.addEventListener('click', render);
+    normalizeBtn.addEventListener('click', normalizar);
+    reduceBtn.addEventListener('click', reduzirNotas);
+    fetchBtn.addEventListener('click', fetchNotation);
+    notesPerLineBtn.addEventListener('click', aplicarNotasPorLinha);
+    playBtn.addEventListener('click', startPlay);
+    stopBtn.addEventListener('click', stopPlay);
+    rowNumberInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            fetchNotation();
+        }
+    });
 
-        // Renderizar a partitura inicial ao carregar a página
-        window.addEventListener('load', render);
-    </script>
+    // Inicializar
+    textoOriginal = abcInput.value;
+    window.addEventListener('load', render);
+</script>
 </body>
 </html>
