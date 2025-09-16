@@ -1,0 +1,1162 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Sequencer Interativo</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.39/Tone.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tonejs/midi@2.0.28"></script>
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.3.5/dist/abcjs-basic-min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+<style>
+/* ----------------- Corpo e Layout ----------------- */
+body {
+  font-family: Arial, sans-serif;
+  background: #111;
+  color: #eee;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  gap: 1rem;
+  margin: 0;
+}
+
+h2 { 
+  margin-bottom: 1rem; 
+}
+
+/* ----------------- Inputs e Botões ----------------- */
+input, select, button { 
+  padding: 0.5rem; 
+  margin: 0.2rem; 
+  border-radius: 6px; 
+  border: none; 
+  outline: none;
+  font-size: 1rem;
+}
+
+button { 
+  background: #28a745; 
+  color: white; 
+  cursor: pointer; 
+  transition: background 0.2s ease;
+}
+
+button:hover { 
+  background: #218838; 
+}
+
+button.secondary {
+  background: #6c757d;
+}
+
+button.secondary:hover {
+  background: #5a6268;
+}
+
+button.warning {
+  background: #dc3545;
+}
+
+button.warning:hover {
+  background: #c82333;
+}
+
+button.export {
+  background: #17a2b8;
+}
+
+button.export:hover {
+  background: #138496;
+}
+
+/* ----------------- Checkbox Group ----------------- */
+.checkbox-group { 
+  display: flex; 
+  flex-wrap: wrap; 
+  gap: 0.5rem; 
+  margin-bottom: 1rem; 
+}
+
+/* ----------------- Grid dos Instrumentos ----------------- */
+.instrument-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px; /* espaço entre linhas */
+  margin-top: 1rem; 
+  width: 100%; 
+  max-width: 800px; 
+}
+
+.instrument-row {
+  display: flex;
+  align-items: center;
+  gap: 10px; /* espaço entre nome e grade */
+}
+
+.grid-label {
+  width: 120px; /* largura fixa pros nomes alinharem */
+  text-align: right; /* alinhado à direita */
+  font-weight: bold;
+}
+
+.grid {
+  flex: 1; /* ocupa o resto do espaço */
+  display: grid;
+  gap: 3px;
+  min-height: 40px;
+}
+
+/* ----------------- Step Boxes ----------------- */
+.step-box { 
+  width: 25px; 
+  height: 25px; 
+  border-radius: 4px; 
+  transition: background 0.2s, box-shadow 0.2s; /* só cor e sombra */
+  display: flex; 
+  align-items: center; 
+  justify-content: center; 
+  font-size: 0.7rem; 
+  color: #000; 
+  cursor: pointer; 
+  background: #fff; /* grid desativado padrão */
+  border: 2px solid #ccc; /* borda fixa evita tremor */
+  box-sizing: border-box; /* garante borda dentro do tamanho */
+}
+
+/* ----------------- Grids Ativos ----------------- */
+.step-box.kick.active { 
+  background: #ff5722; 
+  color:#fff; 
+  border-color: #ff5722;
+}
+.step-box.snare.active { 
+  background: #2196f3; 
+  color:#fff; 
+  border-color: #2196f3;
+}
+.step-box.hihat.open.active { 
+  background: #ffeb3b; 
+  color:#000; 
+  border-color: #ffeb3b;
+}
+.step-box.hihat.closed.active { 
+  background: #ffcc00; 
+  color:#000; 
+  border-color: #ffcc00;
+}
+.step-box.tom1.active { 
+  background: #4caf50; 
+  color:#fff; 
+  border-color: #4caf50;
+}
+.step-box.tom2.active { 
+  background: #8bc34a; 
+  color:#fff; 
+  border-color: #8bc34a;
+}
+.step-box.crash.active { 
+  background: #9c27b0; 
+  color:#fff; 
+  border-color: #9c27b0;
+}
+.step-box.ride.active { 
+  background: #673ab7; 
+  color:#fff; 
+  border-color: #673ab7;
+}
+.step-box.bass.active { 
+  background: #795548; 
+  color:#fff; 
+  border-color: #795548;
+}
+.step-box.hihat.pedal.active { 
+  background: #c8f306; 
+  color:#fff; 
+  border-color: #c8f306;
+}
+.step-box.tick.active { 
+  background: #e91e63; 
+  color:#fff; 
+  border-color: #e91e63;
+}
+.step-box.tock.active { 
+  background: #00bcd4; 
+  color:#fff; 
+  border-color: #00bcd4;
+}
+
+/* ----------------- Passo Atual ----------------- */
+.step-box.playing { 
+  box-shadow: 0 0 6px #fff; /* destaque sem alterar tamanho */
+  border-color: #fff; 
+}
+
+/* ----------------- Lista de Padrões Salvos ----------------- */
+.saved-patterns {
+  width: 100%;
+  max-width: 800px;
+  margin-top: 1rem;
+  border: 1px solid #444;
+  border-radius: 6px;
+  padding: 1rem;
+  background: #1a1a1a;
+}
+
+.saved-patterns h3 {
+  margin-top: 0;
+  border-bottom: 1px solid #444;
+  padding-bottom: 0.5rem;
+}
+
+.pattern-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.pattern-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem;
+  border-bottom: 1px solid #333;
+}
+
+.pattern-item:last-child {
+  border-bottom: none;
+}
+
+.pattern-name {
+  flex-grow: 1;
+  cursor: pointer;
+}
+
+.pattern-name:hover {
+  color: #28a745;
+}
+
+.pattern-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.no-patterns {
+  text-align: center;
+  color: #888;
+  padding: 1rem;
+}
+
+/* ----------------- Modal de Exportação ----------------- */
+.modal {
+  display: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  z-index: 1000;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background-color: #222;
+  padding: 20px;
+  border-radius: 8px;
+  width: 80%;
+  max-width: 500px;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+  border-bottom: 1px solid #444;
+  padding-bottom: 10px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1.5rem;
+}
+
+.close-modal {
+  background: none;
+  border: none;
+  color: #eee;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.export-options {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.export-option {
+  padding: 10px;
+  border: 1px solid #444;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.export-option:hover {
+  background-color: #333;
+}
+
+/* ----------------- Responsividade ----------------- */
+@media (max-width: 768px) {
+  .step-box { width: 20px; height: 20px; }
+  .grid-label { width: 100px; font-size: 0.9rem; }
+}
+
+@media (max-width: 480px) {
+  .step-box { width: 18px; height: 18px; }
+  .grid-label { width: 80px; font-size: 0.8rem; }
+  .checkbox-group { flex-direction: column; gap: 0.5rem; }
+  button { width: 100%; }
+  .pattern-item { flex-direction: column; align-items: flex-start; }
+  .pattern-actions { margin-top: 0.5rem; width: 100%; justify-content: flex-end; }
+}
+</style>
+
+</head>
+<body>
+
+<h2>Sequencer Interativo </h2>
+
+<div>
+  <label for="bpm">BPM:</label>
+  <input type="number" id="bpm" value="120" min="30" max="300">
+</div>
+
+<div>
+  <label for="subdivisoes">Subdivisões:</label>
+  <select id="subdivisoes"></select>
+</div>
+
+<div class="checkbox-group">
+  <label><input type="checkbox" id="chkKick" checked> Bumbo</label>
+  <label><input type="checkbox" id="chkSnare" checked> Caixa</label>
+  <label><input type="checkbox" id="chkHihatOpen" checked> Chimbal Aberto</label>
+  <label><input type="checkbox" id="chkHihatClosed" checked> Chimbal Fechado</label>
+  <label><input type="checkbox" id="chkTom1" checked> Tom 1</label>
+  <label><input type="checkbox" id="chkTom2" checked> Tom 2</label>
+  <label><input type="checkbox" id="chkCrash" checked> Prato de Ataque</label>
+  <label><input type="checkbox" id="chkRide" checked> Prato de Condução</label>
+  <label><input type="checkbox" id="chkBass" checked> Surdo</label>
+  <label><input type="checkbox" id="chkHihatPedal" checked> Chimbal Pedal</label>
+  <label><input type="checkbox" id="chkTick" checked> Tick</label>
+  <label><input type="checkbox" id="chkTock" checked> Tock</label>
+</div>
+
+<div>
+  <label for="patternName">Nome do padrão:</label>
+  <input type="text" id="patternName" placeholder="Nome do padrão" value="beto">
+</div>
+
+<div>
+  <button id="startStop">Start</button>
+  <button id="resetPattern" class="warning">Resetar</button>
+  <button id="savePattern" class="secondary">Salvar</button>
+  <button id="exportPattern" class="export">Exportar</button>
+  <button id="importPattern" class="secondary">Importar</button>
+  <input type="file" id="importFile" accept=".json" style="display: none;">
+</div>
+
+<div class="instrument-grid">
+  <div class="instrument-row">
+    <div class="grid-label">Bumbo</div>
+    <div class="grid" id="gridKick"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Caixa</div>
+    <div class="grid" id="gridSnare"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Chimbal Aberto</div>
+    <div class="grid" id="gridHihatOpen"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Chimbal Fechado</div>
+    <div class="grid" id="gridHihatClosed"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Tom 1</div>
+    <div class="grid" id="gridTom1"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Tom 2</div>
+    <div class="grid" id="gridTom2"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Prato de Ataque</div>
+    <div class="grid" id="gridCrash"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Prato de Condução</div>
+    <div class="grid" id="gridRide"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Surdo</div>
+    <div class="grid" id="gridBass"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Chimbal Pedal</div>
+    <div class="grid" id="gridHihatPedal"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Tick </div>
+    <div class="grid" id="gridTick"></div>
+  </div>
+  <div class="instrument-row">
+    <div class="grid-label">Tock </div>
+    <div class="grid" id="gridTock"></div>
+  </div>
+</div>
+
+<div class="saved-patterns">
+  <h3>Padrões Salvos</h3>
+  <div id="patternsList" class="pattern-list">
+    <div class="no-patterns">Nenhum padrão salvo ainda</div>
+  </div>
+</div>
+
+<!-- Modal de Exportação -->
+<div id="exportModal" class="modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3 class="modal-title">Exportar Padrão</h3>
+      <button class="close-modal">&times;</button>
+    </div>
+    <div class="export-options">
+      <div class="export-option" data-format="json">
+        <strong>JSON</strong> - Formato nativo para salvar e compartilhar padrões
+      </div>
+      <div class="export-option" data-format="midi">
+        <strong>MIDI</strong> - Arquivo padrão para sequenciadores e DAWs
+      </div>
+      <div class="export-option" data-format="abc">
+        <strong>ABC Notation</strong> - Notação musical textual
+      </div>
+      <div class="export-option" data-format="mp3">
+        <strong>MP3</strong> - Áudio comprimido (pode demorar alguns segundos)
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const bpmInput = document.getElementById("bpm");
+const subdivSelect = document.getElementById("subdivisoes");
+const startStopBtn = document.getElementById("startStop");
+const resetPatternBtn = document.getElementById("resetPattern");
+const savePatternBtn = document.getElementById("savePattern");
+const exportPatternBtn = document.getElementById("exportPattern");
+const importPatternBtn = document.getElementById("importPattern");
+const importFileInput = document.getElementById("importFile");
+const patternNameInput = document.getElementById("patternName");
+const patternsList = document.getElementById("patternsList");
+const exportModal = document.getElementById("exportModal");
+const closeModalBtn = document.querySelector(".close-modal");
+const exportOptions = document.querySelectorAll(".export-option");
+
+const grids = {
+  kick: document.getElementById("gridKick"),
+  snare: document.getElementById("gridSnare"),
+  hihatOpen: document.getElementById("gridHihatOpen"),
+  hihatClosed: document.getElementById("gridHihatClosed"),
+  tom1: document.getElementById("gridTom1"),
+  tom2: document.getElementById("gridTom2"),
+  crash: document.getElementById("gridCrash"),
+  ride: document.getElementById("gridRide"),
+  bass: document.getElementById("gridBass"),
+  hihatPedal: document.getElementById("gridHihatPedal"),
+  tick: document.getElementById("gridTick"),
+  tock: document.getElementById("gridTock")
+};
+
+const checkboxes = {
+  kick: document.getElementById("chkKick"),
+  snare: document.getElementById("chkSnare"),
+  hihatOpen: document.getElementById("chkHihatOpen"),
+  hihatClosed: document.getElementById("chkHihatClosed"),
+  tom1: document.getElementById("chkTom1"),
+  tom2: document.getElementById("chkTom2"),
+  crash: document.getElementById("chkCrash"),
+  ride: document.getElementById("chkRide"),
+  bass: document.getElementById("chkBass"),
+  hihatPedal: document.getElementById("chkHihatPedal"),
+  tick: document.getElementById("chkTick"),
+  tock: document.getElementById("chkTock")
+};
+
+// Mapeamento de notas MIDI para cada instrumento (General MIDI Drum Map)
+const midiNotes = {
+  kick: 36,    // C2 - Bass Drum 1
+  snare: 38,   // D2 - Acoustic Snare
+  hihatOpen: 46, // A#2 - Open Hi-Hat
+  hihatClosed: 42, // F#2 - Closed Hi-Hat
+  tom1: 48,    // C3 - Hi-Mid Tom
+  tom2: 45,    // A2 - Low Tom
+  crash: 49,   // C#3 - Crash Cymbal 1
+  ride: 51,    // D#3 - Ride Cymbal 1
+  bass: 35,    // B1 - Acoustic Bass Drum
+  hihatPedal: 44, // G#2 - Pedal Hi-Hat
+  tick: 60,    // C4 - Hi Tick
+  tock: 62     // D4 - Low Tock
+};
+
+// Mapeamento de notas ABC para cada instrumento
+const abcNotes = {
+  kick: "C,,",         // Bumbo
+  snare: "D,,",        // Caixa
+  hihatClosed: "_G,,", // Chimbal fechado
+  hihatOpen: "_B,,",   // Chimbal aberto
+  tom1: "B,,",         // Tom 1
+  tom2: "A,,",         // Tom 2
+  crash: "_D,",        // Prato de ataque
+  ride: "_E,",         // Prato de condução
+  bass: "G,,",         // Surdo
+  hihatPedal: "A,,"    // Chimbal pedal
+};
+
+for(let i=2; i<=16; i++){
+  let opt = document.createElement("option");
+  opt.value = i;
+  opt.textContent = i;
+  subdivSelect.appendChild(opt);
+}
+subdivSelect.value = 4;
+
+let subdivision = 4;
+let step = 0;
+let isPlaying = false;
+let isRecording = false;
+let recordedAudio = null;
+
+// Tone.js Synths
+const kick = new Tone.MembraneSynth().toDestination();
+const snare = new Tone.NoiseSynth({envelope:{attack:0.001, decay:0.2}}).toDestination();
+const hihatOpen = new Tone.MetalSynth({frequency:400, envelope:{attack:0.001, decay:0.5}}).toDestination();
+const hihatClosed = new Tone.MetalSynth({frequency:300, envelope:{attack:0.001, decay:0.1}}).toDestination();
+const tom1 = new Tone.MembraneSynth({pitchDecay:0.05}).toDestination();
+const tom2 = new Tone.MembraneSynth({pitchDecay:0.1}).toDestination();
+const crash = new Tone.MetalSynth({frequency:300, envelope:{attack:0.001, decay:1.5}}).toDestination();
+const ride = new Tone.MetalSynth({frequency:250, envelope:{attack:0.001, decay:1.0}}).toDestination();
+const bass = new Tone.MembraneSynth().toDestination();
+const hihatPedal = new Tone.MetalSynth({frequency:200, envelope:{attack:0.001, decay:0.2}}).toDestination();
+const tick = new Tone.Synth({envelope:{attack:0.001, decay:0.1}}).toDestination();
+const tock = new Tone.Synth({envelope:{attack:0.001, decay:0.2}}).toDestination();
+
+Tone.Transport.bpm.value = parseInt(bpmInput.value);
+bpmInput.addEventListener("change", ()=>Tone.Transport.bpm.value=parseInt(bpmInput.value));
+subdivSelect.addEventListener("change", e=>{ subdivision=parseInt(e.target.value); step=0; createGrids(); });
+
+// Padrão de cada instrumento
+const pattern = { 
+  kick: [], snare: [], hihatOpen: [], hihatClosed: [], 
+  tom1: [], tom2: [], crash: [], ride: [], 
+  bass: [], hihatPedal: [], tick: [], tock: [] 
+};
+
+// Configuração do modal de exportação
+exportPatternBtn.addEventListener('click', () => {
+  exportModal.style.display = 'flex';
+});
+
+closeModalBtn.addEventListener('click', () => {
+  exportModal.style.display = 'none';
+});
+
+exportOptions.forEach(option => {
+  option.addEventListener('click', () => {
+    const format = option.getAttribute('data-format');
+    exportModal.style.display = 'none';
+    
+    switch(format) {
+      case 'json':
+        exportAsJSON();
+        break;
+      case 'midi':
+        exportAsMIDI();
+        break;
+      case 'abc':
+        exportAsABC();
+        break;
+      case 'mp3':
+        exportAsMP3();
+        break;
+    }
+  });
+});
+
+// Fechar modal ao clicar fora dele
+window.addEventListener('click', (e) => {
+  if (e.target === exportModal) {
+    exportModal.style.display = 'none';
+  }
+});
+
+// Função para resetar o padrão atual
+function resetPattern() {
+  if (confirm("Tem certeza que deseja resetar o padrão atual? Todos os passos serão desativados.")) {
+    for (const key in pattern) {
+      pattern[key] = new Array(subdivision).fill(false);
+      updateGridColors(key);
+    }
+  }
+}
+
+// Função para salvar o padrão atual no localStorage
+function savePatternToStorage() {
+  const patternName = patternNameInput.value.trim() || "Padrão Sem Nome";
+  
+  const patternData = {
+    name: patternName,
+    kick: pattern.kick,
+    snare: pattern.snare,
+    hihatOpen: pattern.hihatOpen,
+    hihatClosed: pattern.hihatClosed,
+    tom1: pattern.tom1,
+    tom2: pattern.tom2,
+    crash: pattern.crash,
+    ride: pattern.ride,
+    bass: pattern.bass,
+    hihatPedal: pattern.hihatPedal,
+    tick: pattern.tick,
+    tock: pattern.tock,
+    bpm: parseInt(bpmInput.value),
+    subdivision: subdivision,
+    saveDate: new Date().toISOString()
+  };
+  
+  // Recupera padrões existentes ou inicia um array vazio
+  const savedPatterns = JSON.parse(localStorage.getItem('drumPatterns') || '[]');
+  
+  // Verifica se já existe um padrão com este nome
+  const existingIndex = savedPatterns.findIndex(p => p.name === patternName);
+  
+  if (existingIndex !== -1) {
+    if (!confirm(`Já existe um padrão com o nome "${patternName}". Deseja substituí-lo?`)) {
+      return;
+    }
+    savedPatterns[existingIndex] = patternData;
+  } else {
+    savedPatterns.push(patternData);
+  }
+  
+  localStorage.setItem('drumPatterns', JSON.stringify(savedPatterns));
+  alert(`Padrão "${patternName}" salvo com sucesso!`);
+  
+  updatePatternsList();
+}
+
+// Função para carregar a lista de padrões salvos
+function updatePatternsList() {
+  const savedPatterns = JSON.parse(localStorage.getItem('drumPatterns') || '[]');
+  
+  if (savedPatterns.length === 0) {
+    patternsList.innerHTML = '<div class="no-patterns">Nenhum padrão salvo ainda</div>';
+    return;
+  }
+  
+  patternsList.innerHTML = '';
+  
+  savedPatterns.forEach((patternData, index) => {
+    const patternItem = document.createElement('div');
+    patternItem.className = 'pattern-item';
+    
+    const patternDate = new Date(patternData.saveDate).toLocaleString();
+    
+    patternItem.innerHTML = `
+      <div class="pattern-name" data-index="${index}">
+        <strong>${patternData.name}</strong> (${patternDate})
+      </div>
+      <div class="pattern-actions">
+        <button class="secondary load-pattern" data-index="${index}">Carregar</button>
+        <button class="warning delete-pattern" data-index="${index}">Excluir</button>
+      </div>
+    `;
+    
+    patternsList.appendChild(patternItem);
+  });
+  
+  // Adiciona event listeners para os botões
+  document.querySelectorAll('.pattern-name').forEach(el => {
+    el.addEventListener('click', () => {
+      const index = parseInt(el.getAttribute('data-index'));
+      loadPattern(index);
+    });
+  });
+  
+  document.querySelectorAll('.load-pattern').forEach(el => {
+    el.addEventListener('click', () => {
+      const index = parseInt(el.getAttribute('data-index'));
+      loadPattern(index);
+    });
+  });
+  
+  document.querySelectorAll('.delete-pattern').forEach(el => {
+    el.addEventListener('click', () => {
+      const index = parseInt(el.getAttribute('data-index'));
+      deletePattern(index);
+    });
+  });
+}
+
+// Função para carregar um padrão específico
+function loadPattern(index) {
+  const savedPatterns = JSON.parse(localStorage.getItem('drumPatterns') || '[]');
+  
+  if (index >= 0 && index < savedPatterns.length) {
+    const patternData = savedPatterns[index];
+    
+    // Atualiza BPM e subdivisões se necessário
+    bpmInput.value = patternData.bpm || 120;
+    Tone.Transport.bpm.value = parseInt(bpmInput.value);
+    
+    if (patternData.subdivision && patternData.subdivision !== subdivision) {
+      subdivision = patternData.subdivision;
+      subdivSelect.value = subdivision;
+      createGrids();
+    }
+    
+    // Carrega os padrões
+    pattern.kick = patternData.kick || [];
+    pattern.snare = patternData.snare || [];
+    pattern.hihatOpen = patternData.hihatOpen || [];
+    pattern.hihatClosed = patternData.hihatClosed || [];
+    pattern.tom1 = patternData.tom1 || [];
+    pattern.tom2 = patternData.tom2 || [];
+    pattern.crash = patternData.crash || [];
+    pattern.ride = patternData.ride || [];
+    pattern.bass = patternData.bass || [];
+    pattern.hihatPedal = patternData.hihatPedal || [];
+    pattern.tick = patternData.tick || [];
+    pattern.tock = patternData.tock || [];
+    
+    // Atualiza o nome do padrão
+    patternNameInput.value = patternData.name;
+    
+    // Atualiza a interface
+    for (const key in grids) {
+      updateGridColors(key);
+    }
+    
+    alert(`Padrão "${patternData.name}" carregado com sucesso!`);
+  }
+}
+
+// Função para excluir um padrão
+function deletePattern(index) {
+  const savedPatterns = JSON.parse(localStorage.getItem('drumPatterns') || '[]');
+  
+  if (index >= 0 && index < savedPatterns.length) {
+    const patternName = savedPatterns[index].name;
+    
+    if (confirm(`Tem certeza que deseja excluir o padrão "${patternName}"?`)) {
+      savedPatterns.splice(index, 1);
+      localStorage.setItem('drumPatterns', JSON.stringify(savedPatterns));
+      updatePatternsList();
+      alert(`Padrão "${patternName}" excluído com sucesso!`);
+    }
+  }
+}
+
+// Função para exportar como JSON
+function exportAsJSON() {
+  const patternName = patternNameInput.value.trim() || "Padrão Sem Nome";
+  
+  const patternData = {
+    name: patternName,
+    kick: pattern.kick,
+    snare: pattern.snare,
+    hihatOpen: pattern.hihatOpen,
+    hihatClosed: pattern.hihatClosed,
+    tom1: pattern.tom1,
+    tom2: pattern.tom2,
+    crash: pattern.crash,
+    ride: pattern.ride,
+    bass: pattern.bass,
+    hihatPedal: pattern.hihatPedal,
+    tick: pattern.tick,
+    tock: pattern.tock,
+    bpm: parseInt(bpmInput.value),
+    subdivision: subdivision,
+    exportDate: new Date().toISOString()
+  };
+  
+  const dataStr = JSON.stringify(patternData, null, 2);
+  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+  
+  const exportFileDefaultName = `${patternName.replace(/\s+/g, '-')}.json`;
+  
+  const linkElement = document.createElement('a');
+  linkElement.setAttribute('href', dataUri);
+  linkElement.setAttribute('download', exportFileDefaultName);
+  linkElement.click();
+}
+
+// Função para exportar como MIDI
+function exportAsMIDI() {
+  const patternName = patternNameInput.value.trim() || "Padrão Sem Nome";
+  
+  // Cria um novo arquivo MIDI
+  const midi = new Midi();
+  
+  // Adiciona uma trilha para cada instrumento
+  for (const [instrument, notes] of Object.entries(pattern)) {
+    if (Object.keys(midiNotes).includes(instrument)) {
+      const track = midi.addTrack();
+      track.name = instrument;
+      
+      // Adiciona notas ativas
+      for (let step = 0; step < notes.length; step++) {
+        if (notes[step]) {
+          // Calcula o tempo em segundos (assumindo 4/4)
+          const time = (step / subdivision) * (60 / parseInt(bpmInput.value)) * 4;
+          track.addNote({
+            midi: midiNotes[instrument],
+            time: time,
+            duration: 0.25 // Duração curta para percussão
+          });
+        }
+      }
+    }
+  }
+  
+  // Converte para array buffer e cria blob
+  const arrayBuffer = midi.toArray();
+  const blob = new Blob([arrayBuffer], { type: 'audio/midi' });
+  
+  // Faz o download
+  saveAs(blob, `${patternName.replace(/\s+/g, '-')}.mid`);
+}
+
+// Função para exportar como ABC Notation
+function exportAsABC() {
+  const patternName = patternNameInput.value.trim() || "Padrão Sem Nome";
+  const bpm = parseInt(bpmInput.value);
+  
+  // Cabeçalho ABC conforme especificado
+  let abcString = `X:1\nT:${patternName}\nQ:${bpm}\nM:4/4\nL:1/4\nK:bass\n%%MIDI program 128\n`;
+  
+  // Para cada passo, cria a notação ABC
+  for (let step = 0; step < subdivision; step++) {
+    let notesInStep = [];
+    
+    // Verifica quais instrumentos estão ativos neste passo
+    for (const [instrument, active] of Object.entries(pattern)) {
+      if (active[step] && abcNotes[instrument]) {
+        notesInStep.push(abcNotes[instrument]);
+      }
+    }
+    
+    // Se não há notas neste passo, adiciona um silêncio
+    if (notesInStep.length === 0) {
+      abcString += "z";
+    } else {
+      // Junta todas as notas do passo atual
+      abcString += notesInStep.join("");
+    }
+    
+    // Adiciona espaço a cada 4 passos (para melhor visualização)
+    if ((step + 1) % 4 === 0 && step !== subdivision - 1) {
+      abcString += " ";
+    }
+  }
+  
+  // Cria o arquivo de texto
+  const blob = new Blob([abcString], { type: 'text/plain' });
+  saveAs(blob, `${patternName.replace(/\s+/g, '-')}.abc`);
+  
+  // Mostra uma visualização
+  alert(`ABC Notation gerada:\n\n${abcString}\n\nO arquivo foi baixado.`);
+}
+
+// Função para exportar como MP3
+function exportAsMP3() {
+  const patternName = patternNameInput.value.trim() || "Padrão Sem Nome";
+  
+  alert("A exportação para MP3 será iniciada. Esta operação pode levar alguns segundos...");
+  
+  // Para a reprodução atual se estiver tocando
+  if (isPlaying) {
+    Tone.Transport.stop();
+    Tone.Transport.cancel();
+    isPlaying = false;
+    startStopBtn.textContent = "Start";
+  }
+  
+  // Configura o gravador
+  const recorder = new Tone.Recorder();
+  const originalConnections = {};
+  
+  // Conecta todos os sintetizadores ao gravador
+  const synths = [kick, snare, hihatOpen, hihatClosed, tom1, tom2, crash, ride, bass, hihatPedal, tick, tock];
+  for (const inst of synths) {
+    originalConnections[inst] = [...inst.output.connections];
+    inst.connect(recorder);
+  }
+  
+  // Inicia a gravação
+  recorder.start();
+  
+  // Configura o transporte para tocar o padrão uma vez
+  let currentStep = 0;
+  
+  Tone.Transport.bpm.value = parseInt(bpmInput.value);
+  Tone.Transport.scheduleRepeat((time) => {
+    const beat = currentStep % subdivision;
+
+    if (pattern.kick[beat]) kick.triggerAttackRelease("C2", "8n", time);
+    if (pattern.snare[beat]) snare.triggerAttackRelease("8n", time);
+    if (pattern.hihatOpen[beat]) hihatOpen.triggerAttackRelease("32n", time);
+    if (pattern.hihatClosed[beat]) hihatClosed.triggerAttackRelease("32n", time);
+    if (pattern.tom1[beat]) tom1.triggerAttackRelease("C3", "8n", time);
+    if (pattern.tom2[beat]) tom2.triggerAttackRelease("A2", "8n", time);
+    if (pattern.crash[beat]) crash.triggerAttackRelease("32n", time);
+    if (pattern.ride[beat]) ride.triggerAttackRelease("32n", time);
+    if (pattern.bass[beat]) bass.triggerAttackRelease("C2", "8n", time);
+    if (pattern.hihatPedal[beat]) hihatPedal.triggerAttackRelease("32n", time);
+    if (pattern.tick[beat]) tick.triggerAttackRelease("G4", "16n", time);
+    if (pattern.tock[beat]) tock.triggerAttackRelease("C5", "16n", time);
+
+    currentStep++;
+    
+    // Para após uma repetição completa
+    if (currentStep >= subdivision) {
+      Tone.Transport.stop();
+    }
+  }, "4n");
+  
+  // Inicia a reprodução
+  Tone.Transport.start();
+  
+  // Quando terminar, para a gravação e faz o download
+  setTimeout(async () => {
+    const recording = await recorder.stop();
+    const url = URL.createObjectURL(recording);
+    const anchor = document.createElement("a");
+    anchor.download = `${patternName.replace(/\s+/g, '-')}.mp3`;
+    anchor.href = url;
+    anchor.click();
+    
+    // Restaura as conexões originais
+    for (const inst of synths) {
+      inst.disconnect();
+      for (const connection of originalConnections[inst]) {
+        inst.connect(connection);
+      }
+    }
+    
+    alert("MP3 exportado com sucesso!");
+  }, (subdivision * 60 / parseInt(bpmInput.value)) * 1000 + 1000); // Duração em ms + margem de segurança
+}
+
+// Função para importar padrão de arquivo JSON
+function importPattern(file) {
+  const reader = new FileReader();
+  
+  reader.onload = function(e) {
+    try {
+      const patternData = JSON.parse(e.target.result);
+      
+      // Validação básica dos dados
+      if (!patternData.kick || !patternData.snare) {
+        throw new Error('Formato de arquivo inválido');
+      }
+      
+      // Atualiza BPM e subdivisões se necessário
+      if (patternData.bpm) {
+        bpmInput.value = patternData.bpm;
+        Tone.Transport.bpm.value = parseInt(bpmInput.value);
+      }
+      
+      if (patternData.subdivision && patternData.subdivision !== subdivision) {
+        subdivision = patternData.subdivision;
+        subdivSelect.value = subdivision;
+        createGrids();
+      }
+      
+      // Carrega os padrões
+      pattern.kick = patternData.kick || [];
+      pattern.snare = patternData.snare || [];
+      pattern.hihatOpen = patternData.hihatOpen || [];
+      pattern.hihatClosed = patternData.hihatClosed || [];
+      pattern.tom1 = patternData.tom1 || [];
+      pattern.tom2 = patternData.tom2 || [];
+      pattern.crash = patternData.crash || [];
+      pattern.ride = patternData.ride || [];
+      pattern.bass = patternData.bass || [];
+      pattern.hihatPedal = patternData.hihatPedal || [];
+      pattern.tick = patternData.tick || [];
+      pattern.tock = patternData.tock || [];
+      
+      // Atualiza o nome do padrão se existir no arquivo
+      if (patternData.name) {
+        patternNameInput.value = patternData.name;
+      }
+      
+      // Atualiza a interface
+      for (const key in grids) {
+        updateGridColors(key);
+      }
+      
+      alert('Padrão importado com sucesso!');
+    } catch (e) {
+      console.error('Erro ao importar padrão:', e);
+      alert('Erro ao importar o arquivo. Certifique-se de que é um arquivo válido.');
+    }
+  };
+  
+  reader.readAsText(file);
+}
+
+// Configura eventos dos botões
+resetPatternBtn.addEventListener('click', resetPattern);
+savePatternBtn.addEventListener('click', savePatternToStorage);
+importPatternBtn.addEventListener('click', () => importFileInput.click());
+importFileInput.addEventListener('change', (e) => {
+  if (e.target.files.length > 0) {
+    importPattern(e.target.files[0]);
+  }
+});
+
+// Carrega a lista de padrões ao iniciar
+window.addEventListener('load', () => {
+  updatePatternsList();
+});
+
+function createGrids(){
+  for(const key in grids){
+    const g = grids[key];
+    g.innerHTML='';
+    g.style.gridTemplateColumns=`repeat(${subdivision}, auto)`;
+    
+    // Se o padrão atual não tem o tamanho correto, redimensiona
+    if (pattern[key].length !== subdivision) {
+      pattern[key] = new Array(subdivision).fill(false);
+    }
+    
+    for(let i=0;i<subdivision;i++){
+      let box = document.createElement("div");
+      box.classList.add("step-box", key);
+      box.dataset.step = i;
+      box.dataset.instrument = key;
+      box.addEventListener("click", ()=>toggleStep(key,i));
+      g.appendChild(box);
+    }
+    updateGridColors(key);
+  }
+}
+createGrids();
+
+// Atualiza cor do grid conforme checkbox
+function updateGridColors(inst){
+  const active = checkboxes[inst].checked;
+  grids[inst].querySelectorAll('.step-box').forEach(box=>{
+    const stepIndex = parseInt(box.dataset.step);
+    if(!active) {
+      box.style.background = '#fff';
+      box.classList.remove('active');
+    } else {
+      if(pattern[inst][stepIndex]) {
+        box.style.background = getColor(inst);
+        box.classList.add('active');
+      } else {
+        box.style.background = '#555c66';
+        box.classList.remove('active');
+      }
+    }
+    box.style.color = active ? (inst.includes('hihat') ? '#000':'#fff') : '#000';
+  });
+}
+
+// Retorna cor padrão de cada instrumento
+function getColor(inst){
+  switch(inst){
+    case 'kick': return '#ff5722';
+    case 'snare': return '#2196f3';
+    case 'hihatOpen': return '#ffeb3b';
+    case 'hihatClosed': return '#ffcc00';
+    case 'tom1': return '#4caf50';
+    case 'tom2': return '#8bc34a';
+    case 'crash': return '#9c27b0';
+    case 'ride': return '#673ab7';
+    case 'bass': return '#795548';
+    case 'hihatPedal': return '#607d8b';
+    case 'tick': return '#e91e63';
+    case 'tock': return '#00bcd4';
+    default: return '#fff';
+  }
+}
+
+function toggleStep(inst,index){
+  pattern[inst][index] = !pattern[inst][index];
+  updateGridColors(inst);
+}
+
+function highlightStep(){
+  for(const key in grids){
+    grids[key].querySelectorAll('.step-box').forEach(box=>box.classList.remove('playing'));
+    let current = grids[key].querySelector(`.step-box[data-step="${step % subdivision}"]`);
+    if(current) current.classList.add('playing');
+  }
+}
+
+// Função principal
+function playStep(time){
+  highlightStep();
+  const beat = step % subdivision;
+
+  if(checkboxes.kick.checked && pattern.kick[beat]) kick.triggerAttackRelease("C2","8n",time);
+  if(checkboxes.snare.checked && pattern.snare[beat]) snare.triggerAttackRelease("8n",time);
+  if(checkboxes.hihatOpen.checked && pattern.hihatOpen[beat]) hihatOpen.triggerAttackRelease("32n",time);
+  if(checkboxes.hihatClosed.checked && pattern.hihatClosed[beat]) hihatClosed.triggerAttackRelease("32n",time);
+  if(checkboxes.tom1.checked && pattern.tom1[beat]) tom1.triggerAttackRelease("C3","8n",time);
+  if(checkboxes.tom2.checked && pattern.tom2[beat]) tom2.triggerAttackRelease("A2","8n",time);
+  if(checkboxes.crash.checked && pattern.crash[beat]) crash.triggerAttackRelease("32n",time);
+  if(checkboxes.ride.checked && pattern.ride[beat]) ride.triggerAttackRelease("32n",time);
+  if(checkboxes.bass.checked && pattern.bass[beat]) bass.triggerAttackRelease("C2","8n",time);
+  if(checkboxes.hihatPedal.checked && pattern.hihatPedal[beat]) hihatPedal.triggerAttackRelease("32n",time);
+  if(checkboxes.tick.checked && pattern.tick[beat]) tick.triggerAttackRelease("G4","16n",time);
+  if(checkboxes.tock.checked && pattern.tock[beat]) tock.triggerAttackRelease("C5","16n",time);
+
+  step++;
+}
+
+// Atualiza cor ao mudar checkbox
+for(const key in checkboxes){
+  checkboxes[key].addEventListener('change', ()=>updateGridColors(key));
+}
+
+// Start/Stop
+startStopBtn.addEventListener("click", async ()=>{
+  await Tone.start();
+  if(!isPlaying){
+    Tone.Transport.scheduleRepeat(playStep,"4n");
+    Tone.Transport.start();
+    isPlaying = true;
+    startStopBtn.textContent="Stop";
+  }else{
+    Tone.Transport.stop();
+    Tone.Transport.cancel();
+    isPlaying=false;
+    startStopBtn.textContent="Start";
+    step=0;
+    highlightStep();
+  }
+});
+</script>
+
+</body>
+</html>
