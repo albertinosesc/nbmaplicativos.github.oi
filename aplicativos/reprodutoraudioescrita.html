@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Áudio Interativo e Compositor ABC</title>
+    <script src="https://unpkg.com/tone@14.7.58/build/Tone.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        :root {
+            --primary-c: #2c3e50;
+            --secondary-c: #34495e;
+            --accent-c: #3498db;
+            --light-c: #ecf0f1;
+            --success-c: #2ecc71;
+            --warning-c: #e74c3c;
+            --radius: 5px;
+            --shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+            --transition: all 0.2s ease;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', sans-serif; line-height: 1.5;
+            font-size: 14px;
+            color: var(--primary-c);
+            background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            min-height: 100vh;
+            padding: 15px;
+        }
+        .container {
+            max-width: 900px; margin: 0 auto; background-color: white;
+            border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden;
+        }
+
+        /* --- Estrutura e Títulos --- */
+        .header {
+            background-color: var(--primary-c); color: white;
+            padding: 15px 20px;
+            text-align: center;
+        }
+        .header h1 {
+            font-weight: 600;
+            font-size: 1.5rem;
+            margin-bottom: 3px;
+        }
+        .header p {
+            font-size: 0.9rem;
+        }
+        .content {
+            padding: 20px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        .section-title {
+            font-weight: 600;
+            font-size: 1.2rem;
+            margin-bottom: 15px;
+            color: var(--secondary-c); border-bottom: 1px solid var(--accent-c);
+            padding-bottom: 8px;
+        }
+
+        /* --- Status/Upload (f-up) --- */
+        .f-up {
+            gap: 10px;
+            padding: 15px;
+            border: 1px dashed #bdc3c7;
+            border-radius: var(--radius);
+        }
+        .f-up input[type="file"] { max-width: 250px; padding: 6px; font-size: 0.9rem; border-radius: var(--radius); }
+        .status {
+            padding: 8px 12px;
+            border-radius: var(--radius);
+            font-weight: 500;
+        }
+
+        /* --- Controles PRINCIPAIS (c-grid) --- */
+        /* Novo estilo para um grid de 3 colunas para Controles de Pitch/Rate/Loop */
+        .c-grid {
+            /* Força 3 colunas iguais para Pitch, Rate e Loop Settings */
+            display: grid; 
+            grid-template-columns: repeat(3, 1fr); 
+            gap: 10px; /* Reduzido o gap */
+            margin-top: 15px;
+        }
+        /* Ajuste do min-width para o layout de 3 colunas */
+        .c-grp {
+            padding: 12px; /* Padding do grupo de controle reduzido */
+            border-radius: var(--radius);
+            border: 1px solid #eee;
+        }
+        .c-label {
+            margin-bottom: 5px; /* Espaçamento do label reduzido */
+            font-size: 0.85rem; /* Fonte do label reduzida */
+        }
+        .r-grp { gap: 8px; } /* Espaçamento do range reduzido */
+        .c-grp input[type="number"] {
+            width: 50px; /* Largura do campo numérico reduzida */
+            padding: 4px; /* Padding do campo numérico reduzido */
+            border-radius: var(--radius);
+            font-size: 0.85rem;
+        }
+        .c-box { gap: 6px; margin-top: 5px; align-items: center; } /* Checkbox mais compacto */
+        .c-box input[type="checkbox"] { width: 14px; height: 14px; } /* Checkbox menor */
+
+        /* Adicionando classe para o alinhamento horizontal dos valores de Pitch/Rate */
+        .c-value-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 5px;
+            font-size: 0.85rem;
+        }
+
+        /* --- Barras e Range Inputs --- */
+        input[type="range"] {
+            height: 4px;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            width: 14px;
+            height: 14px;
+        }
+
+        /* --- Controles de Reprodução (btn-playback) --- */
+        /* Novo container para agrupar botões e barra de progresso horizontalmente */
+        .btn-playback-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .btn-grp {
+            display: flex;
+            gap: 8px;
+            flex-shrink: 0; /* Não permite que os botões diminuam */
+        }
+        button {
+            padding: 6px 12px; /* Padding dos botões reduzido */
+            border-radius: var(--radius);
+            font-weight: 500;
+            gap: 4px; /* Espaçamento interno do botão reduzido */
+            min-width: 90px; /* Min-width reduzido */
+            font-size: 0.85rem; /* Fonte do botão reduzida */
+        }
+
+        /* --- Progresso (prog) - Adaptado para o novo layout --- */
+        .prog {
+            flex-grow: 1; /* Permite que o progresso ocupe o espaço restante */
+            padding: 10px; /* Padding do container de progresso reduzido */
+            margin-top: 0; /* Removido margem superior para alinhar */
+            background-color: transparent; /* Fundo transparente */
+            border: 1px solid #ddd;
+        }
+        .prog-row { gap: 8px; margin-bottom: 8px; }
+        #progress-bar { flex-grow: 1; }
+        #time-display {
+            font-size: 0.85rem;
+            min-width: 90px;
+        }
+        .loop-c { gap: 8px; }
+        .loop-i { gap: 4px; }
+        .loop-label { font-size: 0.75rem; } /* Label do loop ainda menor */
+        .loop-time { font-size: 0.75rem; }
+
+        /* --- Compositor ABC --- */
+        textarea#abc-input {
+            height: 120px;
+            font-size: 13px;
+            padding: 8px;
+            margin-bottom: 10px;
+            border-radius: var(--radius);
+        }
+        #notation-output {
+            padding: 8px;
+            min-height: 150px;
+            margin-top: 10px;
+            border-radius: var(--radius);
+        }
+        .abc-time {
+            font-size: 0.9rem;
+            margin-top: 8px;
+        }
+        .abc-btn-grp { gap: 10px; }
+
+        /* Linha divisória */
+        hr { margin: 30px 0 !important; }
+
+        /* --- Media Queries (responsividade para o novo layout) --- */
+        @media (max-width: 768px) {
+             /* Reduz para 2 colunas em tablets */
+            .c-grid { grid-template-columns: repeat(2, 1fr); }
+            /* Quebra o container de botões/progresso */
+            .btn-playback-group { flex-direction: column; align-items: stretch; }
+            .prog { margin-bottom: 15px; }
+            .btn-grp { justify-content: stretch; }
+            .btn-grp button { flex-grow: 1; }
+        }
+
+        @media (max-width: 500px) {
+            /* Reduz para 1 coluna em celulares */
+            .c-grid { grid-template-columns: 1fr; }
+            .prog { padding: 12px; }
+            .loop-c { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Áudio Interativo e Compositor ABC</h1>
+            <p>Reprodutor de arquivos com pitch/rate e editor de partitura musical</p>
+        </div>
+
+        <div class="content">
+
+            <div class="section">
+                <h2 class="section-title">1. Reprodutor de Arquivo de Áudio (.mp3, .wav, etc.)</h2>
+
+                <div class="f-up">
+                    <input type="file" id="audio-file-input" accept="audio/*">
+                    <p id="audio-status" class="status wait">Aguardando arquivo...</p>
+                </div>
+
+                <div class="c-grid">
+                    <div class="c-grp">
+                        <label class="c-label">Transposição (Tom)</label>
+                        <div class="r-grp">
+                            <input type="range" id="pitch-range" min="-12" max="12" value="0" step="1" oninput="updatePitch(this.value)" disabled>
+                            <input type="number" id="pitch-number" min="-12" max="12" value="0" step="1" onchange="updatePitch(this.value)" disabled>
+                        </div>
+                         <div class="c-value-row">
+                            <span>Semitons:</span>
+                            <span id="pitch-value">0</span>
+                        </div>
+                    </div>
+
+                    <div class="c-grp">
+                        <label class="c-label">Velocidade (Andamento)</label>
+                        <div class="r-grp">
+                            <input type="range" id="rate-range" min="0.5" max="2.0" value="1.0" step="0.05" oninput="updateRate(this.value)" disabled>
+                            <input type="number" id="rate-number" min="0.5" max="2.0" value="1.0" step="0.05" onchange="updateRate(this.value)" disabled>
+                        </div>
+                        <div class="c-value-row">
+                            <span>Multiplicador:</span>
+                            <span id="rate-value">1.00x</span>
+                        </div>
+                    </div>
+
+                    <div class="c-grp">
+                        <label class="c-label">Configurações de Loop</label>
+                        <div class="c-box">
+                            <input type="checkbox" id="loop-toggle" disabled>
+                            <label for="loop-toggle" class="c-label" style="margin:0;">Ativar Loop</label>
+                        </div>
+
+
+                    </div>
+<div class="prog">
+                        <div class="prog-row">
+                            <input type="range" id="progress-bar" min="0" max="100" value="0" step="0.1" disabled>
+                            <span id="time-display">00:00 / 00:00</span>
+                        </div>
+
+                        <div class="loop-c">
+                            <div class="loop-i">
+                                <label class="loop-label">Início do Loop</label>
+                                <input type="range" id="loop-start" min="0" max="100" value="0" step="0.1" disabled>
+                                <span id="loop-start-time" class="loop-time">00:00</span>
+                            </div>
+                            <div class="loop-i">
+                                <label class="loop-label">Fim do Loop</label>
+                                <input type="range" id="loop-end" min="0" max="100" value="100" step="0.1" disabled>
+                                <span id="loop-end-time" class="loop-time">00:00</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="btn-playback-group">
+                     <div class="btn-grp">
+                        <button id="play-pause-button" class="btn-primary" onclick="togglePlayback()" disabled>
+                            <span>▶</span> Play
+                        </button>
+                        <button id="restart-button" class="btn-secondary" onclick="restartPlayback()" disabled>
+                            <span>↺</span> Reiniciar
+                        </button>
+                    </div>
+
+                    
+                </div>
+            </div>
+
+            <hr style="border: 0; height: 1px; background: #ddd; margin: 30px 0;">
+
+            <div class="section">
+                
+
+                <p style="margin-bottom: 10px; font-size: 0.9rem; color: #555;">Edite o código ABC .</p>
+
+                <textarea id="abc-input" rows="10" cols="50">X:1
+T:Exemplo ABC
+C:Compositor
+Q:120
+M:4/4
+L:1/4
+K:C
+C</textarea>
+
+                <div class="abc-btn-grp">
+                    <button id="abc-play-btn" class="btn-primary"><span>▶</span> Tocar</button>
+                    <button id="abc-stop-btn" class="btn-secondary" disabled><span>⏹</span> Parar</button>
+                               
+                    <span id="abc-current-time">00:00</span> / <span id="abc-total-time">00:00</span>
+                </div>
+
+                <div id="notation-output"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // O JavaScript (Tone.js e abcjs) permanece funcionalmente o mesmo.
+        
+        let player, bufferDuration = 0;
+        let isPlaying = false;
+        let playbackRate = 1.0;
+        let offset = 0;
+        let startTime = 0;
+        let intervalId = null;
+        let loopStart = 0;
+        let loopEnd = 1;
+
+        function formatTime(t) {
+            const m = Math.floor(t / 60);
+            const s = Math.floor(t % 60);
+            return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+        }
+
+        function updateTimeDisplay(currentTime) {
+            document.getElementById('time-display').textContent =
+                `${formatTime(currentTime)} / ${formatTime(bufferDuration)}`;
+        }
+
+        async function loadAudioFile(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            stopAbcMusic();
+            const statusElement = document.getElementById('audio-status');
+            statusElement.textContent = 'Carregando...';
+            statusElement.className = 'status load';
+
+            await Tone.start();
+            const reader = new FileReader();
+            reader.onload = async function(e) {
+                try {
+                    const arrayBuffer = e.target.result;
+                    const audioBuffer = await Tone.getContext().rawContext.decodeAudioData(arrayBuffer);
+                    setupPlayer(audioBuffer, file.name);
+                } catch (error) {
+                    statusElement.textContent = 'Erro ao carregar o áudio.';
+                    statusElement.className = 'status warning';
+                    if (player) player.dispose();
+                }
+            };
+            reader.onerror = () => {
+                statusElement.textContent = 'Erro ao ler o arquivo.';
+                statusElement.className = 'status warning';
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function setupPlayer(buffer, name) {
+            if (player) player.dispose();
+            player = new Tone.GrainPlayer(buffer).toDestination();
+            player.loop = false;
+            player.detune = 0;
+            player.playbackRate = 1.0;
+
+            bufferDuration = buffer.duration;
+            updateTimeDisplay(0);
+
+            const statusElement = document.getElementById('audio-status');
+            statusElement.textContent = `Áudio "${name}" carregado com sucesso!`;
+            statusElement.className = 'status success';
+
+            document.querySelectorAll('#pitch-range, #pitch-number, #rate-range, #rate-number, #loop-toggle, #progress-bar, #loop-start, #loop-end, #play-pause-button, #restart-button').forEach(el => el.disabled = false);
+
+            document.getElementById('loop-end-time').textContent = formatTime(bufferDuration);
+            offset = 0;
+        }
+
+        function togglePlayback() {
+            if (!player) return;
+            if (isPlaying) pausePlayback();
+            else startPlayback();
+        }
+
+        function startPlayback() {
+            if (isPlaying) return;
+            if (offset >= bufferDuration) offset = 0;
+
+            startTime = Tone.now() - offset / playbackRate;
+            player.start(undefined, offset);
+            isPlaying = true;
+            document.getElementById('play-pause-button').innerHTML = '<span>⏸</span> Pause';
+            intervalId = setInterval(updateProgress, 100);
+        }
+
+        function pausePlayback() {
+            if (!isPlaying) return;
+            offset = (Tone.now() - startTime) * playbackRate;
+            player.stop();
+            isPlaying = false;
+            document.getElementById('play-pause-button').innerHTML = '<span>▶</span> Play';
+            clearInterval(intervalId);
+        }
+
+        function restartPlayback() {
+            pausePlayback();
+            const loopActive = document.getElementById('loop-toggle').checked;
+            offset = (loopActive && loopStart < loopEnd) ? loopStart * bufferDuration : 0;
+            startPlayback();
+        }
+
+        document.getElementById('loop-toggle').addEventListener('change', e => {
+            if (player) player.loop = e.target.checked;
+        });
+
+        document.getElementById('loop-start').addEventListener('input', e => {
+            if (!bufferDuration) return;
+            loopStart = parseFloat(e.target.value) / 100;
+            document.getElementById('loop-start-time').textContent = formatTime(loopStart * bufferDuration);
+            if (player) player.loopStart = loopStart * bufferDuration;
+        });
+
+        document.getElementById('loop-end').addEventListener('input', e => {
+            if (!bufferDuration) return;
+            loopEnd = parseFloat(e.target.value) / 100;
+            document.getElementById('loop-end-time').textContent = formatTime(loopEnd * bufferDuration);
+            if (player) player.loopEnd = loopEnd * bufferDuration;
+        });
+
+        function updatePitch(value) {
+            const v = parseInt(value);
+            document.getElementById('pitch-range').value = v;
+            document.getElementById('pitch-number').value = v;
+            document.getElementById('pitch-value').textContent = v;
+            if (player) player.detune = v * 100;
+        }
+
+        function updateRate(value) {
+            const v = parseFloat(value);
+            document.getElementById('rate-range').value = v;
+            document.getElementById('rate-number').value = v;
+            document.getElementById('rate-value').textContent = v.toFixed(2) + 'x';
+            playbackRate = v;
+            if (player) {
+                const currentOffset = (Tone.now() - startTime) * player.playbackRate;
+                player.playbackRate = playbackRate;
+                offset = currentOffset;
+                startTime = Tone.now() - offset / playbackRate;
+            }
+        }
+
+        function updateProgress() {
+            const elapsed = (Tone.now() - startTime) * playbackRate;
+            const progress = Math.min(elapsed / bufferDuration, 1);
+            document.getElementById('progress-bar').value = progress * 100;
+            updateTimeDisplay(elapsed);
+
+            const loopActive = document.getElementById('loop-toggle').checked;
+            if (loopActive && loopStart < loopEnd) {
+                const loopStartTime = loopStart * bufferDuration;
+                const loopEndTime = loopEnd * bufferDuration;
+                if (elapsed >= loopEndTime) {
+                    offset = loopStartTime;
+                    restartPlayback();
+                }
+            } else if (progress >= 1) {
+                pausePlayback();
+                offset = bufferDuration;
+                document.getElementById('progress-bar').value = 100;
+                updateTimeDisplay(bufferDuration);
+            }
+        }
+
+        document.getElementById('progress-bar').addEventListener('input', e => {
+            if (!player || !bufferDuration) return;
+            pausePlayback();
+            const newTime = (e.target.value / 100) * bufferDuration;
+            offset = newTime;
+            updateTimeDisplay(newTime);
+        });
+
+        document.getElementById('progress-bar').addEventListener('change', e => {
+            if (player && !isPlaying) {
+                startPlayback();
+            }
+        });
+
+        document.getElementById('audio-file-input').addEventListener('change', loadAudioFile);
+
+
+        // =================================================================
+        // Lógica do Compositor ABC (abcjs)
+        // =================================================================
+
+        let visualObj = null;
+        let synth = null;
+        let isAbcPlaying = false;
+        let abcStartTime = 0;
+        let abcElapsedTime = 0;
+        let abcTotalDuration = 0;
+        let abcAnimationFrameId = null;
+
+        const abcInput = document.getElementById('abc-input');
+        const abcPlayBtn = document.getElementById('abc-play-btn');
+        const abcStopBtn = document.getElementById('abc-stop-btn');
+        const abcCurrentTimeDisplay = document.getElementById('abc-current-time');
+        const abcTotalTimeDisplay = document.getElementById('abc-total-time');
+        const notationOutput = document.getElementById('notation-output');
+
+        function formatAbcTime(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = Math.floor(seconds % 60).toString().padStart(2, '0');
+            return `${m}:${s}`;
+        }
+
+        function updateAbcProgress() {
+            if (!isAbcPlaying) return;
+            const currentTime = (Date.now() - abcStartTime) / 1000 + abcElapsedTime;
+            abcCurrentTimeDisplay.textContent = formatAbcTime(currentTime);
+
+            if (currentTime >= abcTotalDuration) {
+                stopAbcMusic();
+                return;
+            }
+            abcAnimationFrameId = requestAnimationFrame(updateAbcProgress);
+        }
+
+        async function renderNotation() {
+            notationOutput.innerHTML = '';
+            if (synth) { stopAbcMusic(); synth = null; }
+            try {
+                visualObj = ABCJS.renderAbc("notation-output", abcInput.value, { responsive: "resize", staffwidth: 800 })[0];
+
+                const notes = abcInput.value.match(/[A-Ga-g][,']*\d*/g) || [];
+                abcTotalDuration = (visualObj && visualObj.millisecondsPerMeasure && visualObj.totalMeasures) ?
+                    (visualObj.millisecondsPerMeasure * visualObj.totalMeasures) / 1000 :
+                    Math.max(notes.length * 0.5, 4);
+
+                abcTotalTimeDisplay.textContent = formatAbcTime(abcTotalDuration);
+                abcCurrentTimeDisplay.textContent = formatAbcTime(0);
+            } catch (e) {
+                notationOutput.innerHTML = '<p style="color: var(--warning-c);">Erro na sintaxe ABC. Verifique o código.</p>';
+            }
+        }
+
+        async function initSynth() {
+            if (!visualObj) return;
+            if (synth) { stopAbcMusic(); synth = null; }
+            synth = new ABCJS.synth.CreateSynth();
+            await synth.init({ visualObj });
+            await synth.prime();
+        }
+
+        async function startAbcMusic(fromTime = 0) {
+            if (isPlaying) pausePlayback();
+
+            if (!synth) await initSynth();
+            if (isAbcPlaying) stopAbcMusic();
+            if (!synth) return;
+
+            abcElapsedTime = fromTime;
+            abcStartTime = Date.now();
+            isAbcPlaying = true;
+            abcPlayBtn.disabled = true;
+            abcStopBtn.disabled = false;
+
+            await synth.start({ callback: stopAbcMusic });
+            abcAnimationFrameId = requestAnimationFrame(updateAbcProgress);
+        }
+
+        function stopAbcMusic() {
+            if (isAbcPlaying && synth) {
+                synth.stop();
+            }
+            isAbcPlaying = false;
+            abcPlayBtn.disabled = false;
+            abcStopBtn.disabled = true;
+            if (abcAnimationFrameId) {
+                cancelAnimationFrame(abcAnimationFrameId);
+                abcAnimationFrameId = null;
+            }
+            abcElapsedTime = 0;
+            abcCurrentTimeDisplay.textContent = formatAbcTime(0);
+        }
+
+        abcPlayBtn.addEventListener('click', () => {
+            startAbcMusic(abcElapsedTime);
+        });
+
+        abcStopBtn.addEventListener('click', stopAbcMusic);
+
+        abcInput.addEventListener('input', () => {
+            renderNotation();
+            if (isAbcPlaying) stopAbcMusic();
+        });
+
+        renderNotation();
+    </script>
+</body>
+</html>
