@@ -155,8 +155,8 @@ button { cursor:pointer; }
    ============================ */
 // Base para cálculos musicais (12 notas)
 const NOTE_NAMES_BASE = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-// Nomes de notas para a UI (13 notas, incluindo C(5))
-const NOTE_NAMES = [...NOTE_NAMES_BASE, "C(5)"]; 
+// Nomes de notas para a UI (13 notas, incluindo C(6))
+const NOTE_NAMES = [...NOTE_NAMES_BASE, "C(6)"]; 
 const MODOS = {
   ionian:        [0,2,4,5,7,9,11],
   dorian:        [0,2,3,5,7,9,10],
@@ -170,7 +170,7 @@ const MODOS = {
   chromatic:     [0,1,2,3,4,5,6,7,8,9,10,11]
 };
 
-// USANDO SYNTH SIMPLES E ROBUSTO (para garantir que o som funcione)
+// USANDO SYNTH SIMPLES E ROBUSTO (como solicitado)
 const synth = new Tone.Synth({
   // Um timbre simples de onda seno, ideal para testes de percepção e confiável
   oscillator: { type: "sine" }, 
@@ -228,23 +228,18 @@ const DOM = {
 /* ============================
    Conversões e utilitários musicais
    ============================ */
-// CONVERSÃO C(5) -> C5 e C(3), C(4) também são tratados
+// CORREÇÃO: Lógica para o C(6) acompanhar a oitava base, mas ser sempre a oitava acima.
 function letterToScientific(letter, octave){
-  if (letter.match(/^C\(\d\)$/)) {
-    // CORREÇÃO: O C(5) deve ser UMA OITAVA ACIMA da oitava base selecionada, 
-    // exceto se a oitava base for 5 (mantemos 5 como limite superior).
-    const targetOctave = (octave < 5) ? (octave + 1) : 5;
+  if (letter === "C(6)") {
+    // C(6) deve ser a Oitava Acima da base. Se base=4 -> C5. Se base=5 -> C6.
+    const targetOctave = Math.min(6, octave + 1); 
     return "C" + targetOctave;
   }
-  
-  if (letter === "C") {
-    // O C puro (tônica) sempre usa a oitava base selecionada
-    return "C" + octave;
-  }
-
-  // Para as outras notas (C# a B), usa a oitava selecionada
+  // Para as outras 12 notas, usa a oitava selecionada
   return letter + octave; 
 }
+
+
 
 function midiToScientific(m){ 
   const idx = ((m%12)+12)%12; 
@@ -276,111 +271,97 @@ function generateModeScaleMidi(root, modo, octave){
   return { midis, tonicMidi };
 }
 
-/** * Constroi a sequência COMPLETA (Tônica -> Escala -> Nota Secreta -> Escala -> Tônica) 
- * A tônica de início/fim define a oitava da escala.
+/** * Constroi sequência a partir da nota secreta e fecha na tônica (superior ou inferior).
+ * Esta versão corrige a determinação do targetMidi para C(6) e a subsequente busca na escala.
  */
-function buildFullSequence(selectedNoteName, scaleData, dir, baseOctave){
+function buildSequenceForSecret(selectedNoteName, scaleData, dir, baseOctave){
   const { midis, tonicMidi } = scaleData;
-  
+  const tonicAbove = tonicMidi + 12;
+  const tonicBelow = tonicMidi - 12;
+  const tonicTwoAbove = tonicAbove + 12;
+
   let targetMidi;
   
-  // 1. Encontra o MIDI da nota secreta (na oitava correta)
-  if (selectedNoteName.match(/^C\(\d\)$/)) {
-    const explicitOctave = parseInt(selectedNoteName.match(/\((\d)\)/)[1], 10);
-    targetMidi = 12 * (explicitOctave + 1) + NOTE_NAMES_BASE.indexOf('C');
+  // 1. Encontra o MIDI da nota secreta
+  if (selectedNoteName === "C(6)") {
+    // C(6) deve ser C uma oitava acima, GARANTIDO
+    targetMidi = tonicAbove; 
   } else {
-    // Aplica a mesma lógica de oitava que em letterToScientific para C
-    let effectiveOctave = baseOctave;
-    if (selectedNoteName === "C" && baseOctave === 5) {
-      effectiveOctave = 4;
-    }
-
+    // Para as outras notas (C a B), usa a oitava base (C4 a B4)
     const rootIdx = NOTE_NAMES_BASE.indexOf(selectedNoteName);
-    targetMidi = 12 * (effectiveOctave + 1) + rootIdx;
+    targetMidi = 12 * (baseOctave + 1) + rootIdx;
   }
 
-  // 2. Estende a escala para a próxima oitava (para o fim da sequência ascendente)
-  let fullScaleMidis = [...midis];
-  const tonicAbove = tonicMidi + 12;
+  // 2. Monta a Escala Completa (garante no mínimo C3 a C6 para cobrir o ciclo)
+  let fullScaleMidis = [];
   
-  // Adiciona a próxima oitava da escala para ter cobertura
-  fullScaleMidis = fullScaleMidis.concat(midis.map(m => m + 12));
+  // C3 a B3
+  midis.forEach(m => fullScaleMidis.push(m - 12));
+  // C4 a B4
+  fullScaleMidis = fullScaleMidis.concat(midis);
+  // C5 a B5
+  midis.forEach(m => fullScaleMidis.push(m + 12));
   
-  // 3. Adiciona a Nota Secreta (Target) e a Tônica Superior na lista e ordena
-  if(!fullScaleMidis.includes(targetMidi)) {
-    fullScaleMidis.push(targetMidi);
-  }
-  if(!fullScaleMidis.includes(tonicAbove)) {
-    fullScaleMidis.push(tonicAbove);
-  }
+  // Adiciona tônicas necessárias e ordena
+  fullScaleMidis.push(tonicBelow, tonicMidi, tonicAbove, tonicTwoAbove);
+  fullScaleMidis = [...new Set(fullScaleMidis)].sort((a,b) => a-b);
   
-  // Remove duplicatas e ordena
-  fullScaleMidis = [...new Set(fullScaleMidis)].sort((a, b) => a - b);
-  
-  // 4. Constrói a sequência com início e fim definidos (TÔNICA)
-  const startTonic = tonicMidi;
-  const endTonic = tonicAbove;
+  // 3. Acha a posição exata da nota secreta
+  const targetIndex = fullScaleMidis.indexOf(targetMidi);
 
-  // Filtra as notas da escala estendida que estão no range [startTonic, endTonic]
-  let notesInRange = fullScaleMidis.filter(m => m >= startTonic && m <= endTonic);
-  
-  // GARANTE QUE A NOTA SECRETA ESTÁ NO RANGE, MESMO QUE FORA DA OITAVA DE REFERÊNCIA
-  if (!notesInRange.includes(targetMidi)) {
-    if (targetMidi < startTonic) {
-      // Se a nota secreta for mais grave que a tônica de início (ex: C(3) e tônica C4)
-      notesInRange = fullScaleMidis.filter(m => m >= targetMidi && m <= endTonic);
-      notesInRange.unshift(startTonic); 
-    } else if (targetMidi > endTonic) {
-      // Se a nota secreta for mais aguda que a tônica de fim (ex: C(6) e tônica C5)
-      notesInRange = fullScaleMidis.filter(m => m >= startTonic && m <= targetMidi);
-      notesInRange.push(endTonic); 
-    }
-    notesInRange = [...new Set(notesInRange)].sort((a, b) => a - b);
+  if(targetIndex === -1) {
+    // Fallback (não deve ocorrer)
+    return [targetMidi, tonicMidi]; 
   }
 
-  // Remove notas da escala se a nota secreta for a mesma classe de pitch em oitava diferente
-  let finalSeq = [...notesInRange]; 
-  if (targetMidi !== startTonic && targetMidi !== endTonic) {
-    const targetPitch = targetMidi % 12;
-    const noteToRemove = notesInRange.find(m => m !== targetMidi && m % 12 === targetPitch);
-    if (noteToRemove) {
-      finalSeq = finalSeq.filter(m => m !== noteToRemove);
-      finalSeq.push(targetMidi);
-      finalSeq.sort((a, b) => a - b);
-    }
-  }
-
-
+  let sequence = [];
+  
   if(dir === "asc"){
-    // Ordem: Tônica Base (C4) -> ... -> Tônica Oitava Acima (C5)
-    let resultAsc = finalSeq.filter(m => m >= startTonic && m <= endTonic);
-    if(resultAsc[0] !== startTonic) resultAsc.unshift(startTonic);
-    if(resultAsc[resultAsc.length-1] !== endTonic) resultAsc.push(endTonic);
+    // LÓGICA ASCENDENTE: Da nota secreta até a PRÓXIMA tônica acima.
     
-    // Adicionar Target se foi perdido (ex: C(5) é o target e C5 é o endTonic)
-    if (!resultAsc.includes(targetMidi) && targetMidi >= startTonic && targetMidi <= endTonic) {
-      resultAsc.push(targetMidi);
+    let nextTonic = tonicAbove; 
+    
+    // Encontra a tônica alvo correta (Ex: C5 deve ir para C6)
+    while (nextTonic <= targetMidi) { 
+      nextTonic += 12; 
     }
-    
-    return [...new Set(resultAsc)].sort((a,b) => a-b);
 
-  } else { // "desc"
-    // Ordem: Tônica Oitava Acima (C5) -> ... -> Tônica Base (C4)
-    let resultDesc = finalSeq.filter(m => m >= startTonic && m <= endTonic);
-    if(resultDesc[0] !== startTonic) resultDesc.unshift(startTonic);
-    if(resultDesc[resultDesc.length-1] !== endTonic) resultDesc.push(endTonic);
+    // Constrói a sequência a partir do índice da nota secreta até a tônica alvo
+    for(let i = targetIndex; i < fullScaleMidis.length; i++){
+      const midi = fullScaleMidis[i];
+      sequence.push(midi);
+      if(midi === nextTonic) break;
+    }
+
+  } else {
+    // LÓGICA DESCENDENTE: Da nota secreta até a PRÓXIMA tônica abaixo.
     
-    // Adicionar Target se foi perdido
-    if (!resultDesc.includes(targetMidi) && targetMidi >= startTonic && targetMidi <= endTonic) {
-      resultDesc.push(targetMidi);
+    let nextTonic = tonicMidi;
+    
+    // Encontra a tônica alvo correta (Ex: C5 deve ir para C4)
+    while (nextTonic > targetMidi) { 
+      nextTonic -= 12; 
     }
     
-    return [...new Set(resultDesc)].sort((a,b) => b-a);
+    // Se targetMidi for uma tônica (C5), a próxima tônica abaixo é C4
+    if (targetMidi === tonicAbove) {
+      nextTonic = tonicMidi;
+    }
+    
+    // Constrói a sequência a partir do índice da nota secreta até a tônica alvo
+    for(let i = targetIndex; i >= 0; i--){
+      const midi = fullScaleMidis[i];
+      sequence.push(midi);
+      if(midi === nextTonic) break;
+    }
   }
+  
+  // A primeira nota da sequência (sequence[0]) é sempre o targetMidi.
+  return sequence;
 }
 
 
-/* Convert midis -> ABC string tokens */
+
 function midisToABCTokens(midis){
   return midis.map(m => scientificToABC(midiToScientific(m))).join(" ");
 }
@@ -476,8 +457,8 @@ function updateUIState(){
   DOM.tomSelect.disabled = configDisabled;
   DOM.modoSelect.disabled = configDisabled;
   DOM.direcaoSelect.disabled = configDisabled;
-  // A oitava só deve ser desabilitada se a nota secreta for C(x) fixo.
-  DOM.oitavaSelect.disabled = configDisabled || (state.currentSecretNote && state.currentSecretNote.match(/^C\(\d\)$/)); 
+  // Oitava desabilitada se C(6) for a nota secreta, pois é fixa
+  DOM.oitavaSelect.disabled = configDisabled || state.currentSecretNote === 'C(6)'; 
   DOM.playTonicBefore.disabled = configDisabled;
   DOM.autoAdvance.disabled = configDisabled; 
   
@@ -544,8 +525,8 @@ async function playNextNote() {
   state.awaitingGuess = true;
   state.lastGuess = null;
   
-  // Desabilita a seleção de oitava se a nota for C(x), pois a oitava é fixa
-  DOM.oitavaSelect.disabled = state.currentSecretNote.match(/^C\(\d\)$/);
+  // Desabilita a seleção de oitava se C(6) for a nota secreta, pois a oitava é fixa
+  DOM.oitavaSelect.disabled = state.currentSecretNote === "C(6)";
 
   // Verifica o modo automático para atualizar o status/UI
   if (DOM.autoAdvance.checked) {
@@ -567,9 +548,8 @@ async function playNextNote() {
 
   // tocar tônica antes se ativado
   if(state.playTonic){
-    // Tônica sempre baseada na OITAVA SELECIONADA.
-    const tonicOctave = state.secretNoteOctave; 
-    const tonicMidi = 12 * (tonicOctave + 1) + NOTE_NAMES_BASE.indexOf(state.keyRoot);
+    // Determina a tônica na oitava da nota secreta
+    const tonicMidi = 12 * (state.secretNoteOctave + 1) + NOTE_NAMES_BASE.indexOf(state.keyRoot);
     const keyRootSci = midiToScientific(tonicMidi);
     playNoteScientific(keyRootSci, "4n");
     await new Promise(r => setTimeout(r, 800)); // Delay maior após a tônica
@@ -614,13 +594,9 @@ async function autoAdvanceSequence() {
   let modeToGenerate = state.modoAtual;
   if(state.modoAtual === "melodic_minor" && state.direction === "desc") modeToGenerate = "aeolian";
 
-  // A oitava base para a escala é SEMPRE a oitava selecionada.
-  const baseOctaveForScale = state.secretNoteOctave;
   // gerar escala na oitava base (a oitava da maioria das notas)
-  const scaleData = generateModeScaleMidi(state.keyRoot, modeToGenerate, baseOctaveForScale);
-  
-  // CHAMA A NOVA FUNÇÃO buildFullSequence
-  const seqMidis = buildFullSequence(state.currentSecretNote, scaleData, state.direction, baseOctaveForScale);
+  const scaleData = generateModeScaleMidi(state.keyRoot, modeToGenerate, state.secretNoteOctave);
+  const seqMidis = buildSequenceForSecret(state.currentSecretNote, scaleData, state.direction, state.secretNoteOctave);
   const scientificSeq = seqMidis.map(m => midiToScientific(m));
   const abcTokens = midisToABCTokens(seqMidis);
 
@@ -684,13 +660,9 @@ async function onGuess(e){
   let modeToGenerate = state.modoAtual;
   if(state.modoAtual === "melodic_minor" && state.direction === "desc") modeToGenerate = "aeolian";
 
-  // A oitava base para a escala é SEMPRE a oitava selecionada.
-  const baseOctaveForScale = state.secretNoteOctave;
   // gerar escala
-  const scaleData = generateModeScaleMidi(state.keyRoot, modeToGenerate, baseOctaveForScale);
-  
-  // CHAMA A NOVA FUNÇÃO buildFullSequence
-  const seqMidis = buildFullSequence(state.currentSecretNote, scaleData, state.direction, baseOctaveForScale);
+  const scaleData = generateModeScaleMidi(state.keyRoot, modeToGenerate, state.secretNoteOctave);
+  const seqMidis = buildSequenceForSecret(state.currentSecretNote, scaleData, state.direction, state.secretNoteOctave);
   const scientificSeq = seqMidis.map(m => midiToScientific(m));
   const abcTokens = midisToABCTokens(seqMidis);
 
@@ -816,6 +788,7 @@ document.addEventListener("DOMContentLoaded", () => {
   updateResponseButtons();
   updateScoreboard();
   updateUIState(); 
+  DOM.statusEl.textContent = "Áudio Sintetizado (MIDI) pronto. Clique em 'Iniciar Treino' para começar.";
 });
 
 </script>
