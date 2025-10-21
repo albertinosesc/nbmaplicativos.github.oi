@@ -1,12 +1,16 @@
+<!-- Projeto: 2-Percepção_Auditiva
+Descrição:  -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Percepção Auditiva — Modos e Escalas (Synth)</title>
+  <title>Percepção Auditiva</title>
 
   <script src="https://cdn.jsdelivr.net/npm/abcjs@6.4.2/dist/abcjs-basic-min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/tone@14.8.39/build/Tone.js"></script>
+  <script src="https://unpkg.com/tonejs-instrument@1.1.0/lib/Tone.instrument.js"></script>
+
 
   <style>
 /* Bloco CSS Completo */
@@ -45,7 +49,7 @@ button { cursor:pointer; }
   </style>
 </head>
 <body>
-  <h1>🎧 Treino de Percepção Auditiva — Modos e Escalas (Synth)</h1>
+  <h1>🎹 Treino de Percepção Auditiva — Modos e Escalas</h1>
 
   <div id="scoreboard">Acertos: <span id="correctCount">0</span> / Tentativas: <span id="attemptCount">0</span>
     <button onclick="resetScore()" style="margin-left:8px;padding:6px 10px;background:#c62828;color:white;border:none;border-radius:6px;cursor:pointer;" type="button">Limpar Placar</button>
@@ -68,8 +72,15 @@ button { cursor:pointer; }
     </div>
 
         <div class="control">
-      <label><strong>Tom (tônica)</strong></label>
+      <label><strong>Tônica da Sequência (Escala)</strong></label>
       <select id="tom">
+        <option value="C">C</option><option value="C#">C#</option><option value="D">D</option><option value="D#">D#</option>
+        <option value="E">E</option><option value="F">F</option><option value="F#">F#</option><option value="G">G</option>
+        <option value="G#">G#</option><option value="A">A</option><option value="A#">A#</option><option value="B">B</option>
+      </select>
+
+      <label style="margin-top:8px"><strong>Tônica do Intervalo (1ª Nota)</strong></label>
+      <select id="initialRootNote">
         <option value="C">C</option><option value="C#">C#</option><option value="D">D</option><option value="D#">D#</option>
         <option value="E">E</option><option value="F">F</option><option value="F#">F#</option><option value="G">G</option>
         <option value="G#">G#</option><option value="A">A</option><option value="A#">A#</option><option value="B">B</option>
@@ -113,7 +124,7 @@ button { cursor:pointer; }
       <label style="margin-top:8px"><strong>Tocar tônica antes da nota oculta</strong></label>
       <div class="checkbox-row">
         <input type="checkbox" id="playTonicBefore" checked>
-        <label for="playTonicBefore" style="margin:0; font-weight:normal;">Ativado</label>
+        <label for="playTonicBefore" style="margin:0; font-weight:normal;">Ativado (Toca Tônica do Intervalo)</label>
       </div>
 
           <label style="margin-top:8px"><strong>Avançar Automaticamente</strong></label>
@@ -146,7 +157,7 @@ button { cursor:pointer; }
   </div>
 
   <div id="paper"></div>
-  <div id="status" class="status-default">Áudio Sintetizado (MIDI) pronto. Clique em "Iniciar Treino" para começar.</div>
+  <div id="status" class="status-default">🎹 Carregando Piano Acústico...</div>
   <div class="note-buttons" id="noteButtons"></div>
 
 <script>
@@ -170,11 +181,50 @@ const MODOS = {
   chromatic:      [0,1,2,3,4,5,6,7,8,9,10,11]
 };
 
-// SYNTH simples
-const synth = new Tone.Synth({
+// ** INSTRUMENTOS **
+let instrument = null; // Pode ser Sampler ou Synth
+let instrumentType = 'sampler'; // 'sampler' ou 'synth'
+
+// ** Configuração do Synth Simples (Fallback) **
+const simpleSynthConfig = {
   oscillator: { type: "sine" },
   envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 0.4 }
-}).toDestination();
+};
+
+// Configuração do Sampler Piano (Usando tonejs-instrument)
+function setupInstrument() {
+  DOM.btnStart.disabled = true;
+  DOM.statusEl.textContent = "🎹 Carregando Piano Acústico...";
+  
+  // Tenta carregar o Piano Sampler
+  try {
+    instrument = new Tone.Sampler({
+      urls: Tone.Instrument.loadPiano(), // Função da biblioteca tonejs-instrument
+      onload: () => {
+        instrument.toDestination();
+        instrumentType = 'sampler';
+        DOM.statusEl.textContent = "🎹 Piano Acústico pronto. Clique em 'Iniciar Treino' para começar.";
+        DOM.btnStart.disabled = false;
+        DOM.statusEl.className = "status-default";
+      },
+      onerror: (error) => {
+        console.error("Erro ao carregar samples do Piano. Fallback para Synth simples.", error);
+        fallbackToSimpleSynth();
+      }
+    });
+  } catch(e) {
+    console.error("Erro ao inicializar Sampler. Fallback para Synth simples.", e);
+    fallbackToSimpleSynth();
+  }
+}
+
+function fallbackToSimpleSynth() {
+    instrument = new Tone.Synth(simpleSynthConfig).toDestination();
+    instrumentType = 'synth';
+    DOM.statusEl.textContent = "🔊 Falha no Piano. Áudio Sintetizado (Synth) pronto. Clique em 'Iniciar Treino'.";
+    DOM.btnStart.disabled = false;
+    DOM.statusEl.className = "status-default";
+}
 
 // Estado central
 const state = {
@@ -183,10 +233,11 @@ const state = {
   currentSecretNote: null,
   secretNoteOctave: 4,
   selectedNotes: [],
-  keyRoot: "C",
+  keyRoot: "C", // Tônica da Escala
+  initialRoot: "C", // Tônica do Intervalo (primeira nota)
   modoAtual: "ionian",
   direction: "asc",
-  playTonic: true,
+  playTonic: true, // Se refere à initialRootNote
   score: { correct:0, attempts:0 },
   pendingTimeout: null,
   lastGuess: null
@@ -203,6 +254,7 @@ const DOM = {
   paperEl: document.getElementById("paper"),
   notasSelect: document.getElementById("notas"),
   tomSelect: document.getElementById("tom"),
+  initialRootNoteSelect: document.getElementById("initialRootNote"),
   modoSelect: document.getElementById("modo"),
   direcaoSelect: document.getElementById("direcao"),
   oitavaSelect: document.getElementById("oitava"),
@@ -216,6 +268,20 @@ const DOM = {
   delayAfterRange: document.getElementById("delayAfterRange"),
   delayAfterNum: document.getElementById("delayAfterNum")
 };
+
+// Popula o Select da Tônica do Intervalo
+function populateInitialRootNoteSelect() {
+    const select = DOM.initialRootNoteSelect;
+    select.innerHTML = '';
+    NOTE_NAMES_BASE.forEach(note => {
+        const option = document.createElement('option');
+        option.value = note;
+        option.textContent = note;
+        if (note === 'C') option.selected = true;
+        select.appendChild(option);
+    });
+}
+
 
 /* ============================
    Conversões e utilitários musicais
@@ -263,68 +329,104 @@ function generateModeScaleMidi(root, modo, octave){
 function buildSequenceForSecret(selectedNoteName, scaleData, dir, baseOctave){
   const { midis, tonicMidi } = scaleData;
   const tonicAbove = tonicMidi + 12;
-  const tonicBelow = tonicMidi - 12;
   const tonicTwoAbove = tonicAbove + 12;
 
   let targetMidi;
 
   if (selectedNoteName === "C(6)") {
-    targetMidi = tonicAbove;
+    targetMidi = tonicAbove; 
   } else {
     const rootIdx = NOTE_NAMES_BASE.indexOf(selectedNoteName);
     targetMidi = 12 * (baseOctave + 1) + rootIdx;
+    
+    let foundMidi = midis.find(m => ((m % 12) === (targetMidi % 12)));
+    if (foundMidi === undefined) {
+         targetMidi = 12 * (baseOctave + 1) + rootIdx;
+    } else {
+        targetMidi = foundMidi;
+    }
   }
 
-  // Monta escala ampla (C3..C6) para garantir cobertura
   let fullScaleMidis = [];
   midis.forEach(m => fullScaleMidis.push(m - 12));
   fullScaleMidis = fullScaleMidis.concat(midis);
   midis.forEach(m => fullScaleMidis.push(m + 12));
-  fullScaleMidis.push(tonicBelow, tonicMidi, tonicAbove, tonicTwoAbove);
   fullScaleMidis = [...new Set(fullScaleMidis)].sort((a,b) => a-b);
+  
+  if(!fullScaleMidis.includes(targetMidi)) {
+      fullScaleMidis.push(targetMidi);
+      fullScaleMidis.sort((a,b) => a-b);
+  }
 
   const targetIndex = fullScaleMidis.indexOf(targetMidi);
   if(targetIndex === -1){
-    return [targetMidi, tonicMidi];
+    return [targetMidi]; 
   }
 
   let sequence = [];
 
   if(dir === "asc"){
     let nextTonic = tonicAbove;
-    while (nextTonic <= targetMidi) {
+    while (nextTonic < targetMidi) {
       nextTonic += 12;
     }
+    
     for(let i = targetIndex; i < fullScaleMidis.length; i++){
       const midi = fullScaleMidis[i];
       sequence.push(midi);
-      if(midi === nextTonic) break;
+      if(midi >= nextTonic) {
+          if (midi > nextTonic) { 
+              sequence.pop();
+              sequence.push(nextTonic);
+          }
+          break;
+      }
     }
-  } else {
+  } else { // Descendente
     let nextTonic = tonicMidi;
     while (nextTonic > targetMidi) {
       nextTonic -= 12;
     }
-    if (targetMidi === tonicAbove) {
-      nextTonic = tonicMidi;
-    }
+    
     for(let i = targetIndex; i >= 0; i--){
       const midi = fullScaleMidis[i];
       sequence.push(midi);
-      if(midi === nextTonic) break;
+      if(midi <= nextTonic) {
+           if (midi < nextTonic) {
+              sequence.pop();
+              sequence.push(nextTonic);
+          }
+          break;
+      }
     }
   }
 
   return sequence;
 }
 
+
 function midisToABCTokens(midis){
   return midis.map(m => scientificToABC(midiToScientific(m))).join(" ");
 }
 
-function renderABC(tokens, key){
-  if(!tokens || tokens.length === 0){ DOM.paperEl.innerHTML = ""; return; }
-  const abc = `X:1\nL:1/4\nK:${key}\n${tokens}`;
+function renderABC(tokens, key, initialRoot){
+  let abcTokens = tokens;
+  
+  if (state.playTonic) {
+    const initialNoteSci = letterToScientific(initialRoot, state.secretNoteOctave);
+    const initialNoteABC = scientificToABC(initialNoteSci);
+    const secretNoteSci = letterToScientific(state.currentSecretNote, state.secretNoteOctave);
+    const secretNoteABC = scientificToABC(secretNoteSci);
+    
+    abcTokens = `[L:1/2] ${initialNoteABC} ${secretNoteABC} | [L:1/4] ${tokens}`;
+    
+  } else {
+    const secretNoteSci = letterToScientific(state.currentSecretNote, state.secretNoteOctave);
+    const secretNoteABC = scientificToABC(secretNoteSci);
+    abcTokens = `[L:1/2] ${secretNoteABC} | [L:1/4] ${tokens}`;
+  }
+  
+  const abc = `X:1\nL:1/4\nK:${key}\n${abcTokens}`;
   try {
     ABCJS.renderAbc("paper", abc);
   } catch(e){
@@ -337,8 +439,9 @@ function renderABC(tokens, key){
    ÁUDIO: tocar nota
    ============================ */
 function playNoteScientific(sci, dur="8n"){
+  if (!instrument) return false;
   try {
-    synth.triggerAttackRelease(sci, dur);
+    instrument.triggerAttackRelease(sci, dur);
     return true;
   } catch (error) {
     console.error("Erro ao tocar nota:", sci, error);
@@ -350,10 +453,13 @@ function playNoteScientific(sci, dur="8n"){
 function playScientificSequence(scientificNotes) {
   return new Promise(async (resolve) => {
     const delayBetween = parseInt(DOM.delayBetweenNum.value, 10);
+    // Duração da nota ajustada se for Synth ou Sampler
+    const noteDuration = instrumentType === 'synth' ? "8n" : (delayBetween > 200 ? "4n" : "8n"); 
+    
     for(let i = 0; i < scientificNotes.length; i++) {
       if(!state.playing) break;
       const note = scientificNotes[i];
-      playNoteScientific(note, "8n");
+      playNoteScientific(note, noteDuration);
       if(i < scientificNotes.length - 1) {
         await new Promise(r => setTimeout(r, delayBetween));
       }
@@ -363,7 +469,9 @@ function playScientificSequence(scientificNotes) {
 }
 
 function playHiddenScientific(sci){
-  playNoteScientific(sci, "4n");
+  // Duração maior para a nota secreta / do intervalo
+  const dur = instrumentType === 'synth' ? "4n" : "2n";
+  playNoteScientific(sci, dur); 
 }
 
 /* ============================
@@ -398,13 +506,16 @@ function updateResponseButtons(){
 }
 
 function updateUIState(){
-  DOM.btnStart.disabled = state.playing;
+  // Desabilita Start se o instrumento não estiver pronto (independentemente de ser Sampler ou Synth)
+  const isInstrumentReady = instrument && (instrumentType === 'synth' || instrument.loaded);
+  DOM.btnStart.disabled = state.playing || !isInstrumentReady;
   DOM.btnStop.disabled = !state.playing;
   DOM.btnRepeat.disabled = !(state.playing && state.awaitingGuess);
 
   const configDisabled = state.playing && !state.awaitingGuess;
   DOM.notasSelect.disabled = configDisabled;
   DOM.tomSelect.disabled = configDisabled;
+  DOM.initialRootNoteSelect.disabled = configDisabled;
   DOM.modoSelect.disabled = configDisabled;
   DOM.direcaoSelect.disabled = configDisabled;
   DOM.oitavaSelect.disabled = configDisabled || state.currentSecretNote === 'C(6)';
@@ -425,7 +536,9 @@ function updateUIState(){
    ============================ */
 
 async function startRound(){
-  if(state.playing) return;
+  const isInstrumentReady = instrument && (instrumentType === 'synth' || instrument.loaded);
+  if(state.playing || !isInstrumentReady) return;
+  
   const selOpts = Array.from(DOM.notasSelect.selectedOptions);
   if(selOpts.length === 0){
     alert("Selecione pelo menos uma nota!");
@@ -442,13 +555,14 @@ async function startRound(){
   state.playing = true;
   state.selectedNotes = selOpts.map(o => o.value);
   state.keyRoot = DOM.tomSelect.value;
+  state.initialRoot = DOM.initialRootNoteSelect.value;
   state.modoAtual = DOM.modoSelect.value;
   state.direction = DOM.direcaoSelect.value;
   state.secretNoteOctave = parseInt(DOM.oitavaSelect.value, 10);
   state.playTonic = DOM.playTonicBefore.checked;
 
   DOM.paperEl.innerHTML = "";
-  DOM.statusEl.textContent = "Treino ativo — tocando nota oculta...";
+  DOM.statusEl.textContent = "Treino ativo — tocando notas...";
   DOM.statusEl.className = "status-awaiting";
   updateUIState();
 
@@ -474,6 +588,8 @@ async function playNextNote() {
 
   state.currentSecretNote = state.selectedNotes[Math.floor(Math.random() * state.selectedNotes.length)];
   const secretSci = letterToScientific(state.currentSecretNote, state.secretNoteOctave);
+  
+  const initialRootSci = letterToScientific(DOM.initialRootNoteSelect.value, state.secretNoteOctave); 
 
   state.awaitingGuess = true;
   state.lastGuess = null;
@@ -494,12 +610,10 @@ async function playNextNote() {
   });
 
   await new Promise(r => setTimeout(r, 100));
-
+  
   if(state.playTonic){
-    const tonicMidi = 12 * (state.secretNoteOctave + 1) + NOTE_NAMES_BASE.indexOf(state.keyRoot);
-    const keyRootSci = midiToScientific(tonicMidi);
-    playNoteScientific(keyRootSci, "4n");
-    await new Promise(r => setTimeout(r, 800));
+    playHiddenScientific(initialRootSci);
+    await new Promise(r => setTimeout(r, 1000));
   }
 
   playHiddenScientific(secretSci);
@@ -508,7 +622,9 @@ async function playNextNote() {
 
   if (DOM.autoAdvance.checked) {
     const delayBefore = parseInt(DOM.delayBeforeNum.value, 10) || 0;
-    await new Promise(r => setTimeout(r, 800 + delayBefore));
+    // Espera a duração da nota oculta + o delay
+    const waitTime = instrumentType === 'synth' ? 500 : 1000;
+    await new Promise(r => setTimeout(r, waitTime + delayBefore));
     if (state.playing) {
       DOM.statusEl.textContent = "🎵 Modo Automático: Tocando sequência...";
       autoAdvanceSequence();
@@ -527,7 +643,6 @@ async function autoAdvanceSequence() {
   updateScoreboard();
   updateUIState();
 
-  const delayBefore = parseInt(DOM.delayBeforeNum.value, 10) || 0;
   const delayAfter = parseInt(DOM.delayAfterNum.value, 10) || 0;
 
   let modeToGenerate = state.modoAtual;
@@ -539,11 +654,11 @@ async function autoAdvanceSequence() {
   const abcTokens = midisToABCTokens(seqMidis);
 
   DOM.paperEl.innerHTML = "";
-  renderABC(abcTokens, state.keyRoot);
+  renderABC(abcTokens, state.keyRoot, DOM.initialRootNoteSelect.value);
 
   DOM.statusEl.textContent = "🎵 Modo Automático: Tocando sequência...";
   DOM.statusEl.className = "status-correct";
-
+  
   await playScientificSequence(scientificSeq);
 
   if(state.playing) {
@@ -562,8 +677,19 @@ function repeatNote(){
     DOM.statusEl.textContent = "Nenhuma nota ativa para repetir.";
     return;
   }
-  const sci = letterToScientific(state.currentSecretNote, state.secretNoteOctave);
-  playHiddenScientific(sci);
+  
+  const initialRootSci = letterToScientific(DOM.initialRootNoteSelect.value, state.secretNoteOctave); 
+  const secretSci = letterToScientific(state.currentSecretNote, state.secretNoteOctave);
+  const waitTime = instrumentType === 'synth' ? 500 : 1000;
+
+  if(state.playTonic){
+    playHiddenScientific(initialRootSci);
+    setTimeout(() => {
+        if(state.playing) playHiddenScientific(secretSci);
+    }, waitTime);
+  } else {
+    playHiddenScientific(secretSci);
+  }
 }
 
 /* quando usuário clica em uma nota (tenta adivinhar) - SOMENTE MODO MANUAL */
@@ -599,7 +725,7 @@ async function onGuess(e){
   const abcTokens = midisToABCTokens(seqMidis);
 
   DOM.paperEl.innerHTML = "";
-  renderABC(abcTokens, state.keyRoot);
+  renderABC(abcTokens, state.keyRoot, DOM.initialRootNoteSelect.value);
 
   if(guessed === state.currentSecretNote){
     state.score.correct++;
@@ -668,6 +794,9 @@ document.getElementById("clearAllBtn").addEventListener("click", () => {
 });
 
 DOM.notasSelect.addEventListener("change", updateResponseButtons);
+DOM.initialRootNoteSelect.addEventListener("change", () => {
+    state.initialRoot = DOM.initialRootNoteSelect.value;
+});
 
 DOM.autoAdvance.addEventListener("change", () => {
   if (DOM.autoAdvance.checked && state.playing && state.awaitingGuess) {
@@ -700,10 +829,11 @@ syncRangeAndNum(DOM.delayBetweenRange, DOM.delayBetweenNum);
 syncRangeAndNum(DOM.delayAfterRange, DOM.delayAfterNum);
 
 document.addEventListener("DOMContentLoaded", () => {
+  populateInitialRootNoteSelect();
+  setupInstrument(); // Usa a nova função que tenta o Sampler e faz fallback para Synth
   updateResponseButtons();
   updateScoreboard();
   updateUIState();
-  DOM.statusEl.textContent = "Áudio sintetizado pronto. Clique em 'Iniciar Treino' para começar.";
 });
 </script>
 </body>
