@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treinamento de Qualidade de Acordes (Avançado com Auto Play)</title>
+    <script src="https://unpkg.com/tone@14.7.58/build/Tone.js"></script>
+    <script src="https://unpkg.com/tonejs-instrument@1.2.1/build/tonejs-instrument.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #007bff;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .controls, .settings, .score-panel {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #dee2e6;
+        }
+        .controls button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        #btnStart { background-color: #28a745; color: white; }
+        #btnStop { background-color: #dc3545; color: white; }
+        #btnRepeat { background-color: #ffc107; color: #333; }
+        #btnAutoMode { background-color: #007bff; color: white; }
+        .controls button:disabled { background-color: #b3b3b3; cursor: not-allowed; }
+        
+        #status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .status-default { background-color: #e0f7fa; color: #007bff; }
+        .status-awaiting { background-color: #fff3cd; color: #856404; }
+        .status-correct { background-color: #d4edda; color: #155724; }
+        .status-wrong { background-color: #f8d7da; color: #721c24; }
+        
+        #chordButtons {
+            text-align: center;
+            padding: 10px 0;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        #chordButtons button {
+            padding: 10px 15px;
+            font-size: 1em;
+            width: 150px;
+            border: 2px solid #007bff;
+            background-color: #f0f4f8;
+            color: #007bff;
+        }
+        #chordButtons button.correct {
+            background-color: #28a745;
+            color: white;
+            border-color: #28a745;
+        }
+        #chordButtons button.wrong {
+            background-color: #dc3545;
+            color: white;
+            border-color: #dc3545;
+        }
+
+        /* Layout de Configurações */
+        .settings h3 {
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 5px;
+            margin-bottom: 15px;
+        }
+        .setting-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            margin-bottom: 10px;
+        }
+        .setting-item {
+            flex: 1 1 200px; 
+            display: flex;
+            flex-direction: column;
+            margin-bottom: 10px;
+        }
+        .setting-item label {
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+        .settings select, .settings input:not([type="checkbox"]) {
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .settings select[multiple] {
+            min-height: 100px;
+        }
+
+        /* Estilo para Range e Número juntos */
+        .range-input-group {
+            display: flex;
+            align-items: center;
+        }
+        .range-input-group input[type="range"] {
+            flex-grow: 1;
+        }
+        .range-input-group input[type="number"] {
+            width: 60px;
+            margin-left: 10px;
+        }
+
+        .score-panel p { margin: 5px 0; }
+        
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Treinamento de Qualidade de Acordes (Avançado)</h1>
+
+        <div class="controls">
+            <button id="btnStart">Iniciar Treino</button>
+            <button id="btnStop" disabled>Parar Treino</button>
+            <button id="btnRepeat" disabled>Repetir (R / Espaço)</button>
+            <button id="btnAutoMode">Modo Automático: DESLIGADO</button>
+        </div>
+        <div id="status" class="status-default">Instrumento carregando...</div>
+
+        <div class="score-panel">
+            <h3>Placar</h3>
+            <p>Acertos: <span id="correctCount">0</span> | Tentativas: <span id="attemptCount">0</span></p>
+            <button onclick="resetScore()">Zerar Placar</button>
+        </div>
+        
+        <div class="settings">
+            <h3>Configurações Gerais</h3>
+            
+            <div class="setting-group">
+                <div class="setting-item">
+                    <label for="instrumentSelector">Instrumento/Timbre (MIDI Program):</label>
+                    <select id="instrumentSelector">
+                        <option value="0">0: Piano Acústico</option>
+                        <option value="25">25: Violão de Aço (Guitar)</option>
+                        <option value="40">40: Cordas (Violin/Strings)</option>
+                        <option value="73">73: Flauta (Flute)</option>
+                    </select>
+                </div>
+                
+                <div class="setting-item">
+                    <label for="oitava">Oitava da Tônica (Root):</label>
+                    <select id="oitava">
+                        <option value="3">3</option>
+                        <option value="4" selected>4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+
+                <div class="setting-item">
+                    <label for="playType">Estilo de Reprodução:</label>
+                    <select id="playType">
+                        <option value="simultaneous" selected>Simultâneo (Bloco)</option>
+                        <option value="arpeggio_asc">Arpejo Ascendente</option>
+                        <option value="arpeggio_desc">Arpejo Descendente</option>
+                        <option value="arpeggio_updown">Arpejo Sobe e Desce</option>
+                        <option value="arpeggio_downup">Arpejo Desce e Sobe</option>
+                    </select>
+                </div>
+            </div>
+
+            <hr>
+
+            <h3>Controles de Tempo e Tônica</h3>
+            <div class="setting-group">
+                <div class="setting-item">
+                    <label for="rootSelection">Tônicas Ativas (Ctrl/Cmd + Clique):</label>
+                    <select id="rootSelection" multiple size="7">
+                        <option value="random">--- Aleatório (Todas) ---</option>
+                        <option value="C" selected>C</option>
+                        <option value="C#">C#</option>
+                        <option value="D">D</option>
+                        <option value="D#">D#</option>
+                        <option value="E">E</option>
+                        <option value="F">F</option>
+                        <option value="F#">F#</option>
+                        <option value="G">G</option>
+                        <option value="G#">G#</option>
+                        <option value="A">A</option>
+                        <option value="A#">A#</option>
+                        <option value="B">B</option>
+                    </select>
+                    <div style="margin-top: 5px;">
+                        <button type="button" id="selAllRootsBtn">Selecionar Todas</button>
+                        <button type="button" id="clearAllRootsBtn">Limpar</button>
+                    </div>
+                </div>
+
+                <div class="setting-item">
+                    <label for="chordDurationNum">Duração do Acorde (ms):</label>
+                    <div class="range-input-group">
+                        <input type="range" id="chordDurationRange" min="200" max="4000" step="50" value="1500">
+                        <input type="number" id="chordDurationNum" min="200" max="4000" step="50" value="1500">
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <label for="arpeggioDelayNum">Atraso entre Notas do Arpejo (ms):</label>
+                    <div class="range-input-group">
+                        <input type="range" id="arpeggioDelayRange" min="50" max="500" step="10" value="150">
+                        <input type="number" id="arpeggioDelayNum" min="50" max="500" step="10" value="150">
+                    </div>
+                </div>
+                
+                <div class="setting-item">
+                    <label for="autoTransitionNum">Tempo de Transição (ms) - Auto:</label>
+                    <div class="range-input-group">
+                        <input type="range" id="autoTransitionRange" min="1000" max="5000" step="100" value="3000">
+                        <input type="number" id="autoTransitionNum" min="1000" max="5000" step="100" value="3000">
+                    </div>
+                </div>
+            </div>
+
+            <hr>
+            
+            <h3>Qualidades de Acorde para Treinar</h3>
+            <div class="setting-item">
+                <label for="qualities">Qualidades Ativas (Ctrl/Cmd + Clique):</label>
+                <select id="qualities" multiple size="10">
+                    <option value="maj" selected>Maior (M) [Q]</option>
+                    <option value="min" selected>Menor (m) [W]</option>
+                    <option value="dim">Diminuto (dim / °) [E]</option>
+                    <option value="aug">Aumentado (aug / +) [R]</option>
+                    <option value="sus2">Suspenso 2 (sus2) [A]</option>
+                    <option value="sus4">Suspenso 4 (sus4) [S]</option>
+
+                    <option value="add9">Maior add9 [D]</option>
+                    <option value="m_add9">Menor add9 [F]</option>
+                    <option value="maj6">Maior 6ª (6) [G]</option>
+                    <option value="min6">Menor 6ª (m6) [H]</option>
+                    <option value="6_9">Sexta com Nona (6/9)</option>
+
+                    <option value="dom7">Dominante 7ª (7) [1]</option>
+                    <option value="maj7">Maior 7ª (maj7 / Δ7) [2]</option>
+                    <option value="min7">Menor 7ª (m7) [3]</option>
+                    <option value="m_maj7">Menor c/ 7M [4]</option>
+                    <option value="m7b5">Meio Diminuto (m7b5 / ø) [5]</option>
+                    <option value="dim7">Diminuto 7ª (°7) [6]</option>
+                    
+                    <option value="dom9">Dominante 9ª (9) [7]</option>
+                    <option value="maj9">Maior 9ª (maj9) [8]</option>
+                    <option value="min9">Menor 9ª (m9) [9]</option>
+                    <option value="dom11">Dominante 11 (11) [0]</option>
+                    <option value="dom13">Dominante 13 (13)</option>
+                    <option value="7b9">7ª(♭9)</option>
+                    <option value="7s9">7ª(♯9)</option>
+                    <option value="7s5">7ª(♯5)</option>
+                    <option value="7b5">7ª(♭5)</option>
+                    <option value="add4">Adiciona 4ª</option>
+                </select>
+                <div style="margin-top: 5px;">
+                    <button type="button" id="selAllQualitiesBtn">Selecionar Todas</button>
+                    <button type="button" id="clearAllQualitiesBtn">Limpar</button>
+                </div>
+            </div>
+        </div>
+
+        <div id="chordButtons">
+            </div>
+
+    </div>
+
+<script>
+/* ============================
+    Dados e Configurações Musicais
+    ============================ */
+const NOTE_NAMES_BASE = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+
+// Acordes definidos pelos intervalos (semitons) a partir da tônica
+const CHORD_INTERVALS = {
+    // Tríades
+    'maj':    [0, 4, 7], 'min':    [0, 3, 7], 'aug':    [0, 4, 8], 'dim':    [0, 3, 6],
+    'sus2':   [0, 2, 7], 'sus4':   [0, 5, 7], 
+
+    // Sextas e add9
+    'add9':   [0, 4, 7, 14], 'm_add9': [0, 3, 7, 14], 'maj6':   [0, 4, 7, 9], 
+    'min6':   [0, 3, 7, 9], '6_9':    [0, 4, 7, 9, 14], 
+
+    // Tétrades e 7ªs
+    'dom7':   [0, 4, 7, 10], 'maj7':   [0, 4, 7, 11], 'min7':   [0, 3, 7, 10], 
+    'm_maj7': [0, 3, 7, 11], 'm7b5':   [0, 3, 6, 10], 'dim7':   [0, 3, 6, 9],
+    
+    // 9ª, 11ª, 13ª
+    'dom9':   [0, 4, 7, 10, 14], 'maj9':   [0, 4, 7, 11, 14], 'min9':   [0, 3, 7, 10, 14],
+    'dom11':  [0, 4, 7, 10, 14, 17], 'dom13':  [0, 4, 7, 10, 14, 21], 
+
+    // Alterações
+    '7b9':    [0, 4, 7, 10, 13], '7s9':    [0, 4, 7, 10, 15], '7s5':    [0, 4, 8, 10],     
+    '7b5':    [0, 4, 6, 10], 'add4':   [0, 4, 5, 7]
+};
+
+// MAPEAMENTO TECLADO
+const KEYBOARD_MAP = {
+    'Q': 'maj', 'W': 'min', 'E': 'dim', 'R': 'aug', 'A': 'sus2', 'S': 'sus4', 
+    'D': 'add9', 'F': 'm_add9', 'G': 'maj6', 'H': 'min6',
+    '1': 'dom7', '2': 'maj7', '3': 'min7', '4': 'm_maj7',
+    '5': 'm7b5', '6': 'dim7', '7': 'dom9', '8': 'maj9', '9': 'min9', '0': 'dom11',
+};
+
+const CHORD_LABELS = {
+    'maj': 'Maior (M)', 'min': 'Menor (m)', 'aug': 'Aumentado (+)', 'dim': 'Diminuto (°)',
+    'sus2': 'Suspenso 2 (sus2)', 'sus4': 'Suspenso 4 (sus4)',
+    'add9': 'Maior add9', 'm_add9': 'Menor add9', 'maj6': 'Maior 6ª (6)', 'min6': 'Menor 6ª (m6)',
+    '6_9': 'Sexta com Nona (6/9)', 'dom7': 'Dominante 7ª (7)', 'maj7': 'Maior 7ª (maj7)',
+    'min7': 'Menor 7ª (m7)', 'm_maj7': 'Menor c/ 7M', 'm7b5': 'Meio Diminuto (ø)',
+    'dim7': 'Diminuto 7ª (°7)', 'dom9': 'Dominante 9ª (9)', 'maj9': 'Maior 9ª (maj9)',
+    'min9': 'Menor 9ª (m9)', 'dom11': 'Dominante 11 (11)', 'dom13': 'Dominante 13 (13)',
+    '7b9': '7ª(♭9)', '7s9': '7ª(♯9)', '7s5': '7ª(♯5)', '7b5': '7ª(♭5)', 'add4': 'Adiciona 4ª'
+};
+
+
+let instrument = null;
+let currentMidiProgram = 0;
+
+const SYNTH_PRESETS = {
+    0: { oscillator: { type: "triangle8" }, envelope: { attack: 0.005, decay: 0.3, sustain: 0.4, release: 0.8 } },
+    40: {
+        synth: "AMSynth",
+        oscillator: { type: "sawtooth" },
+        modulation: { type: "square" },
+        envelope: { attack: 0.1, decay: 0.8, sustain: 0.6, release: 1.2 }
+    },
+    default: {
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.02, decay: 0.3, sustain: 0.5, release: 0.5 }
+    }
+};
+
+
+/* ============================
+    Dados e Estado do Treino
+    ============================ */
+
+const state = {
+    playing: false,
+    awaitingGuess: false,
+    autoMode: false, // NOVO: Modo automático
+    currentRoot: 'C',
+    currentQuality: null,
+    secretOctave: 4,
+    selectedQualities: [],
+    selectedRoots: [], 
+    score: { correct:0, attempts:0 },
+    pendingTimeout: null,
+    qualityPerformance: {} 
+};
+
+/* DOM refs */
+const DOM = {
+    btnStart: document.getElementById("btnStart"),
+    btnStop: document.getElementById("btnStop"),
+    btnRepeat: document.getElementById("btnRepeat"),
+    btnAutoMode: document.getElementById("btnAutoMode"), // NOVO
+    statusEl: document.getElementById("status"),
+    chordButtonsDiv: document.getElementById("chordButtons"),
+    oitavaSelect: document.getElementById("oitava"),
+    qualitiesSelect: document.getElementById("qualities"),
+    playTypeSelect: document.getElementById("playType"),
+    instrumentSelector: document.getElementById("instrumentSelector"),
+    rootSelectionSelect: document.getElementById("rootSelection"), 
+    correctCount: document.getElementById("correctCount"),
+    attemptCount: document.getElementById("attemptCount"),
+    chordDurationRange: document.getElementById("chordDurationRange"),
+    chordDurationNum: document.getElementById("chordDurationNum"),
+    arpeggioDelayRange: document.getElementById("arpeggioDelayRange"),
+    arpeggioDelayNum: document.getElementById("arpeggioDelayNum"),
+    autoTransitionRange: document.getElementById("autoTransitionRange"), // NOVO
+    autoTransitionNum: document.getElementById("autoTransitionNum") // NOVO
+};
+
+
+/* ============================
+    Lógica de Áudio e Utilitários
+    ============================ */
+
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+// Funções loadInstrumentFromMIDIProgram, fallbackToSimpleSynth, ensureAudioContextRunning, playChord
+// e generateScientificChord (Mantidas, mas omitidas aqui por brevidade)
+// ... (código mantido das funções musicais)
+
+function loadInstrumentFromMIDIProgram(programNumber) {
+    DOM.btnStart.disabled = true;
+    DOM.instrumentSelector.disabled = true;
+    DOM.statusEl.textContent = `🎵 Tentando carregar timbre MIDI Program ${programNumber}...`;
+    DOM.statusEl.className = "status-awaiting";
+
+    if (instrument) {
+        instrument.dispose();
+        instrument = null;
+    }
+    
+    currentMidiProgram = programNumber;
+    
+    try {
+        const instrumentUrls = Tone.Instrument.loadProgram(programNumber);
+
+        if (!instrumentUrls) {
+             fallbackToSimpleSynth();
+             return;
+        }
+
+        instrument = new Tone.Sampler({
+            urls: instrumentUrls,
+            onload: () => {
+                instrument.toDestination();
+                DOM.statusEl.textContent = `🎹 Timbre ${programNumber} (Sampler) pronto. Clique em 'Iniciar Treino'.`;
+                DOM.btnStart.disabled = false;
+                DOM.instrumentSelector.disabled = false;
+                DOM.statusEl.className = "status-default";
+                updateUIState();
+            },
+            onerror: () => {
+                fallbackToSimpleSynth();
+            }
+        });
+        
+    } catch(e) {
+        fallbackToSimpleSynth();
+    }
+}
+
+function fallbackToSimpleSynth() {
+    if (instrument) {
+        instrument.dispose();
+        instrument = null;
+    }
+
+    const preset = SYNTH_PRESETS[currentMidiProgram] || SYNTH_PRESETS.default;
+    instrument = new Tone.PolySynth(Tone.Synth, preset).toDestination();
+
+    DOM.statusEl.textContent = `🔊 Sampler falhou. Áudio Sintetizado pronto.`;
+    DOM.btnStart.disabled = false;
+    DOM.instrumentSelector.disabled = false;
+    DOM.statusEl.className = "status-default";
+    updateUIState();
+}
+
+async function ensureAudioContextRunning() {
+    if (Tone.context.state !== 'running') {
+        try {
+            await Tone.start();
+            return true;
+        } catch (e) {
+            console.error("Falha ao iniciar áudio:", e);
+            return false;
+        }
+    }
+    return true;
+}
+
+async function playChord(scientificNotes, playType) {
+    if (!instrument || !await ensureAudioContextRunning()) return;
+    
+    const releaseTime = Tone.context.state === 'running' ? Tone.now() : undefined;
+    const durationMs = parseInt(DOM.chordDurationNum.value, 10);
+    const durationSec = durationMs / 1000;
+    const arpeggioDelayMs = parseInt(DOM.arpeggioDelayNum.value, 10);
+    const arpeggioDelaySec = arpeggioDelayMs / 1000;
+    
+    let notesToPlay = scientificNotes.slice().sort(); 
+    const notesReversed = notesToPlay.slice().reverse();
+    const notesAscDesc = notesToPlay.concat(notesReversed.slice(1));
+    const notesDescAsc = notesReversed.concat(notesToPlay.slice(1));
+
+    switch (playType) {
+        case 'arpeggio_asc': notesToPlay = notesToPlay; break;
+        case 'arpeggio_desc': notesToPlay = notesReversed; break;
+        case 'arpeggio_updown': notesToPlay = notesAscDesc; break;
+        case 'arpeggio_downup': notesToPlay = notesDescAsc; break;
+        case 'simultaneous': default: notesToPlay = scientificNotes.slice().sort();
+    }
+
+    if (playType === 'simultaneous') {
+        instrument.triggerAttackRelease(notesToPlay, durationSec, releaseTime);
+        await delay(durationMs + 200); 
+    } else {
+        for (let i = 0; i < notesToPlay.length; i++) {
+            if(!state.playing) break;
+            const noteDur = Math.max(0.05, durationSec / (notesToPlay.length * 2)); 
+            instrument.triggerAttackRelease(notesToPlay[i], noteDur, releaseTime + i * arpeggioDelaySec);
+        }
+        const totalArpTime = notesToPlay.length * arpeggioDelaySec * 1000 + 500;
+        await delay(totalArpTime); 
+    }
+}
+
+function generateScientificChord(rootName, quality, octave) {
+    const rootIndex = NOTE_NAMES_BASE.indexOf(rootName);
+    const rootMidi = 12 * (octave + 1) + rootIndex;
+    const intervals = CHORD_INTERVALS[quality];
+    if (!intervals) return [];
+
+    const scientificNotes = intervals.map(interval => {
+        let midi = rootMidi + interval;
+        if (interval >= 12 && !['dom11', 'dom13'].includes(quality)) {
+             midi = rootMidi + (interval % 12) + 12; 
+        }
+
+        const noteIndex = ((midi % 12) + 12) % 12;
+        const noteOctave = Math.floor(midi / 12) - 1;
+        
+        return NOTE_NAMES_BASE[noteIndex] + noteOctave;
+    });
+
+    return [...new Set(scientificNotes)].sort();
+}
+
+function getRandomRoot(rootList) {
+    if (rootList.length === 0) return 'C';
+    const index = Math.floor(Math.random() * rootList.length);
+    return rootList[index];
+}
+
+
+/* ============================
+    UI e Placar
+    ============================ */
+
+function updateScoreboard(){
+    DOM.correctCount.textContent = state.score.correct;
+    DOM.attemptCount.textContent = state.score.attempts;
+}
+
+function resetScore(){
+    state.score = { correct:0, attempts:0 };
+    state.qualityPerformance = {}; 
+    updateScoreboard();
+}
+
+function updateResponseButtons(){
+    const opts = Array.from(DOM.qualitiesSelect.selectedOptions).map(o => o.value);
+    DOM.chordButtonsDiv.innerHTML = "";
+    if(opts.length === 0){
+        DOM.statusEl.textContent = "Selecione pelo menos uma qualidade de acorde.";
+        return;
+    }
+    
+    state.selectedQualities = opts;
+    
+    opts.forEach(q => {
+        const b = document.createElement("button");
+        b.type = "button";
+        
+        const label = CHORD_LABELS[q] || q;
+        let keyText = "";
+        for (const [key, quality] of Object.entries(KEYBOARD_MAP)) {
+            if (quality === q) {
+                keyText = ` [${key}]`;
+                break;
+            }
+        }
+        
+        b.textContent = label + keyText; 
+        b.dataset.quality = q;
+        b.onclick = () => onGuess({ guessedQuality: q }); 
+        DOM.chordButtonsDiv.appendChild(b);
+    });
+    updateUIState();
+}
+
+function syncRangeAndNum(rangeEl, numEl){
+    rangeEl.addEventListener("input", () => {
+        numEl.value = rangeEl.value;
+    });
+    numEl.addEventListener("input", () => {
+        let v = parseInt(numEl.value, 10);
+        if(isNaN(v)) v = parseInt(rangeEl.min,10);
+        v = Math.max(parseInt(rangeEl.min,10), Math.min(parseInt(rangeEl.max,10), v));
+        numEl.value = v;
+        rangeEl.value = v;
+        updateUIState();
+    });
+}
+
+function updateSelectedRoots() {
+    const selectedOptions = Array.from(DOM.rootSelectionSelect.selectedOptions).map(o => o.value);
+    
+    if (selectedOptions.includes('random')) {
+        state.selectedRoots = NOTE_NAMES_BASE;
+    } else {
+        state.selectedRoots = selectedOptions.filter(r => r !== 'random');
+    }
+
+    if (state.selectedRoots.length === 0) {
+        state.selectedRoots = ['C']; 
+    }
+}
+
+function updateUIState(){
+    const isInstrumentReady = !!instrument; 
+    const isPlaying = state.playing; // Simplificado para jogar em automático ou manual
+    const isAwaitingGuess = state.awaitingGuess;
+    const isAutoMode = state.autoMode;
+    
+    const canStart = !state.playing && isInstrumentReady && state.selectedQualities.length > 0;
+
+    DOM.btnStart.disabled = !canStart && !isAutoMode;
+    DOM.btnStop.disabled = !state.playing;
+    DOM.btnRepeat.disabled = !isAwaitingGuess; 
+    
+    // Atualiza o botão de modo automático
+    DOM.btnAutoMode.textContent = `Modo Automático: ${isAutoMode ? 'LIGADO' : 'DESLIGADO'}`;
+    
+    // Desabilitar configurações durante a rodada (exceto o tempo de transição no auto-mode)
+    const configDisabled = isPlaying && !isAutoMode;
+    DOM.qualitiesSelect.disabled = configDisabled;
+    DOM.oitavaSelect.disabled = configDisabled;
+    DOM.playTypeSelect.disabled = configDisabled;
+    DOM.instrumentSelector.disabled = configDisabled;
+    DOM.rootSelectionSelect.disabled = configDisabled;
+    
+    DOM.chordDurationRange.disabled = configDisabled;
+    DOM.chordDurationNum.disabled = configDisabled;
+    
+    const playType = DOM.playTypeSelect.value;
+    const isArpeggio = playType.startsWith('arpeggio');
+    DOM.arpeggioDelayRange.disabled = configDisabled || !isArpeggio;
+    DOM.arpeggioDelayNum.disabled = configDisabled || !isArpeggio;
+
+    // Apenas o slider de tempo automático fica ativo se o modo automático estiver ativo
+    DOM.autoTransitionRange.disabled = configDisabled && !isAutoMode;
+    DOM.autoTransitionNum.disabled = configDisabled && !isAutoMode;
+
+
+    const answerButtons = DOM.chordButtonsDiv.querySelectorAll("button");
+    answerButtons.forEach(b => {
+        // Se estiver no modo automático, os botões só ficam desabilitados entre as rodadas (quando !isAwaitingGuess)
+        b.disabled = !isAwaitingGuess; 
+        if (isAwaitingGuess) {
+            b.classList.remove("correct", "wrong");
+        }
+    });
+}
+
+
+/* ============================
+    Fluxo Principal
+    ============================ */
+
+function toggleAutoMode() {
+    state.autoMode = !state.autoMode;
+    if (state.autoMode) {
+        if (!state.playing) {
+            startRound(); // Inicia o treino se não estiver rodando
+        }
+    } else {
+        // Se sair do modo automático, o fluxo manual continua, mas sem o timeout
+        if (state.pendingTimeout) {
+            clearTimeout(state.pendingTimeout);
+            state.pendingTimeout = null;
+        }
+        // O estado de 'playing' é mantido para que o usuário possa responder ao acorde atual.
+        DOM.statusEl.textContent = `🎧 Modo manual ativo. Qual é a QUALIDADE do acorde ${state.currentRoot}?`;
+        DOM.statusEl.className = "status-awaiting";
+    }
+    updateUIState();
+}
+
+async function startRound(){
+    updateSelectedRoots();
+    if(state.selectedQualities.length === 0 || state.selectedRoots.length === 0) {
+        alert("Selecione qualidades e tônicas antes de iniciar.");
+        state.autoMode = false;
+        updateUIState();
+        return;
+    }
+    
+    if (!await ensureAudioContextRunning()) return;
+
+    state.playing = true;
+    DOM.statusEl.textContent = "Treino ativo — tocando acorde...";
+    DOM.statusEl.className = "status-awaiting";
+    updateUIState();
+
+    await playNextChord();
+}
+
+function stopAll(){
+    state.playing = false;
+    state.awaitingGuess = false;
+    state.autoMode = false;
+    state.currentQuality = null;
+    if(state.pendingTimeout) {
+        clearTimeout(state.pendingTimeout);
+        state.pendingTimeout = null;
+    }
+    DOM.statusEl.textContent = "Parado.";
+    DOM.statusEl.className = "status-default";
+    updateUIState();
+}
+
+async function playNextChord() {
+    if(!state.playing) return;
+    
+    // Cancela o timeout anterior (para o caso de rodada manual)
+    if (state.pendingTimeout) {
+        clearTimeout(state.pendingTimeout);
+        state.pendingTimeout = null;
+    }
+    
+    // 1. Define a tônica (Root) e a qualidade
+    state.currentRoot = getRandomRoot(state.selectedRoots);
+    state.currentQuality = getRandomRoot(state.selectedQualities);
+    state.secretOctave = parseInt(DOM.oitavaSelect.value, 10);
+    
+    const chordNotes = generateScientificChord(state.currentRoot, state.currentQuality, state.secretOctave);
+    
+    // 2. Toca o acorde
+    const playType = DOM.playTypeSelect.value;
+    await playChord(chordNotes, playType);
+    
+    // 3. Atualiza estado para aguardar palpite
+    state.awaitingGuess = true;
+    DOM.statusEl.textContent = `🎧 Ouça o acorde. Qual é a QUALIDADE do acorde ${state.currentRoot}?`;
+    DOM.statusEl.className = "status-awaiting";
+    updateUIState();
+    
+    // 4. NOVO: Inicia o cronômetro para o modo automático
+    if (state.autoMode) {
+        const transitionTime = parseInt(DOM.autoTransitionNum.value, 10);
+        state.pendingTimeout = setTimeout(() => {
+            // Se o tempo esgotar, registra como erro (palpite 'timeout')
+            if (state.awaitingGuess) {
+                onGuess({ guessedQuality: 'timeout' }); 
+            }
+        }, transitionTime);
+    }
+}
+
+async function repeatChord(){
+    if(!state.awaitingGuess || !state.currentQuality){
+        DOM.statusEl.textContent = "Nenhum acorde ativo para repetir.";
+        return;
+    }
+    
+    if (!await ensureAudioContextRunning()) return;
+
+    const chordNotes = generateScientificChord(state.currentRoot, state.currentQuality, state.secretOctave);
+    const playType = DOM.playTypeSelect.value;
+    await playChord(chordNotes, playType);
+}
+
+
+async function onGuess({ guessedQuality }){
+    if(!state.awaitingGuess || !state.playing) return;
+    
+    if (state.pendingTimeout) {
+        clearTimeout(state.pendingTimeout);
+        state.pendingTimeout = null;
+    }
+    
+    const secretQuality = state.currentQuality;
+    const isTimeout = guessedQuality === 'timeout';
+    
+    // Se o palpite veio via teclado/mouse, garante que o áudio está OK
+    if (!isTimeout && !await ensureAudioContextRunning()) return;
+
+    // Rastreamento de Estatísticas
+    if (!state.qualityPerformance[secretQuality]) {
+        state.qualityPerformance[secretQuality] = { attempts: 0, correct: 0 };
+    }
+    state.score.attempts++;
+    state.qualityPerformance[secretQuality].attempts++;
+
+    state.awaitingGuess = false;
+    updateUIState();
+
+    const label = CHORD_LABELS[secretQuality];
+
+    // Feedback Visual e Placar
+    if (isTimeout) {
+        DOM.statusEl.textContent = `⏱️ Tempo esgotado! O acorde correto era ${state.currentRoot} ${label}.`;
+        DOM.statusEl.className = "status-wrong";
+        // Não aplica classes 'correct'/'wrong' nos botões, pois não houve clique.
+    } else {
+        const allButtons = DOM.chordButtonsDiv.querySelectorAll("button");
+        allButtons.forEach(btn => {
+            if(btn.dataset.quality === guessedQuality) {
+                btn.classList.add(guessedQuality === secretQuality ? "correct" : "wrong");
+            }
+            if(btn.dataset.quality === secretQuality && guessedQuality !== secretQuality) {
+                btn.classList.add("correct");
+            }
+        });
+
+        if(guessedQuality === secretQuality){
+            state.score.correct++;
+            state.qualityPerformance[secretQuality].correct++; 
+            
+            DOM.statusEl.textContent = `✅ Acertou! O acorde era ${state.currentRoot} ${label}.`;
+            DOM.statusEl.className = "status-correct";
+        } else {
+            DOM.statusEl.textContent = `❌ Errado — o acorde correto era ${state.currentRoot} ${label}.`;
+            DOM.statusEl.className = "status-wrong";
+        }
+    }
+    
+    updateScoreboard();
+
+    // 4. Inicia a próxima rodada no modo automático ou espera no modo manual
+    let delayAfterFeedback = isTimeout ? 1000 : 2000;
+    
+    state.pendingTimeout = setTimeout(async () => {
+        state.pendingTimeout = null;
+        if(state.playing && state.autoMode) {
+            await playNextChord();
+        } else if (state.playing && !state.autoMode) {
+            // Em modo manual, reseta o estado para que o usuário clique no "Próximo" ou "Repetir"
+            state.awaitingGuess = false;
+            updateUIState();
+            DOM.statusEl.textContent = `Clique em "Iniciar Treino" para o próximo acorde.`;
+            DOM.statusEl.className = "status-default";
+        }
+    }, delayAfterFeedback);
+}
+
+/* ============================
+    Eventos
+    ============================ */
+
+DOM.btnStart.addEventListener("click", startRound);
+DOM.btnStop.addEventListener("click", stopAll);
+DOM.btnRepeat.addEventListener("click", repeatChord);
+DOM.btnAutoMode.addEventListener("click", toggleAutoMode);
+
+DOM.qualitiesSelect.addEventListener("change", updateResponseButtons);
+DOM.playTypeSelect.addEventListener("change", updateUIState);
+DOM.rootSelectionSelect.addEventListener("change", updateUIState);
+
+// Sincroniza os deslizantes e números (incluindo o novo)
+syncRangeAndNum(DOM.chordDurationRange, DOM.chordDurationNum);
+syncRangeAndNum(DOM.arpeggioDelayRange, DOM.arpeggioDelayNum);
+syncRangeAndNum(DOM.autoTransitionRange, DOM.autoTransitionNum); // NOVO
+
+// Funções para Selecionar/Limpar (Mantidas)
+document.getElementById("selAllQualitiesBtn").addEventListener("click", () => { Array.from(DOM.qualitiesSelect.options).forEach(o => o.selected = true); updateResponseButtons(); });
+document.getElementById("clearAllQualitiesBtn").addEventListener("click", () => { Array.from(DOM.qualitiesSelect.options).forEach(o => o.selected = false); updateResponseButtons(); });
+document.getElementById("selAllRootsBtn").addEventListener("click", () => { Array.from(DOM.rootSelectionSelect.options).forEach(o => o.selected = true); if (DOM.rootSelectionSelect.querySelector('option[value="random"]')) { DOM.rootSelectionSelect.querySelector('option[value="random"]').selected = false; } updateUIState(); });
+document.getElementById("clearAllRootsBtn").addEventListener("click", () => { Array.from(DOM.rootSelectionSelect.options).forEach(o => o.selected = false); updateUIState(); });
+
+
+document.addEventListener("mousedown", ensureAudioContextRunning);
+document.addEventListener("touchstart", ensureAudioContextRunning);
+document.addEventListener("keydown", ensureAudioContextRunning);
+
+// TRATAMENTO DE EVENTOS DO TECLADO PARA QUALIDADES
+document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        return;
+    }
+    
+    const key = e.key.toUpperCase();
+
+    // Atalhos de repetição
+    if (key === ' ' || key === 'R') {
+        e.preventDefault();
+        if(!DOM.btnRepeat.disabled) DOM.btnRepeat.click();
+        return;
+    }
+    
+    const quality = KEYBOARD_MAP[key];
+
+    if (quality && state.awaitingGuess) {
+        const isQualityActive = DOM.chordButtonsDiv.querySelector(`button[data-quality="${quality}"]`);
+
+        if (isQualityActive) {
+             e.preventDefault();
+             onGuess({ guessedQuality: quality });
+        }
+    }
+});
+
+
+document.addEventListener("DOMContentLoaded", () => {
+    loadInstrumentFromMIDIProgram(0); 
+    updateResponseButtons();
+    updateScoreboard();
+    updateSelectedRoots(); 
+    updateUIState();
+});
+</script>
+</body>
+</html>
