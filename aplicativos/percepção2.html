@@ -1,0 +1,1484 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treinamento de Identificação de Notas</title>
+    <script src="https://unpkg.com/tone@14.7.58/build/Tone.js"></script>
+    <script src="https://unpkg.com/tonejs-instrument@1.2.1/build/tonejs-instrument.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.1.1/dist/abcjs-basic-min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #f0f4f8;
+            color: #333;
+        }
+        .container {
+            max-width: 900px;
+            margin: auto;
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            color: #007bff;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .controls, .settings, .score-panel {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            border: 1px solid #dee2e6;
+        }
+        .controls button {
+            padding: 10px 20px;
+            margin-right: 10px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.2s;
+        }
+        #btnStart { background-color: #28a745; color: white; }
+        #btnStop { background-color: #dc3545; color: white; }
+        #btnRepeat { background-color: #ffc107; color: #333; }
+        .controls button:disabled { background-color: #b3b3b3; cursor: not-allowed; }
+
+        .settings h3 {
+            border-bottom: 2px solid #ccc;
+            padding-bottom: 5px;
+            margin-bottom: 10px;
+        }
+        .setting-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+        .setting-item {
+            display: flex;
+            flex-direction: column;
+            min-width: 150px;
+        }
+        .setting-item label {
+            font-weight: 500;
+            margin-bottom: 3px;
+        }
+        .setting-item input[type="number"], .setting-item select {
+            padding: 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        
+        #notas {
+            min-height: 100px;
+        }
+
+        #status {
+            text-align: center;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .status-default { background-color: #e0f7fa; color: #007bff; }
+        .status-awaiting { background-color: #fff3cd; color: #856404; }
+        .status-correct { background-color: #d4edda; color: #155724; }
+        .status-wrong { background-color: #f8d7da; color: #721c24; }
+        
+        #noteButtons {
+            text-align: center;
+            padding: 10px 0;
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        #noteButtons button {
+            padding: 12px 20px;
+            font-size: 1.1em;
+            width: 80px;
+            border: 2px solid #007bff;
+            background-color: #f0f4f8;
+            color: #007bff;
+        }
+        #noteButtons button.correct {
+            background-color: #28a745;
+            color: white;
+            border-color: #28a745;
+        }
+        #noteButtons button.wrong {
+            background-color: #dc3545;
+            color: white;
+            border-color: #dc3545;
+        }
+
+        /* Partitura */
+        #paper {
+            border: 1px solid #ccc;
+            padding: 10px;
+            border-radius: 4px;
+            min-height: 50px;
+            margin-top: 15px;
+            background-color: white;
+        }
+
+        /* Estilos do Placar e Estatísticas (NOVOS) */
+        .score-panel {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .stat-group {
+            flex: 1;
+        }
+        .stat-container {
+            margin-top: 10px;
+            padding: 15px;
+            border: 1px solid #dee2e6;
+            border-radius: 8px;
+            background-color: #f9f9f9;
+        }
+
+        #noteStats div {
+            display: flex;
+            justify-content: space-between;
+            padding: 2px 0;
+            border-bottom: 1px dotted #e0e0e0;
+        }
+
+        #noteStats div:last-child {
+            border-bottom: none;
+        }
+
+        .stat-accuracy {
+            font-weight: bold;
+        }
+
+        /* Estilo para Range e Número juntos */
+        .range-input-group {
+            display: flex;
+            align-items: center;
+        }
+        .range-input-group input[type="range"] {
+            flex-grow: 1;
+        }
+        .range-input-group input[type="number"] {
+            width: 70px;
+            margin-left: 10px;
+        }
+
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Treinamento de Identificação de Notas</h1>
+
+        <div class="controls">
+            <button id="btnStart">Iniciar Treino</button>
+            <button id="btnStop" disabled>Parar Treino</button>
+            <button id="btnRepeat" disabled>Repetir Nota (R)</button>
+        </div>
+        <div id="status" class="status-default">Instrumento carregando...</div>
+
+        <div class="score-panel">
+            <div class="stat-group">
+                <h3>Placar</h3>
+                <p>Acertos: <span id="correctCount">0</span> | Tentativas: <span id="attemptCount">0</span></p>
+                <button onclick="resetScore()">Zerar Placar</button>
+            </div>
+            <div class="stat-group">
+                <div class="stat-container">
+                    <h3>Precisão Geral: <span id="accuracyTotal">--</span></h3>
+                    <div id="noteStats">
+                        <p>Nenhuma tentativa registrada ainda.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="settings">
+            <h3>Configurações do Treino</h3>
+            
+            <div class="setting-group">
+                <div class="setting-item" style="min-width: 200px;">
+                    <label for="instrumentSelector">Instrumento/Timbre (MIDI Program):</label>
+                    <select id="instrumentSelector">
+                        <option value="0">0: Piano Acústico</option>
+                        <option value="25">25: Violão de Aço (Guitar)</option>
+                        <option value="40">40: Violino (Violin)</option>
+                        <option value="56">56: Trompete (Trumpet)</option>
+                        <option value="73">73: Flauta (Flute)</option>
+                        </select>
+                </div>
+                <div class="setting-item">
+                    <label for="oitava">Oitava da Nota Secreta:</label>
+                    <select id="oitava">
+                        <option value="3">3</option>
+                        <option value="4" selected>4</option>
+                        <option value="5">5</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="tom">Tônica Principal (Referência da Escala):</label>
+                    <select id="tom">
+                        <option value="C" selected>C</option>
+                        <option value="G">G</option>
+                        <option value="D">D</option>
+                        <option value="A">A</option>
+                        <option value="E">E</option>
+                        <option value="B">B</option>
+                        <option value="F#">F#</option>
+                        <option value="C#">C#</option>
+                        <option value="F">F</option>
+                        <option value="Bb">Bb</option>
+                        <option value="Eb">Eb</option>
+                        <option value="Ab">Ab</option>
+                        <option value="Db">Db</option>
+                        <option value="Gb">Gb</option>
+                        <option value="Cb">Cb</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="modo">Modo/Escala:</label>
+                    <select id="modo">
+                        <option value="ionian" selected>Jônio (Maior)</option>
+                        <option value="dorian">Dórico</option>
+                        <option value="phrygian">Frígio</option>
+                        <option value="lydian">Lídio</option>
+                        <option value="mixolydian">Mixolídio</option>
+                        <option value="aeolian">Eólio (Menor Natural)</option>
+                        <option value="harmonic_minor">Menor Harmônica</option>
+                        <option value="melodic_minor">Menor Melódica (Asc.)</option>
+                        <option value="locrian">Lócrio</option>
+                        <option value="chromatic">Cromática</option>
+                    </select>
+                </div>
+            </div>
+            
+            <hr>
+            
+            <h3>Notas de Resposta e Fluxo</h3>
+            <div class="setting-group">
+                <div class="setting-item" style="min-width: 300px;">
+                    <label for="notas">Notas para Sortear/Responder (Ctrl/Cmd + Clique):</label>
+                    <select id="notas" multiple size="7">
+                        <option value="C">C</option>
+                        <option value="C#">C#</option>
+                        <option value="D">D</option>
+                        <option value="D#">D#</option>
+                        <option value="E">E</option>
+                        <option value="F">F</option>
+                        <option value="F#">F#</option>
+                        <option value="G">G</option>
+                        <option value="G#">G#</option>
+                        <option value="A">A</option>
+                        <option value="A#">A#</option>
+                        <option value="B">B</option>
+                        <option value="C(6)">C(6)</option>
+                    </select>
+                    <div style="margin-top: 5px;">
+                        <button type="button" id="selAllBtn">Selecionar Todas</button>
+                        <button type="button" id="clearAllBtn">Limpar</button>
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label>Opções de Reprodução:</label>
+                    <label><input type="checkbox" id="playTonicBefore" checked> Tocar Tônica/Contexto antes da Nota Secreta</label>
+                    <label><input type="checkbox" id="playSequenceAfterGuess" checked> Tocar Sequência após Palpite (Acerto)</label>
+                    <label><input type="checkbox" id="autoAdvance"> Avançar Automaticamente (Sem Palpite)</label>
+                </div>
+                <div class="setting-item">
+                    <label>Direção da Sequência (Se Ativada):</label>
+                    <select id="direcao">
+                        <option value="asc" selected>Ascendente (da nota secreta p/ tônica acima)</option>
+                        <option value="desc">Descendente (da nota secreta p/ tônica abaixo)</option>
+                        <option value="both_asc_desc">Ambas: Sobe e desce (repetindo no topo)</option>
+                        <option value="both_desc_asc">Ambas: Desce e sobe (repetindo no fundo)</option>
+                    </select>
+                </div>
+            </div>
+
+            <hr>
+
+            <h3>Contexto da Tônica</h3>
+            <div class="setting-group">
+                <div class="setting-item">
+                    <label for="randomizeInitialRoot">Tônica Inicial Aleatória?</label>
+                    <input type="checkbox" id="randomizeInitialRoot" />
+                </div>
+                <div class="setting-item">
+                    <label for="initialRootNote">Tônica/Ponto de Partida Fixo:</label>
+                    <select id="initialRootNote"></select>
+                </div>
+                <div class="setting-item">
+                    <label for="initialRootNoteSource">Fonte da Tônica Aleatória:</label>
+                    <select id="initialRootNoteSource">
+                        <option value="chromatic" selected>Todas as 12 notas (Cromática)</option>
+                        <option value="scale">Apenas notas da Escala/Modo</option>
+                    </select>
+                </div>
+                <div class="setting-item">
+                    <label for="fillNotesNum">Notas de Preenchimento Aleatórias:</label>
+                    <input type="number" id="fillNotesNum" value="0" min="0" max="100">
+                </div>
+            </div>
+
+            <hr>
+
+            <h3>Controles de Tempo (ms)</h3>
+            <div class="setting-group">
+                <div class="setting-item">
+                    <label for="delayTonicSecretNum">Atraso Tônica → Nota Secreta:</label>
+                    <div class="range-input-group">
+                        <input type="range" id="delayTonicSecretRange" min="0" max="2000" step="50" value="700">
+                        <input type="number" id="delayTonicSecretNum" min="0" max="2000" step="50" value="700">
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label for="delayFillBetweenNum">Atraso entre Notas de Preenchimento:</label>
+                    <div class="range-input-group">
+                        <input type="range" id="delayFillBetweenRange" min="50" max="500" step="10" value="100">
+                        <input type="number" id="delayFillBetweenNum" min="50" max="500" step="10" value="100">
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label for="delayBeforeNum">Atraso Palpite → Sequência:</label>
+                    <div class="range-input-group">
+                        <input type="range" id="delayBeforeRange" min="0" max="3000" step="100" value="500">
+                        <input type="number" id="delayBeforeNum" min="0" max="3000" step="100" value="500">
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label for="delayBetweenSequenceNum">Atraso entre Notas da Sequência:</label>
+                    <div class="range-input-group">
+                        <input type="range" id="delayBetweenSequenceRange" min="150" max="500" step="10" value="250">
+                        <input type="number" id="delayBetweenSequenceNum" min="150" max="500" step="10" value="250">
+                    </div>
+                </div>
+                <div class="setting-item">
+                    <label for="delayAfterNum">Atraso Sequência → Próxima Rodada:</label>
+                    <div class="range-input-group">
+                        <input type="range" id="delayAfterRange" min="0" max="5000" step="100" value="2000">
+                        <input type="number" id="delayAfterNum" min="0" max="5000" step="100" value="2000">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="noteButtons">
+            </div>
+
+        <div id="paper"></div>
+
+    </div>
+
+<script>
+/* ============================
+    Dados e Configurações
+    ============================ */
+const NOTE_NAMES_BASE = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+const NOTE_NAMES = [...NOTE_NAMES_BASE, "C(6)"];
+const MODOS = {
+    ionian:           [0,2,4,5,7,9,11],
+    dorian:           [0,2,3,5,7,9,10],
+    phrygian:         [0,1,3,5,7,8,10],
+    lydian:           [0,2,4,6,7,9,11],
+    mixolydian:       [0,2,4,5,7,9,10],
+    aeolian:          [0,2,3,5,7,8,10],
+    harmonic_minor: [0,2,3,5,7,8,11],
+    melodic_minor:    [0,2,3,5,7,9,11], 
+    locrian:          [0,1,3,5,6,8,10],
+    chromatic:        [0,1,2,3,4,5,6,7,8,9,10,11]
+};
+
+// MAPEAMENTO DE TECLAS (NOVAS TECLAS PARA SUSTENIDOS)
+const KEYBOARD_MAP = {
+    'C': 'C',
+    'D': 'D',
+    'E': 'E',
+    'F': 'F',
+    'G': 'G',
+    'A': 'A',
+    'B': 'B',
+    'I': 'C#', 
+    'O': 'D#', 
+    'K': 'F#', 
+    'L': 'G#', 
+    'Ç': 'A#', 
+    ';': 'A#'
+};
+
+
+let instrument = null;
+let instrumentType = 'sampler';
+let currentMidiProgram = 0;
+
+const simpleSynthConfig = {
+    oscillator: { type: "sine" },
+    envelope: { attack: 0.02, decay: 0.1, sustain: 0.3, release: 0.4 }
+};
+
+const SYNTH_PRESETS = {
+    0: { oscillator: { type: "triangle8" }, envelope: { attack: 0.005, decay: 0.3, sustain: 0.4, release: 0.8 } },
+    25: { 
+        oscillator: { type: "sawtooth" }, 
+        envelope: { attack: 0.002, decay: 1.5, sustain: 0.0, release: 0.5, releaseCurve: 'linear' } 
+    },
+    40: {
+        synth: "AMSynth",
+        oscillator: { type: "sawtooth" },
+        modulation: { type: "square" },
+        envelope: { attack: 0.1, decay: 0.8, sustain: 0.6, release: 1.2 }
+    },
+    56: {
+        synth: "FMSynth",
+        harmonicity: 3.01,
+        modulationIndex: 14,
+        oscillator: { type: "sine" },
+        envelope: { attack: 0.05, decay: 0.4, sustain: 0.6, release: 0.5 }
+    },
+    73: { oscillator: { type: "sine" }, envelope: { attack: 0.01, decay: 0.9, sustain: 0.7, release: 1.5 } },
+    default: simpleSynthConfig 
+};
+
+
+/* ============================
+    Lógica do Instrumento / Timbre
+    ============================ */
+function loadInstrumentFromMIDIProgram(programNumber) {
+    DOM.btnStart.disabled = true;
+    DOM.instrumentSelector.disabled = true;
+    
+    DOM.statusEl.textContent = `🎵 Tentando carregar timbre MIDI Program ${programNumber}...`;
+    DOM.statusEl.className = "status-awaiting";
+
+    if (instrument) {
+        instrument.dispose();
+        instrument = null;
+    }
+    
+    currentMidiProgram = programNumber;
+    DOM.instrumentSelector.value = programNumber;
+    
+    try {
+        const instrumentUrls = Tone.Instrument.loadProgram(programNumber);
+
+        if (!instrumentUrls) {
+             fallbackToSimpleSynth();
+             return;
+        }
+
+        instrument = new Tone.Sampler({
+            urls: instrumentUrls,
+            onload: () => {
+                instrument.toDestination();
+                instrumentType = 'sampler';
+                DOM.statusEl.textContent = `🎹 Timbre ${programNumber} (Sampler) pronto. Clique em 'Iniciar Treino'.`;
+                DOM.btnStart.disabled = false;
+                DOM.instrumentSelector.disabled = false;
+                DOM.statusEl.className = "status-default";
+                updateUIState();
+            },
+            onerror: (error) => {
+                console.error(`Erro ao carregar samples para ${programNumber}. Fallback para Synth.`, error);
+                fallbackToSimpleSynth();
+            }
+        });
+        
+    } catch(e) {
+        console.error("Erro ao inicializar Sampler. Fallback para Synth simples.", e);
+        fallbackToSimpleSynth();
+    }
+}
+
+function fallbackToSimpleSynth() {
+    if (instrument) {
+        instrument.dispose();
+        instrument = null;
+    }
+
+    const preset = SYNTH_PRESETS[currentMidiProgram] || SYNTH_PRESETS.default;
+    let synthName = "Synth";
+
+    if (preset.synth === "AMSynth") {
+        instrument = new Tone.AMSynth(preset).toDestination();
+        synthName = "AMSynth";
+    } else if (preset.synth === "FMSynth") {
+        instrument = new Tone.FMSynth(preset).toDestination();
+        synthName = "FMSynth";
+    } else {
+        instrument = new Tone.Synth(preset).toDestination();
+    }
+
+    instrumentType = 'synth';
+    DOM.statusEl.textContent = `🔊 Sampler falhou. Áudio Sintetizado (${synthName} - Program ${currentMidiProgram}) pronto.`;
+    DOM.btnStart.disabled = false;
+    DOM.instrumentSelector.disabled = false;
+    DOM.statusEl.className = "status-default";
+    updateUIState();
+}
+
+
+/* ============================
+    Dados e Estado
+    ============================ */
+
+const state = {
+    playing: false,
+    awaitingGuess: false,
+    currentSecretNote: null,
+    secretNoteOctave: 4,
+    selectedNotes: [],
+    keyRoot: "C", 
+    initialRoot: "C",
+    initialRootSource: "chromatic",
+    modoAtual: "ionian",
+    direction: "asc",
+    playTonic: true,
+    randomizeInitialRoot: false,
+    score: { correct:0, attempts:0 },
+    pendingTimeout: null,
+    lastGuess: null,
+    fillNotes: 0,
+    
+    // NOVO: Rastreamento de desempenho por nota
+    notePerformance: {} 
+};
+
+/* DOM refs */
+const DOM = {
+    btnStart: document.getElementById("btnStart"),
+    btnStop: document.getElementById("btnStop"),
+    btnRepeat: document.getElementById("btnRepeat"),
+    autoAdvance: document.getElementById("autoAdvance"),
+    statusEl: document.getElementById("status"),
+    noteButtonsDiv: document.getElementById("noteButtons"),
+    paperEl: document.getElementById("paper"),
+    notasSelect: document.getElementById("notas"),
+    tomSelect: document.getElementById("tom"),
+    initialRootNoteSelect: document.getElementById("initialRootNote"),
+    randomizeInitialRoot: document.getElementById("randomizeInitialRoot"),
+    initialRootNoteSource: document.getElementById("initialRootNoteSource"),
+    modoSelect: document.getElementById("modo"),
+    direcaoSelect: document.getElementById("direcao"),
+    oitavaSelect: document.getElementById("oitava"),
+    playTonicBefore: document.getElementById("playTonicBefore"),
+    playSequenceAfterGuess: document.getElementById("playSequenceAfterGuess"), 
+    correctCount: document.getElementById("correctCount"),
+    attemptCount: document.getElementById("attemptCount"),
+    delayBeforeRange: document.getElementById("delayBeforeRange"),
+    delayBeforeNum: document.getElementById("delayBeforeNum"),
+    delayBetweenSequenceRange: document.getElementById("delayBetweenSequenceRange"),
+    delayBetweenSequenceNum: document.getElementById("delayBetweenSequenceNum"),
+    delayFillBetweenRange: document.getElementById("delayFillBetweenRange"),
+    delayFillBetweenNum: document.getElementById("delayFillBetweenNum"),
+    delayAfterRange: document.getElementById("delayAfterRange"),
+    delayAfterNum: document.getElementById("delayAfterNum"),
+    instrumentSelector: document.getElementById("instrumentSelector"),
+    delayTonicSecretRange: document.getElementById("delayTonicSecretRange"),
+    delayTonicSecretNum: document.getElementById("delayTonicSecretNum"),
+    fillNotesNum: document.getElementById("fillNotesNum"), 
+
+    // NOVO: Referências para as estatísticas
+    accuracyTotal: document.getElementById("accuracyTotal"),
+    noteStats: document.getElementById("noteStats"),
+};
+
+function populateInitialRootNoteSelect() {
+    const select = DOM.initialRootNoteSelect;
+    select.innerHTML = '';
+    NOTE_NAMES_BASE.forEach(note => {
+        const option = document.createElement('option');
+        option.value = note;
+        option.textContent = note;
+        if (note === 'C') option.selected = true;
+        select.appendChild(option);
+    });
+}
+
+
+/* ============================
+    Conversões e utilitários musicais
+    ============================ */
+function letterToScientific(letter, octave){
+    if (letter === "C(6)") {
+        const targetOctave = Math.min(6, octave + 1);
+        return "C" + targetOctave;
+    }
+    return letter + octave;
+}
+
+function midiToScientific(m){
+    const idx = ((m%12)+12)%12;
+    const oct = Math.floor(m/12)-1;
+    return NOTE_NAMES_BASE[idx] + oct;
+}
+
+function scientificToABC(sci){
+    const m = sci.match(/^([A-G])(#|b)?(-?\d+)$/);
+    if(!m) return sci;
+    const letter=m[1], acc=m[2]||"", oct=parseInt(m[3],10);
+    const accToken = acc==="#" ? "^" : (acc==="b" ? "_" : "");
+    let base;
+    if(oct>4){
+        base = letter.toLowerCase();
+        if(oct>5) base += "'".repeat(oct-5);
+    } else if(oct<4){
+        base = letter.toUpperCase() + ",".repeat(4-oct);
+    } else base = letter.toUpperCase();
+    return accToken + base;
+}
+
+function generateModeScaleMidi(root, modo, octave){
+    const rootIdx = NOTE_NAMES_BASE.indexOf(root);
+    const tonicMidi = 12*(octave + 1) + rootIdx;
+    const pattern = MODOS[modo] || [];
+    const midis = pattern.map(i => tonicMidi + i);
+    return { midis, tonicMidi };
+}
+
+function buildSequenceForSecret(selectedNoteName, scaleData, dir, baseOctave){
+    const { midis, tonicMidi } = scaleData;
+    const tonicAbove = tonicMidi + 12;
+
+    let targetMidi;
+
+    if (selectedNoteName === "C(6)") {
+        targetMidi = tonicAbove; 
+    } else {
+        const rootIdx = NOTE_NAMES_BASE.indexOf(selectedNoteName);
+        targetMidi = 12 * (baseOctave + 1) + rootIdx;
+        
+        let foundMidi = midis.find(m => ((m % 12) === (targetMidi % 12)));
+        if (foundMidi === undefined) {
+             targetMidi = 12 * (baseOctave + 1) + rootIdx;
+        } else {
+            targetMidi = foundMidi;
+        }
+    }
+
+    let fullScaleMidis = [];
+    midis.forEach(m => fullScaleMidis.push(m - 12));
+    fullScaleMidis = fullScaleMidis.concat(midis);
+    midis.forEach(m => fullScaleMidis.push(m + 12));
+    fullScaleMidis = [...new Set(fullScaleMidis)].sort((a,b) => a-b);
+    
+    if(!fullScaleMidis.includes(targetMidi)) {
+        fullScaleMidis.push(targetMidi);
+        fullScaleMidis.sort((a,b) => a-b);
+    }
+
+    const targetIndex = fullScaleMidis.indexOf(targetMidi);
+    if(targetIndex === -1){
+        return { seq: [targetMidi], isDouble: false }; 
+    }
+
+    function buildSimpleSequence(startMidi, direction) {
+        const startIndex = fullScaleMidis.indexOf(startMidi);
+        if (startIndex === -1) return [startMidi];
+
+        let sequence = [startMidi];
+        
+        if (direction === "asc") {
+            let nextTonic = tonicAbove;
+            while (nextTonic < startMidi) { nextTonic += 12; }
+            
+            for(let i = startIndex + 1; i < fullScaleMidis.length; i++){
+                const midi = fullScaleMidis[i];
+                sequence.push(midi);
+                if(midi >= nextTonic) {
+                    if (midi > nextTonic) { 
+                        sequence.pop();
+                        sequence.push(nextTonic);
+                    }
+                    break;
+                }
+            }
+        } else { // desc
+            let nextTonic = tonicMidi;
+            while (nextTonic > startMidi) { nextTonic -= 12; }
+            
+            for(let i = startIndex - 1; i >= 0; i--){
+                const midi = fullScaleMidis[i];
+                sequence.push(midi);
+                if(midi <= nextTonic) {
+                       if (midi < nextTonic) {
+                        sequence.pop();
+                        sequence.push(nextTonic);
+                    }
+                    break;
+                }
+            }
+        }
+        return sequence;
+    }
+    
+    if (dir === "desc" || dir === "asc") {
+        return { seq: buildSimpleSequence(targetMidi, dir), isDouble: false };
+    } 
+    
+    if (dir === "both_desc_asc") {
+        const descSeq = buildSimpleSequence(targetMidi, "desc"); 
+        const ascSeq = buildSimpleSequence(targetMidi, "asc");  
+        
+        return { seq: [...descSeq, ...ascSeq], isDouble: true };
+    } 
+    
+    if (dir === "both_asc_desc") {
+        const ascSeq = buildSimpleSequence(targetMidi, "asc");  
+        const descSeq = buildSimpleSequence(targetMidi, "desc"); 
+        
+        return { seq: [...ascSeq, ...descSeq], isDouble: true };
+    }
+
+    return { seq: [targetMidi], isDouble: false }; 
+}
+
+function getNotesFromMode(root, modo, octave) {
+    const { midis } = generateModeScaleMidi(root, modo, octave);
+    const uniqueNoteNames = midis.map(m => NOTE_NAMES_BASE[((m%12)+12)%12]);
+    return [...new Set(uniqueNoteNames)];
+}
+
+function midisToABCTokens(midis){
+    return midis.map(m => scientificToABC(midiToScientific(m))).join(" ");
+}
+
+function renderABC(tokens, key, initialRoot){
+    let abcTokens = tokens;
+    const isDouble = DOM.direcaoSelect.value.startsWith('both');
+    
+    let preSequence = [];
+
+    const initialNoteSci = letterToScientific(initialRoot, state.secretNoteOctave);
+    const initialNoteABC = scientificToABC(initialNoteSci);
+    const secretNoteSci = letterToScientific(state.currentSecretNote, state.secretNoteOctave);
+    const secretNoteABC = scientificToABC(secretNoteSci);
+    
+    let fillTokens = "";
+    if (state.fillNotes > 0) {
+        fillTokens = Array(state.fillNotes).fill('X').join(" ");
+    }
+    
+    if (state.playTonic) {
+        preSequence.push(`[L:1/2] ${initialNoteABC}`); 
+        if (fillTokens) preSequence.push(`[L:1/16] ${fillTokens}`); 
+        preSequence.push(`[L:1/2] ${secretNoteABC}`); 
+    } else {
+        preSequence.push(`[L:1/2] ${secretNoteABC}`); 
+    }
+    
+    let sequenceTokens = "";
+    if (tokens) {
+        if(isDouble) {
+            const targetToken = scientificToABC(letterToScientific(state.currentSecretNote, state.secretNoteOctave));
+            const seqArray = tokens.split(" ");
+            
+            let inversionIndex = -1;
+            for(let i = 1; i < seqArray.length; i++) {
+                if (seqArray[i] === targetToken) {
+                    inversionIndex = i;
+                    break;
+                }
+            }
+            
+            if (inversionIndex !== -1) {
+                const part1 = seqArray.slice(0, inversionIndex).join(" "); 
+                const part2 = seqArray.slice(inversionIndex).join(" ");   
+                sequenceTokens = `[L:1/4] ${part1} |: ${part2}`;
+            } else {
+                 sequenceTokens = `[L:1/4] ${tokens}`;
+            }
+
+        } else {
+            sequenceTokens = `[L:1/4] ${tokens}`;
+        }
+    }
+
+    const abc = `X:1\nL:1/4\nK:${key}\n%%MIDI program ${currentMidiProgram}\n${preSequence.join(" ")} | ${sequenceTokens}`;
+
+    try {
+        ABCJS.renderAbc("paper", abc);
+    } catch(e){
+        DOM.paperEl.innerHTML = "<div style='color:#c62828;font-weight:700;padding:8px;'>Erro ao renderizar partitura.</div>";
+        console.error("ABCJS render error", e);
+    }
+}
+
+/* ============================
+    ÁUDIO: tocar nota
+    ============================ */
+
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
+async function ensureAudioContextRunning() {
+    if (Tone.context.state !== 'running') {
+        try {
+            await Tone.start();
+            return true;
+        } catch (e) {
+            console.error("Falha ao iniciar áudio:", e);
+            return false;
+        }
+    }
+    return true;
+}
+
+function playNoteScientific(sci, dur="8n"){
+    if (!instrument) return false;
+    
+    try {
+        const time = Tone.context.state === 'running' ? Tone.now() : undefined; 
+        instrument.triggerAttackRelease(sci, dur, time);
+        return true;
+    } catch (error) {
+        console.error("Erro ao tocar nota:", sci, error);
+        return false;
+    }
+}
+
+async function playScientificSequence(scientificNotes) {
+    if (!await ensureAudioContextRunning()) return; 
+
+    const delayBetween = parseInt(DOM.delayBetweenSequenceNum.value, 10); 
+    const noteDuration = instrumentType === 'synth' ? "8n" : (delayBetween > 200 ? "4n" : "8n"); 
+    
+    for(let i = 0; i < scientificNotes.length; i++) {
+        if(!state.playing) break;
+        const note = scientificNotes[i];
+        playNoteScientific(note, noteDuration);
+        if(i < scientificNotes.length - 1) {
+          await delay(delayBetween);
+        }
+    }
+}
+
+function playHiddenScientific(sci){
+    const dur = instrumentType === 'synth' ? "4n" : "2n";
+    playNoteScientific(sci, dur); 
+}
+
+async function playFillNotes(count, scaleNotes, delayBetween){
+    if (count <= 0) return;
+    
+    const fillNotesMidis = scaleNotes.midis;
+    const notesToPlay = [];
+
+    for(let i = 0; i < count; i++) {
+        const randomMidi = fillNotesMidis[Math.floor(Math.random() * fillNotesMidis.length)];
+        notesToPlay.push(midiToScientific(randomMidi));
+    }
+
+    const noteDuration = instrumentType === 'synth' ? "16n" : "8n"; 
+    
+    for(let i = 0; i < notesToPlay.length; i++) {
+        if(!state.playing) break;
+        playNoteScientific(notesToPlay[i], noteDuration);
+        if(i < notesToPlay.length - 1) {
+          await delay(delayBetween); 
+        }
+    }
+}
+
+
+/* ============================
+    UI helpers (placar, botões, estatísticas) 
+    ============================ */
+function updateScoreboard(){
+    DOM.correctCount.textContent = state.score.correct;
+    DOM.attemptCount.textContent = state.score.attempts;
+}
+
+function resetScore(){
+    state.score = { correct:0, attempts:0 };
+    state.notePerformance = {}; // LIMPA AS ESTATÍSTICAS DETALHADAS
+    updateScoreboard();
+    updateNoteStats(); // ATUALIZA A EXIBIÇÃO
+}
+
+/**
+ * Calcula e exibe a precisão por nota e a precisão geral.
+ */
+function updateNoteStats() {
+    // 1. Precisão Geral
+    const totalAttempts = state.score.attempts;
+    const totalCorrect = state.score.correct;
+    let overallAccuracy = 0;
+    
+    if (totalAttempts > 0) {
+        overallAccuracy = ((totalCorrect / totalAttempts) * 100).toFixed(1);
+    }
+    DOM.accuracyTotal.textContent = `${overallAccuracy}% (${totalCorrect}/${totalAttempts})`;
+
+    // 2. Precisão por Nota
+    const statsContainer = DOM.noteStats;
+    statsContainer.innerHTML = '';
+    
+    const notesToDisplay = Object.keys(state.notePerformance).sort((a, b) => {
+        return NOTE_NAMES.indexOf(a) - NOTE_NAMES.indexOf(b);
+    });
+
+    if (notesToDisplay.length === 0) {
+        statsContainer.innerHTML = '<p>Nenhuma tentativa registrada ainda.</p>';
+        return;
+    }
+    
+    notesToDisplay.forEach(note => {
+        const { attempts, correct } = state.notePerformance[note];
+        
+        const accuracy = attempts > 0 
+            ? ((correct / attempts) * 100).toFixed(0)
+            : 0;
+
+        const div = document.createElement('div');
+        div.innerHTML = `
+            <span>${note}</span>
+            <span class="stat-accuracy" style="color: ${accuracy < 50 ? '#c62828' : (accuracy < 80 ? '#f9a825' : '#2e7d32')};">
+                ${accuracy}%
+            </span>
+            <span>(${correct}/${attempts})</span>
+        `;
+        statsContainer.appendChild(div);
+    });
+}
+
+
+function updateResponseButtons(){
+    const opts = Array.from(DOM.notasSelect.selectedOptions).map(o => o.value);
+    DOM.noteButtonsDiv.innerHTML = "";
+    if(opts.length === 0){
+        DOM.statusEl.textContent = "Selecione notas para aparecerem como botões de resposta.";
+        return;
+    }
+    opts.forEach(n => {
+        const b = document.createElement("button");
+        b.type = "button";
+        
+        let keyText = "";
+        for (const [key, note] of Object.entries(KEYBOARD_MAP)) {
+            if (note === n) {
+                keyText = ` (${key})`;
+                break;
+            }
+        }
+        b.textContent = n + keyText;
+        b.dataset.note = n;
+        b.onclick = onGuess;
+        DOM.noteButtonsDiv.appendChild(b);
+    });
+    updateUIState();
+}
+
+function updateUIState(){
+    const isInstrumentReady = instrument && (instrumentType === 'synth' || instrument.loaded);
+    DOM.btnStart.disabled = state.playing || !isInstrumentReady;
+    DOM.btnStop.disabled = !state.playing;
+    DOM.btnRepeat.disabled = !(state.playing && state.awaitingGuess);
+    
+    const configDisabled = state.playing && !state.awaitingGuess;
+    DOM.notasSelect.disabled = configDisabled;
+    DOM.tomSelect.disabled = configDisabled;
+    DOM.modoSelect.disabled = configDisabled;
+    DOM.direcaoSelect.disabled = configDisabled;
+    DOM.oitavaSelect.disabled = configDisabled || state.currentSecretNote === 'C(6)';
+    DOM.playTonicBefore.disabled = configDisabled;
+    DOM.playSequenceAfterGuess.disabled = configDisabled; 
+    DOM.autoAdvance.disabled = configDisabled;
+    
+    DOM.randomizeInitialRoot.disabled = configDisabled;
+    const isRandom = DOM.randomizeInitialRoot.checked;
+    DOM.initialRootNoteSelect.disabled = configDisabled || isRandom;
+    DOM.initialRootNoteSource.disabled = configDisabled || !isRandom;
+    
+    DOM.instrumentSelector.disabled = configDisabled; 
+    
+    DOM.delayTonicSecretRange.disabled = configDisabled;
+    DOM.delayTonicSecretNum.disabled = configDisabled;
+    DOM.fillNotesNum.disabled = configDisabled;
+    
+    DOM.delayBetweenSequenceRange.disabled = configDisabled; 
+    DOM.delayBetweenSequenceNum.disabled = configDisabled; 
+    
+    const isFillActive = parseInt(DOM.fillNotesNum.value, 10) > 0;
+    DOM.delayFillBetweenRange.disabled = configDisabled || !isFillActive; 
+    DOM.delayFillBetweenNum.disabled = configDisabled || !isFillActive; 
+
+    DOM.delayAfterRange.disabled = configDisabled;
+    DOM.delayAfterNum.disabled = configDisabled;
+
+    const answerButtons = DOM.noteButtonsDiv.querySelectorAll("button");
+    answerButtons.forEach(b => {
+        b.disabled = !state.awaitingGuess;
+        if (state.awaitingGuess) {
+            b.classList.remove("correct", "wrong");
+        }
+    });
+}
+
+/* ============================
+    Fluxo principal
+    ============================ */
+
+async function startRound(){
+    const isInstrumentReady = instrument && (instrumentType === 'synth' || instrument.loaded);
+    if(state.playing || !isInstrumentReady) return;
+    
+    const selOpts = Array.from(DOM.notasSelect.selectedOptions);
+    if(selOpts.length === 0){
+        alert("Selecione pelo menos uma nota!");
+        return;
+    }
+
+    if (!await ensureAudioContextRunning()) return;
+
+    state.playing = true;
+    state.selectedNotes = selOpts.map(o => o.value);
+    state.keyRoot = DOM.tomSelect.value;
+    state.randomizeInitialRoot = DOM.randomizeInitialRoot.checked;
+    state.initialRootSource = DOM.initialRootNoteSource.value;
+    state.modoAtual = DOM.modoSelect.value;
+    state.direction = DOM.direcaoSelect.value;
+    state.secretNoteOctave = parseInt(DOM.oitavaSelect.value, 10);
+    state.playTonic = DOM.playTonicBefore.checked;
+    state.fillNotes = parseInt(DOM.fillNotesNum.value, 10); 
+
+    DOM.paperEl.innerHTML = "";
+    DOM.statusEl.textContent = "Treino ativo — tocando notas...";
+    DOM.statusEl.className = "status-awaiting";
+    updateUIState();
+
+    await playNextNote();
+}
+
+function stopAll(){
+    state.playing = false;
+    state.awaitingGuess = false;
+    state.currentSecretNote = null;
+    if(state.pendingTimeout) {
+        clearTimeout(state.pendingTimeout);
+        state.pendingTimeout = null;
+    }
+    DOM.paperEl.innerHTML = "";
+    DOM.statusEl.textContent = "Parado.";
+    DOM.statusEl.className = "status-default";
+    updateUIState();
+}
+
+async function playNextNote() {
+    if(!state.playing) return;
+
+    state.currentSecretNote = state.selectedNotes[Math.floor(Math.random() * state.selectedNotes.length)];
+    const secretSci = letterToScientific(state.currentSecretNote, state.secretNoteOctave);
+    
+    if (state.randomizeInitialRoot) {
+        let possibleRoots = [];
+        if (state.initialRootSource === 'chromatic') {
+            possibleRoots = NOTE_NAMES_BASE;
+        } else { 
+            possibleRoots = getNotesFromMode(state.keyRoot, state.modoAtual, 4);
+            if (possibleRoots.length === 0) possibleRoots = NOTE_NAMES_BASE;
+        }
+        state.initialRoot = possibleRoots[Math.floor(Math.random() * possibleRoots.length)];
+    } else {
+        state.initialRoot = DOM.initialRootNoteSelect.value; 
+    }
+    const initialRootSci = letterToScientific(state.initialRoot, state.secretNoteOctave); 
+
+    state.awaitingGuess = true;
+    state.lastGuess = null;
+
+    DOM.oitavaSelect.disabled = state.currentSecretNote === "C(6)";
+
+    if (DOM.autoAdvance.checked) {
+        DOM.statusEl.textContent = "🎧 Modo Automático: Tocando nota oculta. Aguarde a sequência...";
+    } else {
+        DOM.statusEl.textContent = "🎧 Modo Manual: Ouça a nota oculta. Clique ou pressione a tecla correspondente.";
+    }
+    DOM.statusEl.className = "status-awaiting";
+    DOM.paperEl.innerHTML = "";
+
+    const allButtons = DOM.noteButtonsDiv.querySelectorAll("button");
+    allButtons.forEach(btn => {
+        btn.classList.remove("correct", "wrong");
+    });
+
+    await delay(100);
+    
+    const scaleData = generateModeScaleMidi(state.keyRoot, state.modoAtual, state.secretNoteOctave);
+    const delayTonicSecret = parseInt(DOM.delayTonicSecretNum.value, 10) || 0; 
+    const delayBetweenFill = parseInt(DOM.delayFillBetweenNum.value, 10) || 0; 
+
+    if(state.playTonic){
+        playHiddenScientific(initialRootSci);
+        
+        if (state.fillNotes > 0) {
+            await playFillNotes(state.fillNotes, scaleData, delayBetweenFill);
+        }
+        
+        await delay(delayTonicSecret);
+    }
+
+    playHiddenScientific(secretSci);
+
+    updateUIState();
+
+    if (DOM.autoAdvance.checked) {
+        const delayBefore = parseInt(DOM.delayBeforeNum.value, 10) || 0;
+        const waitTime = instrumentType === 'synth' ? 500 : 1000;
+        await delay(waitTime + delayBefore);
+        if (state.playing) {
+            DOM.statusEl.textContent = "🎵 Modo Automático: Tocando sequência...";
+            autoAdvanceSequence();
+        }
+    }
+}
+
+async function autoAdvanceSequence() {
+    if(!state.playing) return;
+
+    state.awaitingGuess = false;
+    const secretNote = state.currentSecretNote;
+    state.lastGuess = secretNote;
+    state.score.attempts++;
+    state.score.correct++;
+    
+    if (!state.notePerformance[secretNote]) {
+        state.notePerformance[secretNote] = { attempts: 0, correct: 0 };
+    }
+    state.notePerformance[secretNote].attempts++;
+    state.notePerformance[secretNote].correct++;
+    
+    updateScoreboard();
+    updateNoteStats();
+    updateUIState();
+
+    const delayAfter = parseInt(DOM.delayAfterNum.value, 10) || 0;
+
+    if (DOM.playSequenceAfterGuess.checked) {
+        let modeToGenerate = state.modoAtual;
+        if(state.modoAtual === "melodic_minor" && state.direction === "desc") modeToGenerate = "aeolian";
+
+        const scaleData = generateModeScaleMidi(state.keyRoot, modeToGenerate, state.secretNoteOctave);
+        const { seq: seqMidis } = buildSequenceForSecret(secretNote, scaleData, state.direction, state.secretNoteOctave); 
+        const scientificSeq = seqMidis.map(m => midiToScientific(m));
+        const abcTokens = midisToABCTokens(seqMidis);
+
+        DOM.paperEl.innerHTML = "";
+        renderABC(abcTokens, state.keyRoot, state.initialRoot);
+
+        DOM.statusEl.textContent = "🎵 Modo Automático: Tocando sequência...";
+        DOM.statusEl.className = "status-correct";
+        
+        await playScientificSequence(scientificSeq); 
+        
+        // Pequeno delay para garantir o fim da nota (se houver)
+        const minDelay = instrumentType === 'synth' ? 100 : 200; 
+        await delay(minDelay); 
+
+    } else {
+        DOM.statusEl.textContent = "✅ Acertou! Avançando...";
+        DOM.statusEl.className = "status-correct";
+        DOM.paperEl.innerHTML = "";
+    }
+    
+    if(state.playing) {
+        state.pendingTimeout = setTimeout(async () => {
+            state.pendingTimeout = null;
+            if(state.playing) {
+                await playNextNote();
+            }
+        }, delayAfter);
+    }
+}
+
+async function repeatNote(){
+    if(!state.awaitingGuess || !state.currentSecretNote){
+        DOM.statusEl.textContent = "Nenhuma nota ativa para repetir.";
+        return;
+    }
+    
+    if (!await ensureAudioContextRunning()) return;
+
+    const initialRootSci = letterToScientific(state.initialRoot, state.secretNoteOctave); 
+    const secretSci = letterToScientific(state.currentSecretNote, state.secretNoteOctave);
+    const waitTime = instrumentType === 'synth' ? 500 : 1000;
+    const delayTonicSecret = parseInt(DOM.delayTonicSecretNum.value, 10) || 0;
+    const delayBetweenFill = parseInt(DOM.delayFillBetweenNum.value, 10) || 0; 
+    const scaleData = generateModeScaleMidi(state.keyRoot, state.modoAtual, state.secretNoteOctave);
+
+    if(state.playTonic){
+        playHiddenScientific(initialRootSci);
+        
+        if (state.fillNotes > 0) {
+            await playFillNotes(state.fillNotes, scaleData, delayBetweenFill);
+        }
+
+        await delay(delayTonicSecret + waitTime);
+        if(state.playing) playHiddenScientific(secretSci);
+    } else {
+        playHiddenScientific(secretSci);
+    }
+}
+
+async function onGuess(e){
+    const guessedNote = e.target.dataset ? e.target.dataset.note : e.guessedNote;
+    
+    if(!state.awaitingGuess || !state.playing || DOM.autoAdvance.checked || !guessedNote) return;
+
+    if (!await ensureAudioContextRunning()) return;
+
+    const secretNote = state.currentSecretNote;
+    if (!state.notePerformance[secretNote]) {
+        state.notePerformance[secretNote] = { attempts: 0, correct: 0 };
+    }
+
+    state.awaitingGuess = false;
+    state.lastGuess = guessedNote;
+    state.score.attempts++;
+    state.notePerformance[secretNote].attempts++; 
+
+    updateScoreboard();
+    updateUIState();
+
+    const allButtons = DOM.noteButtonsDiv.querySelectorAll("button");
+    allButtons.forEach(btn => {
+        if(btn.dataset.note === guessedNote) {
+            btn.classList.add(guessedNote === secretNote ? "correct" : "wrong");
+        }
+        if(btn.dataset.note === secretNote && guessedNote !== secretNote) {
+            btn.classList.add("correct");
+        }
+    });
+
+    const delayBefore = parseInt(DOM.delayBeforeNum.value, 10) || 0;
+    const delayAfter = parseInt(DOM.delayAfterNum.value, 10) || 0;
+
+    if(guessedNote === secretNote){
+        state.score.correct++;
+        state.notePerformance[secretNote].correct++; 
+        updateScoreboard();
+
+        let sequenceWasPlayed = false; 
+
+        if (DOM.playSequenceAfterGuess.checked) {
+            let modeToGenerate = state.modoAtual;
+            if(state.modoAtual === "melodic_minor" && state.direction === "desc") modeToGenerate = "aeolian";
+
+            const scaleData = generateModeScaleMidi(state.keyRoot, modeToGenerate, state.secretNoteOctave);
+            const { seq: seqMidis } = buildSequenceForSecret(secretNote, scaleData, state.direction, state.secretNoteOctave);
+            const scientificSeq = seqMidis.map(m => midiToScientific(m));
+            const abcTokens = midisToABCTokens(seqMidis);
+
+            DOM.paperEl.innerHTML = "";
+            renderABC(abcTokens, state.keyRoot, state.initialRoot);
+
+            DOM.statusEl.textContent = "✅ Acertou! Preparando para tocar a sequência...";
+            DOM.statusEl.className = "status-correct";
+
+            if(delayBefore > 0) {
+                await delay(delayBefore); 
+            }
+
+            if(state.playing) { 
+                DOM.statusEl.textContent = "🎵 Tocando sequência...";
+                await playScientificSequence(scientificSeq); 
+                sequenceWasPlayed = true; 
+                DOM.statusEl.textContent = "✅ Acertou! Sequência tocada. Avançando...";
+            }
+        } else {
+            DOM.statusEl.textContent = "✅ Acertou! Avançando...";
+            DOM.statusEl.className = "status-correct";
+            DOM.paperEl.innerHTML = "";
+        }
+        
+        if (sequenceWasPlayed) {
+             const minDelay = instrumentType === 'synth' ? 100 : 200; 
+             await delay(minDelay); 
+        }
+
+        if(state.pendingTimeout) {
+            clearTimeout(state.pendingTimeout);
+            state.pendingTimeout = null;
+        }
+
+        if(state.playing) {
+            updateNoteStats(); 
+
+            state.pendingTimeout = setTimeout(async () => {
+                state.pendingTimeout = null;
+                if(state.playing) {
+                    await playNextNote();
+                }
+            }, delayAfter);
+        }
+
+    } else {
+        // --- Lógica de ERRO ---
+        DOM.statusEl.textContent = `❌ Errado — a nota correta era ${secretNote}.`;
+        DOM.statusEl.className = "status-wrong";
+        
+        if (DOM.playSequenceAfterGuess.checked) {
+            let modeToGenerate = state.modoAtual;
+            if(state.modoAtual === "melodic_minor" && state.direction === "desc") modeToGenerate = "aeolian";
+            const scaleData = generateModeScaleMidi(state.keyRoot, modeToGenerate, state.secretNoteOctave);
+            const { seq: seqMidis } = buildSequenceForSecret(secretNote, scaleData, state.direction, state.secretNoteOctave);
+            const abcTokens = midisToABCTokens(seqMidis);
+            renderABC(abcTokens, state.keyRoot, state.initialRoot);
+        }
+
+        if(state.pendingTimeout) {
+            clearTimeout(state.pendingTimeout);
+            state.pendingTimeout = null;
+        }
+
+        if(state.playing) {
+            updateNoteStats();
+
+            state.pendingTimeout = setTimeout(async () => {
+                state.pendingTimeout = null;
+                if(state.playing) {
+                    await playNextNote();
+                }
+            }, 3000); 
+        }
+    }
+}
+
+/* ============================
+    Eventos
+    ============================ */
+
+DOM.btnStart.addEventListener("click", startRound);
+DOM.btnStop.addEventListener("click", stopAll);
+DOM.btnRepeat.addEventListener("click", repeatNote);
+
+document.addEventListener("mousedown", ensureAudioContextRunning);
+document.addEventListener("touchstart", ensureAudioContextRunning);
+document.addEventListener("keydown", ensureAudioContextRunning);
+
+
+document.getElementById("selAllBtn").addEventListener("click", () => {
+    Array.from(DOM.notasSelect.options).forEach(o => o.selected = true);
+    updateResponseButtons();
+});
+document.getElementById("clearAllBtn").addEventListener("click", () => {
+    Array.from(DOM.notasSelect.options).forEach(o => o.selected = false);
+    updateResponseButtons();
+});
+
+DOM.notasSelect.addEventListener("change", updateResponseButtons);
+
+DOM.randomizeInitialRoot.addEventListener("change", () => {
+    state.randomizeInitialRoot = DOM.randomizeInitialRoot.checked;
+    DOM.initialRootNoteSelect.disabled = DOM.randomizeInitialRoot.checked;
+    DOM.initialRootNoteSource.disabled = !DOM.randomizeInitialRoot.checked;
+    updateUIState();
+});
+
+DOM.initialRootNoteSource.addEventListener("change", () => {
+    state.initialRootSource = DOM.initialRootNoteSource.value;
+});
+
+DOM.initialRootNoteSelect.addEventListener("change", () => {
+    if (!state.randomizeInitialRoot) {
+        state.initialRoot = DOM.initialRootNoteSelect.value;
+    }
+});
+
+DOM.autoAdvance.addEventListener("change", () => {
+    if (DOM.autoAdvance.checked && state.playing && state.awaitingGuess) {
+        const allButtons = DOM.noteButtonsDiv.querySelectorAll("button");
+        allButtons.forEach(btn => {
+            if(btn.dataset.note === state.currentSecretNote) {
+                btn.classList.add("correct");
+            }
+        });
+        autoAdvanceSequence();
+    }
+    updateUIState();
+});
+
+DOM.instrumentSelector.addEventListener("change", (e) => {
+    const programNum = parseInt(e.target.value, 10);
+    loadInstrumentFromMIDIProgram(programNum);
+});
+
+DOM.fillNotesNum.addEventListener("input", () => {
+    let v = parseInt(DOM.fillNotesNum.value, 10);
+    if(isNaN(v)) v = 0;
+    v = Math.max(0, Math.min(100, v)); 
+    DOM.fillNotesNum.value = v;
+    state.fillNotes = v;
+    updateUIState(); 
+});
+
+
+function syncRangeAndNum(rangeEl, numEl){
+    rangeEl.addEventListener("input", () => {
+        numEl.value = rangeEl.value;
+    });
+    numEl.addEventListener("input", () => {
+        let v = parseInt(numEl.value, 10);
+        if(isNaN(v)) v = parseInt(rangeEl.min,10);
+        v = Math.max(parseInt(rangeEl.min,10), Math.min(parseInt(rangeEl.max,10), v));
+        numEl.value = v;
+        rangeEl.value = v;
+    });
+}
+
+syncRangeAndNum(DOM.delayTonicSecretRange, DOM.delayTonicSecretNum);
+syncRangeAndNum(DOM.delayBeforeRange, DOM.delayBeforeNum);
+syncRangeAndNum(DOM.delayBetweenSequenceRange, DOM.delayBetweenSequenceNum); 
+syncRangeAndNum(DOM.delayFillBetweenRange, DOM.delayFillBetweenNum); 
+syncRangeAndNum(DOM.delayAfterRange, DOM.delayAfterNum);
+
+
+// TRATAMENTO DE EVENTOS DO TECLADO
+document.addEventListener("keydown", (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT' || e.target.tagName === 'TEXTAREA') {
+        return;
+    }
+    
+    const key = e.key.toUpperCase();
+    const note = KEYBOARD_MAP[key];
+
+    if (key === ' ' || key === 'R') {
+        e.preventDefault();
+        if(!DOM.btnRepeat.disabled) DOM.btnRepeat.click();
+        return;
+    }
+
+    if (note) {
+        const button = DOM.noteButtonsDiv.querySelector(`button[data-note="${note}"]`);
+
+        if (button && state.awaitingGuess && !DOM.autoAdvance.checked) {
+             e.preventDefault();
+             
+             const simulatedEvent = {
+                target: button,
+                guessedNote: note
+             };
+             
+             onGuess(simulatedEvent);
+        }
+    }
+});
+
+
+document.addEventListener("DOMContentLoaded", () => {
+    populateInitialRootNoteSelect();
+    loadInstrumentFromMIDIProgram(0); 
+    updateResponseButtons();
+    updateScoreboard();
+    updateNoteStats(); // Garante que o painel de estatísticas inicial seja exibido
+    updateUIState();
+});
+</script>
+</body>
+</html>
