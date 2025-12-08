@@ -1,0 +1,699 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8" />
+<title>Editor_NBM2</title>
+
+<!-- Carregar ABCJS localmente -->
+<script src="abcjs-basic-min.js"></script>
+<script src="abcjs_plugin.min.js"></script>
+
+<style>
+  body { font-family: Arial, sans-serif; padding: 20px; background-color: #f4f4f9; }
+  .container { max-width: 1100px; margin: auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+  .row { display:flex; gap:20px; margin-bottom: 15px; }
+  .box { flex:1; display:flex; flex-direction:column; }
+  label{font-weight:600; margin-bottom:6px; color: #333;}
+  input, textarea { width:100%; padding:10px; font-size:16px; box-sizing:border-box; border: 1px solid #ccc; border-radius: 4px; }
+  textarea { resize: vertical; }
+  #editor { height:150px; font-family: monospace; line-height: 1.4; }
+  #output { height:60px; font-family: monospace; background: #f9f9f9; }
+  
+  .toolbar { display: flex; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+  button { padding:10px 16px; background:#007bff; color:#fff; border:none; border-radius: 4px; cursor:pointer; font-weight: bold; }
+  button:hover{ background:#0056b3; }
+  button.secondary { background: #6c757d; }
+  button.secondary:hover { background: #5a6268; }
+  button.accent { background: #28a745; }
+  button.accent:hover { background: #218838; }
+  button.danger { background: #dc3545; }
+  button.danger:hover { background: #c82333; }
+
+  #paper, #paperEdit { 
+    margin-top:16px; 
+    padding:12px; 
+    background:#fff; 
+    border:1px solid #ddd; 
+    min-height:100px; 
+    border-radius: 4px; 
+    overflow-x: auto;
+  }
+  
+  hr { margin: 25px 0; border: 0; border-top: 1px solid #eee; }
+  
+  /* Áudio Controls */
+  .audio-controls {
+    background: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    padding: 15px;
+    margin: 20px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  
+  .audio-buttons {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  
+  .progress-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+  
+  .progress-bar {
+    flex-grow: 1;
+    height: 6px;
+    background: #e9ecef;
+    border-radius: 3px;
+    overflow: hidden;
+    cursor: pointer;
+  }
+  
+  .progress-fill {
+    height: 100%;
+    background: #007bff;
+    width: 0%;
+    transition: width 0.1s linear;
+  }
+  
+  .time-display {
+    font-family: monospace;
+    font-size: 14px;
+    color: #495057;
+    min-width: 100px;
+  }
+  
+  .audio-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #e9ecef;
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    color: #495057;
+  }
+  
+  .volume-control {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 150px;
+  }
+  
+  .volume-slider {
+    flex-grow: 1;
+    height: 4px;
+    background: #adb5bd;
+    border-radius: 2px;
+    cursor: pointer;
+  }
+  
+  .volume-fill {
+    height: 100%;
+    background: #28a745;
+    width: 100%;
+  }
+  
+  .volume-icon {
+    font-size: 18px;
+    color: #6c757d;
+  }
+  
+  /* Status */
+  .status {
+    padding: 8px 12px;
+    border-radius: 4px;
+    font-size: 14px;
+    margin: 5px 0;
+  }
+  
+  .status.success {
+    background: #d4edda;
+    color: #155724;
+    border: 1px solid #c3e6cb;
+  }
+  
+  .status.error {
+    background: #f8d7da;
+    color: #721c24;
+    border: 1px solid #f5c6cb;
+  }
+  
+  .status.info {
+    background: #d1ecf1;
+    color: #0c5460;
+    border: 1px solid #bee5eb;
+  }
+  
+  /* Ícones */
+  .icon {
+    font-size: 20px;
+    vertical-align: middle;
+  }
+  
+  /* Responsividade */
+  @media (max-width: 768px) {
+    .row {
+      flex-direction: column;
+    }
+    
+    .audio-buttons {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .progress-container {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    
+    .time-display {
+      text-align: center;
+    }
+  }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h2>🎼 Editor_NBM2</h2>
+  
+  <div class="status" id="statusMessage"></div>
+
+  <div class="row">
+    <div class="box">
+      <label>Título (T:)</label>
+      <input id="title" value="Minha Música" oninput="renderEditorPreview()">
+    </div>
+    <div class="box">
+      <label>Compositor (C:)</label>
+      <input id="composer" value="Anônimo" oninput="renderEditorPreview()">
+    </div>
+    <div class="box">
+      <label>BPM (Q:)</label>
+      <input id="bpm" type="number" value="60" oninput="renderEditorPreview()">
+    </div>
+  </div>
+
+  <div class="row">
+    <div class="box">
+      <label>Notas — ex.: <code>cdfde</code></label>
+      <input id="notes" placeholder="ex: cdfde" value="cdefg">
+    </div>
+    <div class="box">
+      <label>Figuras (A-D ou 1-9) — ex.: <code>A 2 3-</code></label>
+      <input id="groups" placeholder="ex: A 2 3" value="1 2 3">
+    </div>
+  </div>
+
+  <div class="toolbar">
+    <button onclick="generate()">Gerar Trecho</button>
+    <button onclick="testSetup()" class="secondary">Testar Configuração</button>
+  </div>
+
+  <label>Trecho Gerado:</label>
+  <textarea id="output" readonly></textarea>
+  <div id="paper"></div>
+
+  <!-- Controles de Áudio para o Trecho Gerado -->
+  <div class="audio-controls">
+    <h3>🎵 Reproduzir Trecho</h3>
+    <div class="audio-buttons">
+      <button onclick="playPreview()" class="accent">
+        <span class="icon">▶️</span> Play
+      </button>
+      <button onclick="pausePreview()" class="secondary">
+        <span class="icon">⏸️</span> Pause
+      </button>
+      <button onclick="stopPreview()" class="danger">
+        <span class="icon">⏹️</span> Stop
+      </button>
+    </div>
+    
+    <div class="progress-container">
+      <div class="progress-bar" onclick="seekPreview(event)">
+        <div class="progress-fill" id="previewProgress"></div>
+      </div>
+      <div class="time-display" id="previewTime">0:00 / 0:00</div>
+    </div>
+    
+    <div class="audio-info">
+      <div class="volume-control">
+        <span class="volume-icon">🔊</span>
+        <div class="volume-slider" onclick="setPreviewVolume(event)">
+          <div class="volume-fill" id="previewVolumeFill"></div>
+        </div>
+      </div>
+      <span id="previewStatus">Pronto</span>
+    </div>
+  </div>
+
+  <hr>
+
+  <h3>Área de Edição</h3>
+  <div class="toolbar">
+    <button class="accent" onclick="appendToEditor()">➕ Adicionar Trecho</button>
+    <button class="secondary" onclick="addRest()">⏸️ Pausa </button>
+    <button class="secondary" onclick="copyEditor()">📋 Copiar ABC</button>
+    <button class="danger" onclick="clearEditor()">🗑️ Limpar</button>
+  </div>
+
+  <textarea id="editor" placeholder="As notas aparecerão aqui lado a lado..."></textarea>
+  
+  <!-- Controles de Áudio para a Edição Final -->
+  <div class="audio-controls">
+    <h3>🎵 Reproduzir Partitura Completa</h3>
+    <div class="audio-buttons">
+      <button onclick="playEditor()" class="accent">
+        <span class="icon">▶️</span> Play
+      </button>
+      <button onclick="pauseEditor()" class="secondary">
+        <span class="icon">⏸️</span> Pause
+      </button>
+      <button onclick="stopEditor()" class="danger">
+        <span class="icon">⏹️</span> Stop
+      </button>
+    </div>
+    
+    <div class="progress-container">
+      <div class="progress-bar" onclick="seekEditor(event)">
+        <div class="progress-fill" id="editorProgress"></div>
+      </div>
+      <div class="time-display" id="editorTime">0:00 / 0:00</div>
+    </div>
+    
+    <div class="audio-info">
+      <div class="volume-control">
+        <span class="volume-icon">🔊</span>
+        <div class="volume-slider" onclick="setEditorVolume(event)">
+          <div class="volume-fill" id="editorVolumeFill"></div>
+        </div>
+      </div>
+      <div>
+        <span id="editorStatus">Pronto</span>
+      </div>
+    </div>
+  </div>
+  
+  <h3>Preview da Partitura:</h3>
+  <div id="paperEdit"></div>
+</div>
+
+<script>
+// ====== Sistema de Status ======
+function showStatus(message, type = 'info') {
+  const statusEl = document.getElementById('statusMessage');
+  statusEl.textContent = message;
+  statusEl.className = `status ${type}`;
+  
+  if (type !== 'error') {
+    setTimeout(() => {
+      statusEl.className = 'status';
+      statusEl.textContent = '';
+    }, 3000);
+  }
+}
+
+function testSetup() {
+  showStatus('Testando configuração...', 'info');
+  
+  // Testar se ABCJS está carregado
+  if (typeof ABCJS === 'undefined') {
+    showStatus('❌ ERRO: ABCJS não está carregado. Verifique os arquivos:', 'error');
+    return;
+  }
+  
+  // Testar renderização
+  try {
+    const testABC = "X:1\nT:Teste\nM:4/4\nL:1/4\nK:C\nc d e f";
+    const result = ABCJS.renderAbc("paper", testABC);
+    
+    if (result && result.length > 0) {
+      showStatus('✅ ABCJS básico funcionando!', 'success');
+    }
+  } catch (error) {
+    showStatus(`❌ Erro na renderização: ${error.message}`, 'error');
+  }
+  
+  // Testar áudio
+  setTimeout(() => {
+    if (typeof ABCJS.synth !== 'undefined') {
+      showStatus('✅ Sintetizador de áudio disponível!', 'success');
+    } else {
+      showStatus('⚠️ Sintetizador de áudio não disponível', 'info');
+    }
+  }, 500);
+}
+
+// ====== Lógica de Mapeamento ======
+const letterMap = { "A":"4", "B":"3", "C":"2", "D":"3/" };
+const patterns = {
+  1: "{0}", 2: "{0}/{1}/", 3: "{0}/>{1}/", 4: "{0}/<{1}/",
+  5: "{0}/{1}//{2}//", 6: "{0}//{1}//{2}/", 7: "{0}//{1}/{2}//",
+  8: "(3{0}/{1}/{2}/)", 9: "{0}//{1}//{2}//{3}//"
+};
+
+function placeholderCount(pat){
+  const m = [...String(pat).matchAll(/\{(\d+)\}/g)];
+  return m.length ? Math.max(...m.map(x=>+x[1])) + 1 : 1;
+}
+
+function expandGroupAtPos(notesArr, pos, rawGroup){
+  let group = rawGroup;
+  let tie = false;
+  if (!group) return { text: "", consumed: 0 };
+  if (group.endsWith("-")) { tie = true; group = group.slice(0,-1); }
+
+  if (/^[A-Za-z]$/.test(group)){
+    const mapped = letterMap[group.toUpperCase()];
+    const note = notesArr[pos] || "";
+    const out = (mapped !== undefined) ? (note + mapped + (tie ? "-" : "")) : (note + (tie ? "-" : ""));
+    return { text: out, consumed: 1 };
+  }
+
+  const num = parseInt(group,10);
+  const pat = patterns[num] || "{0}";
+  const need = placeholderCount(pat);
+  const segment = [];
+  for (let k=0; k<need; k++){
+    segment.push(notesArr[pos + k] || (notesArr[notesArr.length-1] || "z"));
+  }
+
+  let expanded = pat.replace(/\{(\d+)\}/g, (_, idx) => segment[Number(idx)]);
+  if (tie) expanded = expanded.replace(/([A-Ga-g][\/><]*)$/, "$1-");
+
+  return { text: expanded, consumed: need };
+}
+
+function generate(){
+  const notesArr = Array.from((document.getElementById("notes").value || "").trim());
+  const groupsRaw = (document.getElementById("groups").value || "").trim();
+  if (!groupsRaw) {
+    showStatus('Digite grupos para gerar o trecho.', 'error');
+    return;
+  }
+  
+  const groups = groupsRaw.split(/\s+/);
+  const parts = [];
+  let pos = 0;
+  for (let g of groups){
+    if (pos >= notesArr.length) break;
+    const res = expandGroupAtPos(notesArr, pos, g);
+    parts.push(res.text);
+    pos += Math.max(1, res.consumed);
+  }
+
+  const result = parts.join("");
+  document.getElementById("output").value = result;
+  
+  // Renderizar partitura
+  try {
+    ABCJS.renderAbc("paper", "X:1\nL:1/4\nK:C\n" + result);
+    showStatus('Trecho gerado com sucesso!', 'success');
+  } catch (error) {
+    showStatus(`Erro ao renderizar: ${error.message}`, 'error');
+  }
+}
+
+// ====== Sistema de Áudio Simplificado ======
+let previewSynth = null;
+let editorSynth = null;
+
+// Verificar se o sintetizador está disponível
+function isSynthAvailable() {
+  return typeof ABCJS !== 'undefined' && 
+         typeof ABCJS.synth !== 'undefined' && 
+         typeof ABCJS.synth.CreateSynth === 'function';
+}
+
+// Inicializar sintetizador de forma segura
+function createSafeSynth() {
+  if (!isSynthAvailable()) {
+    showStatus('Sintetizador de áudio não está disponível', 'error');
+    return null;
+  }
+  
+  try {
+    return new ABCJS.synth.CreateSynth();
+  } catch (error) {
+    showStatus(`Erro ao criar sintetizador: ${error.message}`, 'error');
+    return null;
+  }
+}
+
+// ====== Áudio para Preview ======
+function playPreview() {
+  const abc = "X:1\nL:1/4\nK:C\n" + (document.getElementById("output").value || "z4");
+  
+  if (!previewSynth) {
+    previewSynth = createSafeSynth();
+    if (!previewSynth) return;
+  }
+  
+  try {
+    const visualObj = ABCJS.renderAbc("paper", abc)[0];
+    if (!visualObj) {
+      showStatus('Não foi possível criar visualização', 'error');
+      return;
+    }
+    
+    const options = {
+      chordsOff: false,
+      qpm: parseInt(document.getElementById("bpm").value) || 60
+    };
+    
+    previewSynth.init({
+      visualObj: visualObj,
+      options: options
+    }).then(() => {
+      document.getElementById('previewStatus').textContent = 'Tocando...';
+      return previewSynth.prime();
+    }).then(() => {
+      previewSynth.start();
+    }).catch(error => {
+      showStatus(`Erro ao tocar: ${error.message}`, 'error');
+      document.getElementById('previewStatus').textContent = 'Erro';
+    });
+    
+  } catch (error) {
+    showStatus(`Erro: ${error.message}`, 'error');
+  }
+}
+
+function pausePreview() {
+  if (previewSynth) {
+    try {
+      previewSynth.pause();
+      document.getElementById('previewStatus').textContent = 'Pausado';
+    } catch (error) {
+      console.error('Erro ao pausar:', error);
+    }
+  }
+}
+
+function stopPreview() {
+  if (previewSynth) {
+    try {
+      previewSynth.stop();
+      document.getElementById('previewStatus').textContent = 'Parado';
+    } catch (error) {
+      console.error('Erro ao parar:', error);
+    }
+  }
+}
+
+// ====== Funções do Editor ======
+function buildFullABC(content) {
+  const t = document.getElementById("title").value || "Sem Titulo";
+  const c = document.getElementById("composer").value || "Anonimo";
+  const q = document.getElementById("bpm").value || "60";
+  return `X:1\nT:${t}\nC:${c}\nQ:${q}\nM:4/4\nL:1/4\nK:C\n${content}`;
+}
+
+function appendToEditor(){
+  const out = document.getElementById("output").value;
+  if (!out) {
+    showStatus('Gere um trecho primeiro!', 'error');
+    return;
+  }
+  const ed = document.getElementById("editor");
+  ed.value = ed.value.trim() === "" ? out : ed.value + " " + out;
+  renderEditorPreview();
+}
+
+function addRest() {
+  const ed = document.getElementById("editor");
+  const rest = "z4 |";
+  ed.value = ed.value.trim() === "" ? rest : ed.value + " " + rest;
+  renderEditorPreview();
+}
+
+function clearEditor() {
+  document.getElementById("editor").value = "";
+  renderEditorPreview();
+}
+
+function renderEditorPreview(){
+  const txt = document.getElementById("editor").value || "";
+  if (txt.trim() === "") {
+    document.getElementById("paperEdit").innerHTML = "";
+    return;
+  }
+  
+  try {
+    ABCJS.renderAbc("paperEdit", buildFullABC(txt));
+  } catch (error) {
+    console.error('Erro ao renderizar preview:', error);
+  }
+}
+
+function copyEditor(){
+  const ed = document.getElementById("editor");
+  const full = buildFullABC(ed.value);
+  navigator.clipboard.writeText(full).then(() => {
+    showStatus('ABC copiado para a área de transferência!', 'success');
+  }).catch(err => {
+    showStatus('Erro ao copiar: ' + err.message, 'error');
+  });
+}
+
+// ====== Áudio para Editor ======
+function playEditor() {
+  const abc = buildFullABC(document.getElementById("editor").value || "z4");
+  
+  if (abc.trim() === "X:1\nT:Sem Titulo\nC:Anonimo\nQ:60\nM:4/4\nL:1/4\nK:C\nz4") {
+    showStatus('Adicione notas primeiro!', 'error');
+    return;
+  }
+  
+  if (!editorSynth) {
+    editorSynth = createSafeSynth();
+    if (!editorSynth) return;
+  }
+  
+  try {
+    const visualObj = ABCJS.renderAbc("paperEdit", abc)[0];
+    if (!visualObj) {
+      showStatus('Não foi possível criar visualização', 'error');
+      return;
+    }
+    
+    const options = {
+      chordsOff: false,
+      qpm: parseInt(document.getElementById("bpm").value) || 60
+    };
+    
+    editorSynth.init({
+      visualObj: visualObj,
+      options: options
+    }).then(() => {
+      document.getElementById('editorStatus').textContent = 'Tocando...';
+      return editorSynth.prime();
+    }).then(() => {
+      editorSynth.start();
+    }).catch(error => {
+      showStatus(`Erro ao tocar: ${error.message}`, 'error');
+      document.getElementById('editorStatus').textContent = 'Erro';
+    });
+    
+  } catch (error) {
+    showStatus(`Erro: ${error.message}`, 'error');
+  }
+}
+
+function pauseEditor() {
+  if (editorSynth) {
+    try {
+      editorSynth.pause();
+      document.getElementById('editorStatus').textContent = 'Pausado';
+    } catch (error) {
+      console.error('Erro ao pausar:', error);
+    }
+  }
+}
+
+function stopEditor() {
+  if (editorSynth) {
+    try {
+      editorSynth.stop();
+      document.getElementById('editorStatus').textContent = 'Parado';
+    } catch (error) {
+      console.error('Erro ao parar:', error);
+    }
+  }
+}
+
+// ====== Controles de Interface (placeholders) ======
+function seekPreview(event) {
+  showStatus('Navegação na música não disponível nesta versão', 'info');
+}
+
+function setPreviewVolume(event) {
+  const rect = event.target.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const volume = Math.min(Math.max(x / rect.width, 0), 1);
+  document.getElementById('previewVolumeFill').style.width = (volume * 100) + '%';
+  
+  if (previewSynth && previewSynth.setVolume) {
+    previewSynth.setVolume(volume);
+  }
+}
+
+function seekEditor(event) {
+  showStatus('Navegação na música não disponível nesta versão', 'info');
+}
+
+function setEditorVolume(event) {
+  const rect = event.target.getBoundingClientRect();
+  const x = event.clientX - rect.left;
+  const volume = Math.min(Math.max(x / rect.width, 0), 1);
+  document.getElementById('editorVolumeFill').style.width = (volume * 100) + '%';
+  
+  if (editorSynth && editorSynth.setVolume) {
+    editorSynth.setVolume(volume);
+  }
+}
+
+// ====== Inicialização ======
+document.getElementById("editor").addEventListener("input", renderEditorPreview);
+
+window.addEventListener('load', function() {
+  // Configurar volume inicial
+  document.getElementById('previewVolumeFill').style.width = '80%';
+  document.getElementById('editorVolumeFill').style.width = '80%';
+  
+  // Verificar se ABCJS carregou
+  setTimeout(() => {
+    if (typeof ABCJS === 'undefined') {
+      showStatus('⚠️ ABCJS não carregou. Verifique se os arquivos estão na mesma pasta: abcjs-basic-min.js e abcjs_plugin.min.js', 'error');
+    } else if (isSynthAvailable()) {
+      showStatus('✅ Sistema carregado com sucesso! Áudio disponível.', 'success');
+    } else {
+      showStatus('✅ ABCJS carregado. Sintetizador pode não estar disponível.', 'info');
+    }
+    
+    // Gerar exemplo inicial
+    generate();
+  }, 500);
+});
+
+// Limpar ao sair
+window.addEventListener('beforeunload', function() {
+  if (previewSynth) {
+    try { previewSynth.stop(); } catch (e) {}
+  }
+  if (editorSynth) {
+    try { editorSynth.stop(); } catch (e) {}
+  }
+});
+</script>
+</body>
+</html>
