@@ -1,0 +1,243 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Ditado Rítmico</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f0f2f5; }
+        .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+        .box { margin-bottom: 25px; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; background: #fff; border-left: 6px solid #28a745; }
+        h1 { text-align: center; margin-bottom: 30px; }
+        
+        .grid-config { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.85em; }
+        input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
+        
+        button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-add { background: #6c757d; color: white; width: 100%; }
+        .btn-play { background: #28a745; color: white; width: 100%; font-size: 1.1em; }
+        .btn-stop { background: #dc3545; color: white; width: 100%; display: none; }
+        
+        #lista { margin-top: 15px; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; padding: 5px; }
+        .ritmo-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #f0f0f0; gap: 10px; }
+        .ritmo-item input[type="checkbox"] { width: 18px; height: 18px; }
+        
+        .status { padding: 15px; margin-top: 20px; border-radius: 6px; text-align: center; font-weight: bold; background: #e9ecef; }
+        .playing-box { border: 2px solid #28a745 !important; background: #e8f5e9 !important; }
+        code { color: #d63384; background: #f8f9fa; padding: 2px 4px; }
+    </style>
+</head>
+
+<body>
+
+<div class="container">
+    <h1>🎼 Ditado Rítmico NBM Pro</h1>
+    
+    <div class="box">
+        <h3>➕ Biblioteca</h3>
+        <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
+            <input id="nome" placeholder="Nome (Ex: Síncope)">
+            <input id="abc" placeholder="Ex: A/ < A/ ou A-A">
+        </div>
+        <button class="btn-add" style="margin-top:10px" onclick="salvarRitmo()">Adicionar Ritmo</button>
+        <div class="help">
+            <b>Dicas:</b> <code>A-A</code> (Ligadura) | <code>A/ < A/</code> (Síncope curta-longa) | <code>(3AAA</code> (Tercina)
+        </div>
+        <div id="lista"></div>
+    </div>
+
+    <div class="box" style="border-left-color: #007bff;">
+        <h3>⚙️ Configuração</h3>
+        <div class="grid-config">
+            <div><label>BPM:</label><input type="number" id="bpm" value="80"></div>
+            <div><label>Batidas Iniciais:</label><input type="number" id="batidasIniciais" value="4"></div>
+            <div><label>Sorteados:</label><select id="qtd"><option value="1">1</option><option value="2" selected>2</option><option value="4">4</option></select></div>
+            <div><label>Pausa (tempos):</label><input type="number" id="pausaRitmos" value="1"></div>
+            <div style="display:flex; align-items:center; gap:5px; padding-top:20px;">
+                <input type="checkbox" id="modoInfinito" style="width:20px; height:20px;">
+                <label style="margin:0">Infinito</label>
+            </div>
+        </div>
+        <button id="playBtn" class="btn-play" onclick="iniciarFluxo()">▶️ Iniciar</button>
+        <button id="stopBtn" class="btn-stop" onclick="pararTudo()">⏹️ Parar</button>
+        <div id="status" class="status">Pronto.</div>
+        <div id="sorteados"></div>
+    </div>
+</div>
+
+<script>
+let biblioteca = JSON.parse(localStorage.getItem("ritmosABC_V7") || "[]");
+let audioCtx = null;
+let running = false;
+let timeoutFim = null;
+
+window.onload = () => {
+    if(biblioteca.length === 0) {
+        biblioteca = [
+            {nome: "Ligadura", abc: "A-A A", enabled: true},
+            {nome: "Broken <", abc: "A/ < A/ A", enabled: true},
+            {nome: "Quiáltera", abc: "(3AAA A", enabled: true}
+        ];
+    }
+    renderLista();
+};
+
+function salvarRitmo() {
+    const n = document.getElementById("nome").value;
+    const a = document.getElementById("abc").value;
+    if(!n || !a) return;
+    biblioteca.push({nome: n, abc: a, enabled: true});
+    localStorage.setItem("ritmosABC_V7", JSON.stringify(biblioteca));
+    renderLista();
+}
+
+function renderLista() {
+    document.getElementById("lista").innerHTML = biblioteca.map((r, i) => `
+        <div class="ritmo-item">
+            <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="biblioteca[${i}].enabled = this.checked; localStorage.setItem('ritmosABC_V7', JSON.stringify(biblioteca));">
+            <span style="flex-grow:1"><b>${r.nome}</b>: <code>${r.abc}</code></span>
+            <button onclick="biblioteca.splice(${i},1); renderLista();" style="background:none; color:red; font-size:10px;">X</button>
+        </div>
+    `).join("");
+}
+
+// --- PARSER ABC V7 CORRIGIDO ---
+function parseABC(input) {
+    const regex = /(\([0-9]+)|([a-gA-GzZ])([0-9]*([\/]+[0-9]*)*)|(<|>|-)/g;
+    let rawTokens = [];
+    let match;
+    let tMultiplier = 1, tCount = 0;
+
+    while ((match = regex.exec(input)) !== null) {
+        if (match[1]) {
+            tCount = parseInt(match[1].substring(1));
+            tMultiplier = 2/tCount;
+        } else if (match[5]) {
+            rawTokens.push({type: 'mod', val: match[5]});
+        } else {
+            let nota = match[2], durStr = match[3] || "", dur = 1.0;
+            if (durStr.includes('/')) {
+                const slashes = (durStr.match(/\//g) || []).length;
+                dur = 1 / Math.pow(2, slashes);
+                const custom = durStr.split('/').pop();
+                if(custom) dur = 1 / parseFloat(custom);
+            } else if (durStr !== "") { dur = parseFloat(durStr); }
+            
+            if(tCount > 0) { dur *= tMultiplier; tCount--; }
+            rawTokens.push({type: 'note', isPause: nota.toLowerCase() === 'z', dur: dur, play: true});
+        }
+    }
+
+    // Processar Ligaduras (-) e Broken (< >)
+    let tokens = [];
+    for(let i=0; i < rawTokens.length; i++) {
+        let current = rawTokens[i];
+        let next = rawTokens[i+1];
+        let afterNext = rawTokens[i+2];
+
+        if (next && next.type === 'mod') {
+            if (next.val === '-') { // Ligadura: soma e silencia a segunda
+                if (afterNext && afterNext.type === 'note') {
+                    current.dur += afterNext.dur;
+                    tokens.push(current);
+                    i += 2; // Pula o '-' e a nota ligada
+                }
+            } else if (next.val === '>' || next.val === '<') { // Broken Rhythm
+                if (afterNext && afterNext.type === 'note') {
+                    let factor = next.val === '>' ? 0.5 : -0.5;
+                    current.dur += (current.dur * factor);
+                    afterNext.dur -= (afterNext.dur * factor);
+                    tokens.push(current);
+                    // Não incrementamos i para processar afterNext na próxima volta
+                    i += 1; 
+                }
+            }
+        } else if (current.type === 'note') {
+            tokens.push(current);
+        }
+    }
+    return tokens;
+}
+
+// --- ÁUDIO ---
+function playRim(time) {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(180, time);
+    g.gain.setValueAtTime(0.5, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.1);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(time); osc.stop(time + 0.1);
+}
+
+function playClick(time, high) {
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.frequency.setValueAtTime(high ? 1000 : 500, time);
+    g.gain.setValueAtTime(0.1, time);
+    g.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(time); osc.stop(time + 0.05);
+}
+
+async function iniciarFluxo() {
+    if(!audioCtx) audioCtx = new AudioContext();
+    running = true;
+    document.getElementById("playBtn").style.display = "none";
+    document.getElementById("stopBtn").style.display = "block";
+    tocarRodada();
+}
+
+function tocarRodada() {
+    if(!running) return;
+    const bpm = document.getElementById("bpm").value, qtd = document.getElementById("qtd").value;
+    const startBeats = document.getElementById("batidasIniciais").value, pausa = document.getElementById("pausaRitmos").value;
+    const spb = 60 / bpm, hab = biblioteca.filter(r => r.enabled);
+
+    if(hab.length === 0) return alert("Selecione ritmos!");
+    let sorteados = [];
+    for(let i=0; i<qtd; i++) sorteados.push(hab[Math.floor(Math.random()*hab.length)]);
+    renderSorteados(sorteados);
+
+    let tempo = audioCtx.currentTime + 0.2;
+    for(let i=0; i<startBeats; i++) { playClick(tempo, i===0); tempo += spb; }
+
+    sorteados.forEach((ritmo, idx) => {
+        const notas = parseABC(ritmo.abc);
+        setTimeout(() => highlight(idx, ritmo.nome), (tempo - audioCtx.currentTime) * 1000);
+        notas.forEach(n => {
+            if(!n.isPause) playRim(tempo);
+            playClick(tempo, false);
+            tempo += n.dur * spb;
+        });
+        for(let p=0; p < pausa; p++) { playClick(tempo, false); tempo += spb; }
+    });
+
+    timeoutFim = setTimeout(() => {
+        if(document.getElementById("modoInfinito").checked && running) tocarRodada();
+        else pararTudo();
+    }, (tempo - audioCtx.currentTime) * 1000);
+}
+
+function renderSorteados(arr) {
+    document.getElementById("sorteados").innerHTML = arr.map((r, i) => `
+        <div class="box" id="sort-${i}"><b>${i+1}.</b> ${r.nome} (<code>${r.abc}</code>)</div>
+    `).join("");
+}
+
+function highlight(idx, nome) {
+    document.querySelectorAll('.playing-box').forEach(b => b.classList.remove('playing-box'));
+    document.getElementById(`sort-${idx}`)?.classList.add('playing-box');
+    document.getElementById("status").innerHTML = `▶️ ${nome}`;
+}
+
+function pararTudo() {
+    running = false; clearTimeout(timeoutFim);
+    document.getElementById("playBtn").style.display = "block";
+    document.getElementById("stopBtn").style.display = "none";
+    document.getElementById("status").innerHTML = "Parado.";
+}
+</script>
+</body>
+</html>
