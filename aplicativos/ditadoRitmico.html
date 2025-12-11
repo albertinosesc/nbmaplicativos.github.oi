@@ -2,29 +2,41 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Ditado Rítmico</title>
+    <title>Ditado Rítmico NBM Pro</title>
     <style>
         body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f0f2f5; }
         .container { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
         .box { margin-bottom: 25px; padding: 20px; border-radius: 8px; border: 1px solid #e0e0e0; background: #fff; border-left: 6px solid #28a745; }
+        .box.blue { border-left-color: #007bff; }
+        .box.orange { border-left-color: #ffc107; }
         h1 { text-align: center; margin-bottom: 30px; }
         
         .grid-config { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-bottom: 20px; }
         label { display: block; font-weight: bold; margin-bottom: 5px; font-size: 0.85em; }
         input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 5px; box-sizing: border-box; }
         
-        button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        button { padding: 12px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: background 0.3s; }
         .btn-add { background: #6c757d; color: white; width: 100%; }
         .btn-play { background: #28a745; color: white; width: 100%; font-size: 1.1em; }
         .btn-stop { background: #dc3545; color: white; width: 100%; display: none; }
-        
+        .btn-secondary { background: #007bff; color: white; }
+        .btn-danger { background: #dc3545; color: white; padding: 8px 12px; font-size: 0.9em; }
+
         #lista { margin-top: 15px; max-height: 200px; overflow-y: auto; border: 1px solid #eee; border-radius: 5px; padding: 5px; }
         .ritmo-item { display: flex; align-items: center; padding: 8px; border-bottom: 1px solid #f0f0f0; gap: 10px; }
         .ritmo-item input[type="checkbox"] { width: 18px; height: 18px; }
         
         .status { padding: 15px; margin-top: 20px; border-radius: 6px; text-align: center; font-weight: bold; background: #e9ecef; }
         .playing-box { border: 2px solid #28a745 !important; background: #e8f5e9 !important; }
-        code { color: #d63384; background: #f8f9fa; padding: 2px 4px; }
+        code { color: #d63384; background: #f8f9fa; padding: 2px 4px; border-radius: 3px;}
+
+        #historico { max-height: 150px; overflow-y: auto; margin-top: 10px; padding: 5px; border: 1px solid #eee; border-radius: 5px; }
+        .hist-item { padding: 5px; border-bottom: 1px dotted #f0f0f0; font-size: 0.9em; }
+        /* Adicione esta regra dentro da sua tag <style> no HTML */
+.ritmo-item span b {
+    font-weight: bold !important; /* Força o negrito, ignorando regras mais fracas */
+    color: #333; /* Opcional: define a cor para garantir visibilidade */
+}
     </style>
 </head>
 
@@ -34,7 +46,8 @@
     <h1>🎼 Ditado Rítmico NBM Pro</h1>
     
     <div class="box">
-        <h3>➕ Biblioteca</h3>
+        <h3>➕ Biblioteca <button class="btn-secondary" style="float:right; margin-top:-5px; padding: 8px 12px;" onclick="document.getElementById('fileInput').click()">📥 Importar TXT</button></h3>
+        <input type="file" id="fileInput" accept=".txt" style="display:none;" onchange="importarRitmos(event)">
         <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 10px;">
             <input id="nome" placeholder="Nome (Ex: Síncope)">
             <input id="abc" placeholder="Ex: A/ < A/ ou A-A">
@@ -46,27 +59,42 @@
         <div id="lista"></div>
     </div>
 
-    <div class="box" style="border-left-color: #007bff;">
+    <div class="box blue">
         <h3>⚙️ Configuração</h3>
         <div class="grid-config">
             <div><label>BPM:</label><input type="number" id="bpm" value="80"></div>
             <div><label>Batidas Iniciais:</label><input type="number" id="batidasIniciais" value="4"></div>
             <div><label>Sorteados:</label><select id="qtd"><option value="1">1</option><option value="2" selected>2</option><option value="4">4</option></select></div>
             <div><label>Pausa (tempos):</label><input type="number" id="pausaRitmos" value="1"></div>
-            <div style="display:flex; align-items:center; gap:5px; padding-top:20px;">
+            <div style="display:flex; align-items:center; gap:10px; padding-top:20px;">
                 <input type="checkbox" id="modoInfinito" style="width:20px; height:20px;">
                 <label style="margin:0">Infinito</label>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px; padding-top:20px;">
+                <input type="checkbox" id="muteAudio" style="width:20px; height:20px;">
+                <label style="margin:0">Silenciar Ritmo</label>
             </div>
         </div>
         <button id="playBtn" class="btn-play" onclick="iniciarFluxo()">▶️ Iniciar</button>
         <button id="stopBtn" class="btn-stop" onclick="pararTudo()">⏹️ Parar</button>
+        
         <div id="status" class="status">Pronto.</div>
-        <div id="sorteados"></div>
+        
+        <button class="btn-secondary" style="width:100%; margin-top:10px;" onclick="toggleResultados()">🙈 Ocultar/Mostrar Resultados</button>
+        <div id="resultados" style="display:block;">
+            <div id="sorteados"></div>
+        </div>
+    </div>
+
+    <div class="box orange">
+        <h3>📋 Histórico <button class="btn-danger" style="float:right; margin-top:-5px;" onclick="zerarHistorico()">🧹 Zerar</button></h3>
+        <div id="historico">Nenhum ritmo sorteado ainda.</div>
     </div>
 </div>
 
 <script>
 let biblioteca = JSON.parse(localStorage.getItem("ritmosABC_V7") || "[]");
+let historicoRitmos = JSON.parse(localStorage.getItem("historicoRitmos_V7") || "[]");
 let audioCtx = null;
 let running = false;
 let timeoutFim = null;
@@ -80,6 +108,7 @@ window.onload = () => {
         ];
     }
     renderLista();
+    renderHistorico();
 };
 
 function salvarRitmo() {
@@ -89,19 +118,85 @@ function salvarRitmo() {
     biblioteca.push({nome: n, abc: a, enabled: true});
     localStorage.setItem("ritmosABC_V7", JSON.stringify(biblioteca));
     renderLista();
+    document.getElementById("nome").value = "";
+    document.getElementById("abc").value = "";
 }
 
 function renderLista() {
-    document.getElementById("lista").innerHTML = biblioteca.map((r, i) => `
+    // Ordena uma cópia para exibição
+    const bibliotecaOrdenada = [...biblioteca].sort((a, b) => a.nome.localeCompare(b.nome));
+
+    document.getElementById("lista").innerHTML = bibliotecaOrdenada.map((r) => `
         <div class="ritmo-item">
-            <input type="checkbox" ${r.enabled ? 'checked' : ''} onchange="biblioteca[${i}].enabled = this.checked; localStorage.setItem('ritmosABC_V7', JSON.stringify(biblioteca));">
+            <input 
+                type="checkbox" 
+                ${r.enabled ? 'checked' : ''} 
+                onchange="toggleRitmo('${r.nome}', this.checked)"
+            >
             <span style="flex-grow:1"><b>${r.nome}</b>: <code>${r.abc}</code></span>
-            <button onclick="biblioteca.splice(${i},1); renderLista();" style="background:none; color:red; font-size:10px;">X</button>
+            <button onclick="deletarRitmo('${r.nome}')" style="background:none; color:red; font-size:10px;">X</button>
         </div>
     `).join("");
 }
 
-// --- PARSER ABC V7 CORRIGIDO ---
+// -----------------------------------------------------
+// 💡 NOVAS FUNÇÕES NECESSÁRIAS PARA MANTER O CÓDIGO SEGURO
+// -----------------------------------------------------
+
+function toggleRitmo(nome, checked) {
+    const ritmo = biblioteca.find(r => r.nome === nome);
+    if (ritmo) {
+        ritmo.enabled = checked;
+        localStorage.setItem('ritmosABC_V7', JSON.stringify(biblioteca));
+    }
+}
+
+function deletarRitmo(nome) {
+    const index = biblioteca.findIndex(r => r.nome === nome);
+    if (index > -1) {
+        biblioteca.splice(index, 1);
+        localStorage.setItem('ritmosABC_V7', JSON.stringify(biblioteca));
+        renderLista();
+    }
+}
+// --- FUNÇÕES DE RELATÓRIO/HISTÓRICO ---
+function adicionarAoHistorico(ritmos) {
+    const now = new Date();
+    const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+    historicoRitmos.push({
+        time: timeStr,
+        ritmos: ritmos.map(r => ({nome: r.nome, abc: r.abc}))
+    });
+    localStorage.setItem("historicoRitmos_V7", JSON.stringify(historicoRitmos));
+    renderHistorico();
+}
+
+function renderHistorico() {
+    const histDiv = document.getElementById("historico");
+    if (historicoRitmos.length === 0) {
+        histDiv.innerHTML = "Nenhum ritmo sorteado ainda.";
+        return;
+    }
+    histDiv.innerHTML = historicoRitmos.slice().reverse().map(item => {
+        const ritmosStr = item.ritmos.map(r => `${r.nome} (<code>${r.abc}</code>)`).join(' | ');
+        // A linha abaixo foi alterada para remover a exibição do tempo
+        return `<div class="hist-item">${ritmosStr}</div>`;
+    }).join("");
+}
+
+function zerarHistorico() {
+    if(confirm("Tem certeza que deseja zerar o Histórico de Ritmos?")) {
+        historicoRitmos = [];
+        localStorage.removeItem("historicoRitmos_V7");
+        renderHistorico();
+    }
+}
+
+// --- FUNÇÃO DE MUTE/SILÊNCIO ---
+const isMuted = () => document.getElementById("muteAudio").checked;
+
+
+// --- PARSER ABC V7 CORRIGIDO (Mantido) ---
 function parseABC(input) {
     const regex = /(\([0-9]+)|([a-gA-GzZ])([0-9]*([\/]+[0-9]*)*)|(<|>|-)/g;
     let rawTokens = [];
@@ -159,8 +254,15 @@ function parseABC(input) {
     return tokens;
 }
 
-// --- ÁUDIO ---
+// --- ÁUDIO (Mute aplicado APENAS ao som do ritmo) ---
+// --- FUNÇÃO DE MUTE/SILÊNCIO ---
+// Controla o silenciamento apenas do TEMPO DE PAUSA.
+
+
+
+// --- ÁUDIO: playRim (Ritmo) AGORA SEMPRE ATIVO ---
 function playRim(time) {
+    // 📢 CORREÇÃO: Removida a verificação isMuted(). O som do ritmo agora SEMPRE toca.
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.type = 'triangle';
@@ -171,7 +273,9 @@ function playRim(time) {
     osc.start(time); osc.stop(time + 0.1);
 }
 
+// --- ÁUDIO: playClick (Metrônomo) ---
 function playClick(time, high) {
+    // Mantido SEMPRE ATIVO para Batidas Iniciais e contagem do ritmo.
     const osc = audioCtx.createOscillator();
     const g = audioCtx.createGain();
     osc.frequency.setValueAtTime(high ? 1000 : 500, time);
@@ -181,8 +285,24 @@ function playClick(time, high) {
     osc.start(time); osc.stop(time + 0.05);
 }
 
+// --- FLUXO PRINCIPAL (CORREÇÃO DE AudioContext) ---
 async function iniciarFluxo() {
-    if(!audioCtx) audioCtx = new AudioContext();
+    // 1. Cria o AudioContext se ainda não existir
+    if(!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    
+    // 2. Tenta iniciar/continuar o AudioContext
+    if (audioCtx.state === 'suspended') {
+        try {
+            await audioCtx.resume();
+        } catch (e) {
+            console.error("Erro ao retomar o AudioContext:", e);
+            alert("Não foi possível iniciar o áudio. O navegador pode estar bloqueando. Tente interagir com a página.");
+            return; 
+        }
+    }
+    
     running = true;
     document.getElementById("playBtn").style.display = "none";
     document.getElementById("stopBtn").style.display = "block";
@@ -198,20 +318,33 @@ function tocarRodada() {
     if(hab.length === 0) return alert("Selecione ritmos!");
     let sorteados = [];
     for(let i=0; i<qtd; i++) sorteados.push(hab[Math.floor(Math.random()*hab.length)]);
+    
+    adicionarAoHistorico(sorteados);
     renderSorteados(sorteados);
 
     let tempo = audioCtx.currentTime + 0.2;
+    
+    // 1. Batidas Iniciais: SEMPRE TOCAM
     for(let i=0; i<startBeats; i++) { playClick(tempo, i===0); tempo += spb; }
 
     sorteados.forEach((ritmo, idx) => {
         const notas = parseABC(ritmo.abc);
         setTimeout(() => highlight(idx, ritmo.nome), (tempo - audioCtx.currentTime) * 1000);
+        
+        // 2. Execução do Ritmo: playRim (mutável) e playClick (sempre ativo)
         notas.forEach(n => {
-            if(!n.isPause) playRim(tempo);
-            playClick(tempo, false);
+            if(!n.isPause) playRim(tempo); // playRim é mutado pela função isMuted()
+            playClick(tempo, false); // Click de referência do tempo: SEMPRE ATIVO
             tempo += n.dur * spb;
         });
-        for(let p=0; p < pausa; p++) { playClick(tempo, false); tempo += spb; }
+        
+        // 3. Pausa (tempos): SÓ TOCA SE O MUTE ESTIVER DESLIGADO (isMuted() == false)
+        for(let p=0; p < pausa; p++) { 
+            if (!isMuted()) { // <--- **A CORREÇÃO ESTÁ AQUI**
+                playClick(tempo, false); 
+            }
+            tempo += spb; 
+        }
     });
 
     timeoutFim = setTimeout(() => {
@@ -237,6 +370,51 @@ function pararTudo() {
     document.getElementById("playBtn").style.display = "block";
     document.getElementById("stopBtn").style.display = "none";
     document.getElementById("status").innerHTML = "Parado.";
+}
+
+// --- FUNÇÃO DE OCULTAR/MOSTRAR RESULTADOS ---
+function toggleResultados() {
+    const resultados = document.getElementById('resultados');
+    const display = resultados.style.display;
+    resultados.style.display = display === 'none' ? 'block' : 'none';
+}
+
+// --- FUNÇÃO DE IMPORTAR TXT ---
+function importarRitmos(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        const content = e.target.result;
+        const lines = content.split('\n').filter(line => line.trim() !== '');
+        let newRitmosCount = 0;
+
+        lines.forEach(line => {
+            // Espera o formato "Nome do Ritmo: ABC do Ritmo"
+            const parts = line.split(':').map(p => p.trim());
+            if (parts.length >= 2) {
+                const nome = parts[0];
+                const abc = parts.slice(1).join(':').trim();
+                
+                // Evita duplicatas pelo nome
+                if (!biblioteca.find(r => r.nome === nome)) {
+                    biblioteca.push({nome: nome, abc: abc, enabled: true});
+                    newRitmosCount++;
+                }
+            }
+        });
+
+        if (newRitmosCount > 0) {
+            localStorage.setItem("ritmosABC_V7", JSON.stringify(biblioteca));
+            renderLista();
+            alert(`${newRitmosCount} novos ritmos importados com sucesso!`);
+        } else {
+            alert("Nenhum novo ritmo válido foi encontrado no arquivo TXT, ou todos já existiam.");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = null; 
 }
 </script>
 </body>
