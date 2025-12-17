@@ -172,9 +172,19 @@ input:checked + .toggle-slider:before {transform: translateX(26px);}
   <!-- NOVO: Botão para gerar sem cifra -->
   <button class="secondary" onclick="generateWithoutSymbol()">Gerar Sem Cifra</button>
   <button class="secondary" onclick="appendToEditor()">➕ Inserir no Editor</button>
-  <!-- NOVO: Botão para remover último acorde -->
+
   <button class="info" onclick="saveRightHandToLibrary()">💾 Salvar na Biblioteca</button>
 </div>
+
+
+<div class="toolbar">
+ 
+ 
+  <!-- Opcional: botão de debug -->
+  <button class="secondary" onclick="debugFindLastChord()">🔍 Debug</button>
+</div>
+
+
   <label>Trecho Gerado (Mão Direita):</label>
   <textarea id="output"></textarea>
   <div id="paper"></div>
@@ -285,9 +295,12 @@ input:checked + .toggle-slider:before {transform: translateX(26px);}
   <button class="danger" onclick="clearLibrary()">🗑️ Limpar Biblioteca</button>
   <button class="accent" onclick="playEditor()">▶ Play (Editor)</button>
   <button class="danger" onclick="clearEditor()">🗑️Limpar Editor</button>
-  <button class="secondary" onclick="addBar()">Adicionar Barra (|)</button>
-  <button class="danger" onclick="removeLastChord()">🗑️ Remover Cifra</button>
   
+  <!-- BOTÕES CORRIGIDOS -->
+  <button class="secondary" onclick="addBarDefinitivo()">| Adicionar Barra</button>
+  <button class="info" onclick="addSymbolToLastChord()">🎼 Add Cifra (Último)</button>
+  <button class="secondary" onclick="removeSymbolFromLastChord()">🎼 Rem Cifra (Último)</button>
+  <button class="danger" onclick="removeLastChordCompletely()">🗑️ Remover Acorde (Último)</button>
 </div>
 
 <textarea id="editor" placeholder="Os acordes da sua progressão aparecerão aqui. Ex: [CEG]2 [FAC]2 |" 
@@ -1634,35 +1647,84 @@ z4`;
   }
 
   window.insertFromLibrary = function(index) {
-    try {
-      if (index >= 0 && index < chordLibrary.length && editor) {
-        const chord = chordLibrary[index].chord;
-        const cursorPos = editor.selectionStart;
-        const text = editor.value;
-        
-        const beforeChar = text.substring(cursorPos - 1, cursorPos);
-        const spaceNeeded = beforeChar && beforeChar !== ' ' && beforeChar !== '\n' && beforeChar !== '';
-        
-        editor.value = text.substring(0, cursorPos) + 
-                      (spaceNeeded ? ' ' : '') + 
-                      chord + 
-                      ' ' + 
-                      text.substring(cursorPos);
-        
-        updateEditor();
-        
-        const newPos = cursorPos + (spaceNeeded ? 1 : 0) + chord.length + 1;
-        editor.selectionStart = newPos;
-        editor.selectionEnd = newPos;
-        editor.focus();
-        
-        showStatus(`"${chordLibrary[index].name}" inserido`, 'success');
+  try {
+    if (index >= 0 && index < chordLibrary.length && editor) {
+      const chord = chordLibrary[index].chord;
+      
+      // **ALTERAÇÃO IMPORTANTE:** Em vez de inserir no cursor,
+      // vamos adicionar no final da voz correspondente
+      
+      if (currentHand === 'right') {
+        // Adicionar à mão direita (V:1)
+        appendToEditorFromLibrary(chord, 1);
+      } else {
+        // Adicionar à mão esquerda (V:2)
+        appendToEditorFromLibrary(chord, 2);
       }
-    } catch (error) {
-      console.error('Erro em insertFromLibrary:', error);
-      showStatus('Erro ao inserir da biblioteca', 'error');
+      
+      showStatus(`"${chordLibrary[index].name}" inserido na ${currentHand === 'right' ? 'mão direita' : 'mão esquerda'}`, 'success');
     }
-  };
+  } catch (error) {
+    console.error('Erro em insertFromLibrary:', error);
+    showStatus('Erro ao inserir da biblioteca', 'error');
+  }
+};
+
+// Função auxiliar para adicionar da biblioteca ao editor
+function appendToEditorFromLibrary(chord, voiceNumber) {
+  try {
+    if (!editor) return;
+    
+    const lines = editor.value.split('\n');
+    let voiceSection = findVoiceSection(lines, voiceNumber);
+    
+    if (!voiceSection) {
+      // Se não tem a voz, adicionar estrutura básica
+      if (!editor.value.includes('V:')) {
+        editor.value = 
+`X:1
+T:Título da Música
+C:Compositor
+Q:80
+M:4/4
+L:1/4
+K:C
+V:1 clef=treble name="Mão Direita"
+${voiceNumber === 1 ? chord : 'z4'}
+V:2 clef=bass name="Mão Esquerda"
+${voiceNumber === 2 ? chord : 'z4'}`;
+      } else {
+        editor.value += `\nV:${voiceNumber} clef=${voiceNumber === 1 ? 'treble' : 'bass'} name="${voiceNumber === 1 ? 'Mão Direita' : 'Mão Esquerda'}"\n${chord}`;
+      }
+    } else {
+      // Encontrar última linha com conteúdo na voz
+      let lastContentLineIndex = -1;
+      for (let i = voiceSection.startIndex + 1; i < voiceSection.endIndex; i++) {
+        if (lines[i].trim() && !lines[i].trim().startsWith('//')) {
+          lastContentLineIndex = i;
+        }
+      }
+      
+      if (lastContentLineIndex === -1) {
+        // Primeiro acorde na voz
+        lines.splice(voiceSection.startIndex + 1, 0, chord);
+      } else {
+        // Verificar se precisa adicionar espaço
+        const currentLine = lines[lastContentLineIndex].trim();
+        const separator = (currentLine && !currentLine.endsWith(' ') && !currentLine.endsWith('|')) ? ' ' : '';
+        lines[lastContentLineIndex] = currentLine + separator + chord;
+      }
+      
+      editor.value = lines.join('\n');
+    }
+    
+    updateEditor();
+    
+  } catch (error) {
+    console.error('Erro em appendToEditorFromLibrary:', error);
+    throw error;
+  }
+}
 
   window.playChordFromLibrary = function(index) {
     try {
@@ -2162,80 +2224,125 @@ window.stopPlayback = function() {
   };
 
   // ===================== FUNÇÕES PARA INSERIR BARRA =====================
-  window.addBar = function() {
-    try {
-      if (!editor) return;
-      
-      const lines = editor.value.split('\n');
-      let modified = false;
-      
-      // Usar a mão atual selecionada para determinar a voz
-      const currentVoice = currentHand === 'right' ? 1 : 2;
-      let voiceSection = findVoiceSection(lines, currentVoice);
-      
-      if (!voiceSection) {
-        // Se não encontrou a voz, adicionar estrutura básica
-        editor.value = 
-`X:1
-T:Título da Música
-C:Compositor
-Q:80
-M:4/4
-L:1/4
-K:C
-V:1 clef=treble name="Mão Direita"
-z4
-V:2 clef=bass name="Mão Esquerda"
-z4`;
-        updateEditor();
-        showStatus('Estrutura básica adicionada. Agora você pode inserir barras.', 'info');
-        return;
-      }
-      
-      // Encontrar a última linha com conteúdo na voz
-      let lastContentLineIndex = -1;
-      for (let i = voiceSection.startIndex + 1; i < voiceSection.endIndex; i++) {
-        if (lines[i].trim() && !lines[i].trim().startsWith('//')) {
-          lastContentLineIndex = i;
-        }
-      }
-      
-      if (lastContentLineIndex === -1) {
-        // Se não tem conteúdo, adicionar barra após o cabeçalho
-        lines.splice(voiceSection.startIndex + 1, 0, '|');
-        modified = true;
-      } else {
-        // Adicionar barra ao final da última linha com conteúdo
-        const currentLine = lines[lastContentLineIndex].trim();
-        
-        if (!currentLine.endsWith('|')) {
-          // Se a linha não termina com |, adicionar espaço e |
-          lines[lastContentLineIndex] = currentLine + ' |';
-          modified = true;
-        } else {
-          showStatus('A linha já termina com uma barra', 'info');
-          return;
-        }
-      }
-      
-      if (modified) {
-        editor.value = lines.join('\n');
-        updateEditor();
-        
-        // Posicionar cursor após a barra
-        const cursorPos = editor.value.length;
-        editor.selectionStart = cursorPos;
-        editor.selectionEnd = cursorPos;
-        editor.focus();
-        
-        showStatus(`Barra inserida na ${currentVoice === 1 ? 'mão direita (V:1)' : 'mão esquerda (V:2)'}`, 'success');
-      }
-      
-    } catch (error) {
-      console.error('Erro em addBar:', error);
-      showStatus('Erro ao inserir barra', 'error');
+ 
+// Função para garantir que o editor está pronto para receber input
+function ensureEditorFocus() {
+  try {
+    if (!editor) return false;
+    
+    // Verificar se o editor está visível e habilitado
+    if (editor.offsetParent === null || editor.disabled) {
+      return false;
     }
-  };
+    
+    // Focar no editor
+    editor.focus();
+    
+    // Se o cursor estiver em posição inválida, mover para o final
+    if (editor.selectionStart > editor.value.length) {
+      editor.selectionStart = editor.value.length;
+      editor.selectionEnd = editor.value.length;
+    }
+    
+    return true;
+  } catch (error) {
+    console.error('Erro em ensureEditorFocus:', error);
+    return false;
+  }
+}
+
+window.addBarDefinitivo = function() {
+  try {
+    if (!editor) return;
+    
+    const lines = editor.value.split('\n');
+    let modified = false;
+    
+    // Determinar qual voz adicionar a barra
+    const targetVoice = currentHand === 'right' ? 1 : 2;
+    
+    // Encontrar a seção da voz
+    let inTargetVoice = false;
+    let lastLineIndex = -1;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line.startsWith('V:')) {
+        const voiceMatch = line.match(/V:(\d+)/);
+        if (voiceMatch) {
+          inTargetVoice = (parseInt(voiceMatch[1]) === targetVoice);
+        }
+        continue;
+      }
+      
+      if (inTargetVoice && line && !line.startsWith('//') && !line.startsWith('%')) {
+        lastLineIndex = i;
+      }
+    }
+    
+    if (lastLineIndex !== -1) {
+      // Adicionar barra na última linha da voz
+      const currentLine = lines[lastLineIndex].trim();
+      
+      if (currentLine && !currentLine.endsWith('|')) {
+        // Se a linha não terminar com barra, adicionar uma
+        lines[lastLineIndex] = currentLine + ' | ';
+        modified = true;
+      } else if (currentLine) {
+        // Já tem barra, adicionar espaço
+        lines[lastLineIndex] = currentLine + ' ';
+        modified = true;
+      }
+    } else {
+      // Não encontrou voz, adicionar barra no final
+      editor.value += ' | ';
+      modified = true;
+    }
+    
+    if (modified) {
+      editor.value = lines.join('\n');
+      updateEditor();
+      showStatus('Barra adicionada', 'success');
+    }
+    
+  } catch (error) {
+    console.log('Erro ao adicionar barra:', error);
+  }
+};
+
+// Função de DEBUG para ver posição do cursor
+window.debugCursorPosition = function() {
+  try {
+    if (!editor) return;
+    
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const text = editor.value;
+    
+    console.log('=== DEBUG CURSOR ===');
+    console.log('Posição cursor (start/end):', start, end);
+    console.log('Comprimento texto:', text.length);
+    
+    // Mostrar contexto ao redor do cursor
+    const contextBefore = text.substring(Math.max(0, start - 20), start);
+    const contextAfter = text.substring(end, Math.min(text.length, end + 20));
+    
+    console.log('Antes do cursor:', contextBefore);
+    console.log('Depois do cursor:', contextAfter);
+    
+    // Mostrar linha atual
+    const lines = text.substring(0, start).split('\n');
+    const currentLine = lines.length;
+    console.log('Linha atual:', currentLine);
+    
+    alert(`Cursor na posição: ${start}-${end}\nLinha: ${currentLine}\n\nAntes: "${contextBefore}"\nDepois: "${contextAfter}"`);
+    
+  } catch (error) {
+    console.error('Erro no debug cursor:', error);
+  }
+};
+
 // ===================== FUNÇÃO PARA ADICIONAR CIFRAS =====================
 window.addChordSymbols = function() {
   try {
@@ -2342,6 +2449,651 @@ function areChordNotesEquivalent(notes1, notes2) {
     return false;
   }
 }
+// ===================== FUNÇÕES PARA GERENCIAR ACORDES NO EDITOR =====================
+
+// Função para encontrar o último acorde na voz atual
+// Função melhorada para encontrar o último acorde
+// ===================== FUNÇÕES PARA ENCONTRAR E GERENCIAR ÚLTIMO ACORDE =====================
+
+// Função robusta para encontrar e remover o último acorde completo
+window.removeLastChordCompletely = function() {
+  try {
+    if (!editor || !editor.value.trim()) {
+      showStatus('Editor vazio', 'warning');
+      return;
+    }
+    
+    // Usar uma abordagem mais direta
+    const lines = editor.value.split('\n');
+    const currentVoice = currentHand === 'right' ? 1 : 2;
+    
+    // Encontrar a seção da voz atual
+    let voiceStart = -1;
+    let voiceEnd = lines.length;
+    let inVoiceSection = false;
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      if (line.startsWith('V:')) {
+        const voiceMatch = line.match(/V:(\d+)/);
+        if (voiceMatch) {
+          const voiceNum = parseInt(voiceMatch[1]);
+          if (voiceNum === currentVoice) {
+            voiceStart = i;
+            inVoiceSection = true;
+            continue;
+          }
+        }
+        
+        if (inVoiceSection) {
+          voiceEnd = i;
+          break;
+        }
+      }
+    }
+    
+    if (voiceStart === -1) {
+      showStatus('Voz não encontrada', 'error');
+      return;
+    }
+    
+    // Procurar do final para o início
+    let lastChordLine = -1;
+    let lastChordMatch = null;
+    
+    for (let i = voiceEnd - 1; i > voiceStart; i--) {
+      const line = lines[i];
+      if (!line.trim() || line.trim().startsWith('//')) continue;
+      
+      // Regex para encontrar acordes (com ou sem cifra)
+      const chordRegex = /("[^"]*"\s*)?\[[^\]]+\]\d*\.?\d*\/?\d*\.?\d*/g;
+      const matches = [...line.matchAll(chordRegex)];
+      
+      if (matches.length > 0) {
+        lastChordLine = i;
+        lastChordMatch = matches[matches.length - 1]; // Último match na linha
+        break;
+      }
+    }
+    
+    if (lastChordLine === -1 || !lastChordMatch) {
+      showStatus('Nenhum acorde encontrado para remover', 'warning');
+      return;
+    }
+    
+    if (!confirm(`Remover o acorde "${lastChordMatch[0]}"?`)) {
+      return;
+    }
+    
+    const line = lines[lastChordLine];
+    const matchStart = lastChordMatch.index;
+    const matchEnd = matchStart + lastChordMatch[0].length;
+    
+    // Reconstruir a linha sem o acorde
+    const beforeChord = line.substring(0, matchStart).trim();
+    const afterChord = line.substring(matchEnd).trim();
+    
+    let newLine = '';
+    if (beforeChord && afterChord) {
+      newLine = beforeChord + ' ' + afterChord;
+    } else if (beforeChord) {
+      newLine = beforeChord;
+    } else if (afterChord) {
+      newLine = afterChord;
+    }
+    
+    lines[lastChordLine] = newLine;
+    
+    // Se a linha ficou vazia, remover ela
+    if (!newLine.trim()) {
+      lines.splice(lastChordLine, 1);
+    }
+    
+    editor.value = lines.join('\n');
+    
+    // Atualizar visualização
+    renderFullScore();
+    
+    showStatus('Último acorde removido completamente', 'success');
+    
+  } catch (error) {
+    console.error('Erro em removeLastChordCompletely:', error);
+    showStatus('Erro ao remover acorde: ' + error.message, 'error');
+  }
+};
+
+// Função para remover APENAS A CIFRA do último acorde (mantém o acorde)
+// ===================== FUNÇÕES SIMPLIFICADAS PARA CIFRAS =====================
+
+
+
+
+
+
+
+
+
+
+// ===================== FUNÇÕES CORRIGIDAS PARA OS BOTÕES =====================
+
+// ===================== FUNÇÕES CORRIGIDAS - VERSÃO SIMPLIFICADA =====================
+
+// Função SIMPLIFICADA para adicionar cifra ao último acorde
+window.addSymbolToLastChord = function() {
+  try {
+    if (!editor || !editor.value.trim()) {
+      showStatus('Editor vazio', 'warning');
+      return;
+    }
+    
+    // Obter cifra atual
+    const rootValue = currentHand === 'right' ? root.value.trim() : rootLeft.value.trim();
+    const qualityValue = currentHand === 'right' ? quality.value.trim() : qualityLeft.value.trim();
+    const cifraCompleta = rootValue + qualityValue || 'C';
+    
+    // Método DIRETO: procurar o último acorde SEM cifra em TODO o texto
+    const text = editor.value;
+    const lines = text.split('\n');
+    
+    // Procurar do FINAL para o INÍCIO
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      
+      // Ignorar linhas de cabeçalho
+      if (line.trim().startsWith('X:') || line.trim().startsWith('T:') || 
+          line.trim().startsWith('C:') || line.trim().startsWith('M:') ||
+          line.trim().startsWith('L:') || line.trim().startsWith('K:') ||
+          line.trim().startsWith('V:') || line.trim().startsWith('%') ||
+          line.trim().startsWith('//')) {
+        continue;
+      }
+      
+      // Procurar acorde SEM cifra na linha
+      const chordRegex = /(\[[^\]]+\]\d*\.?\d*\/?\d*\.?\d*)/g;
+      let match;
+      let lastMatch = null;
+      
+      // Encontrar TODOS os acordes na linha
+      while ((match = chordRegex.exec(line)) !== null) {
+        // Verificar se NÃO tem cifra antes (não começa com aspas)
+        const beforeMatch = line.substring(0, match.index);
+        if (!beforeMatch.trim().endsWith('"')) {
+          lastMatch = {
+            lineIndex: i,
+            start: match.index,
+            end: match.index + match[0].length,
+            chord: match[0]
+          };
+        }
+      }
+      
+      // Se encontrou um acorde sem cifra, processar
+      if (lastMatch) {
+        const line = lines[lastMatch.lineIndex];
+        const before = line.substring(0, lastMatch.start);
+        const after = line.substring(lastMatch.end);
+        
+        // Adicionar cifra
+        const newChord = `"${cifraCompleta}"` + lastMatch.chord;
+        
+        // Verificar se precisa de espaço antes
+        const needsSpace = before.length > 0 && !before.endsWith(' ') && !before.endsWith('|') && !before.endsWith('\n');
+        const space = needsSpace ? ' ' : '';
+        
+        const newLine = before + space + newChord + after;
+        lines[lastMatch.lineIndex] = newLine;
+        
+        editor.value = lines.join('\n');
+        
+        // Atualizar visualização
+        renderFullScore();
+        
+        showStatus(`Cifra "${cifraCompleta}" adicionada`, 'success');
+        return;
+      }
+    }
+    
+    showStatus('Nenhum acorde sem cifra encontrado', 'warning');
+    
+  } catch (error) {
+    console.error('Erro em addSymbolToLastChord:', error);
+    showStatus('Erro: ' + error.message, 'error');
+  }
+};
+
+// Função SIMPLIFICADA para remover cifra do último acorde
+window.removeSymbolFromLastChord = function() {
+  try {
+    if (!editor || !editor.value.trim()) {
+      showStatus('Editor vazio', 'warning');
+      return;
+    }
+    
+    // Método DIRETO: procurar o último acorde COM cifra em TODO o texto
+    const text = editor.value;
+    const lines = text.split('\n');
+    
+    // Procurar do FINAL para o INÍCIO
+    for (let i = lines.length - 1; i >= 0; i--) {
+      const line = lines[i];
+      
+      // Ignorar linhas de cabeçalho
+      if (line.trim().startsWith('X:') || line.trim().startsWith('T:') || 
+          line.trim().startsWith('C:') || line.trim().startsWith('M:') ||
+          line.trim().startsWith('L:') || line.trim().startsWith('K:') ||
+          line.trim().startsWith('V:') || line.trim().startsWith('%') ||
+          line.trim().startsWith('//')) {
+        continue;
+      }
+      
+      // Procurar acorde COM cifra na linha
+      const chordRegex = /("[^"]*"\s*\[[^\]]+\]\d*\.?\d*\/?\d*\.?\d*)/g;
+      let match;
+      let lastMatch = null;
+      
+      // Encontrar TODOS os acordes com cifra na linha
+      while ((match = chordRegex.exec(line)) !== null) {
+        lastMatch = {
+          lineIndex: i,
+          start: match.index,
+          end: match.index + match[0].length,
+          chord: match[0]
+        };
+      }
+      
+      // Se encontrou um acorde com cifra, processar
+      if (lastMatch) {
+        const line = lines[lastMatch.lineIndex];
+        const before = line.substring(0, lastMatch.start);
+        const after = line.substring(lastMatch.end);
+        
+        // Remover cifra (mantém apenas a parte do acorde)
+        const chordWithoutSymbol = lastMatch.chord.replace(/^"[^"]*"\s*/, '');
+        
+        const newLine = before + chordWithoutSymbol + after;
+        lines[lastMatch.lineIndex] = newLine;
+        
+        editor.value = lines.join('\n');
+        
+        // Atualizar visualização
+        renderFullScore();
+        
+        showStatus('Cifra removida do acorde', 'success');
+        return;
+      }
+    }
+    
+    showStatus('Nenhum acorde com cifra encontrado', 'warning');
+    
+  } catch (error) {
+    console.error('Erro em removeSymbolFromLastChord:', error);
+    showStatus('Erro: ' + error.message, 'error');
+  }
+};
+
+// Função de DEBUG para ver o que está no editor
+window.debugFindLastChord = function() {
+  try {
+    if (!editor || !editor.value.trim()) {
+      alert('Editor vazio');
+      return;
+    }
+    
+    const text = editor.value;
+    const lines = text.split('\n');
+    
+    let acordesSemCifra = [];
+    let acordesComCifra = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Procurar acordes SEM cifra
+      const semCifraRegex = /(\[[^\]]+\]\d*\.?\d*\/?\d*\.?\d*)/g;
+      const comCifraRegex = /("[^"]*"\s*\[[^\]]+\]\d*\.?\d*\/?\d*\.?\d*)/g;
+      
+      let match;
+      
+      // Acordes sem cifra
+      while ((match = semCifraRegex.exec(line)) !== null) {
+        const beforeMatch = line.substring(0, match.index);
+        if (!beforeMatch.trim().endsWith('"')) {
+          acordesSemCifra.push({
+            linha: i + 1,
+            acorde: match[0],
+            textoLinha: line.trim()
+          });
+        }
+      }
+      
+      // Acordes com cifra
+      while ((match = comCifraRegex.exec(line)) !== null) {
+        acordesComCifra.push({
+          linha: i + 1,
+          acorde: match[0],
+          textoLinha: line.trim()
+        });
+      }
+    }
+    
+    console.log('=== DEBUG ===');
+    console.log('Acordes SEM cifra encontrados:', acordesSemCifra);
+    console.log('Acordes COM cifra encontrados:', acordesComCifra);
+    console.log('Total linhas:', lines.length);
+    console.log('Mão atual:', currentHand);
+    
+    let mensagem = `DEBUG - Mão: ${currentHand}\n\n`;
+    mensagem += `Acordes SEM cifra: ${acordesSemCifra.length}\n`;
+    mensagem += `Acordes COM cifra: ${acordesComCifra.length}\n\n`;
+    
+    if (acordesSemCifra.length > 0) {
+      mensagem += 'Último acorde SEM cifra:\n';
+      const ultimoSemCifra = acordesSemCifra[acordesSemCifra.length - 1];
+      mensagem += `Linha ${ultimoSemCifra.linha}: ${ultimoSemCifra.acorde}\n`;
+    }
+    
+    if (acordesComCifra.length > 0) {
+      mensagem += '\nÚltimo acorde COM cifra:\n';
+      const ultimoComCifra = acordesComCifra[acordesComCifra.length - 1];
+      mensagem += `Linha ${ultimoComCifra.linha}: ${ultimoComCifra.acorde}\n`;
+    }
+    
+    alert(mensagem);
+    
+  } catch (error) {
+    console.error('Erro no debug:', error);
+    alert('Erro no debug: ' + error.message);
+  }
+};
+
+// Versão ALTERNATIVA que trabalha com a voz atual
+window.addSymbolToLastChordInVoice = function() {
+  try {
+    if (!editor || !editor.value.trim()) {
+      showStatus('Editor vazio', 'warning');
+      return;
+    }
+    
+    // Obter cifra atual
+    const rootValue = currentHand === 'right' ? root.value.trim() : rootLeft.value.trim();
+    const qualityValue = currentHand === 'right' ? quality.value.trim() : qualityLeft.value.trim();
+    const cifraCompleta = rootValue + qualityValue || 'C';
+    
+    // Determinar qual voz estamos procurando
+    const voiceToFind = currentHand === 'right' ? 1 : 2;
+    const lines = editor.value.split('\n');
+    
+    let inTargetVoice = false;
+    let lastChordInfo = null;
+    
+    // Procurar do INÍCIO para o FIM (mais simples)
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Verificar se é a linha da voz
+      if (line.startsWith('V:')) {
+        const voiceMatch = line.match(/V:(\d+)/);
+        if (voiceMatch) {
+          const voiceNum = parseInt(voiceMatch[1]);
+          inTargetVoice = (voiceNum === voiceToFind);
+        }
+        continue;
+      }
+      
+      // Se estamos na voz correta, procurar acordes
+      if (inTargetVoice && line && !line.startsWith('//') && !line.startsWith('%')) {
+        // Procurar acordes SEM cifra
+        const chordRegex = /(\[[^\]]+\]\d*\.?\d*\/?\d*\.?\d*)/g;
+        let match;
+        
+        while ((match = chordRegex.exec(line)) !== null) {
+          // Verificar se não tem cifra antes
+          const beforeMatch = lines[i].substring(0, match.index);
+          if (!beforeMatch.trim().endsWith('"')) {
+            lastChordInfo = {
+              lineIndex: i,
+              start: match.index,
+              end: match.index + match[0].length,
+              chord: match[0]
+            };
+          }
+        }
+      }
+    }
+    
+    if (!lastChordInfo) {
+      showStatus('Nenhum acorde sem cifra encontrado', 'warning');
+      return;
+    }
+    
+    // Adicionar cifra
+    const line = lines[lastChordInfo.lineIndex];
+    const before = line.substring(0, lastChordInfo.start);
+    const after = line.substring(lastChordInfo.end);
+    
+    const newChord = `"${cifraCompleta}"` + lastChordInfo.chord;
+    const newLine = before + newChord + after;
+    lines[lastChordInfo.lineIndex] = newLine;
+    
+    editor.value = lines.join('\n');
+    
+    // Atualizar visualização
+    renderFullScore();
+    
+    showStatus(`Cifra "${cifraCompleta}" adicionada`, 'success');
+    
+  } catch (error) {
+    console.error('Erro em addSymbolToLastChordInVoice:', error);
+    showStatus('Erro: ' + error.message, 'error');
+  }
+};
+
+// Versão ALTERNATIVA para remover cifra na voz atual
+window.removeSymbolFromLastChordInVoice = function() {
+  try {
+    if (!editor || !editor.value.trim()) {
+      showStatus('Editor vazio', 'warning');
+      return;
+    }
+    
+    // Determinar qual voz estamos procurando
+    const voiceToFind = currentHand === 'right' ? 1 : 2;
+    const lines = editor.value.split('\n');
+    
+    let inTargetVoice = false;
+    let lastChordInfo = null;
+    
+    // Procurar do INÍCIO para o FIM
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Verificar se é a linha da voz
+      if (line.startsWith('V:')) {
+        const voiceMatch = line.match(/V:(\d+)/);
+        if (voiceMatch) {
+          const voiceNum = parseInt(voiceMatch[1]);
+          inTargetVoice = (voiceNum === voiceToFind);
+        }
+        continue;
+      }
+      
+      // Se estamos na voz correta, procurar acordes COM cifra
+      if (inTargetVoice && line && !line.startsWith('//') && !line.startsWith('%')) {
+        // Procurar acordes COM cifra
+        const chordRegex = /("[^"]*"\s*\[[^\]]+\]\d*\.?\d*\/?\d*\.?\d*)/g;
+        let match;
+        
+        while ((match = chordRegex.exec(lines[i])) !== null) {
+          lastChordInfo = {
+            lineIndex: i,
+            start: match.index,
+            end: match.index + match[0].length,
+            chord: match[0]
+          };
+        }
+      }
+    }
+    
+    if (!lastChordInfo) {
+      showStatus('Nenhum acorde com cifra encontrado', 'warning');
+      return;
+    }
+    
+    // Remover cifra
+    const line = lines[lastChordInfo.lineIndex];
+    const before = line.substring(0, lastChordInfo.start);
+    const after = line.substring(lastChordInfo.end);
+    
+    const chordWithoutSymbol = lastChordInfo.chord.replace(/^"[^"]*"\s*/, '');
+    const newLine = before + chordWithoutSymbol + after;
+    lines[lastChordInfo.lineIndex] = newLine;
+    
+    editor.value = lines.join('\n');
+    
+    // Atualizar visualização
+    renderFullScore();
+    
+    showStatus('Cifra removida do acorde', 'success');
+    
+  } catch (error) {
+    console.error('Erro em removeSymbolFromLastChordInVoice:', error);
+    showStatus('Erro: ' + error.message, 'error');
+  }
+};
+
+// Função SIMPLES E FUNCIONAL para gerar todas as inversões
+window.generateAllInversions = function() {
+  try {
+    const rootValue = root.value.trim();
+    const qualityValue = quality.value.trim();
+    const cifraCompleta = rootValue + qualityValue;
+    const duracao = figure.value || '4';
+    const octaveShiftValue = parseInt(octaveShift?.value || 0);
+
+    let chordKey = cifraCompleta;
+    
+    // Verificar se o acorde existe
+    if (!CHORDS[cifraCompleta] && !CHORDS[rootValue]) {
+      showStatus(`Cifra "${cifraCompleta}" não encontrada`, 'error');
+      return;
+    }
+    
+    chordKey = CHORDS[cifraCompleta] ? cifraCompleta : rootValue;
+    
+    const originalChord = CHORDS[chordKey];
+    
+    // Gerar 4 inversões (0, 1, 2, 3)
+    let addedCount = 0;
+    for (let inv = 0; inv <= 3; inv++) {
+      let acorde = inverterAcorde(originalChord, inv);
+      acorde = transporAcordeOitava(acorde, octaveShiftValue);
+      
+      // Gerar com cifra
+      const resultadoFinal = `"${cifraCompleta}"` + acorde + duracao;
+      const chordName = `${cifraCompleta} Inv${inv}`;
+      
+      // Adicionar à biblioteca se não existir
+      const exists = chordLibrary.some(item => 
+        item.name === chordName && item.chord === resultadoFinal
+      );
+      
+      if (!exists) {
+        chordLibrary.push({ name: chordName, chord: resultadoFinal });
+        addedCount++;
+      }
+    }
+    
+    // Atualizar a biblioteca
+    renderChordLibrary();
+    updateExportData();
+    
+    showStatus(`${addedCount} inversões de ${cifraCompleta} adicionadas à biblioteca`, 'success');
+    
+  } catch (error) {
+    console.error('Erro em generateAllInversions:', error);
+    showStatus('Erro ao gerar inversões: ' + error.message, 'error');
+  }
+};
+
+// Função para inserir no final da voz atual
+window.appendToEditor = function() {
+  try {
+    const generated = output.value;
+    if (!generated || generated.startsWith('ERRO') || !editor) {
+      showStatus('Gere um acorde válido primeiro', 'warning');
+      return;
+    }
+    
+    const lines = editor.value.split('\n');
+    const currentVoice = currentHand === 'right' ? 1 : 2;
+    let voiceSection = findVoiceSection(lines, currentVoice);
+    
+    if (!voiceSection) {
+      // Se não tem a voz, criar estrutura básica
+      if (!editor.value.includes('V:')) {
+        editor.value = 
+`X:1
+T:Título da Música
+C:Compositor
+Q:80
+M:4/4
+L:1/4
+K:C
+V:1 clef=treble name="Mão Direita"
+${generated}
+V:2 clef=bass name="Mão Esquerda"
+z4`;
+      } else {
+        editor.value += `\nV:${currentVoice} clef=${currentVoice === 1 ? 'treble' : 'bass'} name="${currentVoice === 1 ? 'Mão Direita' : 'Mão Esquerda'}"\n${generated}`;
+      }
+    } else {
+      // Encontrar última linha com conteúdo na voz
+      let lastContentLineIndex = -1;
+      for (let i = voiceSection.startIndex + 1; i < voiceSection.endIndex; i++) {
+        if (lines[i].trim() && !lines[i].trim().startsWith('//')) {
+          lastContentLineIndex = i;
+        }
+      }
+      
+      if (lastContentLineIndex === -1) {
+        // Primeiro acorde na voz
+        lines.splice(voiceSection.startIndex + 1, 0, generated);
+      } else {
+        // Verificar se precisa adicionar espaço
+        const currentLine = lines[lastContentLineIndex].trim();
+        const separator = (currentLine && !currentLine.endsWith(' ') && !currentLine.endsWith('|')) ? ' ' : '';
+        lines[lastContentLineIndex] = currentLine + separator + generated;
+      }
+      
+      editor.value = lines.join('\n');
+    }
+    
+    updateEditor();
+    showStatus('Acorde inserido no final da voz', 'success');
+    
+    // Salvar na biblioteca também
+    const rootValue = currentHand === 'right' ? root.value.trim() : rootLeft.value.trim();
+    const qualityValue = currentHand === 'right' ? quality.value.trim() : qualityLeft.value.trim();
+    const cifraCompleta = rootValue + qualityValue;
+    
+    let chordName = cifraCompleta;
+    if (currentHand === 'right') {
+      const inv = parseInt(inversion.value) || 0;
+      if (inv > 0) chordName += ` Inv${inv}`;
+    } else {
+      const positionNames = {1:"Raiz",2:"1+5",3:"1+3+5",4:"1+8",5:"1+5+8",6:"1+3+5+8",7:"1+5+10"};
+      chordName += ` LH${leftHandPosition} (${positionNames[leftHandPosition]})`;
+    }
+    
+    addToLibrary(chordName, generated);
+    
+  } catch (error) {
+    console.error('Erro em appendToEditor:', error);
+    showStatus('Erro ao inserir acorde', 'error');
+  }
+};
+
   // ===================== INICIALIZAR APLICATIVO =====================
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
@@ -2349,6 +3101,8 @@ function areChordNotesEquivalent(notes1, notes2) {
     init();
   }
 });
+
+
 </script>
 </body>
-  </html>
+</html>
