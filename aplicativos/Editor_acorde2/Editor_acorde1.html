@@ -1,4 +1,5 @@
 
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -164,13 +165,16 @@ input:checked + .toggle-slider:before {transform: translateX(26px);}
   </div>
 
   <!-- Botões de Controle Mão Direita -->
-  <div class="toolbar">
-    <button class="accent" onclick="generate()">Gerar Acorde (Mão Direita)</button>
-    <button class="info" onclick="generateAllInversions()">Gerar Todas Inversões</button>
-    <button class="secondary" onclick="appendToEditor()">Adicionar ao Editor</button>
-    <button class="info" onclick="saveRightHandToLibrary()">💾 Salvar na Biblioteca</button>
-  </div>
 
+<div class="toolbar">
+  <button class="accent" onclick="generate()">Gerar Acorde (Mão Direita)</button>
+  <button class="info" onclick="generateAllInversions()">Gerar Todas Inversões</button>
+  <!-- NOVO: Botão para gerar sem cifra -->
+  <button class="secondary" onclick="generateWithoutSymbol()">Gerar Sem Cifra</button>
+  <button class="secondary" onclick="appendToEditor()">➕ Inserir no Editor</button>
+  <!-- NOVO: Botão para remover último acorde -->
+  <button class="info" onclick="saveRightHandToLibrary()">💾 Salvar na Biblioteca</button>
+</div>
   <label>Trecho Gerado (Mão Direita):</label>
   <textarea id="output"></textarea>
   <div id="paper"></div>
@@ -242,6 +246,7 @@ input:checked + .toggle-slider:before {transform: translateX(26px);}
     <button class="secondary" onclick="appendLeftToEditor()">Adicionar ao Editor</button>
     <button class="info" onclick="generateAllLeftHandPositions()">Gerar Todas Posições</button>
     <button class="info" onclick="saveLeftHandToLibrary()">💾 Salvar na Biblioteca</button>
+    
   </div>
 
   <label>Trecho Gerado (Mão Esquerda):</label>
@@ -279,8 +284,10 @@ input:checked + .toggle-slider:before {transform: translateX(26px);}
   <button class="secondary" onclick="saveLibrary()">💾 Salvar Biblioteca</button>
   <button class="danger" onclick="clearLibrary()">🗑️ Limpar Biblioteca</button>
   <button class="accent" onclick="playEditor()">▶ Play (Editor)</button>
-  <button class="danger" onclick="clearEditor()">Limpar Editor</button>
+  <button class="danger" onclick="clearEditor()">🗑️Limpar Editor</button>
   <button class="secondary" onclick="addBar()">Adicionar Barra (|)</button>
+  <button class="danger" onclick="removeLastChord()">🗑️ Remover Cifra</button>
+  
 </div>
 
 <textarea id="editor" placeholder="Os acordes da sua progressão aparecerão aqui. Ex: [CEG]2 [FAC]2 |" 
@@ -918,92 +925,108 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   // ===================== FUNÇÃO GERAR ACORDE MÃO DIREITA =====================
-  window.generate = function() {
-    try {
-      const rootValue = root.value.trim();
-      const qualityValue = quality.value.trim();
-      const cifraCompleta = rootValue + qualityValue;
-      const inv = parseInt(inversion.value) || 0;
-      const duracao = figure.value || '4';
-      const octaveShiftValue = parseInt(octaveShift?.value || 0);
+ window.generate = function() {
+  try {
+    const rootValue = root.value.trim();
+    const qualityValue = quality.value.trim();
+    const cifraCompleta = rootValue + qualityValue;
+    const inv = parseInt(inversion.value) || 0;
+    const duracao = figure.value || '4';
+    const octaveShiftValue = parseInt(octaveShift?.value || 0);
 
-      let chordKey = cifraCompleta;
-      
-      if (!CHORDS[cifraCompleta]) {
-        if (!CHORDS[rootValue]) {
-          output.value = `ERRO: Cifra "${cifraCompleta}" não encontrada.`;
-          showStatus(`Cifra "${cifraCompleta}" não encontrada`, 'error');
-          if (paperElement) {
-            ABCJS.renderAbc("paper", "X:1\nM:4/4\nL:1/4\nK:C\nz4", {
-              responsive: 'resize',
-              staffwidth: 900,
-              scale: 0.7
-            });
-          }
-          return;
+    let chordKey = cifraCompleta;
+    
+    if (!CHORDS[cifraCompleta]) {
+      if (!CHORDS[rootValue]) {
+        output.value = `ERRO: Cifra "${cifraCompleta}" não encontrada.`;
+        showStatus(`Cifra "${cifraCompleta}" não encontrada`, 'error');
+        if (paperElement) {
+          ABCJS.renderAbc("paper", "X:1\nM:4/4\nL:1/4\nK:C\nz4", {
+            responsive: 'resize',
+            staffwidth: 900,
+            scale: 0.7
+          });
         }
-        chordKey = rootValue;
+        return;
       }
-
-      let acorde = CHORDS[chordKey];
-      acorde = inverterAcorde(acorde, inv);
-      acorde = transporAcordeOitava(acorde, octaveShiftValue);
-      
-      const resultadoFinal = acorde + duracao;
-      output.value = resultadoFinal;
-
-      if (paperElement) {
-        ABCJS.renderAbc("paper", `X:1\nM:4/4\nL:1/4\nK:C\n${resultadoFinal}`, {
-          responsive: 'resize',
-          staffwidth: 900,
-          scale: 0.7,
-          paddingtop: 5,
-          paddingbottom: 5,
-          paddingright: 5,
-          paddingleft: 5
-        });
-      }
-      
-      showStatus(`Acorde ${cifraCompleta} gerado`, 'success');
-    } catch (error) {
-      console.error('Erro em generate:', error);
-      showStatus('Erro ao gerar acorde', 'error');
+      chordKey = rootValue;
     }
-  };
 
-  window.generateAllInversions = function() {
-    try {
-      const rootValue = root.value.trim();
-      const qualityValue = quality.value.trim();
-      const cifraCompleta = rootValue + qualityValue;
-      const duracao = figure.value || '4';
+    let acorde = CHORDS[chordKey];
+    acorde = inverterAcorde(acorde, inv);
+    acorde = transporAcordeOitava(acorde, octaveShiftValue);
+    
+    // MODIFICAÇÃO: Gerar COM cifra por padrão
+    const resultadoFinal = `"${cifraCompleta}"` + acorde + duracao;
+    output.value = resultadoFinal;
 
-      let chordKey = cifraCompleta;
-      
-      if (!CHORDS[cifraCompleta]) {
-        if (!CHORDS[rootValue]) {
-          showStatus(`Cifra "${cifraCompleta}" não encontrada`, 'error');
-          return;
-        }
-        chordKey = rootValue;
-      }
-
-      const originalChord = CHORDS[chordKey];
-      
-      // Gerar todas as inversões (0, 1, 2, 3)
-      for (let inv = 0; inv <= 3; inv++) {
-        const acorde = inverterAcorde(originalChord, inv);
-        const resultadoFinal = acorde + duracao;
-        const chordName = `${cifraCompleta} Inv${inv}`;
-        addToLibrary(chordName, resultadoFinal);
-      }
-      
-      showStatus(`Todas as inversões de ${cifraCompleta} adicionadas à biblioteca`, 'success');
-    } catch (error) {
-      console.error('Erro em generateAllInversions:', error);
-      showStatus('Erro ao gerar inversões', 'error');
+    if (paperElement) {
+      ABCJS.renderAbc("paper", `X:1\nM:4/4\nL:1/4\nK:C\n${resultadoFinal}`, {
+        responsive: 'resize',
+        staffwidth: 900,
+        scale: 0.7,
+        paddingtop: 5,
+        paddingbottom: 5,
+        paddingright: 5,
+        paddingleft: 5
+      });
     }
-  };
+    
+    showStatus(`Acorde ${cifraCompleta} gerado`, 'success');
+  } catch (error) {
+    console.error('Erro em generate:', error);
+    showStatus('Erro ao gerar acorde', 'error');
+  }
+};
+
+// Versão sem cifra (opcional)
+window.generateWithoutSymbol = function() {
+  try {
+    const rootValue = root.value.trim();
+    const qualityValue = quality.value.trim();
+    const cifraCompleta = rootValue + qualityValue;
+    const inv = parseInt(inversion.value) || 0;
+    const duracao = figure.value || '4';
+    const octaveShiftValue = parseInt(octaveShift?.value || 0);
+
+    let chordKey = cifraCompleta;
+    
+    if (!CHORDS[cifraCompleta] && CHORDS[rootValue]) {
+      chordKey = rootValue;
+    }
+
+    if (!CHORDS[chordKey]) {
+      output.value = `ERRO: Cifra não encontrada.`;
+      showStatus(`Cifra não encontrada`, 'error');
+      return;
+    }
+
+    let acorde = CHORDS[chordKey];
+    acorde = inverterAcorde(acorde, inv);
+    acorde = transporAcordeOitava(acorde, octaveShiftValue);
+    
+    // SEM cifra
+    const resultadoFinal = acorde + duracao;
+    output.value = resultadoFinal;
+
+    if (paperElement) {
+      ABCJS.renderAbc("paper", `X:1\nM:4/4\nL:1/4\nK:C\n${resultadoFinal}`, {
+        responsive: 'resize',
+        staffwidth: 900,
+        scale: 0.7,
+        paddingtop: 5,
+        paddingbottom: 5,
+        paddingright: 5,
+        paddingleft: 5
+      });
+    }
+    
+    showStatus(`Acorde gerado (sem cifra)`, 'success');
+  } catch (error) {
+    console.error('Erro em generateWithoutSymbol:', error);
+    showStatus('Erro ao gerar acorde', 'error');
+  }
+};
 
   // ===================== NOVAS FUNÇÕES PARA SALVAR NA BIBLIOTECA =====================
   window.saveRightHandToLibrary = function() {
@@ -1670,133 +1693,139 @@ z4`;
     }
   };
 
-  // ===================== PLAYBACK =====================
-  window.playChord = function(chordABC, duration) {
-    try {
-      if (editorSynth) {
-        editorSynth.stop();
-      }
-      
-      const abcString = `X:1\nM:4/4\nL:1/4\nK:C\n${chordABC}${duration}`;
-      
-      editorSynth = ABCJS.synth.CreateSynth();
-      
-      editorSynth.init({
-        visualObj: ABCJS.renderAbc("paper", abcString)[0],
-        options: {
-          soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/",
-          chordsOff: false
-        }
-      }).then(() => {
-        return editorSynth.prime();
-      }).then(() => {
-        editorSynth.start();
-        isPlaying = true;
-      }).catch(error => {
-        console.error("Erro ao tocar acorde:", error);
-        showStatus('Erro ao tocar acorde: ' + error.message, 'error');
-      });
-    } catch (error) {
-      console.error("Erro em playChord:", error);
-      showStatus('Erro ao tocar acorde', 'error');
+ // ===================== PLAYBACK =====================
+window.playChord = function(chordABC, duration) {
+  try {
+    if (editorSynth) {
+      editorSynth.stop();
     }
-  };
+    
+    const abcString = `X:1\nM:4/4\nL:1/4\nK:C\n${chordABC}${duration}`;
+    
+    // Criar objeto visual
+    const visualObj = ABCJS.renderAbc("paper", abcString)[0];
+    
+    // Inicializar sintetizador
+    editorSynth = new ABCJS.synth.CreateSynth();
+    
+    editorSynth.init({
+      visualObj: visualObj,
+      options: {
+        soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/",
+        chordsOff: false
+      }
+    }).then(() => {
+      return editorSynth.prime();
+    }).then(() => {
+      editorSynth.start();
+      isPlaying = true;
+      showStatus(`Tocando acorde`, 'success');
+    }).catch(error => {
+      console.error("Erro ao tocar acorde:", error);
+      showStatus('Erro ao tocar acorde: ' + error.message, 'error');
+    });
+  } catch (error) {
+    console.error("Erro em playChord:", error);
+    showStatus('Erro ao tocar acorde', 'error');
+  }
+};
 
-  window.playEditor = function() {
-    try {
-      if (!editor || !editor.value.trim()) {
-        showStatus('O editor está vazio!', 'warning');
-        return;
-      }
-      
-      if (isPlaying) {
-        stopPlayback();
-        return;
-      }
-      
-      const validation = validateABC(editor.value);
-      if (!validation.valid) {
-        showStatus(`Erro na partitura: ${validation.error}`, 'error');
-        return;
-      }
-      
-      if (editorSynth) {
-        editorSynth.stop();
-      }
-      
-      // Atualizar visualização
-      renderFullScore();
-      
-      const audioOptions = {
+window.playEditor = function() {
+  try {
+    if (!editor || !editor.value.trim()) {
+      showStatus('O editor está vazio!', 'warning');
+      return;
+    }
+    
+    if (isPlaying) {
+      stopPlayback();
+      return;
+    }
+    
+    const validation = validateABC(editor.value);
+    if (!validation.valid) {
+      showStatus(`Erro na partitura: ${validation.error}`, 'error');
+      return;
+    }
+    
+    if (editorSynth) {
+      editorSynth.stop();
+      editorSynth = null;
+    }
+    
+    // Atualizar visualização
+    renderFullScore();
+    
+    const visualObj = ABCJS.renderAbc("paperEdit", editor.value, {
+      responsive: 'resize',
+      staffwidth: 900,
+      viewportHorizontal: true
+    })[0];
+    
+    // Criar novo sintetizador
+    editorSynth = new ABCJS.synth.CreateSynth();
+    
+    showStatus('Preparando playback...', 'info');
+    
+    editorSynth.init({
+      visualObj: visualObj,
+      options: {
         soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/",
         chordsOff: false,
         midiTranspose: 0,
         visualTranspose: 0,
         qpm: 80
-      };
-      
-      const visualObj = ABCJS.renderAbc("paperEdit", editor.value, {
-        responsive: 'resize',
-        staffwidth: 900,
-        viewportHorizontal: true
-      })[0];
-      
-      editorSynth = ABCJS.synth.CreateSynth();
-      
-      editorSynth.init({
-        visualObj: visualObj,
-        options: audioOptions
-      }).then(() => {
-        showStatus('Preparando playback...', 'info');
-        return editorSynth.prime();
-      }).then(() => {
-        showStatus('Tocando partitura...', 'info');
-        isPlaying = true;
-        
-        const playBtn = document.querySelector('button[onclick="playEditor()"]');
-        if (playBtn) playBtn.textContent = '⏹ Stop';
-        
-        editorSynth.start();
-        
-        setTimeout(() => {
-          if (editorSynth && editorSynth.activeAudioContext) {
-            editorSynth.activeAudioContext.onended = () => {
-              isPlaying = false;
-              const playBtn = document.querySelector('button[onclick="playEditor()"]');
-              if (playBtn) playBtn.textContent = '▶ Play (Editor)';
-              showStatus('Playback concluído', 'success');
-            };
-          }
-        }, 100);
-        
-      }).catch(error => {
-        console.error("Erro ao tocar partitura:", error);
-        showStatus('Erro ao tocar partitura: ' + error.message, 'error');
-        isPlaying = false;
-      });
-      
-    } catch (error) {
-      console.error("Erro em playEditor:", error);
-      showStatus('Erro ao tocar partitura', 'error');
-      isPlaying = false;
-    }
-  };
-
-  window.stopPlayback = function() {
-    try {
-      if (editorSynth) {
-        editorSynth.stop();
-        isPlaying = false;
-        
-        const playBtn = document.querySelector('button[onclick="playEditor()"]');
-        if (playBtn) playBtn.textContent = '▶ Play (Editor)';
-        
-        showStatus('Playback interrompido', 'info');
       }
-    } catch (error) {
-      console.error('Erro em stopPlayback:', error);
+    }).then(() => {
+      return editorSynth.prime();
+    }).then(() => {
+      showStatus('Tocando partitura...', 'info');
+      isPlaying = true;
+      
+      const playBtn = document.querySelector('button[onclick="playEditor()"]');
+      if (playBtn) playBtn.textContent = '⏹ Stop';
+      
+      editorSynth.start();
+      
+      // Detectar quando termina
+      if (editorSynth.audioContext) {
+        editorSynth.audioContext.onended = () => {
+          isPlaying = false;
+          const playBtn = document.querySelector('button[onclick="playEditor()"]');
+          if (playBtn) playBtn.textContent = '▶ Play (Editor)';
+          showStatus('Playback concluído', 'success');
+        };
+      }
+      
+    }).catch(error => {
+      console.error("Erro ao tocar partitura:", error);
+      showStatus('Erro ao tocar partitura: ' + error.message, 'error');
+      isPlaying = false;
+    });
+    
+  } catch (error) {
+    console.error("Erro em playEditor:", error);
+    showStatus('Erro ao tocar partitura', 'error');
+    isPlaying = false;
+  }
+};
+
+window.stopPlayback = function() {
+  try {
+    if (editorSynth) {
+      editorSynth.stop();
+      editorSynth = null;
+      isPlaying = false;
+      
+      const playBtn = document.querySelector('button[onclick="playEditor()"]');
+      if (playBtn) playBtn.textContent = '▶ Play (Editor)';
+      
+      showStatus('Playback interrompido', 'info');
     }
-  };
+  } catch (error) {
+    console.error('Erro em stopPlayback:', error);
+  }
+};
 
   // ===================== EXPORT/IMPORT =====================
   window.updateExportData = function() {
@@ -2207,7 +2236,112 @@ z4`;
       showStatus('Erro ao inserir barra', 'error');
     }
   };
+// ===================== FUNÇÃO PARA ADICIONAR CIFRAS =====================
+window.addChordSymbols = function() {
+  try {
+    if (!editor || !editor.value.trim()) {
+      showStatus('O editor está vazio!', 'warning');
+      return;
+    }
+    
+    const lines = editor.value.split('\n');
+    let modified = false;
+    
+    // Processar cada linha da partitura
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i].trim();
+      
+      // Ignorar cabeçalhos e linhas de comentário
+      if (line.startsWith('X:') || line.startsWith('T:') || 
+          line.startsWith('C:') || line.startsWith('M:') || 
+          line.startsWith('L:') || line.startsWith('K:') ||
+          line.startsWith('V:') || line.startsWith('%') ||
+          line.startsWith('//') || line === '') {
+        continue;
+      }
+      
+      // Procurar por acordes [ ] na linha
+      const chordRegex = /(\[[^\]]+\]\d*\.?\d*\/?\d*\.?\d*)/g;
+      let match;
+      let newLine = line;
+      
+      while ((match = chordRegex.exec(line)) !== null) {
+        const chordABC = match[1];
+        
+        // Encontrar o nome do acorde correspondente
+        let chordName = findChordName(chordABC);
+        
+        if (chordName) {
+          // Adicionar cifra antes do acorde
+          newLine = newLine.replace(chordABC, `"${chordName}"${chordABC}`);
+          modified = true;
+        }
+      }
+      
+      if (newLine !== line) {
+        lines[i] = newLine;
+      }
+    }
+    
+    if (modified) {
+      editor.value = lines.join('\n');
+      updateEditor();
+      showStatus('Cifras adicionadas aos acordes', 'success');
+    } else {
+      showStatus('Nenhum acorde encontrado para adicionar cifras', 'info');
+    }
+    
+  } catch (error) {
+    console.error('Erro em addChordSymbols:', error);
+    showStatus('Erro ao adicionar cifras', 'error');
+  }
+};
 
+// Função auxiliar para encontrar o nome do acorde
+function findChordName(chordABC) {
+  try {
+    // Extrair as notas do acorde
+    const notesMatch = chordABC.match(/\[([^\]]+)\]/);
+    if (!notesMatch) return null;
+    
+    const notes = notesMatch[1].split(' ').filter(n => n.trim() !== '');
+    
+    // Procurar no dicionário de acordes
+    for (const [name, abc] of Object.entries(CHORDS)) {
+      const chordNotes = abc.replace(/[\[\]]/g, '').split(' ').filter(n => n.trim() !== '');
+      
+      // Comparar se as notas são equivalentes (ignorando oitavas)
+      if (areChordNotesEquivalent(notes, chordNotes)) {
+        return name;
+      }
+    }
+    
+    return null;
+  } catch (error) {
+    console.error('Erro em findChordName:', error);
+    return null;
+  }
+}
+
+// Função para comparar acordes (ignorando oitavas)
+function areChordNotesEquivalent(notes1, notes2) {
+  try {
+    if (notes1.length !== notes2.length) return false;
+    
+    // Normalizar notas (remover oitavas e acidentes)
+    const normalizeNote = (note) => {
+      const match = note.match(/^([_^=]*)([A-Ga-g])/);
+      return match ? match[2].toUpperCase() : '';
+    };
+    
+    const normalized1 = notes1.map(normalizeNote).sort();
+    const normalized2 = notes2.map(normalizeNote).sort();
+    
+    return JSON.stringify(normalized1) === JSON.stringify(normalized2);
+  } catch (error) {
+    return false;
+  }
+}
   // ===================== INICIALIZAR APLICATIVO =====================
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', init);
@@ -2217,4 +2351,4 @@ z4`;
 });
 </script>
 </body>
-</html>
+  </html>
