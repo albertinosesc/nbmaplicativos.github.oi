@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Unificador ABC - Corrigido</title>
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.5.2/dist/abcjs-basic-min.js" onerror="loadLocal()"></script>
+<script>
+  function loadLocal() {
+    var s = document.createElement('script'); s.src = 'js/abcjs-basic-min.js'; document.head.appendChild(s);
+  }
+</script>
+<style>
+  body { font-family: sans-serif; margin: 0; padding: 20px; background: #f0f2f5; }
+  .container { max-width: 1000px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+  textarea { width: 100%; height: 100px; font-family: monospace; padding: 10px; box-sizing: border-box; border: 2px solid #ccc; border-radius: 4px; }
+  #output { height: 200px; border-color: #007bff; background: #fafafa; margin-top: 10px; }
+  .btns { margin: 15px 0; display: flex; gap: 10px; }
+  button { padding: 12px 20px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; flex: 1; }
+  .btn-unify { background: #007bff; color: white; }
+  .btn-play { background: #28a745; color: white; }
+  .btn-play.playing { background: #dc3545; }
+  #paper { background: #fff; border: 1px solid #ddd; margin-top: 20px; min-height: 150px; }
+  .label { font-weight: bold; font-size: 12px; color: #555; display: block; margin-bottom: 5px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+  <h2>🎼 Unificador + Player Offline</h2>
+  
+  <div class="grid">
+    <div>
+      <span class="label">1. ACORDES</span>
+      <textarea id="chords">"C"z3 "D7"z | "G"z "F"z "G"z "Dm"z |</textarea>
+    </div>
+    <div>
+      <span class="label">2. MELODIA</span>
+      <textarea id="notes">C D E F | D E F G |</textarea>
+    </div>
+  </div>
+
+  <div class="btns">
+    <button class="btn-unify" onclick="unify()">🔄 1. Unificar</button>
+    <button class="btn-play" id="playBtn" onclick="togglePlay()">▶ 2. Play</button>
+  </div>
+
+  <span class="label">RESULTADO (Editável):</span>
+  <textarea id="output" spellcheck="false"></textarea>
+
+  <div id="paper"></div>
+</div>
+
+<script>
+let visualObj = null;
+let synthControl = null;
+let audioContext = null;
+
+const defaultHeader = "X:1\n%%MIDI program 24\n%%MIDI bassprog 24\n%%MIDI chordprog 24\n%%MIDI gchord fzc2c\nT:Unificado\nM:4/4\nL:1/4\nQ:100\nK:C\n";
+
+function parseBar(barText) {
+    const regex = /("[^"]+")?([_^^]*[A-Ga-gz][',]*[\d\/]*-?)/g;
+    let elements = [];
+    let match;
+    let currentTime = 0;
+    while ((match = regex.exec(barText)) !== null) {
+        let chord = match[1] || null;
+        let notePart = match[2];
+        let duration = 1;
+        let durMatch = notePart.match(/\d+/);
+        if (durMatch) duration = parseInt(durMatch[0]);
+        elements.push({ chord, note: notePart, time: currentTime, duration });
+        currentTime += duration;
+    }
+    return elements;
+}
+
+function unify() {
+    const cBars = document.getElementById("chords").value.split('|').map(s => s.trim());
+    const nBars = document.getElementById("notes").value.split('|').map(s => s.trim());
+    let finalBars = [];
+
+    nBars.forEach((nBar, i) => {
+        if (!nBar) return;
+        let chordsInBar = parseBar(cBars[i] || "");
+        let notesInBar = parseBar(nBar);
+        let merged = "";
+        notesInBar.forEach(nEl => {
+            let chordToInjet = "";
+            chordsInBar.forEach(cEl => {
+                if (cEl.chord && Math.abs(cEl.time - nEl.time) < 0.01) chordToInjet = cEl.chord;
+            });
+            merged += (chordToInjet || "") + nEl.note + " ";
+        });
+        finalBars.push(merged.trim());
+    });
+
+    document.getElementById("output").value = defaultHeader + finalBars.join(" | ") + " |]";
+    renderPartiture();
+}
+
+function renderPartiture() {
+    const content = document.getElementById("output").value;
+    visualObj = ABCJS.renderAbc("paper", content, { responsive: "resize" })[0];
+    // Resetar som ao mudar o código
+    if (synthControl) {
+        synthControl.stop();
+        synthControl = null;
+        document.getElementById("playBtn").innerText = "▶ 2. Play";
+        document.getElementById("playBtn").classList.remove("playing");
+    }
+}
+
+async function togglePlay() {
+    const btn = document.getElementById("playBtn");
+    
+    // 1. Inicializar AudioContext no primeiro clique
+    if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === 'suspended') await audioContext.resume();
+
+    // 2. Parar se já estiver tocando
+    if (synthControl) {
+        await synthControl.stop();
+        synthControl = null;
+        btn.innerText = "▶ 2. Play";
+        btn.classList.remove("playing");
+        return;
+    }
+
+    // 3. Tocar
+    btn.innerText = "⌛...";
+    try {
+        synthControl = new ABCJS.synth.CreateSynth();
+        const soundUrl = navigator.onLine ? 
+            "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/" : "samples/guitar/";
+
+        await synthControl.init({
+            visualObj: visualObj,
+            audioContext: audioContext,
+            options: { soundFontUrl: soundUrl, program: 24 }
+        });
+
+        await synthControl.prime();
+        await synthControl.start();
+        btn.innerText = "⏹ Parar";
+        btn.classList.add("playing");
+    } catch (e) {
+        console.warn("Usando som interno...");
+        await synthControl.init({ visualObj, audioContext });
+        await synthControl.prime();
+        await synthControl.start();
+        btn.innerText = "⏹ Parar";
+        btn.classList.add("playing");
+    }
+}
+
+document.getElementById("output").addEventListener("input", renderPartiture);
+window.onload = unify;
+</script>
+</body>
+</html>

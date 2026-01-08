@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Editor Harmônico Pro - Offline Ready</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.5.2/dist/abcjs-basic-min.js" onerror="loadLocal()"></script>
+    <script>
+      function loadLocal() {
+        console.warn("Modo Offline: Carregando scripts da pasta js/...");
+        var s1 = document.createElement('script'); s1.src = 'js/abcjs-basic-min.js'; document.head.appendChild(s1);
+        var s2 = document.createElement('script'); s2.src = 'js/abcjs-plugin-min.js'; document.head.appendChild(s2);
+      }
+    </script>
+
+    <style>
+        :root { --primary: #2c3e50; --accent: #27ae60; --danger: #e74c3c; --blue: #3498db; --gray: #7f8c8d; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; margin: 0; }
+        .container { max-width: 1100px; margin: 0 auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        .setup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 10px; }
+        label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 5px; color: #666; }
+        select, input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
+        
+        .transpose-wrapper { display: flex; align-items: center; gap: 5px; }
+        .btn-trans { background: var(--blue); color: white; border: none; padding: 8px; border-radius: 5px; cursor: pointer; font-weight: bold; flex: 1; }
+        #val-transpose { font-weight: bold; min-width: 30px; text-align: center; }
+
+        .editor-section { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        #abc-editor { height: 250px; font-family: 'Courier New', monospace; background: #1e1e1e; color: #dcdcdc; border: none; margin-top: 5px; resize: vertical; padding: 10px; border-radius: 0 0 8px 8px; }
+        #paper { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 10px; min-height: 250px; overflow-x: auto; }
+        
+        .copy-bar { display: flex; gap: 5px; background: #333; padding: 5px; border-radius: 8px 8px 0 0; margin-top: 10px; }
+        .btn-copy { background: #555; color: white; border: none; padding: 5px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        .btn-copy:hover { background: var(--blue); }
+
+        .btns-main { display: flex; gap: 10px; margin-top: 15px; }
+        .btn-play { background: var(--accent); flex: 2; padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; }
+        .btn-stop { background: var(--danger); flex: 1; padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; }
+        h2 { color: var(--primary); margin-top: 0; }
+        .instrucao { font-size: 12px; color: #7f8c8d; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎼 Editor Harmônico - Escrita Livre</h2>
+
+    <div class="setup-grid">
+        <div>
+            <label>Ritmo (Planilha)</label>
+            <input list="ritmos" id="busca" placeholder="Buscar..." oninput="carregarRitmoPlanilha(this.value)">
+            <datalist id="ritmos"></datalist>
+        </div>
+        <div>
+            <label>GChord (Acompanhamento)</label>
+            <input id="gInput" value="fzc2c" onchange="gerarABC()">
+        </div>
+        <div>
+            <label>Transpose</label>
+            <div class="transpose-wrapper">
+                <button class="btn-trans" onclick="mudarTranspose(-1)">-</button>
+                <span id="val-transpose">0</span>
+                <button class="btn-trans" onclick="mudarTranspose(1)">+</button>
+            </div>
+        </div>
+        <div>
+            <label>BPM</label>
+            <input type="number" id="bpm" value="100" onchange="gerarABC()">
+        </div>
+    </div>
+
+    <div class="editor-section">
+        <div>
+            <label>1. Digite as Cifras</label>
+            <p class="instrucao">Vírgula muda compasso. Espaço muda acorde no mesmo tempo.</p>
+            <textarea id="cifras" style="height: 60px;" oninput="gerarABC()" placeholder="Ex: C, G | Am, F"></textarea>
+            
+            <label style="margin-top:15px; display:block;">2. Código ABC (Edição Livre):</label>
+            <div class="copy-bar">
+                <button class="btn-copy" onclick="copiarCompleto()">📋 COPIAR COMPLETO</button>
+                <button class="btn-copy" onclick="copiarCorpo()">🎼 COPIAR CORPO</button>
+            </div>
+            <textarea id="abc-editor" oninput="renderizarManual()" placeholder="O código ABC aparecerá aqui..."></textarea>
+            
+            <div class="btns-main">
+                <button id="btn-play" class="btn-play" onclick="tocar()">▶ TOCAR</button>
+                <button class="btn-stop" onclick="parar()">⏹ PARAR</button>
+            </div>
+        </div>
+        
+        <div>
+            <label>Visualização da Partitura</label>
+            <div id="paper"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let audioCtx, synth;
+    let biblioteca = {};
+    let transposeAtual = 0;
+
+    window.onload = () => {
+        // Tenta carregar biblioteca da planilha se disponível (Google Apps Script)
+        if (typeof google !== 'undefined') {
+            google.script.run.withSuccessHandler(res => {
+                biblioteca = res;
+                const dl = document.getElementById("ritmos");
+                for (let n in res) {
+                    let o = document.createElement("option"); o.value = n; dl.appendChild(o);
+                }
+            }).getGChordLibrary();
+        }
+        gerarABC();
+    };
+
+    /* FUNÇÕES DE CÓPIA */
+    function copiarCompleto() {
+        navigator.clipboard.writeText(document.getElementById("abc-editor").value);
+        alert("Copiado!");
+    }
+
+    function copiarCorpo() {
+        const val = document.getElementById("abc-editor").value;
+        const regexK = /K:.*\n/g;
+        let match, lastPos = 0;
+        while ((match = regexK.exec(val)) !== null) { lastPos = regexK.lastIndex; }
+        if (lastPos > 0) {
+            navigator.clipboard.writeText(val.slice(lastPos).trim());
+            alert("Notas copiadas!");
+        }
+    }
+
+    function mudarTranspose(delta) {
+        transposeAtual += delta;
+        document.getElementById("val-transpose").innerText = (transposeAtual > 0 ? "+" : "") + transposeAtual;
+        gerarABC();
+    }
+
+    function carregarRitmoPlanilha(nome) {
+        if (biblioteca[nome]) {
+            document.getElementById("gInput").value = biblioteca[nome];
+            gerarABC();
+        }
+    }
+
+    function gerarABC() {
+        const cifrasRaw = document.getElementById("cifras").value;
+        const bpm = document.getElementById("bpm").value;
+        const gchord = document.getElementById("gInput").value;
+        const compassos = cifrasRaw.split(/[|,]/).map(c => c.trim());
+        
+        let musica = "";
+        compassos.forEach(c => {
+            if (c === "") {
+                musica += "z4 | ";
+            } else {
+                const acordes = c.split(/\s+/).filter(a => a !== "");
+                const duracao = 4 / acordes.length;
+                acordes.forEach(ac => { musica += `"${ac}"z${duracao} `; });
+                musica += "| ";
+            }
+        });
+
+        const abc = `X:1
+%%MIDI program 24
+%%MIDI chordprog 24
+%%MIDI bassprog 24
+M:4/4
+L:1/4
+Q:1/4=${bpm}
+%%MIDI transpose ${transposeAtual}
+%%MIDI gchord ${gchord}
+K:C transpose=${transposeAtual}
+${musica.trim()}`;
+
+        document.getElementById("abc-editor").value = abc;
+        renderizarManual();
+    }
+
+    function renderizarManual() {
+        const abc = document.getElementById("abc-editor").value;
+        ABCJS.renderAbc("paper", abc, { responsive: "resize", visualTranspose: transposeAtual });
+    }
+
+    async function parar() {
+        if (synth) { try { await synth.stop(); } catch(e){} synth = null; }
+        if (audioCtx) { try { await audioCtx.close(); } catch(e){} audioCtx = null; }
+        document.getElementById("btn-play").innerText = "▶ TOCAR";
+    }
+
+    async function tocar() {
+        const btn = document.getElementById("btn-play");
+        if (btn.innerText === "⏹ PARAR") { await parar(); return; }
+        
+        btn.innerText = "⌛...";
+        const abc = document.getElementById("abc-editor").value;
+        const visualObj = ABCJS.renderAbc(document.createElement("div"), abc)[0];
+        
+        // Lógica de Som Offline/Online
+        const isOnline = navigator.onLine;
+        const soundUrl = isOnline ? "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/" : "samples/guitar/";
+
+        try {
+            synth = new ABCJS.synth.CreateSynth();
+            await synth.init({
+                visualObj: visualObj,
+                options: { soundFontUrl: soundUrl, program: 24 }
+            });
+            await synth.prime();
+            await synth.start();
+            btn.innerText = "⏹ PARAR";
+        } catch (e) { 
+            console.warn("Usando sintetizador reserva...");
+            try {
+                await synth.init({ visualObj: visualObj });
+                await synth.prime();
+                await synth.start();
+                btn.innerText = "⏹ PARAR";
+            } catch(err) {
+                console.error(err);
+                btn.innerText = "▶ TOCAR";
+            }
+        }
+    }
+</script>
+</body>
+</html>

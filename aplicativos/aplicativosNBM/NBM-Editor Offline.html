@@ -1,0 +1,2134 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>NBM-Editor Offline </title>
+
+<!-- Script ABCJS com fallback offline -->
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.5.2/dist/abcjs-basic-min.js" onerror="loadOfflineScripts()"></script>
+<script>
+  function loadOfflineScripts() {
+    console.log("Modo offline: Carregando scripts locais...");
+    
+    // Cria elementos de script para carregar localmente
+    const scripts = [
+      { id: 'abcjs-basic', src: 'js/abcjs-basic-min.js' },
+      { id: 'abcjs-plugin', src: 'js/abcjs-plugin-min.js' }
+    ];
+    
+    function loadScript(index) {
+      if (index >= scripts.length) {
+        console.log("Scripts locais carregados. Iniciando app...");
+        setTimeout(initializeApp, 100);
+        return;
+      }
+      
+      const script = document.createElement('script');
+      script.id = scripts[index].id;
+      script.src = scripts[index].src;
+      script.onload = () => loadScript(index + 1);
+      script.onerror = () => {
+        console.error(`Falha ao carregar ${scripts[index].src}`);
+        if (index === 0) {
+          alert("ERRO CRÍTICO: Não foi possível carregar o ABCJS.\nO editor não funcionará sem esta biblioteca.");
+        }
+        loadScript(index + 1);
+      };
+      document.head.appendChild(script);
+    }
+    
+    loadScript(0);
+  }
+</script>
+
+<style>
+  /* --- ESTILOS GERAIS E LAYOUT --- */
+  html, body { margin: 0; padding: 0; height: 100vh; width: 100vw; overflow: hidden; font-family: 'Segoe UI', Arial, sans-serif; background: #f0f2f5; }
+  * { box-sizing: border-box; }
+
+  /* HEADER */
+  .header { height: 50px; background: #fff; border-bottom: 1px solid #ccc; display: flex; align-items: center; padding: 0 15px; gap: 10px; z-index: 1001; }
+  .header h2 { margin: 0; font-size: 16px; font-weight: 700; color: #1a1a1a; white-space: nowrap; }
+  
+  .header-btn { padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer; background: #fff; border: 1px solid #ccc; border-radius: 6px; display: flex; align-items: center; gap: 5px; color: #444; }
+  .header-btn:hover { background: #f1f3f5; }
+  #btnSave { background: #22c55e; color: #fff; border: none; }
+  #btnDelete { background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; display: flex !important; }
+  #btnDelete:hover { background: #fecaca; }
+  #btnClear { background: #f59e0b; color: #fff; border: none; }
+  #btnAddMusic { background: #3b82f6; color: #fff; border: none; }
+  
+  /* CONTROLES DE TRANSPOSE E ZOOM */
+  .transpose-group, .zoom-group { display: flex; align-items: center; gap: 5px; background: #f8f9fa; padding: 4px 10px; border-radius: 20px; border: 1px solid #dee2e6; }
+  .transpose-group { margin-left: auto; }
+  .zoom-group { margin-left: 10px; }
+  .transpose-group button, .zoom-group button { padding: 2px 8px; font-size: 12px; cursor: pointer; background: #fff; border: 1px solid #ccc; border-radius: 4px; }
+  #transposeLabel, #zoomLabel { min-width: 35px; text-align: center; font-weight: 800; font-size: 14px; }
+
+  /* STATUS OFFLINE */
+  .offline-status {
+    display: none;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 8px;
+    background: #fee2e2;
+    color: #b91c1c;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    border: 1px solid #fecaca;
+  }
+  .offline-status.active { display: flex; }
+
+  /* CONTAINER PRINCIPAL */
+  .app-container { 
+    display: flex; 
+    height: calc(100vh - 50px - 220px); /* Altura inicial */
+    position: relative;
+    min-height: 100px; /* Altura mínima */
+  }
+  
+  /* BARRA DE REDIMENSIONAMENTO */
+  .resize-handle {
+    height: 5px;
+    background: #ccc;
+    cursor: ns-resize;
+    position: relative;
+    z-index: 1001;
+    user-select: none;
+    transition: background 0.2s;
+  }
+  .resize-handle:hover {
+    background: #888;
+  }
+  .resize-handle::before {
+    content: '⋮⋮';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    font-size: 12px;
+    color: #666;
+  }
+  
+  /* SIDEBAR - SISTEMA DE PASTAS */
+  .sidebar { width: 320px; height: 100%; background: #fff; border-right: 1px solid #ccc; display: flex; flex-direction: column; transition: 0.3s; flex-shrink: 0; }
+  .sidebar.collapsed { width: 0; transform: translateX(-320px); overflow: hidden; }
+  .sidebar-header { padding: 12px; background: #f8f9fa; border-bottom: 1px solid #eee; display: flex; gap: 8px; }
+  .search-box { flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 20px; font-size: 13px; outline: none; }
+  .sidebar-actions { display: flex; gap: 5px; }
+  .sidebar-btn { width: 30px; height: 30px; border: 1px solid #ddd; border-radius: 6px; background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+  .sidebar-btn:hover { background: #f1f3f5; }
+  .tune-list { flex: 1; overflow-y: auto; padding: 10px; }
+
+  /* ÁRVORE DE PASTAS - SISTEMA COMPLETO */
+  .folder-tree { font-size: 13px; }
+  .folder-item, .tune-item { padding: 6px 8px; cursor: pointer; border-radius: 4px; margin-bottom: 2px; display: flex; align-items: center; gap: 6px; }
+  .folder-item:hover, .tune-item:hover { background: #f1f5f9; }
+  .folder-item.active, .tune-item.active { background: #0ea5e9; color: #fff; font-weight: 600; }
+  .folder-icon { font-size: 14px; width: 16px; text-align: center; }
+  .folder-name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .folder-badge { font-size: 11px; background: #e2e8f0; color: #475569; padding: 1px 6px; border-radius: 10px; }
+  .folder-content { margin-left: 20px; border-left: 1px dashed #e2e8f0; padding-left: 8px; display: block; }
+  .folder-item.collapsed > .folder-content { display: none; }
+  
+  /* CONTROLES DE PASTA NO EDITOR */
+  .folder-controls { display: flex; gap: 8px; margin-top: 5px; }
+  .folder-control-btn { padding: 4px 8px; font-size: 11px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 4px; cursor: pointer; }
+  .folder-control-btn:hover { background: #f1f5f9; }
+  
+  /* ÁREA CENTRAL (EDITOR + PARTITURA) */
+  .main-content { flex: 1; display: grid; grid-template-columns: 30% 70%; padding: 10px; gap: 10px; background: #f1f3f5; min-width: 0; }
+  .column { display: flex; flex-direction: column; background: #fff; border: 1px solid #ccc; border-radius: 8px; overflow: hidden; }
+  .editor-header { padding: 8px; background: #fff; border-bottom: 1px solid #eee; }
+  #folderInput { width: 100%; padding: 6px 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px; outline: none; margin-bottom: 5px; }
+  
+  /* SISTEMA DE REALCE NO EDITOR */
+  .textarea-container { position: relative; flex: 1; overflow: hidden; }
+  #abcInput, #textareaHighlights { font-family: 'Courier New', monospace; font-size: 15px; line-height: 1.5; padding: 15px; width: 100%; height: 100%; box-sizing: border-box; }
+  #abcInput { position: absolute; top: 0; left: 0; border: none; resize: none; outline: none; background: transparent; z-index: 2; color: transparent; caret-color: #000; overflow: auto; white-space: pre-wrap; overflow-wrap: break-word; }
+  #textareaHighlights { position: absolute; top: 0; left: 0; white-space: pre-wrap; overflow-wrap: break-word; z-index: 1; pointer-events: none; overflow: hidden; color: #333; }
+  .textarea-background { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: #fafafa; z-index: 0; }
+  .highlight-yellow { background-color: #ffff00 !important; color: #000 !important; border-radius: 3px; padding: 1px 0; box-shadow: 0 0 2px #ffff00; }
+  
+  /* ÁREA DA PARTITURA - CORRIGIDA PARA TER SCROLL VERTICAL */
+  #paper-container { 
+    flex: 1; 
+    overflow: auto; 
+    padding: 20px; 
+    background: #fff; 
+    min-height: 0; /* IMPORTANTE: Permite shrink */
+  }
+  #paper { 
+    position: relative; 
+    min-height: 100%; /* Garante que ocupa espaço mínimo */
+    transform-origin: top left; /* CRÍTICO para o zoom funcionar */
+    transition: transform 0.1s ease; /* Suaviza o zoom */
+  }
+  .abcjs-note.highlighted { fill: #ff0000 !important; stroke: #ff0000 !important; }
+  .abcjs-staff.highlighted { stroke: #ff0000 !important; }
+
+  /* ÁREA INFERIOR */
+  .bottom-area { 
+    height: 220px; /* Altura inicial */
+    min-height: 60px; /* Altura mínima do piano */
+    max-height: 80vh; /* Altura máxima do piano */
+    background: #fff;
+    border-top: 2px solid #999;
+    display: flex;
+    flex-direction: column;
+    z-index: 1000;
+    overflow: hidden;
+  }
+  .controls { background: #e9ecef; padding: 8px 15px; display: flex; gap: 4px; align-items: center; border-bottom: 1px solid #ccc; overflow-x: auto; }
+  .controls button { padding: 6px 10px; font-size: 13px; cursor: pointer; background: #fff; border: 1px solid #adb5bd; border-radius: 4px; white-space: nowrap; }
+  #playBtn { background: #28a745; color: white; border: none; font-weight: bold; margin-left: auto; padding: 8px 25px; border-radius: 4px; }
+  #playBtn.playing { background: #dc3545; }
+
+  /* PIANO */
+  .piano-viewport { flex: 1; overflow-x: auto; overflow-y: hidden; background: #2c3e50; padding: 10px 0; white-space: nowrap; }
+  .piano-wrapper { position: relative; height: 140px; display: inline-block; vertical-align: top; }
+  .white-key { width: 38px; height: 140px; background: #fff; border: 1px solid #000; position: absolute; border-radius: 0 0 5px 5px; cursor: pointer; z-index: 1; }
+  .black-key { width: 24px; height: 85px; background: #000; position: absolute; z-index: 2; border-radius: 0 0 3px 3px; cursor: pointer; }
+
+  /* MODO TELA CHEIA */
+  body.fullscreen-mode .header, 
+  body.fullscreen-mode .bottom-area, 
+  body.fullscreen-mode .sidebar, 
+  body.fullscreen-mode .column:first-child,
+  body.fullscreen-mode .resize-handle { /* Adicionado: ocultar a linha de redimensionamento */
+    display: none !important; 
+  }
+  
+  body.fullscreen-mode .main-content { 
+    grid-template-columns: 1fr; 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh; 
+    padding: 0; 
+    background: #fff;
+    overflow: hidden;
+  }
+  body.fullscreen-mode #paper-container { 
+    padding: 10px;
+    overflow: auto;
+  }
+
+  /* Controles de Zoom Flutuantes (Tela Cheia) */
+  .zoom-group-fs { 
+    display: none !important; 
+    position: fixed; 
+    top: 5px; 
+    left: 20px; 
+    z-index: 9999; 
+    background: rgba(255, 255, 255, 0.95); 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+    border: 1px solid #ccc; 
+    border-radius: 20px; 
+    padding: 4px 10px; 
+    align-items: center; 
+    gap: 5px; 
+  }
+  
+  /* Controles de Transpose Flutuantes (Tela Cheia) - NOVO */
+  .transpose-group-fs { 
+    display: none !important; 
+    position: fixed; 
+    top: 5px; 
+    left: 250px; /* Posicionado à direita do zoom */
+    z-index: 9999; 
+    background: rgba(255, 255, 255, 0.95); 
+    box-shadow: 0 2px 10px rgba(0,0,0,0.2); 
+    border: 1px solid #ccc; 
+    border-radius: 20px; 
+    padding: 4px 10px; 
+    align-items: center; 
+    gap: 5px; 
+  }
+  
+  body.fullscreen-mode .zoom-group-fs,
+  body.fullscreen-mode .transpose-group-fs { 
+    display: flex !important; 
+  }
+  
+  .zoom-group-fs button, 
+  .transpose-group-fs button { 
+    padding: 2px 8px; 
+    font-size: 12px; 
+    cursor: pointer; 
+    background: #fff; 
+    border: 1px solid #ccc; 
+    border-radius: 4px; 
+  }
+  
+  #zoomLabelFS, 
+  #transposeLabelFS { 
+    min-width: 35px; 
+    text-align: center; 
+    font-weight: 800; 
+    font-size: 14px; 
+  }
+  
+  #closeFS { display: none; position: fixed; top: 20px; right: 20px; z-index: 9999; background: #000; color: #fff; border: none; border-radius: 50%; width: 45px; height: 45px; cursor: pointer; font-size: 24px; align-items: center; justify-content: center; }
+  body.fullscreen-mode #closeFS { display: flex; }
+  
+  .music-counter { margin-left: 10px; font-size: 13px; color: #666; background: #f0f9ff; padding: 3px 8px; border-radius: 10px; border: 1px solid #bae6fd; }
+  
+  /* Menu de Contexto */
+  .context-menu { position: fixed; z-index: 10000; }
+  .context-menu-item { padding: 8px 12px; cursor: pointer; font-size: 13px; }
+  .context-menu-item:hover { background: #f1f5f9; }
+
+  /* Responsividade para redimensionamento */
+  @media (max-width: 768px) {
+    .resize-handle {
+      display: none;
+    }
+    .app-container, .bottom-area {
+      height: auto !important;
+      min-height: unset !important;
+    }
+  }
+</style>
+</head>
+<body>
+
+<input type="file" id="importInput" accept=".json,.txt,.abc" style="display: none;" />
+<button id="closeFS" onclick="toggleFullscreen()">×</button>
+
+<!-- Controles flutuantes para tela cheia -->
+<div class="zoom-group-fs" id="zoomGroupFS">
+  <p style="font-size:14px; margin:0 5px 0 0;"><strong>Zoom</strong></p>
+  <button onclick="changeZoom(-10)">-</button>
+  <span id="zoomLabelFS">100%</span>
+  <button onclick="changeZoom(10)">+</button>
+  <button onclick="resetZoom()" style="font-size: 11px; margin-left: 5px;"><strong>100%</strong></button>
+</div>
+
+<!-- Novo: Controle de Transpose para tela cheia -->
+<div class="transpose-group-fs" id="transposeGroupFS">
+  <p style="font-size:14px; margin:0 5px 0 0;"><strong>Transpose</strong></p>
+  <button onclick="changeTranspose(-1)">-½</button>
+  <span id="transposeLabelFS">0</span>
+  <button onclick="changeTranspose(1)">+½</button>
+  <button onclick="resetTranspose()" style="font-size: 11px; margin-left: 5px;"><strong>RESET</strong></button>
+</div>
+
+<div class="header">
+  <button class="header-btn" onclick="toggleSidebar()">☰</button>
+  <div style="display:flex; gap:5px; margin-left:10px;">
+    <button class="header-btn" onclick="newTuneDocument()">📄</button>
+    <button id="btnSave" class="header-btn" onclick="saveTune()">💾</button>
+    <button id="btnAddMusic" class="header-btn" onclick="addNewMusicToEditor()">➕</button>
+    <button id="btnDelete" class="header-btn" onclick="deleteCurrentMusic()" style="display:none;">🗑️</button>
+  </div>
+  
+  <button id="btnClear" class="header-btn" onclick="clearTextarea()">🧹</button>
+  <div class="music-counter" id="musicCounter">1 mús.</div>
+  
+  <!-- Status Offline -->
+  <div class="offline-status" id="offlineStatus">
+    <span>🔌</span>
+    <span>Offline</span>
+  </div>
+  
+  <div class="transpose-group">
+    <p style="font-size:14px; margin:0 5px 0 0;"><strong>Transpose</strong></p>
+    <button onclick="changeTranspose(-1)">-½</button>
+    <span id="transposeLabel">0</span>
+    <button onclick="changeTranspose(1)">+½</button>
+    <button onclick="resetTranspose()" style="font-size: 11px; margin-left: 5px;"><strong>RESET</strong></button>
+  </div>
+
+  <div class="zoom-group" id="zoomGroup">
+    <p style="font-size:14px; margin:0 5px 0 0;"><strong>Zoom</strong></p>
+    <button onclick="changeZoom(-10)">-</button>
+    <span id="zoomLabel">100%</span>
+    <button onclick="changeZoom(10)">+</button>
+    <button onclick="resetZoom()" style="font-size: 11px; margin-left: 5px;"><strong>100%</strong></button>
+  </div>
+
+  <!-- Botões de controle de altura do piano -->
+  <div style="display: flex; gap: 5px; margin-left: 10px;">
+    <button class="header-btn" onclick="adjustPianoHeight(-50)" title="Reduzir piano">▼</button>
+    <button class="header-btn" onclick="adjustPianoHeight(50)" title="Aumentar piano">▲</button>
+    <button class="header-btn" onclick="resetPianoHeight()" title="Resetar altura">↺</button>
+  </div>
+
+  <div style="display:flex; gap:5px; margin-left: 10px;">
+    <button class="header-btn" onclick="triggerImport()">📥</button>
+    <button class="header-btn" onclick="exportData()">📤</button>
+    <button class="header-btn" onclick="toggleFullscreen()">🔲</button>
+  </div>
+</div>
+
+<div class="app-container" id="appContainer">
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <input type="text" id="searchInput" class="search-box" placeholder="Buscar músicas..." oninput="updateFolderTree()">
+      <div class="sidebar-actions">
+        <button class="sidebar-btn" onclick="createNewFolder()" title="Nova pasta">📁</button>
+        <button class="sidebar-btn" onclick="refreshFolderTree()" title="Atualizar">↻</button>
+      </div>
+    </div>
+    <div class="tune-list">
+      <div id="folderTree" class="folder-tree"></div>
+    </div>
+  </div>
+
+  <div class="main-content">
+    <div class="column">
+      <div class="editor-header">
+        <input type="text" id="folderInput" placeholder="Pasta / Subpasta (ex: MPB/Chico Buarque)" 
+               onchange="updateCurrentFolder()">
+        <div class="folder-controls">
+          <button class="folder-control-btn" onclick="moveToFolder('Geral')">Geral</button>
+          <button class="folder-control-btn" onclick="moveToFolder('Favoritos')">Favoritos</button>
+          <button class="folder-control-btn" onclick="createSubfolder()">+ Subpasta</button>
+        </div>
+      </div>
+      <div class="textarea-container">
+        <div class="textarea-background"></div>
+        <div id="textareaHighlights"></div>
+        <textarea id="abcInput" spellcheck="false">X:1
+%%MIDI program 24
+%%MIDI chordprog 24
+%%MIDI bassprog 24
+%%MIDI gchord fzczczcz
+T:Minha Música
+M:4/4
+L:1/4
+K:C
+
+</textarea>
+      </div>
+    </div>
+    <div class="column" id="paper-container">
+      <div id="paper"></div>
+    </div>
+  </div>
+</div>
+
+<!-- BARRA DE REDIMENSIONAMENTO -->
+<div class="resize-handle" id="resizeHandle"></div>
+
+<div class="bottom-area" id="bottomArea">
+  <div class="controls">
+    <strong>Duração:</strong>
+    <button onclick="addSuffix('//')">//</button> <button onclick="addSuffix('/')">/</button>
+    <button onclick="addSuffix('1')">1</button> <button onclick="addSuffix('2')">2</button>
+    <button onclick="addSuffix('3')">3</button> <button onclick="addSuffix('4')">4</button>
+    <button onclick="addSuffix('6')">6</button> <button onclick="addSuffix('(3')">(3</button>
+    <button onclick="addSuffix('.')">.</button> <button onclick="addSuffix('-')">-</button>
+    <button onclick="addSuffix(':')">:</button> <button onclick="addSuffix('|')">|</button>
+    <button onclick="addSuffix('|]')">|]</button> <button onclick="addSuffix('enter')">↵</button>
+    <button onclick="addSuffix('espaco')">␣</button> <button onclick="addSuffix('backspace')">⌫</button>
+    <!-- Depois do botão "backspace" ou antes do separador -->
+<button onclick="addPause()" title="Inserir pausa (z4)">z4</button>
+    <span style="border-left: 1px solid #ccc; height: 20px; margin: 0 5px;"></span>
+    <button style="background:#6c757d; color:white; font-weight:bold;" onclick="copyFull()">📋 Tudo</button>
+    <button style="background:#6c757d; color:white; font-weight:bold;" onclick="copyCurrentMusic()">🎼 Música Atual</button>
+    <button style="background:#8b5cf6; color:white; font-weight:bold;" onclick="copyOnlyNotes()">🎵 Apenas Notas</button>
+    <button id="playBtn" onclick="togglePlay()">▶ PLAY</button>
+  </div>
+  
+  <div class="piano-viewport" id="pianoViewport">
+    <div class="piano-wrapper" id="piano"></div>
+  </div>
+</div>
+
+<script>
+// --- VARIÁVEIS GLOBAIS ---
+let visualObj = null;
+let synthInstance = null;
+let tunes = []; 
+let currentTuneId = null;
+let currentTranspose = 0;
+let currentMusicIndex = 0;
+let currentZoom = 100;
+let lastHighlightedNote = null;
+let noteHighlightTimeout = null;
+let notePositions = [];
+let isOffline = !navigator.onLine;
+
+// --- DETECÇÃO DE CONEXÃO OFFLINE ---
+function updateOnlineStatus() {
+  isOffline = !navigator.onLine;
+  const statusElement = document.getElementById('offlineStatus');
+  
+  if (isOffline) {
+    statusElement.classList.add('active');
+    console.log("Modo offline ativado");
+  } else {
+    statusElement.classList.remove('active');
+    console.log("Modo online");
+  }
+}
+
+// Monitorar status de conexão
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+/* --- FUNÇÕES DE REDIMENSIONAMENTO DO PIANO --- */
+
+function setupResizablePiano() {
+    const handle = document.getElementById('resizeHandle');
+    const appContainer = document.getElementById('appContainer');
+    const bottomArea = document.getElementById('bottomArea');
+    
+    let isResizing = false;
+    let startY, startHeight, startBottomHeight;
+
+    handle.addEventListener('mousedown', function(e) {
+        isResizing = true;
+        startY = e.clientY;
+        startHeight = appContainer.offsetHeight;
+        startBottomHeight = bottomArea.offsetHeight;
+        
+        // Adicionar classe de feedback visual
+        handle.style.background = '#888';
+        
+        document.addEventListener('mousemove', mouseMoveHandler);
+        document.addEventListener('mouseup', mouseUpHandler);
+        
+        e.preventDefault();
+    });
+
+    function mouseMoveHandler(e) {
+        if (!isResizing) return;
+        
+        const deltaY = startY - e.clientY;
+        const newAppHeight = startHeight + deltaY;
+        const newBottomHeight = startBottomHeight - deltaY;
+        
+        // Limites (valores em pixels)
+        const minAppHeight = 100; // Área mínima para editor/visualizador
+        const minBottomHeight = 60; // Área mínima para piano
+        const maxBottomHeight = window.innerHeight * 0.8; // 80% da tela
+        
+        if (newAppHeight >= minAppHeight && 
+            newBottomHeight >= minBottomHeight && 
+            newBottomHeight <= maxBottomHeight) {
+            
+            appContainer.style.height = newAppHeight + 'px';
+            bottomArea.style.height = newBottomHeight + 'px';
+            
+            // Redesenhar o piano se necessário
+            setTimeout(createPiano, 10);
+        }
+    }
+
+    function mouseUpHandler() {
+        isResizing = false;
+        handle.style.background = '#ccc';
+        document.removeEventListener('mousemove', mouseMoveHandler);
+        document.removeEventListener('mouseup', mouseUpHandler);
+        
+        // Salvar preferência no localStorage
+        localStorage.setItem('pianoHeight', bottomArea.offsetHeight);
+        localStorage.setItem('editorHeight', appContainer.offsetHeight);
+    }
+
+    // Carregar altura salva
+    window.addEventListener('load', function() {
+        const savedPianoHeight = localStorage.getItem('pianoHeight');
+        const savedEditorHeight = localStorage.getItem('editorHeight');
+        
+        if (savedPianoHeight && savedEditorHeight) {
+            bottomArea.style.height = savedPianoHeight + 'px';
+            appContainer.style.height = savedEditorHeight + 'px';
+            
+            // Ajustar layout
+            setTimeout(() => {
+                renderCurrentMusic();
+                createPiano();
+            }, 100);
+        }
+    });
+}
+
+// Funções para os botões de controle de altura
+function adjustPianoHeight(change) {
+    const bottomArea = document.getElementById('bottomArea');
+    const appContainer = document.getElementById('appContainer');
+    
+    const newBottomHeight = bottomArea.offsetHeight + change;
+    const newAppHeight = appContainer.offsetHeight - change;
+    
+    // Limites
+    const minAppHeight = 100;
+    const minBottomHeight = 60;
+    const maxBottomHeight = window.innerHeight * 0.8;
+    
+    if (newAppHeight >= minAppHeight && 
+        newBottomHeight >= minBottomHeight && 
+        newBottomHeight <= maxBottomHeight) {
+        
+        bottomArea.style.height = newBottomHeight + 'px';
+        appContainer.style.height = newAppHeight + 'px';
+        
+        // Salvar preferências
+        localStorage.setItem('pianoHeight', newBottomHeight);
+        localStorage.setItem('editorHeight', newAppHeight);
+        
+        // Redesenhar
+        setTimeout(() => {
+            createPiano();
+            renderCurrentMusic();
+        }, 10);
+    }
+}
+
+function resetPianoHeight() {
+    const bottomArea = document.getElementById('bottomArea');
+    const appContainer = document.getElementById('appContainer');
+    
+    // Alturas padrão
+    const defaultPianoHeight = 220;
+    const defaultEditorHeight = window.innerHeight - 50 - defaultPianoHeight;
+    
+    bottomArea.style.height = defaultPianoHeight + 'px';
+    appContainer.style.height = defaultEditorHeight + 'px';
+    
+    // Limpar preferências salvas
+    localStorage.removeItem('pianoHeight');
+    localStorage.removeItem('editorHeight');
+    
+    // Redesenhar
+    setTimeout(() => {
+        createPiano();
+        renderCurrentMusic();
+    }, 10);
+}
+
+/* --- SISTEMA DE PASTAS HIERÁRQUICAS --- */
+
+// Estrutura de dados para pastas
+const folderStructure = {
+  // Pastas padrão
+  "Geral": { type: "folder", items: [], collapsed: false },
+  "Favoritos": { type: "folder", items: [], collapsed: false },
+  "Importados": { type: "folder", items: [], collapsed: false }
+};
+
+// Inicializar estrutura de pastas a partir das músicas salvas
+function initFolderStructure() {
+  // Limpar itens existentes
+  Object.keys(folderStructure).forEach(key => {
+    if (folderStructure[key].type === "folder") {
+      folderStructure[key].items = [];
+    }
+  });
+  
+  // Organizar músicas nas pastas
+  tunes.forEach(tune => {
+    const folderPath = tune.folder || "Geral";
+    const parts = folderPath.split('/').map(p => p.trim()).filter(p => p);
+    
+    let current = folderStructure;
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (!current[part]) {
+        current[part] = { type: "folder", items: [], collapsed: false };
+      }
+      if (i === parts.length - 1) {
+        // Última parte: adicionar música
+        current[part].items.push(tune.id);
+      }
+      current = current[part];
+    }
+  });
+}
+
+// Criar nova pasta
+function createNewFolder() {
+  const folderName = prompt("Nome da nova pasta:");
+  if (!folderName || folderName.trim() === '') return;
+  
+  const cleanName = folderName.trim();
+  if (folderStructure[cleanName]) {
+    alert("Já existe uma pasta com este nome!");
+    return;
+  }
+  
+  folderStructure[cleanName] = { type: "folder", items: [], collapsed: false };
+  saveFolderStructure();
+  updateFolderTree();
+}
+
+// Criar subpasta baseada no caminho atual
+function createSubfolder() {
+  const currentFolder = document.getElementById('folderInput').value || "Geral";
+  const subfolderName = prompt(`Nome da subpasta em "${currentFolder}":`);
+  
+  if (!subfolderName || subfolderName.trim() === '') return;
+  
+  const cleanName = subfolderName.trim();
+  const newPath = currentFolder === "Geral" ? cleanName : `${currentFolder}/${cleanName}`;
+  
+  // Atualizar campo de pasta
+  document.getElementById('folderInput').value = newPath;
+  
+  // Se houver música atual, mover para nova pasta
+  if (currentTuneId) {
+    const tune = tunes.find(t => t.id === currentTuneId);
+    if (tune) {
+      tune.folder = newPath;
+      saveToStorage();
+      updateFolderTree();
+    }
+  }
+}
+
+// Mover música para pasta
+function moveToFolder(folderName) {
+  if (!currentTuneId) {
+    alert("Nenhuma música selecionada!");
+    return;
+  }
+  
+  const tune = tunes.find(t => t.id === currentTuneId);
+  if (tune) {
+    tune.folder = folderName;
+    document.getElementById('folderInput').value = folderName;
+    saveToStorage();
+    updateFolderTree();
+    alert(`Música movida para "${folderName}"`);
+  }
+}
+
+// Atualizar pasta da música atual
+function updateCurrentFolder() {
+  const folderPath = document.getElementById('folderInput').value.trim();
+  if (currentTuneId) {
+    const tune = tunes.find(t => t.id === currentTuneId);
+    if (tune) {
+      tune.folder = folderPath || "Geral";
+      saveToStorage();
+      updateFolderTree();
+    }
+  }
+}
+
+// Renderizar árvore de pastas
+function updateFolderTree() {
+  const treeContainer = document.getElementById('folderTree');
+  const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+  
+  initFolderStructure();
+  
+  function renderFolder(folderObj, name, path = "", depth = 0) {
+    const div = document.createElement('div');
+    div.className = 'folder-item';
+    div.style.paddingLeft = (depth * 15) + 'px';
+    div.setAttribute('data-folder-path', path ? `${path}/${name}` : name);
+    
+    // Contar músicas nesta pasta e subpastas
+    let itemCount = 0;
+    if (folderObj.type === "folder") {
+      itemCount = folderObj.items.length;
+      // Contar itens em subpastas
+      Object.keys(folderObj).forEach(key => {
+        if (key !== 'type' && key !== 'items' && key !== 'collapsed' && 
+            folderObj[key].type === "folder") {
+          // Contar músicas na subpasta
+          itemCount += folderObj[key].items.length;
+          // Contar subpastas recursivamente
+          Object.keys(folderObj[key]).forEach(subKey => {
+            if (subKey !== 'type' && subKey !== 'items' && subKey !== 'collapsed' && 
+                folderObj[key][subKey].type === "folder") {
+              itemCount += folderObj[key][subKey].items.length;
+            }
+          });
+        }
+      });
+    }
+    
+    // Ícone e nome da pasta
+    const icon = folderObj.collapsed ? '▶' : '▼';
+    div.innerHTML = `
+      <span class="folder-icon">${icon}</span>
+      <span class="folder-name">${name}</span>
+      <span class="folder-badge">${itemCount}</span>
+    `;
+    
+    // Evento para expandir/recolher
+    div.addEventListener('click', (e) => {
+      if (e.target.classList.contains('folder-icon') || 
+          e.target.classList.contains('folder-name')) {
+        folderObj.collapsed = !folderObj.collapsed;
+        saveFolderStructure();
+        updateFolderTree();
+      }
+    });
+    
+    // Menu de contexto para pasta
+    div.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const folderPath = path ? `${path}/${name}` : name;
+      showFolderContextMenu(e, name, folderPath);
+    });
+    
+    // Adicionar ao container
+    treeContainer.appendChild(div);
+    
+    // Conteúdo da pasta (se não estiver recolhido)
+    if (!folderObj.collapsed && folderObj.type === "folder") {
+      const contentDiv = document.createElement('div');
+      contentDiv.className = 'folder-content';
+      
+      // Subpastas primeiro
+      Object.keys(folderObj).forEach(key => {
+        if (key !== 'type' && key !== 'items' && key !== 'collapsed' && 
+            folderObj[key].type === "folder") {
+          const subPath = path ? `${path}/${name}` : name;
+          renderFolder(folderObj[key], key, subPath, depth + 1);
+        }
+      });
+      
+      // Músicas desta pasta
+      folderObj.items.forEach(tuneId => {
+        const tune = tunes.find(t => t.id === tuneId);
+        if (!tune) return;
+        
+        // Filtro de busca
+        if (searchTerm && !tune.title.toLowerCase().includes(searchTerm) && 
+            !tune.folder.toLowerCase().includes(searchTerm)) {
+          return;
+        }
+        
+        const tuneDiv = document.createElement('div');
+        tuneDiv.className = `tune-item ${tuneId === currentTuneId ? 'active' : ''}`;
+        tuneDiv.style.paddingLeft = ((depth + 1) * 15) + 'px';
+        tuneDiv.innerHTML = `
+          <span class="folder-icon">♪</span>
+          <span class="folder-name">${tune.title}</span>
+        `;
+        
+        tuneDiv.addEventListener('click', () => {
+          loadTune(tuneId);
+          if (window.innerWidth < 800) {
+            toggleSidebar();
+          }
+        });
+        
+        // Context menu para música
+        tuneDiv.addEventListener('contextmenu', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          showTuneContextMenu(e, tune);
+        });
+        
+        treeContainer.appendChild(tuneDiv);
+      });
+    }
+  }
+  
+  // Limpar e renderizar
+  treeContainer.innerHTML = '';
+  
+  // Renderizar pastas principais
+  Object.keys(folderStructure).forEach(folderName => {
+    if (folderStructure[folderName].type === "folder") {
+      renderFolder(folderStructure[folderName], folderName, "", 0);
+    }
+  });
+  
+  // Se não houver itens, mostrar mensagem
+  if (treeContainer.children.length === 0) {
+    treeContainer.innerHTML = `
+      <div style="color:#999; padding:15px; text-align:center; font-style:italic;">
+        ${searchTerm ? 'Nenhum resultado encontrado' : 'Nenhuma música salva'}
+      </div>
+    `;
+  }
+}
+
+// Atualizar árvore
+function refreshFolderTree() {
+  updateFolderTree();
+}
+
+// Menu de contexto para pastas
+function showFolderContextMenu(event, folderName, folderPath) {
+  event.preventDefault();
+  
+  // Remover menu anterior se existir
+  const oldMenu = document.querySelector('.context-menu');
+  if (oldMenu) oldMenu.remove();
+  
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.style.cssText = `
+    position: fixed;
+    top: ${event.clientY}px;
+    left: ${event.clientX}px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    z-index: 10000;
+    min-width: 180px;
+  `;
+  
+  menu.innerHTML = `
+    <div style="padding: 8px 12px; border-bottom: 1px solid #eee; font-weight: bold; font-size: 12px;">
+      📁 ${folderName}
+    </div>
+    <div style="padding: 5px 0;">
+      <div class="context-menu-item" onclick="collapseAllInFolder('${folderPath}')">📂 Recolher Tudo</div>
+      <div class="context-menu-item" onclick="expandAllInFolder('${folderPath}')">📂 Expandir Tudo</div>
+      <div class="context-menu-item" onclick="renameFolder('${folderPath}')">✏️ Renomear</div>
+      <div class="context-menu-item" style="color: #dc2626;" onclick="deleteFolder('${folderPath}')">🗑️ Excluir Pasta</div>
+    </div>
+  `;
+  
+  document.body.appendChild(menu);
+  
+  // Fechar menu ao clicar fora
+  setTimeout(() => {
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    document.addEventListener('click', closeMenu);
+  }, 100);
+}
+
+// Menu de contexto para músicas
+function showTuneContextMenu(event, tune) {
+  event.preventDefault();
+  
+  // Remover menu anterior se existir
+  const oldMenu = document.querySelector('.context-menu');
+  if (oldMenu) oldMenu.remove();
+  
+  const menu = document.createElement('div');
+  menu.className = 'context-menu';
+  menu.style.cssText = `
+    position: fixed;
+    top: ${event.clientY}px;
+    left: ${event.clientX}px;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 6px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    z-index: 10000;
+    min-width: 150px;
+  `;
+  
+  menu.innerHTML = `
+    <div style="padding: 8px 12px; border-bottom: 1px solid #eee; font-weight: bold; font-size: 12px;">
+      ${tune.title}
+    </div>
+    <div style="padding: 5px 0;">
+      <div class="context-menu-item" onclick="moveTuneToFolder('${tune.id}', 'Favoritos')">⭐ Favoritar</div>
+      <div class="context-menu-item" onclick="duplicateTune('${tune.id}')">📋 Duplicar</div>
+      <div class="context-menu-item" onclick="renameTune('${tune.id}')">✏️ Renomear</div>
+      <div class="context-menu-item" style="color: #dc2626;" onclick="deleteTuneBlock('${tune.id}', '${tune.title}')">🗑️ Excluir</div>
+    </div>
+  `;
+  
+  document.body.appendChild(menu);
+  
+  // Fechar menu ao clicar fora
+  setTimeout(() => {
+    const closeMenu = (e) => {
+      if (!menu.contains(e.target)) {
+        menu.remove();
+        document.removeEventListener('click', closeMenu);
+      }
+    };
+    document.addEventListener('click', closeMenu);
+  }, 100);
+}
+
+// Funções do menu de contexto
+function moveTuneToFolder(tuneId, folderName) {
+  const tune = tunes.find(t => t.id === tuneId);
+  if (tune) {
+    tune.folder = folderName;
+    saveToStorage();
+    updateFolderTree();
+    alert(`"${tune.title}" movida para ${folderName}`);
+  }
+}
+
+function duplicateTune(tuneId) {
+  const original = tunes.find(t => t.id === tuneId);
+  if (original) {
+    const duplicate = {
+      ...original,
+      id: `tune_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      title: `${original.title} (cópia)`,
+      folder: original.folder || "Geral"
+    };
+    
+    tunes.push(duplicate);
+    saveToStorage();
+    updateFolderTree();
+    alert(`"${original.title}" duplicada com sucesso!`);
+  }
+}
+
+function renameTune(tuneId) {
+  const tune = tunes.find(t => t.id === tuneId);
+  if (!tune) return;
+  
+  const newName = prompt("Novo nome para a música:", tune.title);
+  if (newName && newName.trim() !== '') {
+    tune.title = newName.trim();
+    saveToStorage();
+    updateFolderTree();
+  }
+}
+
+// Excluir pasta
+function deleteFolder(folderPath) {
+  if (confirm(`Excluir permanentemente a pasta "${folderPath}" e todo seu conteúdo?\n\nEsta ação não pode ser desfeita.`)) {
+    // Remover músicas da pasta
+    tunes = tunes.filter(tune => !tune.folder.startsWith(folderPath + '/') && tune.folder !== folderPath);
+    
+    // Remover pasta da estrutura
+    const parts = folderPath.split('/');
+    let current = folderStructure;
+    
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      if (i === parts.length - 1) {
+        delete current[part];
+      } else {
+        if (current[part]) {
+          current = current[part];
+        } else {
+          break;
+        }
+      }
+    }
+    
+    saveToStorage();
+    saveFolderStructure();
+    updateFolderTree();
+    alert(`Pasta "${folderPath}" excluída com sucesso!`);
+  }
+}
+
+// Recolher tudo em uma pasta
+function collapseAllInFolder(folderPath) {
+  const parts = folderPath.split('/');
+  let current = folderStructure;
+  
+  for (const part of parts) {
+    if (current[part]) {
+      current = current[part];
+    }
+  }
+  
+  // Colapsar recursivamente
+  collapseRecursive(current);
+  saveFolderStructure();
+  updateFolderTree();
+}
+
+function collapseRecursive(folder) {
+  if (!folder || typeof folder !== 'object') return;
+  
+  if (folder.type === "folder") {
+    folder.collapsed = true;
+  }
+  
+  Object.keys(folder).forEach(key => {
+    if (key !== 'type' && key !== 'items' && key !== 'collapsed' && 
+        folder[key] && typeof folder[key] === 'object' && folder[key].type === "folder") {
+      folder[key].collapsed = true;
+      collapseRecursive(folder[key]);
+    }
+  });
+}
+
+// Expandir tudo em uma pasta
+function expandAllInFolder(folderPath) {
+  const parts = folderPath.split('/');
+  let current = folderStructure;
+  
+  for (const part of parts) {
+    if (current[part]) {
+      current[part].collapsed = false;
+      current = current[part];
+    }
+  }
+  
+  saveFolderStructure();
+  updateFolderTree();
+}
+
+// Renomear pasta
+function renameFolder(oldPath) {
+  const newName = prompt("Novo nome para a pasta:", oldPath.split('/').pop());
+  if (!newName || newName.trim() === '') return;
+  
+  const newNameClean = newName.trim();
+  const newPath = oldPath.includes('/') 
+    ? oldPath.substring(0, oldPath.lastIndexOf('/') + 1) + newNameClean
+    : newNameClean;
+  
+  // Verificar se já existe pasta com o novo nome
+  const parts = newPath.split('/');
+  let current = folderStructure;
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i];
+    if (i === parts.length - 1) {
+      if (current[part] && part !== oldPath.split('/').pop()) {
+        alert("Já existe uma pasta com este nome!");
+        return;
+      }
+    }
+  }
+  
+  // Atualizar caminhos das músicas
+  tunes.forEach(tune => {
+    if (tune.folder === oldPath) {
+      tune.folder = newPath;
+    } else if (tune.folder.startsWith(oldPath + '/')) {
+      tune.folder = tune.folder.replace(oldPath, newPath);
+    }
+  });
+  
+  // Atualizar estrutura de pastas
+  updateFolderStructureAfterRename(oldPath, newPath);
+  
+  saveToStorage();
+  saveFolderStructure();
+  updateFolderTree();
+  alert(`Pasta renomeada para "${newPath}"`);
+}
+
+function updateFolderStructureAfterRename(oldPath, newPath) {
+  // Recriar estrutura a partir das músicas
+  initFolderStructure();
+}
+
+// Salvar estrutura de pastas
+function saveFolderStructure() {
+  localStorage.setItem('nbm_folder_structure', JSON.stringify(folderStructure));
+}
+
+// Carregar estrutura de pastas
+function loadFolderStructure() {
+  const saved = localStorage.getItem('nbm_folder_structure');
+  if (saved) {
+    try {
+      const parsed = JSON.parse(saved);
+      Object.keys(parsed).forEach(key => {
+        folderStructure[key] = parsed[key];
+      });
+    } catch (e) {
+      console.error("Erro ao carregar estrutura de pastas:", e);
+    }
+  }
+}
+
+/* --- FUNÇÕES DE ZOOM E TRANSPOSE CORRIGIDAS --- */
+function changeZoom(amount) {
+  currentZoom += amount;
+  if (currentZoom < 20) currentZoom = 20;
+  if (currentZoom > 300) currentZoom = 300;
+  updateZoomLabel();
+  applyZoom(); // Aplicar zoom CSS
+  renderCurrentMusic(); // Re-renderizar com novo zoom
+}
+
+function resetZoom() {
+  currentZoom = 100;
+  updateZoomLabel();
+  applyZoom();
+  renderCurrentMusic();
+}
+
+function updateZoomLabel() {
+  const label = document.getElementById('zoomLabel');
+  const labelFS = document.getElementById('zoomLabelFS');
+  const text = currentZoom + '%';
+  
+  if (label) label.innerText = text;
+  if (labelFS) labelFS.innerText = text;
+  
+  const color = currentZoom === 100 ? '#555' : (currentZoom > 100 ? '#dc2626' : '#2563eb');
+  if (label) {
+    label.style.color = color;
+    label.style.fontWeight = '800';
+  }
+  if (labelFS) {
+    labelFS.style.color = color;
+    labelFS.style.fontWeight = '800';
+  }
+}
+
+function changeTranspose(n) { 
+  currentTranspose += n; 
+  updateTransposeLabel(); 
+  renderCurrentMusic(); 
+}
+
+function resetTranspose() { 
+  currentTranspose = 0; 
+  updateTransposeLabel(); 
+  renderCurrentMusic(); 
+}
+
+function updateTransposeLabel() { 
+  const l = document.getElementById('transposeLabel'); 
+  const lFS = document.getElementById('transposeLabelFS');
+  const text = (currentTranspose > 0 ? "+" : "") + currentTranspose;
+  
+  if (l) l.innerText = text;
+  if (lFS) lFS.innerText = text;
+  
+  const color = currentTranspose === 0 ? "#555" : (currentTranspose > 0 ? "#dc2626" : "#2563eb");
+  if (l) {
+    l.style.color = color;
+    l.style.fontWeight = '800';
+  }
+  if (lFS) {
+    lFS.style.color = color;
+    lFS.style.fontWeight = '800';
+  }
+}
+
+// FUNÇÃO CRÍTICA: Aplicar zoom via CSS
+function applyZoom() {
+  const paperElement = document.getElementById('paper');
+  const scale = currentZoom / 100;
+  
+  if (paperElement) {
+    // Aplicar transformação CSS para zoom
+    paperElement.style.transform = `scale(${scale})`;
+    paperElement.style.transformOrigin = 'top left';
+    
+    // Ajustar o container para acomodar o zoom
+    const container = document.getElementById('paper-container');
+    const paperContent = paperElement.querySelector('.abcjs-score');
+    
+    if (paperContent) {
+      const originalWidth = paperContent.offsetWidth;
+      const originalHeight = paperContent.offsetHeight;
+      
+      // Ajustar tamanho do paper para scroll
+      paperElement.style.width = (originalWidth * scale) + 'px';
+      paperElement.style.height = (originalHeight * scale) + 'px';
+      
+      // Garantir que o container permita scroll
+      container.style.overflow = 'auto';
+    }
+  }
+}
+
+/* --- FUNÇÕES DE CÓPIA --- */
+function copyFull() { 
+  navigator.clipboard.writeText(document.getElementById("abcInput").value); 
+  alert("Todo o conteúdo do editor copiado!"); 
+}
+
+function copyCurrentMusic() { 
+  const musics = extractAllMusics(); 
+  if (musics.length === 0) return; 
+  const currentMusic = musics[currentMusicIndex]; 
+  if (currentMusic) { 
+    navigator.clipboard.writeText(currentMusic.content); 
+    alert(`"${currentMusic.title}" copiada!`); 
+  } 
+}
+
+function copyOnlyNotes() { 
+  const musics = extractAllMusics(); 
+  if (musics.length === 0) return; 
+  const currentMusic = musics[currentMusicIndex]; 
+  if (currentMusic) { 
+    const lines = currentMusic.content.split('\n'); 
+    let notesStartIndex = -1; 
+    for (let i = 0; i < lines.length; i++) { 
+      if (/^[A-Z]:/.test(lines[i])) { 
+        // Pular cabeçalhos
+      } else if (lines[i].trim() !== '' && !lines[i].startsWith('%')) { 
+        notesStartIndex = i; 
+        break; 
+      } 
+    } 
+    if (notesStartIndex === -1) return alert("Início das notas não encontrado."); 
+    const notesLines = lines.slice(notesStartIndex).join('\n').trim(); 
+    if (!notesLines) return alert("Sem notas."); 
+    navigator.clipboard.writeText(notesLines); 
+    alert(`Notas de "${currentMusic.title}" copiadas!`); 
+  } 
+}
+
+/* --- SISTEMA DE REALCE (HIGHLIGHTING) CORRIGIDO --- */
+function setupNoteHighlighting() {
+  const paper = document.getElementById('paper');
+  
+  // Limpar posições anteriores
+  notePositions = [];
+  const noteElements = paper.querySelectorAll('.abcjs-note, .abcjs-rest, .abcjs-chord');
+  
+  noteElements.forEach((noteEl, index) => {
+    const noteText = noteEl.textContent || noteEl.getAttribute('data-name') || '';
+    if (!noteText.trim()) return;
+    
+    // Verificar se já tem event listener
+    const newNoteEl = noteEl.cloneNode(true);
+    noteEl.parentNode.replaceChild(newNoteEl, noteEl);
+    
+    newNoteEl.style.cursor = 'pointer';
+    
+    newNoteEl.addEventListener('click', function(e) {
+      e.stopPropagation();
+      highlightNote(this, index);
+    });
+    
+    notePositions.push({ element: newNoteEl, text: noteText.trim(), index: index });
+  });
+}
+
+function highlightNote(noteElement, index) {
+  // Limpar highlight anterior
+  if (lastHighlightedNote) {
+    lastHighlightedNote.classList.remove('highlighted');
+    const staff = lastHighlightedNote.closest('.abcjs-staff');
+    if (staff) staff.classList.remove('highlighted');
+  }
+  
+  // Aplicar novo highlight
+  noteElement.classList.add('highlighted');
+  const staff = noteElement.closest('.abcjs-staff');
+  if (staff) staff.classList.add('highlighted');
+  lastHighlightedNote = noteElement;
+  
+  // Destacar no editor de texto
+  highlightNoteInTextarea(index);
+  
+  // Limpar highlight após 3 segundos
+  if (noteHighlightTimeout) clearTimeout(noteHighlightTimeout);
+  noteHighlightTimeout = setTimeout(() => {
+    if (lastHighlightedNote) {
+      lastHighlightedNote.classList.remove('highlighted');
+      const staff = lastHighlightedNote.closest('.abcjs-staff');
+      if (staff) staff.classList.remove('highlighted');
+      lastHighlightedNote = null;
+    }
+    clearTextareaHighlight();
+  }, 9000);
+}
+
+function highlightNoteInTextarea(noteIndex) {
+  if (noteIndex < 0 || noteIndex >= notePositions.length) return;
+  
+  const musics = extractAllMusics();
+  if (currentMusicIndex >= musics.length) return;
+  
+  const currentMusic = musics[currentMusicIndex];
+  const musicText = currentMusic.content;
+  const lines = musicText.split('\n');
+  
+  let inNotesSection = false;
+  let foundAtPosition = -1;
+  let notesMatchedSoFar = 0;
+  
+  for (let i = 0; i < lines.length; i++) {
+    if (!inNotesSection && lines[i].startsWith('K:')) { 
+      inNotesSection = true; 
+      continue; 
+    }
+    if (!inNotesSection) continue;
+
+    const tokenPattern = /([A-Ga-g][#b]?[0-9,'/]*|z[0-9]*|\|[:\]0-9]*|\[\||\[[A-Ga-g0-9,']+|\])/g;
+    let match;
+    while ((match = tokenPattern.exec(lines[i])) !== null) {
+      const token = match[0];
+      const isBarLineOrStructural = token.startsWith('|') || token.startsWith(':') || 
+                                   token === '[|' || token === '|]' || token.startsWith('[');
+
+      if (!isBarLineOrStructural) {
+        if (notesMatchedSoFar === noteIndex) {
+          foundAtPosition = { 
+            lineInMusic: i, 
+            start: match.index, 
+            end: match.index + match[0].length 
+          };
+          break;
+        }
+        notesMatchedSoFar++;
+      }
+    }
+    if (foundAtPosition !== -1) break;
+  }
+  
+  if (foundAtPosition !== -1) {
+    const absoluteLineIndex = musics[currentMusicIndex].startLine + foundAtPosition.lineInMusic;
+    updateTextareaHighlight(absoluteLineIndex, foundAtPosition.start, foundAtPosition.end);
+  }
+}
+
+function updateTextareaHighlight(lineIndex, start, end) {
+  const highlightsDiv = document.getElementById('textareaHighlights');
+  const textarea = document.getElementById('abcInput');
+  const text = textarea.value;
+  const lines = text.split('\n');
+  
+  let highlightedHTML = '';
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (i === lineIndex && start >= 0 && end <= line.length) {
+      const before = line.substring(0, start);
+      const highlight = line.substring(start, end);
+      const after = line.substring(end);
+      highlightedHTML += escapeHtml(before) + 
+                       '<span class="highlight-yellow">' + escapeHtml(highlight) + '</span>' + 
+                       escapeHtml(after);
+    } else {
+      highlightedHTML += escapeHtml(line);
+    }
+    if (i < lines.length - 1) highlightedHTML += '<br>';
+  }
+  highlightsDiv.innerHTML = highlightedHTML;
+}
+
+function clearTextareaHighlight() {
+  updateTextareaDisplay(document.getElementById('abcInput').value);
+}
+
+function updateTextareaDisplay(text) {
+  document.getElementById('textareaHighlights').innerHTML = escapeHtml(text).replace(/\n/g, '<br>');
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div'); 
+  div.textContent = text; 
+  return div.innerHTML;
+}
+
+/* --- FUNÇÕES PRINCIPAIS DO EDITOR --- */
+function extractAllMusics() {
+  const textarea = document.getElementById('abcInput');
+  const content = textarea.value;
+  updateTextareaDisplay(content);
+  
+  const lines = content.split('\n');
+  const musics = [];
+  let currentMusicLines = [];
+  let startLine = 0;
+  let inMusic = false;
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    
+    if (line.trim().startsWith('X:')) {
+      // Nova música encontrada
+      if (currentMusicLines.length > 0 && currentMusicLines.join('').trim() !== '') {
+        musics.push(createMusicObject(currentMusicLines.join('\n'), startLine, musics.length));
+      }
+      currentMusicLines = [line];
+      startLine = i;
+      inMusic = true;
+    } else if (inMusic) {
+      // Se já encontramos um X:, continua adicionando linhas
+      if (line.trim() === '' && i + 1 < lines.length && lines[i+1].trim().startsWith('X:')) {
+        // Linha em branco antes de nova música, finaliza a atual
+        musics.push(createMusicObject(currentMusicLines.join('\n'), startLine, musics.length));
+        currentMusicLines = [];
+        inMusic = false;
+      } else {
+        currentMusicLines.push(line);
+      }
+    } else if (currentMusicLines.length > 0 && line.trim() !== '') {
+      // Se não estamos em uma música mas temos linhas acumuladas, adicionar
+      currentMusicLines.push(line);
+    }
+  }
+  
+  // Adicionar a última música
+  if (currentMusicLines.length > 0 && currentMusicLines.join('\n').trim() !== '') {
+    musics.push(createMusicObject(currentMusicLines.join('\n'), startLine, musics.length));
+  }
+  
+  updateMusicCounter(musics.length);
+  return musics;
+}
+
+function createMusicObject(content, startLine, index) {
+  // Encontrar título (pode ser múltiplas linhas T:)
+  const titleMatch = content.match(/^T:\s*(.+)$/m);
+  let title = titleMatch ? titleMatch[1].trim() : `Música ${index + 1}`;
+  
+  // Remover múltiplas linhas T: do título
+  title = title.split(/\nT:\s*/)[0];
+  
+  const xMatch = content.match(/^X:\s*(\d+)/m);
+  const xNumber = xMatch ? parseInt(xMatch[1]) : index + 1;
+  
+  let startPos = 0; 
+  const lines = document.getElementById('abcInput').value.split('\n');
+  for(let i = 0; i < startLine; i++) { 
+    startPos += lines[i].length + 1; 
+  }
+  
+  return { 
+    index, 
+    xNumber, 
+    title, 
+    content, 
+    startLine, 
+    startPos, 
+    endPos: startPos + content.length 
+  };
+}
+
+function updateMusicCounter(count) { 
+  document.getElementById('musicCounter').textContent = `${count} mús.`; 
+}
+
+function findCurrentMusicIndex() {
+  const textarea = document.getElementById('abcInput');
+  const cursorPos = textarea.selectionStart;
+  const musics = extractAllMusics();
+  
+  for (let i = 0; i < musics.length; i++) {
+    if (cursorPos >= musics[i].startPos && cursorPos <= musics[i].endPos + 2) return i;
+  }
+  return (musics.length > 0) ? 0 : -1;
+}
+
+// CORREÇÃO: Função renderCurrentMusic que funciona com zoom e highlighting
+function renderCurrentMusic() {
+  const musics = extractAllMusics();
+  if (musics.length === 0) {
+    document.getElementById("paper").innerHTML = `
+      <div style="padding: 20px; color: #666; text-align: center;">
+        <p>Nenhuma música válida no editor.</p>
+        <p style="font-size: 12px; margin-top: 10px;">
+          Digite uma música no formato ABC no painel da esquerda.
+        </p>
+      </div>
+    `;
+    visualObj = null; 
+    return;
+  }
+  
+  let newIndex = findCurrentMusicIndex();
+  if (newIndex === -1 && musics.length > 0) newIndex = 0;
+  currentMusicIndex = newIndex;
+  
+  const currentMusic = musics[currentMusicIndex];
+  if (!currentMusic) return;
+  
+  const isFS = document.body.classList.contains('fullscreen-mode');
+  const container = document.getElementById('paper-container');
+  
+  try {
+    // Salvar o elemento destacado antes de re-renderizar
+    const highlightedNote = lastHighlightedNote;
+    const highlightedNoteIndex = notePositions.findIndex(pos => pos.element === highlightedNote);
+    
+    // Renderizar com zoom do ABCJS
+    visualObj = ABCJS.renderAbc("paper", currentMusic.content, {
+      scale: currentZoom / 100, // Zoom no ABCJS
+      visualTranspose: currentTranspose, 
+      add_classes: true,
+      paddingbottom: isFS ? 100 : 50,
+      paddingtop: isFS ? 30 : 0,
+      responsive: "resize"
+    })[0];
+    
+    // Aplicar zoom CSS imediatamente
+    setTimeout(() => {
+      applyZoom();
+      
+      // Configurar highlighting
+      setupNoteHighlighting();
+      
+      // Restaurar highlight se existia antes
+      if (highlightedNoteIndex !== -1 && highlightedNoteIndex < notePositions.length) {
+        const noteElement = notePositions[highlightedNoteIndex].element;
+        if (noteElement) {
+          // Pequeno delay para garantir que o elemento está no DOM
+          setTimeout(() => {
+            highlightNote(noteElement, highlightedNoteIndex);
+          }, 50);
+        }
+      }
+    }, 100);
+    
+    // Ajustar scroll do container
+    setTimeout(() => {
+      const paperElement = document.getElementById('paper');
+      if (paperElement) {
+        const paperHeight = paperElement.scrollHeight;
+        const containerHeight = container.clientHeight;
+        
+        if (paperHeight > containerHeight) {
+          container.style.overflowY = 'auto';
+        } else {
+          container.style.overflowY = 'hidden';
+        }
+      }
+    }, 300);
+    
+  } catch (error) {
+    console.error("Erro ao renderizar música:", error);
+    document.getElementById("paper").innerHTML = `
+      <div style="padding: 20px; color: #dc2626;">
+        <p>Erro ao renderizar música:</p>
+        <p style="font-size: 12px; margin-top: 10px;">${error.message}</p>
+      </div>
+    `;
+  }
+  
+  updateUI();
+}
+
+function loadMusicIntoViewer(musicIndex) {
+  const musics = extractAllMusics();
+  if (musicIndex >= 0 && musicIndex < musics.length) {
+    currentMusicIndex = musicIndex;
+    const textarea = document.getElementById('abcInput');
+    textarea.focus();
+    textarea.selectionStart = musics[musicIndex].startPos;
+    textarea.selectionEnd = musics[musicIndex].startPos;
+    renderCurrentMusic();
+  }
+}
+
+function addNewMusicToEditor() {
+  const textarea = document.getElementById('abcInput');
+  const musics = extractAllMusics();
+  const newX = musics.length > 0 ? Math.max(...musics.map(m => m.xNumber)) + 1 : 1;
+  const newMusicStr = `\n\nX:${newX}\n%%MIDI program 24\n%%MIDI chordprog 24\n%%MIDI bassprog 24\n%%MIDI gchord fzczczcz\nT:Nova Música ${newX}\nM:4/4\nL:1/4\nK:C\n`;
+  textarea.value = textarea.value.trimEnd() + newMusicStr;
+  textarea.focus(); 
+  textarea.selectionStart = textarea.selectionEnd = textarea.value.length;
+  renderCurrentMusic();
+}
+
+function deleteCurrentMusic() {
+  const musics = extractAllMusics();
+  if (musics.length <= 1 && musics[0].content.trim() === '') return;
+  
+  if (confirm(`Deletar "${musics[currentMusicIndex]?.title || 'Sem título'}" do editor?`)) {
+    const textarea = document.getElementById('abcInput');
+    const currentMusic = musics[currentMusicIndex];
+    const before = textarea.value.substring(0, currentMusic.startPos).trimEnd();
+    let after = textarea.value.substring(currentMusic.endPos).trimStart();
+    textarea.value = before + (before && after ? '\n\n' : '') + after;
+    
+    if (currentMusicIndex >= extractAllMusics().length) {
+      currentMusicIndex = Math.max(0, extractAllMusics().length - 1);
+    }
+    loadMusicIntoViewer(currentMusicIndex);
+  }
+}
+
+function newTuneDocument() {
+  if (confirm("Criar novo documento? O conteúdo não salvo será perdido.")) {
+    document.getElementById('abcInput').value = 'X:1\n%%MIDI program 24\nT:Nova Música\nM:4/4\nL:1/4\nK:C\nCDEF|GABC|]\n';
+    document.getElementById('folderInput').value = '';
+    currentTuneId = null;
+    renderCurrentMusic(); 
+    updateUI();
+  }
+}
+
+function clearTextarea() {
+  if (confirm("Limpar todo o editor?")) { 
+    document.getElementById('abcInput').value = ''; 
+    renderCurrentMusic(); 
+    updateUI(); 
+  }
+}
+
+/* --- FUNÇÕES DE STORAGE COM PASTAS - CORRIGIDO DUPLICAÇÃO --- */
+function saveTune() {
+  const musics = extractAllMusics();
+  if(musics.length === 0 || (musics.length === 1 && musics[0].content.trim() === '')) {
+    return alert("Nada para salvar.");
+  }
+  
+  const folder = document.getElementById('folderInput').value.trim() || "Geral";
+  const title = musics[0].title + (musics.length > 1 ? ` (+${musics.length-1})` : '');
+  const content = document.getElementById('abcInput').value;
+  
+  // CORREÇÃO: Verificar se já existe uma música com o mesmo título na mesma pasta
+  const existingIndex = tunes.findIndex(t => 
+    t.title === title && 
+    t.folder === folder && 
+    t.content === content
+  );
+  
+  if (existingIndex !== -1 && tunes[existingIndex].id !== currentTuneId) {
+    // Já existe uma música idêntica, perguntar se quer substituir
+    if (confirm(`Já existe uma música chamada "${title}" na pasta "${folder}".\nDeseja substituí-la?`)) {
+      // Remover a duplicada
+      tunes.splice(existingIndex, 1);
+    } else {
+      return; // Usuário cancelou
+    }
+  }
+  
+  const tuneBlock = { 
+    id: currentTuneId || `tune_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`, 
+    title: title, 
+    content: content, 
+    folder: folder, 
+    count: musics.length,
+    updated: new Date().toISOString()
+  };
+  
+  if (currentTuneId) {
+    const idx = tunes.findIndex(t => t.id === currentTuneId);
+    if(idx !== -1) {
+      tunes[idx] = tuneBlock;
+    } else {
+      tunes.push(tuneBlock);
+    }
+  } else {
+    tunes.push(tuneBlock);
+    currentTuneId = tuneBlock.id;
+  }
+  
+  saveToStorage(); 
+  updateFolderTree();
+  
+  // Feedback visual
+  const btn = document.getElementById('btnSave'); 
+  const originalText = btn.innerHTML; 
+  btn.innerHTML = "✅ Salvo!"; 
+  setTimeout(() => btn.innerHTML = originalText, 1500);
+}
+
+function loadTune(id) {
+  const t = tunes.find(x => x.id === id);
+  if (t) {
+    // Parar playback se estiver tocando
+    if(synthInstance) {
+      togglePlay();
+    }
+    
+    currentTuneId = t.id;
+    document.getElementById('abcInput').value = t.content;
+    document.getElementById('folderInput').value = t.folder || "";
+    
+    // Resetar transposição e zoom
+    resetTranspose(); 
+    resetZoom(); 
+    
+    // Carregar primeira música do bloco
+    loadMusicIntoViewer(0);
+    
+    // Fechar sidebar em telas pequenas
+    if(window.innerWidth < 800 && !document.getElementById('sidebar').classList.contains('collapsed')) {
+      toggleSidebar();
+    }
+  }
+}
+
+function deleteTuneBlock(id, title) {
+  if(confirm(`Excluir permanentemente o bloco "${title}"?`)) { 
+    tunes = tunes.filter(t => t.id !== id); 
+    saveToStorage(); 
+    if(id === currentTuneId) { 
+      newTuneDocument(); 
+    } else { 
+      updateFolderTree(); 
+    } 
+  }
+}
+
+function saveToStorage() { 
+  localStorage.setItem('nbm_tunes_db', JSON.stringify(tunes)); 
+}
+
+function loadFromStorage() { 
+  try { 
+    tunes = JSON.parse(localStorage.getItem('nbm_tunes_db') || '[]'); 
+    
+    // CORREÇÃO: Remover duplicatas no carregamento
+    const uniqueTunes = [];
+    const seen = new Set();
+    
+    tunes.forEach(tune => {
+      const key = `${tune.title}|${tune.folder}|${tune.content}`;
+      if (!seen.has(key)) {
+        seen.add(key);
+        uniqueTunes.push(tune);
+      }
+    });
+    
+    tunes = uniqueTunes;
+    
+  } catch(e) { 
+    tunes = []; 
+  } 
+  loadFolderStructure();
+  updateFolderTree();
+}
+
+function updateUI() {
+  const musics = extractAllMusics();
+  const deleteBtn = document.getElementById('btnDelete');
+  
+  if (musics.length > 1 || (musics.length === 1 && musics[0].content.trim() !== '')) {
+    deleteBtn.style.display = 'flex';
+  } else {
+    deleteBtn.style.display = 'none';
+  }
+}
+
+function toggleSidebar() { 
+  document.getElementById('sidebar').classList.toggle('collapsed'); 
+}
+
+function toggleFullscreen() { 
+  document.body.classList.toggle('fullscreen-mode'); 
+  // Atualizar labels ao entrar/sair da tela cheia
+  updateZoomLabel();
+  updateTransposeLabel();
+  setTimeout(renderCurrentMusic, 100);
+}
+
+// Sincronizar scroll do textarea com highlights
+document.getElementById('abcInput').addEventListener('scroll', function() { 
+  document.getElementById('textareaHighlights').scrollTop = this.scrollTop; 
+  document.getElementById('textareaHighlights').scrollLeft = this.scrollLeft; 
+});
+
+/* --- IMPORT / EXPORT --- */
+function triggerImport() { 
+  document.getElementById('importInput').click(); 
+}
+
+document.getElementById('importInput').onchange = e => {
+  const file = e.target.files[0]; 
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = evt => {
+    const content = evt.target.result;
+    
+    // Tentar como backup JSON primeiro
+    try { 
+      const data = JSON.parse(content); 
+      if (Array.isArray(data) && data.length > 0 && data[0].content) { 
+        if(confirm(`Restaurar backup com ${data.length} blocos? Substituirá a lista atual.`)) {
+          tunes = data; 
+          saveToStorage(); 
+          loadFolderStructure();
+          updateFolderTree(); 
+          alert("Backup restaurado com sucesso!"); 
+          return; 
+        } else { 
+          return; 
+        } 
+      } 
+    } catch (err) { 
+      // Não é JSON, tratar como arquivo ABC
+    }
+    
+    // Importar como nova música no editor
+    const textarea = document.getElementById('abcInput'); 
+    const currentContent = textarea.value.trim(); 
+    let importedContent = content.trim();
+    
+    // Garantir que começa com X:
+    if (!importedContent.startsWith('X:')) { 
+      const musics = extractAllMusics(); 
+      const newX = musics.length > 0 ? Math.max(...musics.map(m => m.xNumber)) + 1 : 1; 
+      importedContent = `X:${newX}\n` + importedContent; 
+    }
+    
+    // Adicionar ao editor
+    textarea.value = currentContent + (currentContent ? '\n\n' : '') + importedContent; 
+    renderCurrentMusic(); 
+    alert("Música importada para o editor!");
+  }; 
+  
+  reader.readAsText(file); 
+  e.target.value = '';
+};
+
+function exportData() { 
+  const blob = new Blob([JSON.stringify(tunes, null, 2)], {type:'application/json'}); 
+  const a = document.createElement('a'); 
+  a.href = URL.createObjectURL(blob); 
+  a.download = `nbm_backup_${new Date().toISOString().slice(0,10)}.json`; 
+  a.click(); 
+}
+  
+  
+  /* --- FUNÇÕES DE INSERÇÃO --- */
+
+// FUNÇÃO PARA INSERIR PAUSA
+function addPause() {
+    const ta = document.getElementById("abcInput");
+    const cursorPos = ta.selectionStart;
+    const before = ta.value.substring(0, cursorPos);
+    const after = ta.value.substring(cursorPos);
+    
+    // Verificar se há espaço antes (se não estiver no início de linha)
+    const charBefore = before.length > 0 ? before[before.length - 1] : '';
+    const needsSpace = (charBefore !== '' && charBefore !== ' ' && charBefore !== '\n' && charBefore !== '|');
+    
+    // Verificar se precisa de espaço depois
+    const charAfter = after.length > 0 ? after[0] : '';
+    const needsSpaceAfter = (charAfter !== '' && charAfter !== ' ' && charAfter !== '\n' && charAfter !== '|' && charAfter !== ']');
+    
+    // Montar o texto a ser inserido
+    let pauseText = 'z4|';
+    if (needsSpace) {
+        pauseText = ' ' + pauseText;
+    }
+    if (needsSpaceAfter) {
+        pauseText = pauseText + ' ';
+    }
+    
+    // Inserir no cursor
+    ta.value = before + pauseText + after;
+    ta.selectionStart = ta.selectionEnd = cursorPos + pauseText.length;
+    ta.focus();
+    
+    // Atualizar a visualização
+    setTimeout(renderCurrentMusic, 10);
+}
+
+
+/* --- FUNÇÕES DE INSERÇÃO --- */
+function addSuffix(s) {
+  const ta = document.getElementById("abcInput");
+  if (s === 'enter') {
+    insertAtCursor('\n');
+  } else if (s === 'espaco') {
+    insertAtCursor(' ');
+  } else if (s === 'backspace') {
+    const st = ta.selectionStart;
+    if (st > 0) {
+      ta.value = ta.value.substring(0, st - 1) + ta.value.substring(st);
+      ta.selectionStart = ta.selectionEnd = st - 1;
+      ta.focus();
+      setTimeout(renderCurrentMusic, 10);
+    }
+  } else {
+    insertAtCursor(s);
+  }
+}
+
+function insertAtCursor(text) {
+  const ta = document.getElementById("abcInput");
+  let start = ta.selectionStart;
+  let end = ta.selectionEnd;
+  ta.value = ta.value.substring(0, start) + text + ta.value.substring(end);
+  ta.selectionStart = ta.selectionEnd = start + text.length;
+  ta.focus();
+  setTimeout(renderCurrentMusic, 10);
+}
+
+function createPiano() {
+  const p = document.getElementById("piano");
+  p.innerHTML = '';
+  
+  const whiteNotes = ['C','D','E','F','G','A','B'];
+  const blackNotes = [
+    {note:'^C', offset:26},
+    {note:'^D', offset:64},
+    {note:'^F', offset:140},
+    {note:'^G', offset:178},
+    {note:'^A', offset:216}
+  ];
+  
+  let whiteCount = 0;
+  
+  // 6 oitavas (2 a 7)
+  for(let octave = 2; octave <= 7; octave++) {
+    // Teclas brancas
+    whiteNotes.forEach(note => {
+      const key = document.createElement("div");
+      key.className = "white-key";
+      key.style.left = (whiteCount * 38) + "px";
+      
+      // Determinar notação ABC
+      let abcNote;
+      if (octave <= 4) {
+        abcNote = note + (octave === 2 ? ',,' : (octave === 3 ? ',' : ''));
+      } else {
+        abcNote = note.toLowerCase() + (octave === 6 ? "'" : (octave === 7 ? "''" : ""));
+      }
+      
+      key.onclick = () => insertAtCursor(abcNote);
+      p.appendChild(key);
+      whiteCount++;
+    });
+    
+    // Teclas pretas
+    blackNotes.forEach(black => {
+      const key = document.createElement("div");
+      key.className = "black-key";
+      key.style.left = ((octave - 2) * 7 * 38 + black.offset) + "px";
+      
+      // Determinar notação ABC
+      let abcNote;
+      if (octave <= 4) {
+        abcNote = black.note + (octave === 2 ? ',,' : (octave === 3 ? ',' : ''));
+      } else {
+        abcNote = black.note.toLowerCase() + (octave === 6 ? "'" : (octave === 7 ? "''" : ""));
+      }
+      
+      key.onclick = () => insertAtCursor(abcNote);
+      p.appendChild(key);
+    });
+  }
+  
+  p.style.width = (whiteCount * 38) + "px";
+  
+  // Ajustar scroll do piano para o meio
+  setTimeout(() => {
+    const pianoViewport = document.getElementById('pianoViewport');
+    if (pianoViewport) {
+      pianoViewport.scrollLeft = (pianoViewport.scrollWidth - pianoViewport.clientWidth) / 2;
+    }
+  }, 100);
+}
+
+/* --- PLAYBACK FUNCIONANDO OFFLINE (CORRIGIDO) --- */
+async function togglePlay() {
+  const btn = document.getElementById("playBtn");
+  
+  // Parar se já estiver tocando
+  if (synthInstance) {
+    await synthInstance.stop();
+    synthInstance = null;
+    btn.innerText = "▶ PLAY";
+    btn.classList.remove("playing");
+    return;
+  }
+  
+  btn.innerText = "⏹ STOP";
+  btn.classList.add("playing");
+  
+  // URL DOS SONS IGUAL AO CÓDIGO QUE FUNCIONA
+  const soundUrl = navigator.onLine ? "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/" : "samples/guitar/";
+  
+  try {
+    synthInstance = new ABCJS.synth.CreateSynth();
+    await synthInstance.init({
+      visualObj,
+      options: { 
+        soundFontUrl: soundUrl, 
+        program: 24 // 24 = Guitarra Acústica
+      }
+    });
+    await synthInstance.prime();
+    await synthInstance.start();
+  } catch (e) {
+    console.warn("Erro no som real, usando fallback...", e);
+    try {
+      // TENTAR SEM soundFontUrl - como no código que funciona
+      await synthInstance.init({ 
+        visualObj
+      });
+      await synthInstance.prime();
+      await synthInstance.start();
+    } catch (err) {
+      console.error("Erro no fallback:", err);
+      btn.innerText = "▶ PLAY";
+      btn.classList.remove("playing");
+      synthInstance = null;
+      
+      // Tentar método mais básico como último recurso
+      try {
+        console.log("Tentando método básico...");
+        // Usar o TimedCallbacks que funciona offline
+        const playbackControl = ABCJS.synth.TimedCallbacks(visualObj, {
+          callback: function(currentNote, context) {
+            // Callback vazio
+          }
+        });
+        
+        playbackControl.start();
+        
+        // Criar um objeto sintetizador falso para controlar
+        synthInstance = {
+          stop: async function() {
+            playbackControl.pause();
+            btn.innerText = "▶ PLAY";
+            btn.classList.remove("playing");
+          }
+        };
+        
+        console.log("Playback iniciado com TimedCallbacks");
+      } catch (finalError) {
+        console.error("Todos os métodos falharam:", finalError);
+        alert("Não foi possível reproduzir a música. Verifique se há notas válidas.");
+      }
+    }
+  }
+}
+
+/* --- INICIALIZAÇÃO COMPLETA --- */
+function initializeApp() {
+  // Atualizar status offline
+  updateOnlineStatus();
+  
+  // Carregar dados
+  loadFromStorage();
+  
+  // Inicializar componentes com delay para garantir DOM
+  setTimeout(() => {
+    createPiano();
+    updateFolderTree();
+    
+    // Configurar redimensionamento do piano
+    setupResizablePiano();
+    
+    // Carregar primeira música se existir
+    if (tunes.length > 0) {
+      loadTune(tunes[0].id);
+    } else {
+      renderCurrentMusic();
+    }
+    
+    // Atualizar labels
+    updateZoomLabel();
+    updateTransposeLabel();
+    
+    console.log("NBM Editor iniciado com sucesso!");
+    console.log(`Modo: ${isOffline ? 'Offline' : 'Online'}`);
+    console.log(`Músicas salvas: ${tunes.length}`);
+    
+    // Verificar se ABCJS está disponível
+    if (typeof ABCJS === 'undefined') {
+      console.error("ABCJS não carregado!");
+      alert("A biblioteca ABCJS não foi carregada. O editor pode não funcionar corretamente.");
+    } else {
+      console.log("ABCJS carregado com sucesso.");
+    }
+  }, 100);
+}
+
+// Event listeners para o editor
+const ta = document.getElementById("abcInput");
+ta.addEventListener("input", () => setTimeout(renderCurrentMusic, 100));
+ta.addEventListener("click", () => setTimeout(renderCurrentMusic, 50));
+ta.addEventListener("keyup", () => setTimeout(renderCurrentMusic, 50));
+
+// Inicializar quando a página carregar
+window.onload = initializeApp;
+
+// Verificar se ABCJS carregou, se não, tentar offline
+if (typeof ABCJS === 'undefined') {
+  console.log("ABCJS não carregado do CDN, tentando modo offline...");
+  loadOfflineScripts();
+}
+</script>
+</body>
+</html>
