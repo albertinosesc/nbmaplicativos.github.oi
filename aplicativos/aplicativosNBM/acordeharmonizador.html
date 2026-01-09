@@ -2,21 +2,12 @@
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
-    <title>Editor Harmônico Pro - Offline Ready</title>
-    
-    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.5.2/dist/abcjs-basic-min.js" onerror="loadLocal()"></script>
-    <script>
-      function loadLocal() {
-        console.warn("Modo Offline: Carregando scripts da pasta js/...");
-        var s1 = document.createElement('script'); s1.src = 'js/abcjs-basic-min.js'; document.head.appendChild(s1);
-        var s2 = document.createElement('script'); s2.src = 'js/abcjs-plugin-min.js'; document.head.appendChild(s2);
-      }
-    </script>
-
+    <title>Editor Harmônico Pro - Edição Livre</title>
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.5.2/dist/abcjs-basic-min.js"></script>
     <style>
-        :root { --primary: #2c3e50; --accent: #27ae60; --danger: #e74c3c; --blue: #3498db; --gray: #7f8c8d; }
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; margin: 0; }
-        .container { max-width: 1100px; margin: 0 auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        :root { --primary: #2c3e50; --accent: #27ae60; --danger: #e74c3c; --blue: #3498db; --warning: #f39c12; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; padding: 20px; }
+        .container { max-width: 1300px; margin: 0 auto; background: white; padding: 25px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
         .setup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px; margin-bottom: 20px; background: #f8f9fa; padding: 15px; border-radius: 10px; }
         label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 5px; color: #666; }
         select, input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; box-sizing: border-box; }
@@ -26,25 +17,248 @@
         #val-transpose { font-weight: bold; min-width: 30px; text-align: center; }
 
         .editor-section { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
-        #abc-editor { height: 250px; font-family: 'Courier New', monospace; background: #1e1e1e; color: #dcdcdc; border: none; margin-top: 5px; resize: vertical; padding: 10px; border-radius: 0 0 8px 8px; }
-        #paper { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 10px; min-height: 250px; overflow-x: auto; }
+        #abc-editor { height: 250px; font-family: 'Courier New', monospace; background: #1e1e1e; color: #dcdcdc; border: none; margin-top: 10px; resize: vertical; padding: 10px; }
+        #paper { background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 10px; min-height: 250px; position: relative; }
+        .btns-main { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        .btn { padding: 12px 20px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; font-size: 14px; }
+        .btn-play { background: var(--accent); }
+        .btn-stop { background: var(--danger); }
+        .btn-save { background: var(--blue); }
+        .btn-search { background: #9b59b6; }
+        .btn-update { background: var(--warning); }
+        .btn-delete { background: var(--danger); }
+        .btn-fullscreen { background: #8e44ad; }
         
-        .copy-bar { display: flex; gap: 5px; background: #333; padding: 5px; border-radius: 8px 8px 0 0; margin-top: 10px; }
-        .btn-copy { background: #555; color: white; border: none; padding: 5px 10px; font-size: 11px; border-radius: 4px; cursor: pointer; font-weight: bold; transition: 0.2s; }
-        .btn-copy:hover { background: var(--blue); }
-
-        .btns-main { display: flex; gap: 10px; margin-top: 15px; }
-        .btn-play { background: var(--accent); flex: 2; padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; }
-        .btn-stop { background: var(--danger); flex: 1; padding: 15px; border: none; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; }
         h2 { color: var(--primary); margin-top: 0; }
         .instrucao { font-size: 12px; color: #7f8c8d; margin-bottom: 10px; }
+        
+        /* Seção de Gerenciamento */
+        .management-section { 
+            margin-top: 25px; 
+            padding: 20px; 
+            background: #f8f9fa; 
+            border-radius: 10px; 
+            border-left: 4px solid var(--blue);
+        }
+        
+        .sheet-info {
+            background: #e3f2fd;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 15px;
+            font-size: 14px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .sheet-info strong {
+            color: var(--primary);
+        }
+        
+        .form-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .sheet-management {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .search-results {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            margin-top: 15px;
+            background: white;
+        }
+        
+        .song-item {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .song-item:hover {
+            background: #f0f7ff;
+        }
+        
+        .song-item.selected {
+            background: #e3f2fd;
+            border-left: 3px solid var(--blue);
+        }
+        
+        .song-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .status-message {
+            padding: 10px;
+            border-radius: 6px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        
+        .success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
+        .error { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+        .info { background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8; }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+        }
+        
+        .modal-content {
+            background: white;
+            margin: 10% auto;
+            padding: 20px;
+            border-radius: 10px;
+            width: 80%;
+            max-width: 500px;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: flex-end;
+        }
+        
+        /* Tela Cheia SIMPLIFICADA */
+        #fullscreen-container {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: white;
+            z-index: 1001;
+            flex-direction: column;
+        }
+        
+        #fullscreen-container.active {
+            display: flex;
+        }
+        
+        .fullscreen-header {
+            background: #2c3e50;
+            color: white;
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            flex-shrink: 0;
+            z-index: 1002;
+        }
+        
+        .fullscreen-title {
+            font-size: 20px;
+            font-weight: bold;
+        }
+        
+        .fullscreen-controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            padding: 8px 12px;
+            border-radius: 6px;
+        }
+        
+        .control-label {
+            font-size: 14px;
+            font-weight: 500;
+        }
+        
+        .control-value {
+            font-weight: bold;
+            min-width: 30px;
+            text-align: center;
+            font-size: 16px;
+        }
+        
+        .control-btn {
+            background: var(--blue);
+            color: white;
+            border: none;
+            width: 32px;
+            height: 32px;
+            border-radius: 4px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .control-btn:hover {
+            background: #2980b9;
+        }
+        
+        .exit-btn {
+            background: var(--danger) !important;
+            padding: 8px 16px;
+            width: auto;
+        }
+        
+        .exit-btn:hover {
+            background: #c0392b !important;
+        }
+        
+        #fullscreen-paper-container {
+            flex: 1;
+            overflow: auto;
+            padding: 20px;
+        }
+        
+        #fullscreen-paper {
+            transition: transform 0.3s ease;
+            transform-origin: top left;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>🎼 Editor Harmônico - Escrita Livre</h2>
+    <h2>🎼 Editor Harmônico - Edição Livre & Gerenciador</h2>
+    
+    <!-- Informações da aba -->
+    <div class="sheet-info">
+        <div>
+            <span id="sheet-status">Carregando informações da planilha...</span>
+        </div>
+        <div>
+            <strong>Última linha:</strong> <span id="last-row">-</span> | 
+            <strong>Total de músicas:</strong> <span id="total-songs">0</span>
+        </div>
+    </div>
 
+    <!-- Controles principais -->
     <div class="setup-grid">
         <div>
             <label>Ritmo (Planilha)</label>
@@ -52,7 +266,7 @@
             <datalist id="ritmos"></datalist>
         </div>
         <div>
-            <label>GChord (Acompanhamento)</label>
+            <label>GChord (Estilo de Acompanhamento)</label>
             <input id="gInput" value="fzc2c" onchange="gerarABC()">
         </div>
         <div>
@@ -69,28 +283,133 @@
         </div>
     </div>
 
+    <!-- Editor -->
     <div class="editor-section">
         <div>
-            <label>1. Digite as Cifras</label>
-            <p class="instrucao">Vírgula muda compasso. Espaço muda acorde no mesmo tempo.</p>
+            <label>1. Nome da Música</label>
+            <input type="text" id="song-name" placeholder="Digite o nome da música" value="Nova Música">
+            
+            <label style="margin-top:15px;">2. Digite as Cifras</label>
+            <p class="instrucao">Use vírgula para mudar de compasso. Deixe vazio entre vírgulas para pausa (Ex: C, , G).</p>
             <textarea id="cifras" style="height: 60px;" oninput="gerarABC()" placeholder="Ex: C, G | Am, F"></textarea>
             
-            <label style="margin-top:15px; display:block;">2. Código ABC (Edição Livre):</label>
-            <div class="copy-bar">
-                <button class="btn-copy" onclick="copiarCompleto()">📋 COPIAR COMPLETO</button>
-                <button class="btn-copy" onclick="copiarCorpo()">🎼 COPIAR CORPO</button>
-            </div>
+            <label style="margin-top:15px; display:block;">3. Código ABC (Edição Livre):</label>
             <textarea id="abc-editor" oninput="renderizarManual()" placeholder="O código ABC aparecerá aqui..."></textarea>
             
             <div class="btns-main">
-                <button id="btn-play" class="btn-play" onclick="tocar()">▶ TOCAR</button>
-                <button class="btn-stop" onclick="parar()">⏹ PARAR</button>
-            </div>
+                <button id="btn-play" class="btn btn-play" onclick="tocar()">▶ TOCAR</button>
+                <button class="btn btn-stop" onclick="parar()">⏹ PARAR</button>
+                <button class="btn btn-save" onclick="saveCurrentSong()">💾 SALVAR</button>
+                <button class="btn btn-update" onclick="updateCurrentSong()" id="btn-update" disabled>✏️ ATUALIZAR</button>
+                <button class="btn btn-delete" onclick="showDeleteConfirm()" id="btn-delete" disabled>🗑️ DELETAR</button>
+             </div>
         </div>
         
         <div>
-            <label>Visualização da Partitura</label>
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                <label>Visualização da Partitura</label>
+                <button class="btn" onclick="enterFullscreen()" style="background: #8e44ad; padding: 8px 15px; font-size: 12px;">
+                    📺 Tela Cheia
+                </button>
+            </div>
             <div id="paper"></div>
+        </div>
+    </div>
+    
+    <!-- Seção de Gerenciamento -->
+    <div class="management-section">
+        <h3>📁 Gerenciamento de Músicas</h3>
+        
+        <!-- Gerenciamento de Abas -->
+        <div class="sheet-management">
+            <div>
+                <label>Criar Nova Aba</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="new-sheet-name" placeholder="Nome da nova aba" style="flex: 1;">
+                    <button class="btn" onclick="createSheet()" style="background: #2ecc71;">➕ CRIAR ABA</button>
+                </div>
+            </div>
+            <div>
+                <label>Aba da Planilha</label>
+                <select id="sheet-select" onchange="loadSheetInfo()">
+                    <option value="Músicas">Músicas</option>
+                </select>
+            </div>
+        </div>
+        
+        <!-- Busca -->
+        <div class="form-grid">
+            <div>
+                <label>Buscar Música</label>
+                <input type="text" id="search-query" placeholder="Nome ou conteúdo">
+            </div>
+            <div>
+                <label style="visibility:hidden;">.</label>
+                <button class="btn btn-search" onclick="searchSongs()">🔍 BUSCAR</button>
+            </div>
+            <div>
+                <label style="visibility:hidden;">.</label>
+                <button class="btn" onclick="showAllSongs()" style="background: #3498db;">📋 VER TODAS</button>
+            </div>
+            <div>
+                <label style="visibility:hidden;">.</label>
+                <button class="btn" onclick="clearSearch()" style="background: #95a5a6;">🗑️ LIMPAR</button>
+            </div>
+        </div>
+        
+        <!-- Resultados da Busca -->
+        <div id="search-results" class="search-results" style="display:none;">
+            <div id="results-list"></div>
+        </div>
+        
+        <!-- Mensagens de Status -->
+        <div id="status-message" class="status-message"></div>
+    </div>
+</div>
+
+<!-- Container para tela cheia SIMPLIFICADO -->
+<div id="fullscreen-container">
+    <div class="fullscreen-header">
+        <div class="fullscreen-title" id="fullscreen-title">Partitura - Modo Tela Cheia</div>
+        <div class="fullscreen-controls">
+            <!-- Controle de Transpose -->
+            <div class="control-group">
+                <span class="control-label">Transpose:</span>
+                <button class="control-btn" onclick="mudarTransposeFullscreen(-1)">-</button>
+                <span class="control-value" id="fullscreen-transpose-value">0</span>
+                <button class="control-btn" onclick="mudarTransposeFullscreen(1)">+</button>
+            </div>
+            
+            <!-- Controle de Zoom -->
+            <div class="control-group">
+                <span class="control-label">Zoom:</span>
+                <button class="control-btn" onclick="mudarZoom(-0.1)">-</button>
+                <span class="control-value" id="fullscreen-zoom-value">100%</span>
+                <button class="control-btn" onclick="mudarZoom(0.1)">+</button>
+                <button class="control-btn" onclick="resetZoom()">⟳</button>
+            </div>
+            
+            <!-- Botão de Sair SIMPLIFICADO -->
+            <button class="control-btn exit-btn" onclick="sairTelaCheia()">
+                ✕ Sair
+            </button>
+        </div>
+    </div>
+    
+    <div id="fullscreen-paper-container">
+        <div id="fullscreen-paper"></div>
+    </div>
+</div>
+
+<!-- Modal de Confirmação de Deleção -->
+<div id="delete-modal" class="modal">
+    <div class="modal-content">
+        <h3>Confirmar Deleção</h3>
+        <p>Tem certeza que deseja deletar a música "<span id="delete-song-name"></span>" da linha <span id="delete-song-row"></span>?</p>
+        <p style="color: var(--danger); font-size: 12px; margin-top: 10px;">⚠️ Esta ação não pode ser desfeita.</p>
+        <div class="modal-buttons">
+            <button class="btn btn-stop" onclick="confirmDelete()">SIM, DELETAR</button>
+            <button class="btn" onclick="closeModal()" style="background: #95a5a6;">CANCELAR</button>
         </div>
     </div>
 </div>
@@ -99,9 +418,13 @@
     let audioCtx, synth;
     let biblioteca = {};
     let transposeAtual = 0;
+    let selectedSong = null;
+    let sheetNames = [];
+    let isFullscreen = false;
+    let zoomAtual = 1;
 
     window.onload = () => {
-        // Tenta carregar biblioteca da planilha se disponível (Google Apps Script)
+        // Carregar biblioteca de GChords
         if (typeof google !== 'undefined') {
             google.script.run.withSuccessHandler(res => {
                 biblioteca = res;
@@ -110,31 +433,112 @@
                     let o = document.createElement("option"); o.value = n; dl.appendChild(o);
                 }
             }).getGChordLibrary();
+            
+            // Carregar nomes das abas
+            loadSheetNames();
         }
         gerarABC();
+        
+        // Configurar listener para tecla ESC
+        document.addEventListener('keydown', function(event) {
+            if (event.key === 'Escape' && isFullscreen) {
+                sairTelaCheia();
+            }
+        });
     };
 
-    /* FUNÇÕES DE CÓPIA */
-    function copiarCompleto() {
-        navigator.clipboard.writeText(document.getElementById("abc-editor").value);
-        alert("Copiado!");
+    function loadSheetNames() {
+        if (typeof google !== 'undefined') {
+            google.script.run.withSuccessHandler(names => {
+                sheetNames = names;
+                const select = document.getElementById("sheet-select");
+                select.innerHTML = '';
+                names.forEach(name => {
+                    const option = document.createElement("option");
+                    option.value = name;
+                    option.textContent = name;
+                    select.appendChild(option);
+                });
+                if (names.length > 0) {
+                    loadSheetInfo();
+                }
+            }).getSheetNames();
+        }
     }
 
-    function copiarCorpo() {
-        const val = document.getElementById("abc-editor").value;
-        const regexK = /K:.*\n/g;
-        let match, lastPos = 0;
-        while ((match = regexK.exec(val)) !== null) { lastPos = regexK.lastIndex; }
-        if (lastPos > 0) {
-            navigator.clipboard.writeText(val.slice(lastPos).trim());
-            alert("Notas copiadas!");
+    function createSheet() {
+        const sheetName = document.getElementById("new-sheet-name").value.trim();
+        if (!sheetName) {
+            showMessage("Por favor, digite um nome para a nova aba.", "error");
+            return;
+        }
+        
+        showMessage(`Criando aba "${sheetName}"...`, "info");
+        
+        if (typeof google !== 'undefined') {
+            google.script.run.withSuccessHandler(response => {
+                if (response.success) {
+                    showMessage(response.message, "success");
+                    document.getElementById("new-sheet-name").value = "";
+                    loadSheetNames();
+                } else {
+                    showMessage(response.message, "error");
+                }
+            }).withFailureHandler(error => {
+                showMessage("Erro ao criar aba: " + error.message, "error");
+            }).createNewSheet(sheetName);
+        }
+    }
+
+    function loadSheetInfo() {
+        const sheetName = document.getElementById("sheet-select").value;
+        document.getElementById("sheet-status").textContent = `Aba atual: "${sheetName}"`;
+        
+        if (typeof google !== 'undefined') {
+            google.script.run.withSuccessHandler(info => {
+                document.getElementById("last-row").textContent = info.lastRow;
+                document.getElementById("total-songs").textContent = info.totalSongs;
+                
+                if (!info.sheetExists) {
+                    document.getElementById("sheet-status").textContent += " (Nova aba será criada ao salvar)";
+                }
+            }).getLastRowInfo(sheetName);
         }
     }
 
     function mudarTranspose(delta) {
         transposeAtual += delta;
         document.getElementById("val-transpose").innerText = (transposeAtual > 0 ? "+" : "") + transposeAtual;
+        if (isFullscreen) {
+            document.getElementById("fullscreen-transpose-value").textContent = (transposeAtual > 0 ? "+" : "") + transposeAtual;
+        }
         gerarABC();
+    }
+    
+    function mudarTransposeFullscreen(delta) {
+        mudarTranspose(delta);
+        renderFullscreen();
+    }
+    
+    // Funções de Zoom
+    function mudarZoom(delta) {
+        zoomAtual += delta;
+        zoomAtual = Math.max(0.5, Math.min(3.0, zoomAtual));
+        aplicarZoom();
+    }
+    
+    function resetZoom() {
+        zoomAtual = 1;
+        aplicarZoom();
+    }
+    
+    function aplicarZoom() {
+        const paper = document.getElementById('fullscreen-paper');
+        if (paper) {
+            paper.style.transform = `scale(${zoomAtual})`;
+            const zoomPercent = Math.round(zoomAtual * 100);
+            document.getElementById('fullscreen-zoom-value').textContent = zoomPercent + '%';
+        }
     }
 
     function carregarRitmoPlanilha(nome) {
@@ -148,6 +552,7 @@
         const cifrasRaw = document.getElementById("cifras").value;
         const bpm = document.getElementById("bpm").value;
         const gchord = document.getElementById("gInput").value;
+        
         const compassos = cifrasRaw.split(/[|,]/).map(c => c.trim());
         
         let musica = "";
@@ -157,21 +562,21 @@
             } else {
                 const acordes = c.split(/\s+/).filter(a => a !== "");
                 const duracao = 4 / acordes.length;
-                acordes.forEach(ac => { musica += `"${ac}"z${duracao} `; });
+                acordes.forEach(ac => { 
+                    musica += `"${ac}"z${duracao} `; 
+                });
                 musica += "| ";
             }
         });
 
         const abc = `X:1
-%%MIDI program 24
-%%MIDI chordprog 24
-%%MIDI bassprog 24
 M:4/4
 L:1/4
 Q:1/4=${bpm}
 %%MIDI transpose ${transposeAtual}
-%%MIDI gchord ${gchord}
 K:C transpose=${transposeAtual}
+%%MIDI gchord ${gchord}
+%%MIDI chordprog 24
 ${musica.trim()}`;
 
         document.getElementById("abc-editor").value = abc;
@@ -180,47 +585,349 @@ ${musica.trim()}`;
 
     function renderizarManual() {
         const abc = document.getElementById("abc-editor").value;
-        ABCJS.renderAbc("paper", abc, { responsive: "resize", visualTranspose: transposeAtual });
+        ABCJS.renderAbc("paper", abc, { 
+            responsive: "resize", 
+            visualTranspose: transposeAtual 
+        });
+        
+        if (isFullscreen) {
+            renderFullscreen();
+        }
+    }
+    
+    function renderFullscreen() {
+        if (!isFullscreen) return;
+        
+        const abc = document.getElementById("abc-editor").value;
+        document.getElementById('fullscreen-paper').innerHTML = '';
+        
+        ABCJS.renderAbc("fullscreen-paper", abc, { 
+            responsive: "resize", 
+            visualTranspose: transposeAtual,
+            scale: 1.2
+        });
+        
+        setTimeout(() => {
+            aplicarZoom();
+        }, 100);
+        
+        const songName = document.getElementById("song-name").value || "Partitura";
+        document.getElementById("fullscreen-title").textContent = 
+            `${songName} - Transposição: ${(transposeAtual > 0 ? "+" : "") + transposeAtual}`;
+    }
+
+    // Tela Cheia - FUNÇÃO SIMPLIFICADA
+    function enterFullscreen() {
+        console.log("Entrando em tela cheia");
+        isFullscreen = true;
+        
+        // Esconder o container principal
+        document.querySelector('.container').style.display = 'none';
+        
+        // Mostrar o container de tela cheia
+        const fsContainer = document.getElementById('fullscreen-container');
+        fsContainer.classList.add('active');
+        fsContainer.style.display = 'flex';
+        
+        // Atualizar valores
+        document.getElementById("fullscreen-transpose-value").textContent = 
+            (transposeAtual > 0 ? "+" : "") + transposeAtual;
+        
+        // Resetar zoom
+        zoomAtual = 1;
+        aplicarZoom();
+        
+        // Renderizar
+        renderFullscreen();
+        
+        // Prevenir rolagem
+        document.body.style.overflow = 'hidden';
+        
+        console.log("Tela cheia ativada");
+    }
+    
+    // Função SAIR - SIMPLIFICADA E TESTADA
+    function sairTelaCheia() {
+        console.log("Clicou em sair da tela cheia");
+        
+        isFullscreen = false;
+        
+        // Mostrar container principal
+        const mainContainer = document.querySelector('.container');
+        if (mainContainer) {
+            mainContainer.style.display = 'block';
+        }
+        
+        // Esconder container de tela cheia
+        const fsContainer = document.getElementById('fullscreen-container');
+        if (fsContainer) {
+            fsContainer.classList.remove('active');
+            fsContainer.style.display = 'none';
+        }
+        
+        // Restaurar rolagem
+        document.body.style.overflow = 'auto';
+        
+        // Re-renderizar
+        setTimeout(() => {
+            const abc = document.getElementById("abc-editor").value;
+            ABCJS.renderAbc("paper", abc, { 
+                responsive: "resize", 
+                visualTranspose: transposeAtual 
+            });
+        }, 50);
+        
+        console.log("Saiu da tela cheia com sucesso");
     }
 
     async function parar() {
-        if (synth) { try { await synth.stop(); } catch(e){} synth = null; }
-        if (audioCtx) { try { await audioCtx.close(); } catch(e){} audioCtx = null; }
+        if (synth) { await synth.stop(); synth = null; }
+        if (audioCtx) { await audioCtx.close(); audioCtx = null; }
         document.getElementById("btn-play").innerText = "▶ TOCAR";
     }
 
     async function tocar() {
+        await parar();
         const btn = document.getElementById("btn-play");
-        if (btn.innerText === "⏹ PARAR") { await parar(); return; }
-        
         btn.innerText = "⌛...";
+        
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
         const abc = document.getElementById("abc-editor").value;
         const visualObj = ABCJS.renderAbc(document.createElement("div"), abc)[0];
         
-        // Lógica de Som Offline/Online
-        const isOnline = navigator.onLine;
-        const soundUrl = isOnline ? "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/" : "samples/guitar/";
-
+        synth = new ABCJS.synth.CreateSynth();
         try {
-            synth = new ABCJS.synth.CreateSynth();
             await synth.init({
                 visualObj: visualObj,
-                options: { soundFontUrl: soundUrl, program: 24 }
+                audioContext: audioCtx,
+                millisecondsPerMeasure: visualObj.millisecondsPerMeasure()
             });
             await synth.prime();
             await synth.start();
             btn.innerText = "⏹ PARAR";
         } catch (e) { 
-            console.warn("Usando sintetizador reserva...");
-            try {
-                await synth.init({ visualObj: visualObj });
-                await synth.prime();
-                await synth.start();
-                btn.innerText = "⏹ PARAR";
-            } catch(err) {
-                console.error(err);
-                btn.innerText = "▶ TOCAR";
+            console.error(e); 
+            btn.innerText = "▶ TOCAR"; 
+        }
+    }
+
+    // FUNÇÕES DE GERENCIAMENTO (mantidas)
+    function saveCurrentSong() {
+        const songData = {
+            nome: document.getElementById("song-name").value.trim(),
+            cifras: document.getElementById("cifras").value.trim(),
+            abc: document.getElementById("abc-editor").value.trim(),
+            gchord: document.getElementById("gInput").value.trim(),
+            bpm: document.getElementById("bpm").value.trim(),
+            sheetName: document.getElementById("sheet-select").value
+        };
+        
+        if (!songData.nome) {
+            showMessage("Por favor, digite um nome para a música.", "error");
+            return;
+        }
+        
+        if (!songData.cifras && !songData.abc) {
+            showMessage("Por favor, digite cifras ou código ABC.", "error");
+            return;
+        }
+        
+        showMessage("Salvando música...", "info");
+        
+        if (typeof google !== 'undefined') {
+            google.script.run.withSuccessHandler(response => {
+                showMessage(response.message, response.success ? "success" : "error");
+                if (response.success) {
+                    loadSheetInfo();
+                    clearSelection();
+                    showAllSongs();
+                }
+            }).withFailureHandler(error => {
+                showMessage("Erro ao salvar: " + error.message, "error");
+            }).saveSong(songData);
+        }
+    }
+
+    function updateCurrentSong() {
+        if (!selectedSong) return;
+        
+        const songData = {
+            nome: document.getElementById("song-name").value.trim(),
+            cifras: document.getElementById("cifras").value.trim(),
+            abc: document.getElementById("abc-editor").value.trim(),
+            gchord: document.getElementById("gInput").value.trim(),
+            bpm: document.getElementById("bpm").value.trim(),
+            sheetName: document.getElementById("sheet-select").value,
+            row: selectedSong.row
+        };
+        
+        if (typeof google !== 'undefined') {
+            google.script.run.withSuccessHandler(response => {
+                showMessage(response.message, response.success ? "success" : "error");
+                if (response.success) {
+                    loadSheetInfo();
+                    if (selectedSong) {
+                        selectedSong.nome = songData.nome;
+                        selectedSong.cifras = songData.cifras;
+                        selectedSong.abc = songData.abc;
+                        selectedSong.gchord = songData.gchord;
+                        selectedSong.bpm = songData.bpm;
+                    }
+                }
+            }).withFailureHandler(error => {
+                showMessage("Erro ao atualizar: " + error.message, "error");
+            }).updateSong(songData);
+        }
+    }
+
+    function showDeleteConfirm() {
+        if (!selectedSong) return;
+        
+        document.getElementById("delete-song-name").textContent = selectedSong.nome;
+        document.getElementById("delete-song-row").textContent = selectedSong.row;
+        document.getElementById("delete-modal").style.display = "block";
+    }
+
+    function confirmDelete() {
+        const sheetName = document.getElementById("sheet-select").value;
+        
+        if (typeof google !== 'undefined') {
+            google.script.run.withSuccessHandler(response => {
+                showMessage(response.message, response.success ? "success" : "error");
+                closeModal();
+                if (response.success) {
+                    clearSelection();
+                    loadSheetInfo();
+                    const currentQuery = document.getElementById("search-query").value;
+                    if (currentQuery) {
+                        searchSongs();
+                    } else {
+                        showAllSongs();
+                    }
+                }
+            }).withFailureHandler(error => {
+                showMessage("Erro ao deletar: " + error.message, "error");
+                closeModal();
+            }).deleteSong(sheetName, selectedSong.row);
+        }
+    }
+
+    function closeModal() {
+        document.getElementById("delete-modal").style.display = "none";
+    }
+
+    function searchSongs() {
+        const query = document.getElementById("search-query").value;
+        const sheetName = document.getElementById("sheet-select").value;
+        
+        showMessage(`Buscando por "${query}"...`, "info");
+        
+        if (typeof google !== 'undefined') {
+            google.script.run.withSuccessHandler(results => {
+                displayResults(results);
+                showMessage(`Encontradas ${results.length} música(s)`, "info");
+            }).withFailureHandler(error => {
+                showMessage("Erro na busca: " + error.message, "error");
+                displayResults([]);
+            }).searchSongs(query, sheetName);
+        }
+    }
+
+    function showAllSongs() {
+        document.getElementById("search-query").value = "";
+        searchSongs();
+    }
+
+    function displayResults(results) {
+        const resultsList = document.getElementById("results-list");
+        resultsList.innerHTML = '';
+        
+        if (results.length === 0) {
+            resultsList.innerHTML = '<div class="song-item" style="text-align: center; color: #666; font-style: italic;">Nenhuma música encontrada</div>';
+        } else {
+            results.forEach(song => {
+                const div = document.createElement("div");
+                div.className = "song-item";
+                div.innerHTML = `
+                    <strong>${song.nome || "Sem nome"}</strong>
+                    <div class="song-info">
+                        Linha: ${song.row} | BPM: ${song.bpm} | GChord: ${song.gchord}<br>
+                        ${song.dataCriacao || ""}
+                    </div>
+                `;
+                div.onclick = () => selectSong(song, div);
+                resultsList.appendChild(div);
+            });
+        }
+        
+        document.getElementById("search-results").style.display = "block";
+    }
+
+    function selectSong(song, element) {
+        document.querySelectorAll('.song-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        
+        if (element) {
+            element.classList.add('selected');
+        }
+        
+        selectedSong = song;
+        document.getElementById("song-name").value = song.nome || "";
+        document.getElementById("cifras").value = song.cifras || "";
+        document.getElementById("abc-editor").value = song.abc || "";
+        document.getElementById("gInput").value = song.gchord || "fzc2c";
+        document.getElementById("bpm").value = song.bpm || "100";
+        
+        document.getElementById("btn-update").disabled = false;
+        document.getElementById("btn-delete").disabled = false;
+        
+        if (song.abc) {
+            const match = song.abc.match(/transpose\s*=\s*(-?\d+)/);
+            if (match) {
+                transposeAtual = parseInt(match[1]);
+                document.getElementById("val-transpose").innerText = (transposeAtual > 0 ? "+" : "") + transposeAtual;
             }
+        }
+        
+        renderizarManual();
+        
+        showMessage(`Música "${song.nome || 'Sem nome'}" selecionada da linha ${song.row}`, "info");
+    }
+
+    function clearSelection() {
+        selectedSong = null;
+        document.getElementById("song-name").value = "Nova Música";
+        document.getElementById("cifras").value = "";
+        document.getElementById("abc-editor").value = "";
+        document.getElementById("btn-update").disabled = true;
+        document.getElementById("btn-delete").disabled = true;
+        
+        document.querySelectorAll('.song-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        
+        gerarABC();
+    }
+
+    function clearSearch() {
+        document.getElementById("search-query").value = "";
+        document.getElementById("search-results").style.display = "none";
+        document.getElementById("results-list").innerHTML = "";
+        clearSelection();
+        showMessage("Busca limpa", "info");
+    }
+
+    function showMessage(message, type) {
+        const statusDiv = document.getElementById("status-message");
+        statusDiv.textContent = message;
+        statusDiv.className = `status-message ${type}`;
+        
+        if (type !== 'error') {
+            setTimeout(() => {
+                statusDiv.textContent = '';
+                statusDiv.className = 'status-message';
+            }, 5000);
         }
     }
 </script>
