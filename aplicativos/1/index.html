@@ -5,58 +5,95 @@
 <title>Biblioteca Musical Digital</title>
 <style>
 body { font-family: Arial, sans-serif; margin: 20px; }
-nav h2, nav h3 { margin: 5px 0; }
-nav ul { list-style: none; padding-left: 20px; }
+h1 { margin-bottom: 20px; }
+nav { width: 300px; float: left; }
+nav ul { list-style: none; padding-left: 10px; }
 nav li { margin: 3px 0; cursor: pointer; color: #0066aa; }
 nav li:hover { text-decoration: underline; }
-#iframeConteudo { width: 100%; height: 600px; border: 1px solid #ccc; }
+.collapsible { font-weight: bold; }
+.submenu { display: none; margin-left: 15px; }
+#iframeConteudo { width: calc(100% - 320px); height: 600px; border: 1px solid #ccc; float: left; }
+#searchInput { width: 280px; padding: 5px; margin-bottom: 10px; }
 </style>
 </head>
 <body>
 
 <h1>📚 Biblioteca Musical</h1>
-<nav id="menu"></nav>
-<hr>
+<nav>
+  <input type="text" id="searchInput" placeholder="Buscar...">
+  <div id="menu"></div>
+</nav>
 <iframe id="iframeConteudo"></iframe>
 
 <script>
-// Carrega menu do JSON
-fetch('menu.json')
-  .then(res => res.json())
-  .then(data => {
-    const menu = document.getElementById('menu');
-    for (const cat in data) {
-      const h2 = document.createElement('h2');
-      h2.textContent = cat;
-      menu.appendChild(h2);
+// Função para carregar menu
+function gerarMenu(data) {
+  const menu = document.getElementById('menu');
+  menu.innerHTML = '';
 
-      const subcats = data[cat];
-      for (const sub in subcats) {
-        const h3 = document.createElement('h3');
-        h3.textContent = sub;
-        menu.appendChild(h3);
+  for (const cat in data) {
+    const catLi = document.createElement('div');
+    catLi.textContent = cat;
+    catLi.className = 'collapsible';
+    menu.appendChild(catLi);
 
-        const ul = document.createElement('ul');
-        subcats[sub].forEach(file => {
-          const li = document.createElement('li');
-          li.textContent = file.split("/").pop().replace(".html", "").replace(/-/g," ");
-          li.onclick = () => carregar(file);
-          ul.appendChild(li);
-        });
-        menu.appendChild(ul);
-      }
+    const subMenu = document.createElement('div');
+    subMenu.className = 'submenu';
+
+    const subcats = data[cat];
+    for (const sub in subcats) {
+      const subLi = document.createElement('div');
+      subLi.textContent = sub;
+      subLi.className = 'collapsible';
+      subMenu.appendChild(subLi);
+
+      const subSubMenu = document.createElement('ul');
+      subcats[sub].forEach(fileObj => {
+        const li = document.createElement('li');
+        const nome = fileObj.arquivo.split('/').pop().replace('.html','').replace(/-/g,' ');
+        li.textContent = nome;
+        li.dataset.file = fileObj.arquivo;
+        li.dataset.tags = fileObj.tags.join(',');
+        li.onclick = () => carregarArquivo(fileObj.arquivo);
+        subSubMenu.appendChild(li);
+      });
+      subMenu.appendChild(subSubMenu);
+
+      // Toggle subsubmenu
+      subLi.onclick = () => subSubMenu.style.display = subSubMenu.style.display === 'block' ? 'none' : 'block';
     }
-  });
+    menu.appendChild(subMenu);
 
-function carregar(url) {
+    // Toggle submenu
+    catLi.onclick = () => subMenu.style.display = subMenu.style.display === 'block' ? 'none' : 'block';
+  }
+}
+
+// Função para carregar arquivo no iframe
+function carregarArquivo(url) {
   fetch(url)
     .then(res => res.text())
-    .then(html => {
-      document.getElementById('iframeConteudo').srcdoc = html;
-    })
+    .then(html => document.getElementById('iframeConteudo').srcdoc = html)
     .catch(err => console.error(err));
 }
-</script>
 
+// Função de busca
+document.getElementById('searchInput').addEventListener('input', e => {
+  const termo = e.target.value.toLowerCase();
+  const items = document.querySelectorAll('nav li');
+  items.forEach(li => {
+    const texto = li.textContent.toLowerCase();
+    const tags = li.dataset.tags ? li.dataset.tags.toLowerCase() : '';
+    li.style.display = (texto.includes(termo) || tags.includes(termo)) ? 'block' : 'none';
+  });
+});
+
+// Carregar JSON do menu
+fetch('menu.json')
+  .then(res => res.json())
+  .then(data => gerarMenu(data))
+  .catch(err => console.error(err));
+
+</script>
 </body>
 </html>
