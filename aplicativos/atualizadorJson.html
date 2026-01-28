@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Editor de Menu JSON - Biblioteca NBM</title>
+<style>
+body { font-family: Arial, sans-serif; padding: 20px; max-width: 900px; margin: auto; }
+input, select, button { padding: 5px; margin: 5px 0; width: 100%; box-sizing: border-box; }
+textarea { width: 100%; height: 300px; margin-top: 20px; font-family: monospace; }
+label { font-weight: bold; margin-top: 10px; display: block; }
+hr { margin: 20px 0; }
+</style>
+</head>
+<body>
+
+<h1>Editor de Menu JSON - Biblioteca NBM</h1>
+
+<!-- Importar JSON -->
+<label>Importar JSON:</label>
+<input type="file" id="importFile" accept=".json">
+<button onclick="importarJSON()">Importar</button>
+
+<hr>
+
+<!-- Seleção de Categoria/Subcategoria -->
+<label>Categoria:</label>
+<select id="selectCategoria" onchange="atualizarSubcategorias()">
+  <option value="">-- Nova categoria --</option>
+</select>
+<input type="text" id="novaCategoria" placeholder="Digite nova categoria se não escolher existente">
+
+<label>Subcategoria:</label>
+<select id="selectSubcategoria">
+  <option value="">-- Nova subcategoria --</option>
+</select>
+<input type="text" id="novaSubcategoria" placeholder="Digite nova subcategoria se não escolher existente">
+
+<!-- Arquivo e Tags -->
+<label>Arquivo:</label>
+<input type="text" id="arquivo" placeholder="Ex: escala-maior.html">
+
+<label>Tags (separadas por vírgula):</label>
+<input type="text" id="tags" placeholder="Ex: iniciante, teoria">
+
+<!-- Botões -->
+<button onclick="adicionarArquivo()">Adicionar ao JSON</button>
+<button onclick="exportarJSON()">Exportar JSON</button>
+
+<hr>
+
+<h2>Visualização do JSON</h2>
+<textarea id="jsonOutput" readonly></textarea>
+
+<script>
+let menuData = {};
+
+// ------------------ Atualizar selects ------------------
+function atualizarSelectCategorias() {
+  const select = document.getElementById('selectCategoria');
+  select.innerHTML = '<option value="">-- Nova categoria --</option>';
+  for (const cat in menuData) {
+    const opt = document.createElement('option');
+    opt.value = cat;
+    opt.textContent = cat;
+    select.appendChild(opt);
+  }
+  atualizarSubcategorias();
+}
+
+function atualizarSubcategorias() {
+  const cat = document.getElementById('selectCategoria').value;
+  const selectSub = document.getElementById('selectSubcategoria');
+  selectSub.innerHTML = '<option value="">-- Nova subcategoria --</option>';
+  if(cat && menuData[cat]) {
+    for(const sub in menuData[cat]) {
+      const opt = document.createElement('option');
+      opt.value = sub;
+      opt.textContent = sub;
+      selectSub.appendChild(opt);
+    }
+  }
+}
+
+// ------------------ Importar JSON ------------------
+function importarJSON() {
+  const fileInput = document.getElementById('importFile');
+  if(fileInput.files.length === 0) {
+    alert("Selecione um arquivo JSON para importar.");
+    return;
+  }
+
+  const file = fileInput.files[0];
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      menuData = JSON.parse(e.target.result);
+      atualizarVisual();
+      atualizarSelectCategorias();
+      alert("JSON importado com sucesso!");
+    } catch(err) {
+      alert("Erro ao ler JSON: " + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ------------------ Adicionar arquivo ------------------
+function adicionarArquivo() {
+  let cat = document.getElementById('selectCategoria').value;
+  const novaCat = document.getElementById('novaCategoria').value.trim();
+  if(novaCat) cat = novaCat;
+
+  let sub = document.getElementById('selectSubcategoria').value;
+  const novaSub = document.getElementById('novaSubcategoria').value.trim();
+  if(novaSub) sub = novaSub;
+
+  const arquivo = document.getElementById('arquivo').value.trim();
+  const tags = document.getElementById('tags').value.split(',').map(t => t.trim()).filter(t => t);
+
+  if(!cat || !sub || !arquivo) {
+    alert("Preencha Categoria, Subcategoria e Arquivo.");
+    return;
+  }
+
+  if(!menuData[cat]) menuData[cat] = {};
+  if(!menuData[cat][sub]) menuData[cat][sub] = [];
+
+  let arquivoCompleto = arquivo;
+  if(!arquivo.includes('/')) {
+    const caminhoBase = `conteudos/${cat.toLowerCase()}/${sub.toLowerCase()}/`;
+    arquivoCompleto = caminhoBase + arquivo;
+  }
+
+  menuData[cat][sub].push({arquivo: arquivoCompleto, tags});
+
+  atualizarVisual();
+  atualizarSelectCategorias();
+
+  document.getElementById('arquivo').value = '';
+  document.getElementById('tags').value = '';
+  document.getElementById('novaCategoria').value = '';
+  document.getElementById('novaSubcategoria').value = '';
+}
+
+// ------------------ Exportar JSON ------------------
+function exportarJSON() {
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(formatJSON(menuData));
+  const dlAnchor = document.createElement('a');
+  dlAnchor.setAttribute("href", dataStr);
+  dlAnchor.setAttribute("download", "menu.json");
+  dlAnchor.click();
+}
+
+// ------------------ Formatação do JSON sem quebras de linha em objetos ------------------
+function formatJSON(obj) {
+  let result = '{\n';
+  const cats = Object.keys(obj);
+  cats.forEach((cat, ci) => {
+    result += `  "${cat}": {\n`;
+    const subs = Object.keys(obj[cat]);
+    subs.forEach((sub, si) => {
+      result += `    "${sub}": [\n`;
+      const arquivos = obj[cat][sub];
+      arquivos.forEach((arq, ai) => {
+        // cada arquivo em uma linha
+        result += `      {"arquivo":"${arq.arquivo}","tags":[${arq.tags.map(t=>`"${t}"`).join(',')}]}`;
+        result += ai < arquivos.length-1 ? ',\n' : '\n';
+      });
+      result += si < subs.length-1 ? '    ],\n' : '    ]\n';
+    });
+    result += ci < cats.length-1 ? '  },\n' : '  }\n';
+  });
+  result += '}';
+  return result;
+}
+
+// ------------------ Atualizar visualização ------------------
+function atualizarVisual() {
+  document.getElementById('jsonOutput').value = formatJSON(menuData);
+}
+
+// Inicialização
+atualizarVisual();
+atualizarSelectCategorias();
+</script>
+
+</body>
+</html>
