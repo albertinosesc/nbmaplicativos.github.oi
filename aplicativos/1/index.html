@@ -6,13 +6,19 @@
 <style>
 body { font-family: Arial, sans-serif; margin: 0; display: flex; height: 100vh; overflow: hidden; }
 nav { width: 320px; padding: 10px; border-right: 1px solid #ccc; overflow-y: auto; background-color: #f8f8f8; }
+nav h1 { font-size: 24px; margin: 0 0 10px 0; text-align: center; }
 nav input { width: 100%; padding: 5px; margin-bottom: 10px; box-sizing: border-box; }
 nav ul { list-style: none; padding-left: 0; }
-nav li { padding: 5px; cursor: pointer; border-bottom: 1px dashed #eee; transition: background 0.2s; }
+nav li { padding: 5px; cursor: pointer; border-bottom: 1px dashed #eee; transition: background 0.2s; display: flex; align-items: center; }
 nav li:hover, .active { background-color: #e0e0ff; }
-.collapsible { font-weight: bold; cursor: pointer; }
+.collapsible { font-weight: bold; cursor: pointer; display: flex; align-items: center; }
 .submenu { display: none; padding-left: 15px; }
 #iframeConteudo { flex-grow: 1; border: none; }
+
+/* Ícones simples */
+.icon-cat::before { content: "🎵"; margin-right: 6px; }
+.icon-sub::before { content: "📂"; margin-right: 6px; }
+
 .anchor-highlight { animation: highlightFade 1.5s ease-out; border-left: 4px solid #4CAF50 !important; padding-left: 10px !important; }
 @keyframes highlightFade { 0%,70% { background-color: #ffffcc; } 100% { background-color: transparent; } }
 .anchor-status { position: fixed; bottom: 10px; right: 10px; background: #4CAF50; color: white; padding: 5px 10px; border-radius: 4px; font-size: 12px; z-index: 1000; opacity: 0.8; }
@@ -21,25 +27,26 @@ nav li:hover, .active { background-color: #e0e0ff; }
 <body>
 
 <nav>
+  <h1>Biblioteca NBM</h1>
   <input type="text" id="searchInput" placeholder="Buscar por nome ou tag...">
   <div id="menu"></div>
 </nav>
+
 <iframe id="iframeConteudo"></iframe>
 
 <script>
-// ------------------ Configurações ------------------
-let allFiles = []; // lista de todos os arquivos para busca
+let allFiles = [];
 let activeListItem = null;
 const iframe = document.getElementById('iframeConteudo');
 
-// ------------------ Carregar menu do JSON ------------------
+// ------------------ Gerar menu ------------------
 function gerarMenu(data) {
   const menu = document.getElementById('menu');
   menu.innerHTML = '';
 
   for (const cat in data) {
     const catLi = document.createElement('div');
-    catLi.textContent = cat;
+    catLi.innerHTML = `<span class="icon-cat"></span>${cat}`;
     catLi.className = 'collapsible';
     menu.appendChild(catLi);
 
@@ -49,7 +56,7 @@ function gerarMenu(data) {
     const subcats = data[cat];
     for (const sub in subcats) {
       const subLi = document.createElement('div');
-      subLi.textContent = sub;
+      subLi.innerHTML = `<span class="icon-sub"></span>${sub}`;
       subLi.className = 'collapsible';
       subMenu.appendChild(subLi);
 
@@ -63,7 +70,6 @@ function gerarMenu(data) {
         li.onclick = () => carregarArquivo(fileObj.arquivo, li);
         subSubMenu.appendChild(li);
 
-        // guardar para busca
         allFiles.push(li);
       });
       subMenu.appendChild(subSubMenu);
@@ -76,7 +82,7 @@ function gerarMenu(data) {
   }
 }
 
-// ------------------ Carregar arquivo no iframe ------------------
+// ------------------ Carregar arquivo ------------------
 function carregarArquivo(url, li) {
   if (activeListItem) activeListItem.classList.remove('active');
   li.classList.add('active');
@@ -101,11 +107,10 @@ document.getElementById('searchInput').addEventListener('input', e => {
   });
 });
 
-// ------------------ Script de âncoras no iframe ------------------
+// ------------------ Âncoras ------------------
 function injetarScriptDeAncoras() {
   if (!iframe.contentDocument) return;
 
-  // remover scripts antigos
   iframe.contentDocument.querySelectorAll('script[data-anchor]').forEach(s => s.remove());
 
   const script = document.createElement('script');
@@ -137,22 +142,12 @@ function injetarScriptDeAncoras() {
   iframe.contentDocument.head.appendChild(script);
 }
 
-// ------------------ Indicador de âncoras ------------------
-function mostrarIndicador() {
-  const existing = document.querySelector('.anchor-status');
-  if(existing) existing.remove();
-  const indicator = document.createElement('div');
-  indicator.className = 'anchor-status';
-  indicator.textContent = '✓ Índice ativo (âncoras funcionando)';
-  document.body.appendChild(indicator);
-  setTimeout(()=>indicator.remove(), 4000);
-}
-
 // ------------------ Inicializar ------------------
 fetch('menu.json')
   .then(res => res.json())
   .then(data => gerarMenu(data))
   .catch(err => console.error('Erro ao carregar menu JSON:', err));
 </script>
+
 </body>
 </html>
