@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Tree Generator Final</title>
+    <style>
+        :root { --bg: #0f0f0f; --panel: #181818; --text: #e0e0e0; --accent: #2ecc71; --blue: #3498db; --orange: #e67e22; }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; display: flex; flex-direction: column; height: 100vh; }
+        .toolbar { padding: 15px; background: #1f1f1f; border-bottom: 1px solid #333; display: flex; gap: 10px; justify-content: center; }
+        .main { display: flex; flex: 1; overflow: hidden; padding: 10px; gap: 10px; }
+        .column { display: flex; flex-direction: column; flex: 1; }
+        h3 { font-size: 11px; color: #777; text-transform: uppercase; margin-bottom: 8px; }
+        textarea { flex: 1; background: var(--panel); color: #9cdcfe; border: 1px solid #333; padding: 15px; font-family: 'Consolas', monospace; font-size: 13px; resize: none; outline: none; border-radius: 6px; }
+        pre { flex: 1; margin: 0; padding: 15px; color: var(--accent); font-family: 'Consolas', monospace; font-size: 13px; overflow: auto; background: #050505; border: 1px solid #222; border-radius: 6px; }
+        button { padding: 10px 18px; font-size: 11px; cursor: pointer; border: none; border-radius: 4px; font-weight: bold; text-transform: uppercase; }
+        .btn-mode { background: #333; color: white; }
+        .btn-mode.active { background: var(--blue); }
+        .btn-convert { background: var(--orange); color: white; }
+        .btn-copy { background: var(--accent); color: black; margin-left: 20px; }
+    </style>
+</head>
+<body>
+
+<div class="toolbar">
+    <button id="modeText" class="btn-mode active" onclick="setMode('text')">Modo Texto</button>
+    <button id="modeJson" class="btn-mode" onclick="setMode('json')">Modo JSON</button>
+    <button class="btn-convert" onclick="treeToJson()">Árvore ➔ JSON</button>
+    <button class="btn-copy" onclick="copyResult()">Copiar</button>
+</div>
+
+<div class="main">
+    <div class="column">
+        <h3>Editor</h3>
+        <textarea id="mainEditor" spellcheck="false"></textarea>
+    </div>
+    <div class="column">
+        <h3>Resultado</h3>
+        <pre id="treeDisplay"></pre>
+    </div>
+</div>
+
+<script>
+    const editor = document.getElementById('mainEditor');
+    const display = document.getElementById('treeDisplay');
+    let currentMode = 'text';
+
+    function setMode(mode) {
+        currentMode = mode;
+        document.querySelectorAll('.btn-mode').forEach(b => b.classList.remove('active'));
+        document.getElementById('mode' + mode.charAt(0).toUpperCase() + mode.slice(1)).classList.add('active');
+        updateTree();
+    }
+
+    editor.addEventListener('keydown', function(e) {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const s = this.selectionStart;
+            this.value = this.value.substring(0, s) + "  " + this.value.substring(this.selectionEnd);
+            this.selectionStart = this.selectionEnd = s + 2;
+        }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            const s = this.selectionStart;
+            const line = this.value.substring(0, s).split('\n').pop();
+            const indent = line.match(/^\s*/)[0];
+            this.value = this.value.substring(0, s) + "\n" + indent + this.value.substring(this.selectionEnd);
+            this.selectionStart = this.selectionEnd = s + 1 + indent.length;
+        }
+        if (e.key === 'Backspace') {
+            const s = this.selectionStart;
+            const line = this.value.substring(0, s).split('\n').pop();
+            if (line.length > 0 && line.trim() === "" && line.length % 2 === 0) {
+                e.preventDefault();
+                this.value = this.value.substring(0, s - 2) + this.value.substring(this.selectionEnd);
+                this.selectionStart = this.selectionEnd = s - 2;
+            }
+        }
+        updateTree();
+    });
+
+    editor.addEventListener('input', updateTree);
+
+    function treeToJson() {
+        const lines = editor.value.split('\n').filter(l => l.trim() !== '');
+        let nodes = lines.map(line => {
+            const m = line.match(/[a-zA-Z0-9].*/);
+            return { lvl: line.indexOf(m ? m[0] : ""), name: (m ? m[0] : "").replace(/[│├└─/]/g, '').trim() };
+        });
+
+        let result = {};
+        nodes.forEach((node, i) => {
+            const isFile = i === nodes.length - 1 || nodes[i+1].lvl <= node.lvl;
+            if (isFile) {
+                let path = [];
+                let curLvl = node.lvl;
+                path.push(node.name);
+                for (let j = i - 1; j >= 0; j--) {
+                    if (nodes[j].lvl < curLvl) {
+                        path.unshift(nodes[j].name);
+                        curLvl = nodes[j].lvl;
+                    }
+                }
+                const root = path[0] || "Geral";
+                const sub = path[1] || "Principal";
+                const file = path.slice(2).join('/');
+                if (!result[root]) result[root] = {};
+                if (!result[root][sub]) result[root][sub] = [];
+                result[root][sub].push({ arquivo: file || sub, tags: [] });
+            }
+        });
+        editor.value = JSON.stringify(result, null, 2);
+        setMode('json');
+    }
+
+    function renderASCII(nodes) {
+        let res = "";
+        nodes.forEach((n, i) => {
+            let pref = "";
+            for (let d = 0; d < n.indent; d += 2) {
+                let sibling = false;
+                for (let j = i + 1; j < nodes.length; j++) {
+                    if (nodes[j].indent === d) { sibling = true; break; }
+                    if (nodes[j].indent < d) break;
+                }
+                pref += (d === n.indent - 2) ? ( (i === nodes.length - 1 || nodes[i+1].indent < n.indent) && !sibling ? "└── " : "├── " ) : (sibling ? "│ " : "  ");
+            }
+            const isDir = nodes[i+1] && nodes[i+1].indent > n.indent;
+            res += pref + n.name + (isDir ? "/" : "") + "\n";
+        });
+        return res;
+    }
+
+    function updateTree() {
+        if (!editor.value.trim()) { display.textContent = ""; return; }
+        if (currentMode === 'json') {
+            try {
+                const data = JSON.parse(editor.value);
+                let nodes = [], tree = {};
+                const add = (t, p) => { let c = t; p.forEach(pt => { if(!c[pt]) c[pt] = {}; c = c[pt]; }); };
+                Object.keys(data).forEach(k => {
+                    tree[k] = {};
+                    Object.keys(data[k]).forEach(s => {
+                        tree[k][s] = tree[k][s] || {};
+                        data[k][s].forEach(f => add(tree[k][s], (f.arquivo || f).split('/')));
+                    });
+                });
+                const flat = (o, d) => Object.keys(o).forEach(k => { nodes.push({name: k, indent: d}); flat(o[k], d+2); });
+                flat(tree, 0);
+                display.textContent = renderASCII(nodes);
+            } catch(e) { display.textContent = "Erro no JSON..."; }
+        } else {
+            const lines = editor.value.split('\n').filter(l => l.trim() !== '');
+            display.textContent = renderASCII(lines.map(l => {
+                const m = l.match(/[a-zA-Z0-9].*/);
+                return { name: (m?m[0]:"").replace(/[│├└─/]/g, '').trim(), indent: l.indexOf(m?m[0]:"") };
+            }));
+        }
+    }
+
+    function copyResult() {
+        navigator.clipboard.writeText(currentMode === 'json' ?  display.textContent : editor.value);
+        alert("Copiado!");
+    }
+    window.onload = updateTree;
+</script>
+</body>
+</html>
