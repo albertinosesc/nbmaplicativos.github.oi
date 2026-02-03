@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Editor ABC com Biblioteca Local</title>
+
+<!-- Script ABCJS -->
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6.5.2/dist/abcjs-basic-min.js"></script>
+
+<style>
+  /* --- ESTILOS --- */
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; }
+  
+  /* HEADER */
+  .header { 
+    height: 50px; 
+    background: #fff; 
+    border-bottom: 1px solid #ccc; 
+    display: flex; 
+    align-items: center; 
+    padding: 0 15px; 
+    gap: 10px; 
+  }
+  
+  .header-btn { 
+    padding: 7px 12px; 
+    font-size: 13px; 
+    cursor: pointer; 
+    background: #fff; 
+    border: 1px solid #ccc; 
+    border-radius: 6px; 
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  
+  .header-btn:hover { background: #f1f3f5; }
+  #btnSave { background: #22c55e; color: #fff; border: none; }
+  #btnClear { background: #f59e0b; color: #fff; border: none; }
+  
+  /* CONTROLES */
+  .control-group { 
+    display: flex; 
+    align-items: center; 
+    gap: 5px; 
+    background: #f8f9fa; 
+    padding: 4px 10px; 
+    border-radius: 20px; 
+    border: 1px solid #dee2e6; 
+  }
+  
+  .control-group button { 
+    padding: 2px 8px; 
+    font-size: 12px; 
+    cursor: pointer; 
+    background: #fff; 
+    border: 1px solid #ccc; 
+    border-radius: 4px; 
+  }
+  
+  #transposeLabel, #zoomLabel { 
+    min-width: 35px; 
+    text-align: center; 
+    font-weight: 800; 
+    font-size: 14px; 
+  }
+  
+  /* CONTAINER PRINCIPAL */
+  .app-container { 
+    display: grid; 
+    grid-template-columns: auto 1fr;
+    height: calc(100vh - 50px); 
+  }
+  
+  /* SIDEBAR (BIBLIOTECA) */
+  .sidebar { 
+    background: #f8f9fa; 
+    border-right: 1px solid #ccc; 
+    width: 250px;
+    overflow-y: auto; 
+    transition: width 0.3s ease, opacity 0.3s ease;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .sidebar.collapsed {
+    width: 0;
+    opacity: 0;
+    overflow: hidden;
+  }
+  
+  .sidebar-header {
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .sidebar-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 10px;
+  }
+  
+  .sidebar h3 { 
+    margin-bottom: 10px; 
+    color: #333; 
+    font-size: 14px; 
+    text-transform: uppercase; 
+  }
+  
+  .file-list { 
+    list-style: none; 
+  }
+  
+  .file-item { 
+    padding: 8px 10px; 
+    margin-bottom: 5px; 
+    background: white; 
+    border: 1px solid #ddd; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-size: 13px; 
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  
+  .file-item:hover { 
+    background: #e3f2fd; 
+    border-color: #2196f3; 
+  }
+  
+  .file-item.active { 
+    background: #2196f3; 
+    color: white; 
+    border-color: #1976d2; 
+  }
+  
+  .file-count {
+    background: #e0e0e0;
+    padding: 2px 6px;
+    border-radius: 10px;
+    font-size: 11px;
+  }
+  
+  .file-item.active .file-count {
+    background: rgba(255, 255, 255, 0.3);
+  }
+  
+  /* EDITOR E PARTITURA */
+  .main-content { 
+    display: grid;
+    grid-template-columns: auto 1fr;
+    height: 100%;
+    transition: grid-template-columns 0.3s ease;
+  }
+  
+  .main-content.editor-collapsed {
+    grid-template-columns: 0 1fr;
+  }
+  
+  .editor-container, .score-container { 
+    padding: 10px; 
+    overflow: hidden; 
+    display: flex; 
+    flex-direction: column;
+    transition: width 0.3s ease, opacity 0.3s ease;
+  }
+  
+  .editor-container {
+    min-width: 300px;
+    border-right: 1px solid #ccc;
+  }
+  
+  .editor-header {
+    padding: 5px 0 10px 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .editor-header h3 {
+    margin: 0;
+    font-size: 14px;
+  }
+  
+  textarea { 
+    width: 100%; 
+    height: 100%; 
+    font-family: 'Courier New', monospace; 
+    font-size: 15px; 
+    padding: 15px; 
+    border: 1px solid #ccc; 
+    border-radius: 4px; 
+    resize: none; 
+    outline: none; 
+    flex: 1;
+  }
+  
+  /* PARTITURA */
+  #paper-container { 
+    flex: 1; 
+    overflow: auto; 
+    border: 1px solid #ccc; 
+    border-radius: 4px; 
+    background: white; 
+  }
+  
+  #paper { 
+    padding: 20px; 
+    transform-origin: top left; 
+    transition: transform 0.1s ease; 
+  }
+  
+  /* CONTROLES INFERIORES */
+  .bottom-controls { 
+    padding: 10px; 
+    background: #e9ecef; 
+    border-top: 1px solid #ccc; 
+    display: flex; 
+    gap: 10px; 
+    align-items: center; 
+  }
+  
+  #playBtn { 
+    padding: 8px 20px; 
+    background: #28a745; 
+    color: white; 
+    border: none; 
+    border-radius: 4px; 
+    cursor: pointer; 
+    font-weight: bold; 
+  }
+  
+  #playBtn.playing { background: #dc3545; }
+  
+  /* LISTA DE MÚSICAS */
+  .music-list { 
+    max-height: 300px; 
+    overflow-y: auto; 
+    margin-top: 10px; 
+    border: 1px solid #ddd; 
+    border-radius: 4px; 
+    background: white; 
+  }
+  
+  .music-item { 
+    padding: 8px 10px; 
+    border-bottom: 1px solid #eee; 
+    cursor: pointer; 
+    font-size: 12px; 
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  
+  .music-item:hover { 
+    background: #f5f5f5; 
+  }
+  
+  .music-item.active { 
+    background: #e3f2fd; 
+    font-weight: bold; 
+  }
+  
+  .music-number {
+    background: #2196f3;
+    color: white;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+  }
+  
+  .music-item.active .music-number {
+    background: #1565c0;
+  }
+  
+  /* MODO TELA CHEIA */
+  body.fullscreen-mode .header, 
+  body.fullscreen-mode .bottom-controls,
+  body.fullscreen-mode .sidebar,
+  body.fullscreen-mode .editor-container { 
+    display: none !important; 
+  }
+  
+  body.fullscreen-mode .app-container { 
+    grid-template-columns: 1fr; 
+    position: fixed; 
+    top: 0; 
+    left: 0; 
+    width: 100vw; 
+    height: 100vh; 
+  }
+  
+  body.fullscreen-mode .main-content {
+    grid-template-columns: 1fr;
+  }
+  
+  .fullscreen-controls { 
+    display: none; 
+    position: fixed; 
+    top: 10px; 
+    right: 10px; 
+    z-index: 1000; 
+    gap: 10px;
+  }
+  
+  body.fullscreen-mode .fullscreen-controls { 
+    display: flex; 
+  }
+  
+  /* INDICADORES DE VISIBILIDADE */
+  .visibility-indicator {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    background: #2196f3;
+    color: white;
+    border-radius: 0 10px 10px 0;
+    padding: 8px 5px;
+    cursor: pointer;
+    z-index: 10;
+    font-size: 12px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+  }
+
+  .visibility-indicator2 {
+    position: absolute;
+    top: 60%;
+    transform: translateY(-50%);
+    background: #2196f3;
+    color: white;
+    border-radius: 0 10px 10px 0;
+    padding: 8px 5px;
+    cursor: pointer;
+    z-index: 10;
+    font-size: 12px;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    box-shadow: 2px 0 5px rgba(0,0,0,0.2);
+  }
+  
+  .sidebar-collapse-btn {
+    left: 0;
+  }
+  
+  .editor-collapse-btn {
+    left: 250px;
+    transition: left 0.3s ease;
+  }
+  
+  .sidebar.collapsed ~ .editor-collapse-btn {
+    left: 0;
+  }
+  
+  .main-content.editor-collapsed .editor-collapse-btn {
+    left: 0;
+  }
+  
+  /* MENSAGEM DE CARREGAMENTO */
+  .loading-message {
+    padding: 20px;
+    text-align: center;
+    color: #666;
+  }
+  
+  .error-message {
+    padding: 20px;
+    text-align: center;
+    color: #dc3545;
+    background: #f8d7da;
+    border-radius: 4px;
+    margin: 10px;
+  }
+</style>
+</head>
+<body>
+
+<!-- CONTROLES DE TELA CHEIA -->
+<div class="fullscreen-controls">
+  <button onclick="toggleFullscreen()" style="padding: 8px 12px;">✕ Sair da Tela Cheia</button>
+</div>
+
+<!-- INDICADORES DE VISIBILIDADE -->
+<div class="visibility-indicator sidebar-collapse-btn" onclick="toggleSidebar()">
+  📁 Biblioteca
+</div>
+
+<div class="visibility-indicator2 editor-collapse-btn" onclick="toggleEditor()">
+  ✏️ Editor
+</div>
+
+<!-- HEADER -->
+<div class="header">
+  <!-- Botões de visibilidade -->
+  <button class="header-btn" onclick="toggleSidebar()" title="Mostrar/ocultar biblioteca">
+    <span id="sidebarIcon">📁</span>
+  </button>
+  
+  <button class="header-btn" onclick="toggleEditor()" title="Mostrar/ocultar editor">
+    <span id="editorIcon">✏️</span>
+  </button>
+  
+  <!-- Botões principais -->
+  <button class="header-btn" onclick="newDocument()">📄 Novo</button>
+  <button id="btnSave" class="header-btn" onclick="saveDocument()">💾 Salvar</button>
+  <button id="btnClear" class="header-btn" onclick="clearEditor()">🧹 Limpar</button>
+  
+  <!-- TRANSPOSE -->
+  <div class="control-group">
+    <span>Transpor:</span>
+    <button onclick="changeTranspose(-1)">-½</button>
+    <span id="transposeLabel">0</span>
+    <button onclick="changeTranspose(1)">+½</button>
+  </div>
+  
+  <!-- ZOOM -->
+  <div class="control-group">
+    <span>Zoom:</span>
+    <button onclick="changeZoom(-10)">-</button>
+    <span id="zoomLabel">100%</span>
+    <button onclick="changeZoom(10)">+</button>
+    <button onclick="resetZoom()">100%</button>
+  </div>
+  
+  <!-- OUTROS CONTROLES -->
+  <div style="display: flex; gap: 5px;">
+    <button class="header-btn" onclick="loadLocalFiles()" title="Recarregar arquivos locais">🔄 Atualizar</button>
+    <button class="header-btn" onclick="importFile()">📥 Importar</button>
+    <button class="header-btn" onclick="exportFile()">📤 Exportar</button>
+    <button class="header-btn" onclick="toggleFullscreen()">🔲 Tela Cheia</button>
+  </div>
+</div>
+
+<!-- CONTAINER PRINCIPAL -->
+<div class="app-container">
+  <!-- SIDEBAR COM BIBLIOTECA -->
+  <div class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <h3>📚 Biblioteca Local</h3>
+      <button onclick="toggleSidebar()" style="background: none; border: none; cursor: pointer; font-size: 16px;">✕</button>
+    </div>
+    <div class="sidebar-content">
+      <div id="libraryStatus"></div>
+      <ul class="file-list" id="fileList">
+        <!-- Os arquivos serão carregados aqui -->
+      </ul>
+      
+      <div id="musicListContainer" style="display: none;">
+        <h3>🎵 Músicas</h3>
+        <div class="music-list" id="musicList">
+          <!-- As músicas do arquivo selecionado aparecerão aqui -->
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- CONTEÚDO PRINCIPAL -->
+  <div class="main-content" id="mainContent">
+    <!-- EDITOR -->
+    <div class="editor-container" id="editorContainer">
+      <div class="editor-header">
+        <h3>Editor ABC</h3>
+        <button onclick="toggleEditor()" style="background: none; border: none; cursor: pointer; font-size: 16px;">✕</button>
+      </div>
+      <textarea id="abcInput" spellcheck="false">X:1
+T:Minha Música
+M:4/4
+L:1/4
+K:C
+CDEF | GABC |]</textarea>
+    </div>
+    
+    <!-- PARTITURA -->
+    <div class="score-container">
+      <div id="paper-container">
+        <div id="paper"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- CONTROLES INFERIORES -->
+<div class="bottom-controls">
+  <div style="display: flex; gap: 10px; align-items: center;">
+    <button id="playBtn" onclick="togglePlay()">▶ Reproduzir</button>
+    <div id="currentFileInfo" style="font-size: 12px; color: #666; padding: 4px 8px; background: white; border-radius: 4px; border: 1px solid #ddd;">
+      Nenhum arquivo selecionado
+    </div>
+  </div>
+  <input type="file" id="importInput" accept=".abc,.txt,.json" style="display: none;" />
+</div>
+
+<script>
+// --- VARIÁVEIS GLOBAIS ---
+let visualObj = null;
+let synthInstance = null;
+let currentTranspose = 0;
+let currentZoom = 100;
+let documents = [];
+let currentDocId = null;
+let fileLibrary = [];
+let currentFileIndex = -1;
+let currentMusicIndex = 0;
+let isSidebarVisible = true;
+let isEditorVisible = true;
+const LIBRARY_PATH = 'Livros de Músicas/';
+
+
+
+// --- INICIALIZAÇÃO ---
+async function initApp() {
+  loadFromStorage();
+  await loadLocalFiles();
+  updateVisibilityIcons();
+  renderScore();
+  
+  document.getElementById('abcInput').addEventListener('input', function() {
+    setTimeout(renderScore, 100);
+  });
+  
+  // Tenta carregar arquivos locais
+  setTimeout(() => {
+    updateFileInfo();
+  }, 100);
+}
+
+// --- CARREGAMENTO DE ARQUIVOS LOCAIS ---
+async function loadLocalFiles() {
+  const statusElement = document.getElementById('libraryStatus');
+  statusElement.innerHTML = '<div class="loading-message">Carregando arquivos locais...</div>';
+  
+  try {
+    // Tenta carregar da pasta 'Livros de Músicas'
+    const files = await loadFilesFromDirectory(LIBRARY_PATH);
+    
+    if (files.length === 0) {
+      // Se não encontrou arquivos locais, usa os padrões
+      fileLibrary = [...defaultFiles];
+      statusElement.innerHTML = `
+        <div class="error-message">
+          <p>Nenhum arquivo encontrado na pasta "${LIBRARY_PATH}"</p>
+          <p style="font-size: 11px; margin-top: 5px;">Usando arquivos de exemplo</p>
+        </div>
+      `;
+    } else {
+      fileLibrary = files;
+      statusElement.innerHTML = `<div style="color: #28a745; padding: 10px; text-align: center;">
+        ✅ ${files.length} arquivo(s) carregado(s) da pasta "${LIBRARY_PATH}"
+      </div>`;
+    }
+    
+    renderFileList();
+    saveFileLibrary();
+    
+  } catch (error) {
+    console.error("Erro ao carregar arquivos:", error);
+    fileLibrary = [...defaultFiles];
+    statusElement.innerHTML = `
+      <div class="error-message">
+        <p>Erro ao carregar arquivos locais: ${error.message}</p>
+        <p style="font-size: 11px; margin-top: 5px;">Usando arquivos de exemplo</p>
+      </div>
+    `;
+    renderFileList();
+  }
+}
+
+// Função para carregar arquivos de um diretório
+async function loadFilesFromDirectory(directoryPath) {
+  const files = [];
+  
+  try {
+    // Para desenvolvimento local, podemos usar fetch para tentar carregar arquivos
+    // Nota: Isso funciona melhor com um servidor web local
+    const fileNames = [
+      '8012 - PDF - Guitarra.abc',
+      '8013 - PDF - Violino.abc',
+      '8014 - PDF - Saxofone.abc'
+    ];
+    
+    for (const fileName of fileNames) {
+      try {
+        const response = await fetch(`${directoryPath}${fileName}`);
+        if (response.ok) {
+          const content = await response.text();
+          files.push({
+            name: fileName.replace('.abc', '').replace('.txt', '').replace('.json', ''),
+            filename: fileName,
+            content: content
+          });
+        }
+      } catch (e) {
+        console.log(`Arquivo não encontrado: ${fileName}`);
+      }
+    }
+    
+    // Se não encontrou arquivos, tenta carregar do localStorage
+    if (files.length === 0) {
+      return loadFilesFromLocalStorage();
+    }
+    
+  } catch (error) {
+    console.warn("Não foi possível carregar do diretório, usando localStorage:", error);
+    return loadFilesFromLocalStorage();
+  }
+  
+  return files;
+}
+
+function loadFilesFromLocalStorage() {
+  const savedLibrary = localStorage.getItem('abc_file_library');
+  if (savedLibrary) {
+    try {
+      return JSON.parse(savedLibrary);
+    } catch (e) {
+      console.error("Erro ao carregar do localStorage:", e);
+      return [...defaultFiles];
+    }
+  }
+  return [...defaultFiles];
+}
+
+function saveFileLibrary() {
+  localStorage.setItem('abc_file_library', JSON.stringify(fileLibrary));
+}
+
+// --- CONTROLES DE VISIBILIDADE ---
+function toggleSidebar() {
+  isSidebarVisible = !isSidebarVisible;
+  const sidebar = document.getElementById('sidebar');
+  const editorCollapseBtn = document.querySelector('.editor-collapse-btn');
+  
+  if (isSidebarVisible) {
+    sidebar.classList.remove('collapsed');
+    editorCollapseBtn.style.left = '250px';
+  } else {
+    sidebar.classList.add('collapsed');
+    editorCollapseBtn.style.left = '0';
+  }
+  
+  updateVisibilityIcons();
+  setTimeout(renderScore, 100);
+}
+
+function toggleEditor() {
+  isEditorVisible = !isEditorVisible;
+  const mainContent = document.getElementById('mainContent');
+  
+  if (isEditorVisible) {
+    mainContent.classList.remove('editor-collapsed');
+  } else {
+    mainContent.classList.add('editor-collapsed');
+  }
+  
+  updateVisibilityIcons();
+  setTimeout(renderScore, 100);
+}
+
+function updateVisibilityIcons() {
+  const sidebarIcon = document.getElementById('sidebarIcon');
+  const editorIcon = document.getElementById('editorIcon');
+  
+  sidebarIcon.textContent = isSidebarVisible ? '📁' : '📂';
+  editorIcon.textContent = isEditorVisible ? '✏️' : '📝';
+}
+
+// --- BIBLIOTECA DE ARQUIVOS ---
+function renderFileList() {
+  const fileList = document.getElementById('fileList');
+  fileList.innerHTML = '';
+  
+  if (fileLibrary.length === 0) {
+    fileList.innerHTML = '<div class="loading-message">Nenhum arquivo disponível</div>';
+    return;
+  }
+  
+  fileLibrary.forEach((file, index) => {
+    const musics = extractMusicsFromFile(file.content);
+    
+    const li = document.createElement('li');
+    li.className = `file-item ${index === currentFileIndex ? 'active' : ''}`;
+    li.innerHTML = `
+      <span>${file.name}</span>
+      <span class="file-count">${musics.length}</span>
+    `;
+    li.onclick = () => selectFile(index);
+    fileList.appendChild(li);
+  });
+}
+
+function selectFile(index) {
+  currentFileIndex = index;
+  renderFileList();
+  showMusicList();
+  updateFileInfo();
+}
+
+function showMusicList() {
+  if (currentFileIndex === -1) {
+    document.getElementById('musicListContainer').style.display = 'none';
+    return;
+  }
+  
+  const file = fileLibrary[currentFileIndex];
+  const musicList = document.getElementById('musicList');
+  const container = document.getElementById('musicListContainer');
+  
+  const musics = extractMusicsFromFile(file.content);
+  
+  musicList.innerHTML = '';
+  
+  if (musics.length === 0) {
+    musicList.innerHTML = '<div class="loading-message">Nenhuma música encontrada</div>';
+  } else {
+    musics.forEach((music, index) => {
+      const div = document.createElement('div');
+      div.className = `music-item ${index === currentMusicIndex ? 'active' : ''}`;
+      div.innerHTML = `
+        <div class="music-number">${music.number}</div>
+        <span>${music.title}</span>
+      `;
+      div.onclick = () => selectMusic(index);
+      musicList.appendChild(div);
+    });
+  }
+  
+  container.style.display = 'block';
+}
+
+function extractMusicsFromFile(content) {
+  const musics = [];
+  const lines = content.split('\n');
+  let currentMusic = null;
+  let musicNumber = 1;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i].trim();
+    
+    if (line.startsWith('X:')) {
+      // Encontrou início de nova música
+      if (currentMusic) {
+        musics.push(currentMusic);
+      }
+      
+      currentMusic = {
+        number: musicNumber,
+        title: `Música ${musicNumber}`,
+        startLine: i,
+        content: line + '\n'
+      };
+      musicNumber++;
+    } else if (currentMusic) {
+      currentMusic.content += line + '\n';
+      
+      // Procura título (T:)
+      if (line.startsWith('T:')) {
+        currentMusic.title = line.substring(2).trim();
+      }
+    }
+  }
+  
+  // Adiciona a última música
+  if (currentMusic) {
+    musics.push(currentMusic);
+  }
+  
+  return musics;
+}
+
+function selectMusic(index) {
+  if (currentFileIndex === -1) return;
+  
+  currentMusicIndex = index;
+  const file = fileLibrary[currentFileIndex];
+  const musics = extractMusicsFromFile(file.content);
+  
+  if (musics[index]) {
+    document.getElementById('abcInput').value = musics[index].content.trim();
+    renderScore();
+    updateMusicListSelection();
+    updateFileInfo();
+  }
+}
+
+function updateMusicListSelection() {
+  const items = document.querySelectorAll('.music-item');
+  items.forEach((item, index) => {
+    item.classList.toggle('active', index === currentMusicIndex);
+  });
+}
+
+function updateFileInfo() {
+  const infoElement = document.getElementById('currentFileInfo');
+  
+  if (currentFileIndex === -1) {
+    infoElement.textContent = "Nenhum arquivo selecionado";
+    return;
+  }
+  
+  const file = fileLibrary[currentFileIndex];
+  const musics = extractMusicsFromFile(file.content);
+  const currentMusic = musics[currentMusicIndex];
+  
+  if (currentMusic) {
+    infoElement.textContent = `${file.name} → ${currentMusic.number}. ${currentMusic.title}`;
+  } else {
+    infoElement.textContent = file.name;
+  }
+}
+
+// --- FUNÇÕES DE TRANSPOSE E ZOOM ---
+function changeTranspose(n) { 
+  currentTranspose += n; 
+  updateTransposeLabel(); 
+  renderScore(); 
+}
+
+function resetTranspose() { 
+  currentTranspose = 0; 
+  updateTransposeLabel(); 
+  renderScore(); 
+}
+
+function updateTransposeLabel() { 
+  const label = document.getElementById('transposeLabel');
+  const text = (currentTranspose > 0 ? "+" : "") + currentTranspose;
+  if (label) label.innerText = text;
+}
+
+function changeZoom(amount) {
+  currentZoom += amount;
+  if (currentZoom < 20) currentZoom = 20;
+  if (currentZoom > 300) currentZoom = 300;
+  updateZoomLabel();
+  applyZoom();
+}
+
+function resetZoom() { 
+  currentZoom = 100;
+  updateZoomLabel();
+  applyZoom();
+}
+
+function updateZoomLabel() {
+  const label = document.getElementById('zoomLabel');
+  if (label) label.innerText = currentZoom + '%';
+}
+
+function applyZoom() {
+  const paperElement = document.getElementById('paper');
+  if (paperElement) {
+    const scale = currentZoom / 100;
+    paperElement.style.transform = `scale(${scale})`;
+  }
+}
+
+// --- RENDERIZAÇÃO DA PARTITURA ---
+function renderScore() {
+  const content = document.getElementById('abcInput').value.trim();
+  const paper = document.getElementById('paper');
+  
+  if (!content) {
+    paper.innerHTML = `
+      <div style="padding: 40px; text-align: center; color: #666;">
+        <p>Digite código ABC ou selecione uma música da biblioteca</p>
+      </div>
+    `;
+    visualObj = null;
+    return;
+  }
+  
+  try {
+    visualObj = ABCJS.renderAbc("paper", content, {
+      scale: currentZoom / 100,
+      visualTranspose: currentTranspose,
+      responsive: "resize"
+    })[0];
+    
+    setTimeout(applyZoom, 100);
+    
+  } catch (error) {
+    console.error("Erro ao renderizar:", error);
+    paper.innerHTML = `
+      <div style="padding: 20px; color: #dc2626;">
+        <p>Erro na sintaxe ABC:</p>
+        <p style="font-size: 12px; margin-top: 10px;">${error.message}</p>
+      </div>
+    `;
+  }
+}
+
+// --- FUNÇÕES DO EDITOR ---
+function newDocument() {
+  if (confirm("Criar novo documento? O conteúdo atual será perdido.")) {
+    document.getElementById('abcInput').value = 'X:1\nT:Nova Música\nM:4/4\nL:1/4\nK:C\n';
+    currentDocId = null;
+    currentFileIndex = -1;
+    currentMusicIndex = 0;
+    renderFileList();
+    document.getElementById('musicListContainer').style.display = 'none';
+    renderScore();
+    updateFileInfo();
+  }
+}
+
+function clearEditor() {
+  if (confirm("Limpar editor?")) {
+    document.getElementById('abcInput').value = '';
+    renderScore();
+  }
+}
+
+// --- STORAGE SIMPLES ---
+function saveDocument() {
+  const content = document.getElementById('abcInput').value.trim();
+  const title = extractTitle(content) || 'Documento sem título';
+  
+  if (!content) {
+    alert("Nada para salvar.");
+    return;
+  }
+  
+  const doc = {
+    id: currentDocId || 'doc_' + Date.now(),
+    title: title,
+    content: content,
+    updated: new Date().toISOString()
+  };
+  
+  const existingIndex = documents.findIndex(d => d.id === currentDocId);
+  if (existingIndex !== -1) {
+    documents[existingIndex] = doc;
+  } else {
+    documents.push(doc);
+  }
+  
+  currentDocId = doc.id;
+  saveToStorage();
+  
+  const btn = document.getElementById('btnSave');
+  const originalText = btn.innerHTML;
+  btn.innerHTML = "✅ Salvo!";
+  setTimeout(() => btn.innerHTML = originalText, 1500);
+}
+
+function extractTitle(content) {
+  const match = content.match(/^T:\s*(.+)$/m);
+  return match ? match[1].trim() : null;
+}
+
+function saveToStorage() {
+  localStorage.setItem('abc_editor_docs', JSON.stringify(documents));
+}
+
+function loadFromStorage() {
+  try {
+    const saved = localStorage.getItem('abc_editor_docs');
+    if (saved) {
+      documents = JSON.parse(saved) || [];
+    }
+  } catch (e) {
+    console.error("Erro ao carregar:", e);
+    documents = [];
+  }
+}
+
+// --- IMPORT/EXPORT ---
+function importFile() {
+  document.getElementById('importInput').click();
+}
+
+document.getElementById('importInput').onchange = function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const content = evt.target.result;
+    const filename = file.name;
+    const name = filename.replace('.abc', '').replace('.txt', '').replace('.json', '');
+    
+    // Adiciona à biblioteca
+    fileLibrary.push({
+      name: name,
+      filename: filename,
+      content: content
+    });
+    
+    saveFileLibrary();
+    renderFileList();
+    alert(`Arquivo "${name}" adicionado à biblioteca!`);
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+};
+
+function exportFile() {
+  const content = document.getElementById('abcInput').value;
+  const title = extractTitle(content) || 'musica';
+  const blob = new Blob([content], {type: 'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${title}.abc`;
+  a.click();
+}
+
+// --- REPRODUÇÃO ---
+async function togglePlay() {
+  const btn = document.getElementById("playBtn");
+  
+  if (synthInstance) {
+    await synthInstance.stop();
+    synthInstance = null;
+    btn.innerText = "▶ Reproduzir";
+    btn.classList.remove("playing");
+    return;
+  }
+  
+  if (!visualObj) {
+    alert("Nenhuma música para reproduzir.");
+    return;
+  }
+  
+  btn.innerText = "⏹ Parar";
+  btn.classList.add("playing");
+  
+  try {
+    synthInstance = new ABCJS.synth.CreateSynth();
+    await synthInstance.init({ visualObj });
+    await synthInstance.prime();
+    await synthInstance.start();
+  } catch (error) {
+    console.error("Erro na reprodução:", error);
+    alert("Erro na reprodução. Verifique o código ABC.");
+    btn.innerText = "▶ Reproduzir";
+    btn.classList.remove("playing");
+    synthInstance = null;
+  }
+}
+
+// --- TELA CHEIA ---
+function toggleFullscreen() {
+  document.body.classList.toggle('fullscreen-mode');
+  setTimeout(renderScore, 100);
+}
+
+// --- INICIALIZAR APLICAÇÃO ---
+window.onload = initApp;
+</script>
+</body>
+</html>
