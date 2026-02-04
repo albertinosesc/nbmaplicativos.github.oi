@@ -2,14 +2,14 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Editor ABC - Estúdio Pro (Corrigido)</title>
+<title>Editor ABC - Estúdio Completo</title>
 
 <script src="https://cdn.jsdelivr.net/npm/abcjs@6.5.2/dist/abcjs-basic-min.js"></script>
 
 <style>
-  /* Estilos preservados para manter a interface idêntica */
   * { margin: 0; padding: 0; box-sizing: border-box; }
   html, body { height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #f4f4f4; }
+  
   .header { height: 55px; background: #fff; border-bottom: 1px solid #ccc; display: flex; align-items: center; padding: 0 15px; gap: 10px; }
   .header-btn { padding: 8px 12px; font-size: 13px; cursor: pointer; background: #fff; border: 1px solid #ccc; border-radius: 6px; font-weight: 500; display: flex; align-items: center; gap: 5px; }
   .btn-save { background: #22c55e !important; color: white !important; border: none !important; }
@@ -19,16 +19,25 @@
   #metronomeVisual { width: 12px; height: 12px; border-radius: 50%; background: #ccc; transition: background 0.1s; margin-left: 5px; }
   .metronome-active { background: #2196f3 !important; transform: scale(1.2); }
   .control-group { display: flex; align-items: center; gap: 8px; background: #f8f9fa; padding: 5px 12px; border-radius: 20px; border: 1px solid #dee2e6; font-size: 13px; }
-  .control-group button { border: none; background: none; cursor: pointer; font-weight: bold; padding: 0 5px; font-size: 16px; }
+  .control-group button { border: none; background: none; cursor: pointer; font-weight: bold; padding: 0 5px; }
+
   .app-container { display: flex; height: calc(100vh - 55px); }
   .sidebar { width: 300px; background: #fff; border-right: 1px solid #ccc; overflow-y: auto; padding: 10px; transition: all 0.3s ease; }
   .sidebar.hidden { width: 0; opacity: 0; padding: 0; border: none; }
+  .file-container { margin-bottom: 8px; border-radius: 6px; overflow: hidden; border: 1px solid #eee; background: white; }
+  .file-header { padding: 12px; background: #fafafa; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; }
+  .music-list { display: none; background: #fff; }
+  .music-list.show { display: block; }
+  .music-item { padding: 10px 15px; font-size: 12px; cursor: pointer; border-bottom: 1px solid #f9f9f9; }
+  .music-item:hover { background: #e3f2fd; color: #2196f3; }
+  
   .editor-container { width: 400px; padding: 10px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid #ccc; transition: all 0.3s ease; }
   .editor-container.hidden { width: 0; opacity: 0; padding: 0; border: none; }
   textarea { width: 100%; height: 100%; font-family: 'Courier New', monospace; font-size: 15px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; resize: none; outline: none; }
   .score-container { flex: 1; padding: 10px; overflow: hidden; display: flex; flex-direction: column; }
   #paper-container { flex: 1; overflow: auto; background: white; border: 1px solid #ccc; border-radius: 8px; }
   #paper { padding: 30px; transform-origin: top left; }
+
   .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; }
   .modal-content { background: white; padding: 25px; border-radius: 15px; width: 380px; text-align: center; }
   .tuner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
@@ -46,13 +55,12 @@
   <button class="header-btn" onclick="toggleEditor()">✏️ Editor</button>
   <button class="header-btn btn-save" onclick="salvarArquivoLocal()">💾 Salvar</button>
   <button class="header-btn btn-tuner" onclick="openTuner()">🎸 Afinador</button>
-  
   <div style="width: 1px; height: 25px; background: #ddd; margin: 0 5px;"></div>
   <div class="control-group"> Tom: <button onclick="changeTranspose(-1)">-</button><span id="transposeLabel">0</span><button onclick="changeTranspose(1)">+</button></div>
   <button id="playBtn" class="header-btn" onclick="togglePlay()"><span id="playIcon">▶</span> <span id="playText">Tocar</span></button>
-  <div class="control-group"> BPM: <input type="number" id="bpmValue" class="bpm-input" value="100" min="40" max="300"><div id="metronomeVisual"></div></div>
+  <div class="control-group"> BPM: <input type="number" id="bpmValue" class="bpm-input" value="100" min="40" max="300" style="width:45px; border:none; background:transparent; font-weight:bold; color:#2196f3; outline:none; text-align:center;"><div id="metronomeVisual"></div></div>
   <div class="control-group"> Zoom: <button onclick="changeZoom(-10)">-</button><span id="zoomLabel">100%</span><button onclick="changeZoom(10)">+</button></div>
-  <div id="musicInfoTag"></div>
+  <div id="musicInfoTag" style="font-size:11px; color:#666; font-weight:bold; margin-left:10px;"></div>
   <div style="margin-left: auto;"><button class="header-btn" onclick="selectFolder()" style="background: #e3f2fd; color: #2196f3;">📂 Abrir Pasta</button></div>
 </div>
 
@@ -66,14 +74,16 @@
       <div class="instrument-btn" onclick="showTunerNotes('ukulele')">🌴 Ukulele</div>
     </div>
     <div id="tunerNotesArea" class="notes-container" style="display:none;"></div>
-
-    
+    <button class="btn-stop-tuner" onclick="stopTunerAudio()">⏹ PARAR SOM</button>
     <p onclick="closeTuner()" style="margin-top:15px; cursor:pointer; font-size:12px; color:#666">Fechar</p>
   </div>
 </div>
 
 <div class="app-container">
-  <div class="sidebar" id="sidebar"><div id="fileContainerList"></div></div>
+  <div class="sidebar" id="sidebar">
+    <div id="libraryStatus" style="font-size: 11px; margin-bottom: 10px; color: #999;">Carregando...</div>
+    <div id="fileContainerList"></div>
+  </div>
   <div class="editor-container" id="editorContainer"><textarea id="abcInput" spellcheck="false">X:1
 T:Novo Estudo
 Q:1/4=100
@@ -87,44 +97,33 @@ let visualObj = null, synthControl = null, audioContext = null;
 let currentTranspose = 0, currentZoom = 100, metroInterval = null, isPlaying = false;
 let currentFileHandle = null, fileLibrary = [];
 
-/* --- AFINADOR (WEB AUDIO - MANTIDO) --- */
+// --- LISTA DE ARQUIVOS DO GITHUB / SERVIDOR ---
+const arquivosNoServidor = ['musica/Hino01.txt', 'musica/8012 - PDF - Guitarra.txt', 'livro/Violino.txt'];
+
+/* --- AFINADOR (WEB AUDIO) --- */
 let oscillator = null, gainNode = null, currentActiveNoteBtn = null;
 const freqs = { 'E,,': 82.41, 'A,,': 110.00, 'D,': 146.83, 'G,': 196.00, 'B,': 246.94, 'E': 329.63, 'D': 293.66, 'A': 440.00, 'e': 659.25, 'B': 493.88, 'G': 392.00, 'd': 587.33, 'C': 261.63 };
 
 function openTuner() { document.getElementById('tunerModal').style.display = 'flex'; }
 function closeTuner() { stopTunerAudio(); document.getElementById('tunerModal').style.display = 'none'; }
-
 function playTunerNote(freqKey, btnElement) {
   if (!audioContext) audioContext = new AudioContext();
   if (currentActiveNoteBtn === btnElement) { stopTunerAudio(); return; }
   stopTunerAudio();
-  currentActiveNoteBtn = btnElement;
-  btnElement.classList.add('active');
-  oscillator = audioContext.createOscillator();
-  gainNode = audioContext.createGain();
-  oscillator.type = 'sawtooth';
-  oscillator.frequency.setValueAtTime(freqs[freqKey], audioContext.currentTime);
-  const filter = audioContext.createBiquadFilter();
-  filter.type = 'lowpass'; filter.frequency.setValueAtTime(1000, audioContext.currentTime);
+  currentActiveNoteBtn = btnElement; btnElement.classList.add('active');
+  oscillator = audioContext.createOscillator(); gainNode = audioContext.createGain();
+  oscillator.type = 'sawtooth'; oscillator.frequency.setValueAtTime(freqs[freqKey], audioContext.currentTime);
+  const filter = audioContext.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(1000, audioContext.currentTime);
   oscillator.connect(filter); filter.connect(gainNode); gainNode.connect(audioContext.destination);
-  gainNode.gain.setValueAtTime(0, audioContext.currentTime);
-  gainNode.gain.linearRampToValueAtTime(0.2, audioContext.currentTime + 0.1);
+  gainNode.gain.setValueAtTime(0, audioContext.currentTime); gainNode.gain.linearRampToValueAtTime(0.2, audioContext.currentTime + 0.1);
   oscillator.start();
 }
-
 function stopTunerAudio() {
-  if (oscillator) {
-    const og = gainNode, os = oscillator;
-    og.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1);
-    setTimeout(() => os.stop(), 120); oscillator = null;
-  }
+  if (oscillator) { gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1); const os = oscillator; setTimeout(() => os.stop(), 120); oscillator = null; }
   if (currentActiveNoteBtn) { currentActiveNoteBtn.classList.remove('active'); currentActiveNoteBtn = null; }
 }
-
 function showTunerNotes(inst) {
-  stopTunerAudio();
-  const area = document.getElementById('tunerNotesArea');
-  area.style.display = 'flex'; area.innerHTML = '';
+  stopTunerAudio(); const area = document.getElementById('tunerNotesArea'); area.style.display = 'flex'; area.innerHTML = '';
   const instData = {
     violao: { nomes: ['E2','A2','D3','G3','B3','E4'], notas: ['E,,', 'A,,', 'D,', 'G,', 'B,', 'E'] },
     violino: { nomes: ['G3','D4','A4','E5'], notas: ['G,', 'D', 'A', 'e'] },
@@ -133,92 +132,51 @@ function showTunerNotes(inst) {
   };
   instData[inst].nomes.forEach((nome, idx) => {
     const btn = document.createElement('button'); btn.className = 'note-btn'; btn.innerText = nome;
-    btn.onclick = () => playTunerNote(instData[inst].notas[idx], btn);
-    area.appendChild(btn);
+    btn.onclick = () => playTunerNote(instData[inst].notas[idx], btn); area.appendChild(btn);
   });
 }
 
-/* --- PLAY COM TRANSPOSE CORRIGIDO --- */
+/* --- PLAY E TRANSPOSE CORRIGIDO --- */
 async function togglePlay() {
   const btn = document.getElementById("playBtn");
   if (isPlaying) { stopPlayback(); isPlaying = false; return; }
-  
   try {
-    isPlaying = true;
-    const bpm = document.getElementById('bpmValue').value;
+    isPlaying = true; const bpm = document.getElementById('bpmValue').value;
     btn.classList.add("playing"); btn.querySelector('#playIcon').innerText = "⏹";
     if (!audioContext) audioContext = new AudioContext();
-    
     const abcText = document.getElementById('abcInput').value;
     const lines = abcText.split('\n');
     let updatedLines = lines.map(l => l.trim().startsWith('Q:') ? `Q:1/4=${bpm}` : l);
     if (!updatedLines.some(l => l.startsWith('Q:'))) updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
-    
-    // Renderiza com transpose visual
-    visualObj = ABCJS.renderAbc("paper", updatedLines.join('\n'), { 
-      scale: currentZoom / 100, 
-      visualTranspose: currentTranspose, 
-      responsive: "resize" 
-    })[0];
-    
+    visualObj = ABCJS.renderAbc("paper", updatedLines.join('\n'), { scale: currentZoom / 100, visualTranspose: currentTranspose, responsive: "resize" })[0];
     synthControl = new ABCJS.synth.CreateSynth();
-    await synthControl.init({
-      visualObj: visualObj,
-      audioContext: audioContext,
-      millisecondsPerMeasure: visualObj.millisecondsPerMeasure(),
-      soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/",
-      options: { 
-        program: 0, // Piano
-        midiTranspose: currentTranspose // AQUI ESTÁ A CORREÇÃO: Transpõe o áudio
+    await synthControl.init({ visualObj, audioContext, soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/", options: { program: 0, midiTranspose: currentTranspose } });
+    await synthControl.prime(); await synthControl.start(); startVisualMetronome();
+    synthControl.eventListener = (e) => { if (e.type === 'ended') { stopPlayback(); isPlaying = false; } };
+  } catch (e) { isPlaying = false; }
+}
+function stopPlayback() { if (synthControl) { try { synthControl.stop(); } catch (e) {} synthControl = null; } stopVisualMetronome(); document.getElementById("playBtn").classList.remove("playing"); document.getElementById("playIcon").innerText = "▶"; }
+function renderScore() { visualObj = ABCJS.renderAbc("paper", document.getElementById('abcInput').value, { scale: currentZoom / 100, visualTranspose: currentTranspose, responsive: "resize" })[0]; }
+
+/* --- BIBLIOTECA (GITHUB + LOCAL) --- */
+async function carregarArquivosServidor() {
+  const status = document.getElementById('libraryStatus');
+  for (const url of arquivosNoServidor) {
+    try {
+      const resp = await fetch(url);
+      if (resp.ok) {
+        const content = await resp.text();
+        fileLibrary.push({ name: url.split('/').pop(), content, handle: null });
       }
-    });
-    
-    await synthControl.prime();
-    await synthControl.start();
-    startVisualMetronome();
-    
-    synthControl.eventListener = (e) => {
-      if (e.type === 'ended') {
-        stopPlayback();
-        btn.classList.remove("playing");
-        isPlaying = false;
-      }
-    };
-  } catch (e) { console.error(e); isPlaying = false; }
+    } catch (e) { console.error("Erro ao carregar remoto:", url); }
+  }
+  status.innerText = "Arquivos carregados.";
+  renderLibrary();
 }
 
-function stopPlayback() {
-  if (synthControl) { try { synthControl.stop(); } catch (e) {} synthControl = null; }
-  stopVisualMetronome();
-  document.getElementById("playBtn").classList.remove("playing");
-  document.getElementById("playIcon").innerText = "▶";
-}
-
-function renderScore() {
-  const abcText = document.getElementById('abcInput').value;
-  visualObj = ABCJS.renderAbc("paper", abcText, { 
-    scale: currentZoom / 100, 
-    visualTranspose: currentTranspose, 
-    responsive: "resize" 
-  })[0];
-}
-
-/* --- OUTRAS FUNÇÕES --- */
-function updateBPM() { if (isPlaying) { stopPlayback(); setTimeout(togglePlay, 100); } renderScore(); }
-function startVisualMetronome() {
-  stopVisualMetronome();
-  const ms = 60000 / parseInt(document.getElementById('bpmValue').value);
-  const dot = document.getElementById('metronomeVisual');
-  metroInterval = setInterval(() => { dot.classList.add('metronome-active'); setTimeout(() => dot.classList.remove('metronome-active'), 100); }, ms);
-}
-function stopVisualMetronome() { if (metroInterval) clearInterval(metroInterval); }
-function changeTranspose(n) { currentTranspose += n; document.getElementById('transposeLabel').textContent = currentTranspose; if (isPlaying) { stopPlayback(); } renderScore(); }
-function changeZoom(n) { currentZoom += n; document.getElementById('zoomLabel').textContent = currentZoom + '%'; renderScore(); }
-
-// Gerenciamento de arquivos e biblioteca simplificado para o exemplo
 async function selectFolder() {
   const dirHandle = await window.showDirectoryPicker();
-  fileLibrary = [];
+  fileLibrary = fileLibrary.filter(f => f.handle === null); // Mantém os do servidor
   for await (const entry of dirHandle.values()) {
     if (entry.name.endsWith('.txt')) {
       const file = await entry.getFile();
@@ -229,18 +187,15 @@ async function selectFolder() {
 }
 
 function renderLibrary() {
-  const container = document.getElementById('fileContainerList');
-  container.innerHTML = '';
+  const container = document.getElementById('fileContainerList'); container.innerHTML = '';
   fileLibrary.forEach((file, fIdx) => {
-    const fDiv = document.createElement('div');
-    fDiv.className = 'file-container';
-    fDiv.innerHTML = `<div class="file-header" onclick="toggleAccordion(${fIdx})"><span>📄 ${file.name}</span></div><div class="music-list" id="list-${fIdx}"></div>`;
+    const fDiv = document.createElement('div'); fDiv.className = 'file-container';
+    fDiv.innerHTML = `<div class="file-header" onclick="toggleAccordion(${fIdx})"><span>${file.handle ? '📁' : '🌐'} ${file.name}</span></div><div class="music-list" id="list-${fIdx}"></div>`;
     const mList = fDiv.querySelector('.music-list');
     const musics = extractMusics(file.content);
     musics.forEach(m => {
-      const mDiv = document.createElement('div');
-      mDiv.className = 'music-item'; mDiv.innerText = `🎵 ${m.title}`;
-      mDiv.onclick = () => { currentFileHandle = file.handle; document.getElementById('abcInput').value = m.content; renderScore(); };
+      const mDiv = document.createElement('div'); mDiv.className = 'music-item'; mDiv.innerText = `🎵 ${m.title}`;
+      mDiv.onclick = () => { currentFileHandle = file.handle; document.getElementById('abcInput').value = m.content; document.getElementById('musicInfoTag').innerText = "| " + m.title; renderScore(); };
       mList.appendChild(mDiv);
     });
     container.appendChild(fDiv);
@@ -256,11 +211,25 @@ function extractMusics(content) {
   if (current) musics.push(current); return musics;
 }
 
+async function salvarArquivoLocal() {
+  if (!currentFileHandle) { alert("Arquivos do servidor não podem ser salvos localmente aqui."); return; }
+  const writable = await currentFileHandle.createWritable();
+  await writable.write(document.getElementById('abcInput').value);
+  await writable.close();
+  alert("Salvo com sucesso!");
+}
+
+/* --- UTILITÁRIOS --- */
+function updateBPM() { if (isPlaying) { stopPlayback(); setTimeout(togglePlay, 100); } renderScore(); }
+function startVisualMetronome() { stopVisualMetronome(); const ms = 60000 / parseInt(document.getElementById('bpmValue').value); const dot = document.getElementById('metronomeVisual'); metroInterval = setInterval(() => { dot.classList.add('metronome-active'); setTimeout(() => dot.classList.remove('metronome-active'), 100); }, ms); }
+function stopVisualMetronome() { if (metroInterval) clearInterval(metroInterval); }
+function changeTranspose(n) { currentTranspose += n; document.getElementById('transposeLabel').textContent = currentTranspose; renderScore(); }
+function changeZoom(n) { currentZoom += n; document.getElementById('zoomLabel').textContent = currentZoom + '%'; renderScore(); }
 function toggleAccordion(idx) { document.getElementById(`list-${idx}`).classList.toggle('show'); }
 function toggleEditor() { document.getElementById('editorContainer').classList.toggle('hidden'); }
 function toggleSidebar() { document.getElementById('sidebar').classList.toggle('hidden'); }
 
-window.onload = () => { renderScore(); document.getElementById('bpmValue').addEventListener('change', updateBPM); };
+window.onload = () => { renderScore(); carregarArquivosServidor(); document.getElementById('bpmValue').addEventListener('change', updateBPM); };
 </script>
 </body>
 </html>
