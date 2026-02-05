@@ -14,6 +14,7 @@
   .header-btn { padding: 8px 12px; font-size: 13px; cursor: pointer; background: #fff; border: 1px solid #ccc; border-radius: 6px; font-weight: 500; display: flex; align-items: center; gap: 5px; }
   .btn-save { background: #22c55e !important; color: white !important; border: none !important; }
   .btn-tuner { background: #6366f1 !important; color: white !important; border: none !important; }
+  .btn-train { background: #f97316 !important; color: white !important; border: none !important; }
   #playBtn { background: #28a745; color: white; border: none; min-width: 90px; justify-content: center; }
   #playBtn.playing { background: #dc3545; }
   #metronomeVisual { width: 12px; height: 12px; border-radius: 50%; background: #ccc; transition: background 0.1s; margin-left: 5px; }
@@ -38,14 +39,37 @@
   #paper-container { flex: 1; overflow: auto; background: white; border: 1px solid #ccc; border-radius: 8px; }
   #paper { padding: 30px; transform-origin: top left; }
 
+  /* Modais */
   .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; }
   .modal-content { background: white; padding: 25px; border-radius: 15px; width: 380px; text-align: center; }
+  .modal-content.train { width: 420px; }
   .tuner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
   .instrument-btn { padding: 12px; border: 1px solid #ddd; border-radius: 10px; cursor: pointer; background: #fdfdfd; font-weight: 600; }
   .notes-container { display: flex; justify-content: center; gap: 8px; margin-top: 15px; flex-wrap: wrap; border-top: 1px solid #eee; padding-top: 20px; }
-  .note-btn { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #6366f1; background: white; color: #6366f1; cursor: pointer; font-weight: bold; }
+  .note-btn { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #6366f1; background: white; color: #6366f3; cursor: pointer; font-weight: bold; }
   .note-btn.active { background: #6366f1; color: white; }
   .btn-stop-tuner { width: 100%; margin-top: 20px; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+
+  /* Painel de Treino */
+  .training-panel { position: fixed; top: 60px; right: 20px; background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); width: 280px; z-index: 900; display: none; }
+  .training-panel.active { display: block; }
+  .training-header { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #f97316; display: flex; align-items: center; gap: 8px; }
+  .training-stats { background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 15px; }
+  .stat-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
+  .stat-value { font-weight: bold; color: #f97316; }
+  .training-controls { display: flex; gap: 8px; }
+  .training-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
+  .btn-pause { background: #f97316; color: white; }
+  .btn-stop { background: #dc3545; color: white; }
+  .progress-bar { height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; margin-top: 15px; }
+  .progress-fill { height: 100%; background: #22c55e; width: 0%; transition: width 0.3s; }
+
+  /* Formulário de Treino */
+  .form-group { margin-bottom: 15px; text-align: left; }
+  .form-label { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #333; }
+  .form-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
+  .form-row { display: flex; gap: 10px; }
+  .form-row .form-group { flex: 1; }
 </style>
 </head>
 <body>
@@ -55,6 +79,7 @@
   <button class="header-btn" onclick="toggleEditor()">✏️ Editor</button>
   <button class="header-btn btn-save" onclick="salvarArquivoLocal()">💾 Salvar</button>
   <button class="header-btn btn-tuner" onclick="openTuner()">🎸 Afinador</button>
+  <button class="header-btn btn-train" onclick="openTrainingConfig()">🏋️ Treino</button>
   <div style="width: 1px; height: 25px; background: #ddd; margin: 0 5px;"></div>
   <div class="control-group"> Tom: <button onclick="changeTranspose(-1)">-</button><span id="transposeLabel">0</span><button onclick="changeTranspose(1)">+</button></div>
   <button id="playBtn" class="header-btn" onclick="togglePlay()"><span id="playIcon">▶</span> <span id="playText">Tocar</span></button>
@@ -64,6 +89,7 @@
   <div style="margin-left: auto;"><button class="header-btn" onclick="selectFolder()" style="background: #e3f2fd; color: #2196f3;">📂 Abrir Pasta</button></div>
 </div>
 
+<!-- Modal Afinador -->
 <div id="tunerModal" class="modal-overlay">
   <div class="modal-content">
     <h3>Afinador Cello Infinito</h3>
@@ -79,6 +105,67 @@
   </div>
 </div>
 
+<!-- Modal Configuração de Treino -->
+<div id="trainingModal" class="modal-overlay">
+  <div class="modal-content train">
+    <h3>🏋️ Configurar Treino</h3>
+    <div class="form-group">
+      <label class="form-label">BPM Inicial:</label>
+      <input type="number" id="trainStartBpm" class="form-input" value="60" min="40" max="200">
+    </div>
+    <div class="form-group">
+      <label class="form-label">BPM Final:</label>
+      <input type="number" id="trainEndBpm" class="form-input" value="120" min="50" max="300">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Incremento:</label>
+        <input type="number" id="trainIncrement" class="form-input" value="5" min="1" max="20">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Repetições por BPM:</label>
+        <input type="number" id="trainRepetitions" class="form-input" value="3" min="1" max="10">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Intervalo entre repetições (segundos):</label>
+      <input type="number" id="trainInterval" class="form-input" value="1" min="0" max="10" step="0.1">
+    </div>
+    <button class="btn-stop-tuner" onclick="startTraining()" style="background: #22c55e;">▶ INICIAR TREINO</button>
+    <p onclick="closeTrainingModal()" style="margin-top:15px; cursor:pointer; font-size:12px; color:#666">Cancelar</p>
+  </div>
+</div>
+
+<!-- Painel de Controle de Treino -->
+<div id="trainingPanel" class="training-panel">
+  <div class="training-header">🏋️ TREINO ATIVO</div>
+  <div class="training-stats">
+    <div class="stat-row">
+      <span>BPM Atual:</span>
+      <span id="currentTrainBpm" class="stat-value">60</span>
+    </div>
+    <div class="stat-row">
+      <span>Repetição:</span>
+      <span id="currentRepetition" class="stat-value">1/3</span>
+    </div>
+    <div class="stat-row">
+      <span>Progresso:</span>
+      <span id="trainProgress" class="stat-value">0%</span>
+    </div>
+    <div class="stat-row">
+      <span>Status:</span>
+      <span id="trainStatus" class="stat-value">Tocando...</span>
+    </div>
+  </div>
+  <div class="training-controls">
+    <button class="training-btn btn-pause" onclick="toggleTrainingPause()">⏸ Pausar</button>
+    <button class="training-btn btn-stop" onclick="stopTraining()">⏹ Parar</button>
+  </div>
+  <div class="progress-bar">
+    <div class="progress-fill" id="trainProgressBar"></div>
+  </div>
+</div>
+
 <div class="app-container">
   <div class="sidebar" id="sidebar">
     <div id="libraryStatus" style="font-size: 11px; margin-bottom: 10px; color: #999;">Carregando...</div>
@@ -87,6 +174,8 @@
   <div class="editor-container" id="editorContainer"><textarea id="abcInput" spellcheck="false">X:1
 T:Novo Estudo
 Q:1/4=100
+M:4/4
+L:1/4
 K:C
 C D E F | G A B c |]</textarea></div>
   <div class="score-container"><div id="paper-container"><div id="paper"></div></div></div>
@@ -97,11 +186,21 @@ let visualObj = null, synthControl = null, audioContext = null;
 let currentTranspose = 0, currentZoom = 100, metroInterval = null, isPlaying = false;
 let currentFileHandle = null, fileLibrary = [];
 
-// --- LISTA DE ARQUIVOS DO GITHUB / SERVIDOR ---
-const arquivosNoServidor = [
- 'musica/Hino01.txt', 
- 'livro/8012 - PDF - Guitarra.txt', 
- 'livro/Violino.txt'];
+// --- VARIÁVEIS DE TREINO ---
+let trainingActive = false;
+let trainingPaused = false;
+let trainingConfig = {
+  startBpm: 60,
+  endBpm: 120,
+  increment: 5,
+  repetitions: 3,
+  interval: 1,
+  currentBpm: 60,
+  currentRepetition: 1,
+  currentCycle: 1
+};
+let trainingTimeout = null;
+let musicDurationMs = 0; // Duração da música em milissegundos
 
 /* --- AFINADOR (WEB AUDIO) --- */
 let oscillator = null, gainNode = null, currentActiveNoteBtn = null;
@@ -139,27 +238,480 @@ function showTunerNotes(inst) {
   });
 }
 
-/* --- PLAY E TRANSPOSE CORRIGIDO --- */
-async function togglePlay() {
-  const btn = document.getElementById("playBtn");
-  if (isPlaying) { stopPlayback(); isPlaying = false; return; }
+/* --- FUNÇÕES AUXILIARES PARA DURAÇÃO DA MÚSICA --- */
+function calculateMusicDuration(bpm) {
+  const abcText = document.getElementById('abcInput').value;
+  const lines = abcText.split('\n');
+  
+  // Encontrar valores de L (unidade de nota padrão) e M (compasso)
+  let defaultNoteLength = 1/4; // padrão L:1/4
+  let meter = "4/4"; // padrão
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('L:')) {
+      const lValue = trimmed.substring(2).trim();
+      if (lValue === '1/8') defaultNoteLength = 1/8;
+      else if (lValue === '1/16') defaultNoteLength = 1/16;
+      else if (lValue === '1/2') defaultNoteLength = 1/2;
+      else if (lValue === '1') defaultNoteLength = 1;
+      // Mantém 1/4 como padrão para outros valores
+    }
+    if (trimmed.startsWith('M:')) {
+      meter = trimmed.substring(2).trim();
+    }
+  }
+  
+  // Analisar o compasso (ex: "4/4", "3/4", "6/8")
+  let beatsPerMeasure = 4; // padrão para 4/4
+  let beatValue = 4; // valor da nota que representa uma batida
+  
+  if (meter.includes('/')) {
+    const parts = meter.split('/');
+    const numerator = parseInt(parts[0]) || 4;
+    const denominator = parseInt(parts[1]) || 4;
+    
+    // Em compassos simples (2/4, 3/4, 4/4), cada nota de denominador é uma batida
+    // Em compassos compostos (6/8, 9/8, 12/8), agrupamos em 3
+    if (denominator === 8 && numerator % 3 === 0) {
+      // Compasso composto: 6/8 = 2 batidas (grupos de 3 colcheias)
+      beatsPerMeasure = numerator / 3;
+      beatValue = 8; // colcheia
+    } else {
+      // Compasso simples
+      beatsPerMeasure = numerator;
+      beatValue = denominator;
+    }
+  }
+  
+  // Contar o número total de compassos
+  let measureCount = 0;
+  let inMusic = false;
+  
+  for (const line of lines) {
+    const trimmed = line.trim();
+    
+    if (trimmed.startsWith('K:')) {
+      inMusic = true;
+      continue;
+    }
+    
+    if (inMusic && trimmed && !trimmed.startsWith('%')) {
+      // Contar barras de compasso
+      const bars = (trimmed.match(/\|/g) || []).length;
+      measureCount += bars;
+      
+      // Se não tem barra no final, adiciona um compasso implícito
+      if (!trimmed.includes('|') && trimmed !== '') {
+        measureCount += 1;
+      }
+    }
+  }
+  
+  // Se não encontrou barras, estimar baseado no conteúdo
+  if (measureCount === 0) {
+    // Estimar baseado no comprimento da música
+    const musicLines = lines.filter(l => {
+      const trimmed = l.trim();
+      return trimmed && !trimmed.startsWith('%') && !trimmed.startsWith('X:') && 
+             !trimmed.startsWith('T:') && !trimmed.startsWith('M:') && 
+             !trimmed.startsWith('L:') && !trimmed.startsWith('K:') && 
+             !trimmed.startsWith('Q:');
+    });
+    
+    if (musicLines.length > 0) {
+      // Estimativa grosseira: cada linha com conteúdo = ~1 compasso
+      measureCount = Math.max(1, musicLines.length);
+    } else {
+      measureCount = 2; // mínimo padrão
+    }
+  }
+  
+  // Calcular duração total em batidas
+  const totalBeats = measureCount * beatsPerMeasure;
+  
+  // Calcular milissegundos por batida
+  // Q:1/4=100 significa 100 semínimas por minuto
+  // Precisamos converter para a unidade de batida
+  const msPerBeat = 60000 / bpm;
+  
+  // Ajustar se a batida não for semínima (1/4)
+  // Se beatValue = 8 (colcheia), cada batida é mais curta
+  // Se beatValue = 2 (mínima), cada batida é mais longa
+  const beatRatio = 4 / beatValue; // relação com semínima (1/4)
+  
+  return Math.ceil(totalBeats * msPerBeat * beatRatio);
+}
+
+/* --- SISTEMA DE TREINO --- */
+function openTrainingConfig() {
+  document.getElementById('trainingModal').style.display = 'flex';
+}
+
+function closeTrainingModal() {
+  document.getElementById('trainingModal').style.display = 'none';
+}
+
+async function startTraining() {
+  // Coletar configuração
+  trainingConfig.startBpm = parseInt(document.getElementById('trainStartBpm').value);
+  trainingConfig.endBpm = parseInt(document.getElementById('trainEndBpm').value);
+  trainingConfig.increment = parseInt(document.getElementById('trainIncrement').value);
+  trainingConfig.repetitions = parseInt(document.getElementById('trainRepetitions').value);
+  trainingConfig.interval = parseFloat(document.getElementById('trainInterval').value);
+  
+  // Validar
+  if (trainingConfig.startBpm >= trainingConfig.endBpm) {
+    alert("BPM inicial deve ser menor que BPM final!");
+    return;
+  }
+  
+  // Calcular duração da música no BPM inicial
+  musicDurationMs = calculateMusicDuration(trainingConfig.startBpm);
+  
+  // Inicializar treino
+  trainingActive = true;
+  trainingPaused = false;
+  trainingConfig.currentBpm = trainingConfig.startBpm;
+  trainingConfig.currentRepetition = 1;
+  trainingConfig.currentCycle = 1;
+  
+  // Mostrar painel de treino
+  document.getElementById('trainingPanel').classList.add('active');
+  document.getElementById('trainingModal').style.display = 'none';
+  
+  // Atualizar UI
+  updateTrainingUI();
+  document.getElementById('trainStatus').textContent = "Iniciando...";
+  
+  // Pequena pausa para UI atualizar
+  setTimeout(() => {
+    if (trainingActive && !trainingPaused) {
+      startTrainingCycle();
+    }
+  }, 500);
+}
+
+function startTrainingCycle() {
+  if (!trainingActive || trainingPaused) return;
+  
+  // Calcular progresso
+  const totalCycles = Math.ceil((trainingConfig.endBpm - trainingConfig.startBpm) / trainingConfig.increment);
+  const currentCycleIndex = Math.floor((trainingConfig.currentBpm - trainingConfig.startBpm) / trainingConfig.increment);
+  const progress = Math.round(((currentCycleIndex * trainingConfig.repetitions + trainingConfig.currentRepetition - 1) / 
+                              (totalCycles * trainingConfig.repetitions)) * 100);
+  
+  // Atualizar UI
+  document.getElementById('currentTrainBpm').textContent = trainingConfig.currentBpm;
+  document.getElementById('currentRepetition').textContent = 
+    trainingConfig.currentRepetition + '/' + trainingConfig.repetitions;
+  document.getElementById('trainProgress').textContent = progress + '%';
+  document.getElementById('trainProgressBar').style.width = progress + '%';
+  document.getElementById('trainStatus').textContent = "Tocando...";
+  
+  // Atualizar BPM na interface principal
+  document.getElementById('bpmValue').value = trainingConfig.currentBpm;
+  
+  // Calcular nova duração para o BPM atual
+  musicDurationMs = calculateMusicDuration(trainingConfig.currentBpm);
+  
+  // Tocar música com BPM atual
+  playAtBpm(trainingConfig.currentBpm);
+  
+  // Agendar próximo passo baseado na duração da música
+  trainingTimeout = setTimeout(() => {
+    if (!trainingActive || trainingPaused) return;
+    
+    // Quando a música terminar, preparar próxima repetição
+    prepareNextRepetition();
+  }, musicDurationMs);
+}
+
+function prepareNextRepetition() {
+  if (!trainingActive || trainingPaused) return;
+  
+  document.getElementById('trainStatus').textContent = "Intervalo...";
+  
+  // Agendar próxima repetição após o intervalo configurado
+  setTimeout(() => {
+    if (!trainingActive || trainingPaused) return;
+    
+    // Avançar repetição ou BPM
+    if (trainingConfig.currentRepetition < trainingConfig.repetitions) {
+      trainingConfig.currentRepetition++;
+    } else {
+      trainingConfig.currentRepetition = 1;
+      trainingConfig.currentBpm += trainingConfig.increment;
+      
+      // Verificar se terminou
+      if (trainingConfig.currentBpm > trainingConfig.endBpm) {
+        stopTraining();
+        alert("🎉 Treino concluído!");
+        return;
+      }
+    }
+    
+    // Iniciar próximo ciclo imediatamente após o intervalo
+    startTrainingCycle();
+  }, trainingConfig.interval * 1000);
+}
+
+function playAtBpm(bpm) {
+  // Parar playback atual se estiver tocando
+  if (isPlaying) {
+    stopPlayback();
+    isPlaying = false;
+  }
+  
+  // Aguardar um pouco antes de iniciar
+  setTimeout(() => {
+    if (!trainingActive || trainingPaused) return;
+    
+    // Atualizar BPM
+    document.getElementById('bpmValue').value = bpm;
+    
+    // Iniciar playback
+    startPlaybackForTraining(bpm);
+  }, 50);
+}
+
+async function startPlaybackForTraining(bpm) {
   try {
-    isPlaying = true; const bpm = document.getElementById('bpmValue').value;
-    btn.classList.add("playing"); btn.querySelector('#playIcon').innerText = "⏹";
+    isPlaying = true;
+    const btn = document.getElementById("playBtn");
+    btn.classList.add("playing");
+    btn.querySelector('#playIcon').innerText = "⏹";
+    
     if (!audioContext) audioContext = new AudioContext();
+    
     const abcText = document.getElementById('abcInput').value;
     const lines = abcText.split('\n');
     let updatedLines = lines.map(l => l.trim().startsWith('Q:') ? `Q:1/4=${bpm}` : l);
     if (!updatedLines.some(l => l.startsWith('Q:'))) updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
-    visualObj = ABCJS.renderAbc("paper", updatedLines.join('\n'), { scale: currentZoom / 100, visualTranspose: currentTranspose, responsive: "resize" })[0];
+    
+    visualObj = ABCJS.renderAbc("paper", updatedLines.join('\n'), { 
+      scale: currentZoom / 100, 
+      visualTranspose: currentTranspose, 
+      responsive: "resize" 
+    })[0];
+    
     synthControl = new ABCJS.synth.CreateSynth();
-    await synthControl.init({ visualObj, audioContext, soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/", options: { program: 0, midiTranspose: currentTranspose } });
-    await synthControl.prime(); await synthControl.start(); startVisualMetronome();
-    synthControl.eventListener = (e) => { if (e.type === 'ended') { stopPlayback(); isPlaying = false; } };
-  } catch (e) { isPlaying = false; }
+    await synthControl.init({ 
+      visualObj, 
+      audioContext, 
+      soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/", 
+      options: { 
+        program: 0, 
+        midiTranspose: currentTranspose,
+        chordsOff: false,
+        qpm: bpm
+      } 
+    });
+    
+    await synthControl.prime();
+    await synthControl.start();
+    startVisualMetronome();
+    
+  } catch (e) {
+    console.error("Erro ao tocar:", e);
+    isPlaying = false;
+    document.getElementById('trainStatus').textContent = "Erro";
+  }
 }
-function stopPlayback() { if (synthControl) { try { synthControl.stop(); } catch (e) {} synthControl = null; } stopVisualMetronome(); document.getElementById("playBtn").classList.remove("playing"); document.getElementById("playIcon").innerText = "▶"; }
-function renderScore() { visualObj = ABCJS.renderAbc("paper", document.getElementById('abcInput').value, { scale: currentZoom / 100, visualTranspose: currentTranspose, responsive: "resize" })[0]; }
+
+function toggleTrainingPause() {
+  if (!trainingActive) return;
+  
+  trainingPaused = !trainingPaused;
+  
+  const pauseBtn = document.querySelector('.btn-pause');
+  if (trainingPaused) {
+    pauseBtn.textContent = "▶ Retomar";
+    document.getElementById('trainStatus').textContent = "Pausado";
+    
+    // Pausar playback atual
+    if (synthControl && isPlaying) {
+      try {
+        synthControl.pause();
+      } catch (e) {}
+    }
+    
+    // Limpar timeout
+    if (trainingTimeout) {
+      clearTimeout(trainingTimeout);
+      trainingTimeout = null;
+    }
+  } else {
+    pauseBtn.textContent = "⏸ Pausar";
+    document.getElementById('trainStatus').textContent = "Retomando...";
+    
+    // Retomar playback se estava tocando
+    if (synthControl && isPlaying) {
+      try {
+        synthControl.play();
+      } catch (e) {}
+    }
+    
+    // Continuar ciclo após pequena pausa
+    setTimeout(() => {
+      if (trainingActive && !trainingPaused) {
+        // Recriar o timeout para próxima repetição
+        const remainingTime = musicDurationMs - (synthControl ? (synthControl.position() || 0) * musicDurationMs : 0);
+        if (remainingTime > 0) {
+          trainingTimeout = setTimeout(() => {
+            if (trainingActive && !trainingPaused) {
+              prepareNextRepetition();
+            }
+          }, remainingTime);
+        } else {
+          startTrainingCycle();
+        }
+      }
+    }, 100);
+  }
+}
+
+function stopTraining() {
+  trainingActive = false;
+  trainingPaused = false;
+  
+  // Limpar timeout
+  if (trainingTimeout) {
+    clearTimeout(trainingTimeout);
+    trainingTimeout = null;
+  }
+  
+  // Parar playback atual
+  stopPlayback();
+  
+  // Esconder painel de treino
+  document.getElementById('trainingPanel').classList.remove('active');
+  
+  // Resetar BPM para o valor original
+  document.getElementById('bpmValue').value = 100;
+}
+
+function updateTrainingUI() {
+  if (!trainingActive) return;
+  
+  document.getElementById('currentTrainBpm').textContent = trainingConfig.currentBpm;
+  document.getElementById('currentRepetition').textContent = 
+    trainingConfig.currentRepetition + '/' + trainingConfig.repetitions;
+}
+
+/* --- PLAY E TRANSPOSE CORRIGIDO --- */
+async function togglePlay() {
+  // Se treino estiver ativo, usar sistema de treino
+  if (trainingActive) {
+    toggleTrainingPause();
+    return;
+  }
+  
+  const btn = document.getElementById("playBtn");
+  if (isPlaying) { 
+    stopPlayback(); 
+    isPlaying = false; 
+    return; 
+  }
+  
+  try {
+    isPlaying = true; 
+    const bpm = document.getElementById('bpmValue').value;
+    btn.classList.add("playing"); 
+    btn.querySelector('#playIcon').innerText = "⏹";
+    
+    if (!audioContext) audioContext = new AudioContext();
+    
+    const abcText = document.getElementById('abcInput').value;
+    const lines = abcText.split('\n');
+    let updatedLines = lines.map(l => l.trim().startsWith('Q:') ? `Q:1/4=${bpm}` : l);
+    if (!updatedLines.some(l => l.startsWith('Q:'))) updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
+    
+    visualObj = ABCJS.renderAbc("paper", updatedLines.join('\n'), { 
+      scale: currentZoom / 100, 
+      visualTranspose: currentTranspose, 
+      responsive: "resize" 
+    })[0];
+    
+    synthControl = new ABCJS.synth.CreateSynth();
+    await synthControl.init({ 
+      visualObj, 
+      audioContext, 
+      soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/", 
+      options: { 
+        program: 0, 
+        midiTranspose: currentTranspose,
+        chordsOff: false 
+      } 
+    });
+    
+    await synthControl.prime(); 
+    await synthControl.start(); 
+    startVisualMetronome();
+    
+    // Configurar listener para detectar término
+    const checkEndInterval = setInterval(() => {
+      if (!isPlaying) {
+        clearInterval(checkEndInterval);
+        return;
+      }
+      
+      try {
+        if (synthControl && synthControl.position() >= 0.99) {
+          clearInterval(checkEndInterval);
+          stopPlayback();
+          isPlaying = false;
+        }
+      } catch (e) {
+        // Ignorar erros
+      }
+    }, 100);
+    
+  } catch (e) { 
+    console.error("Erro ao tocar:", e);
+    isPlaying = false; 
+  }
+}
+
+function stopPlayback() { 
+  if (synthControl) { 
+    try { 
+      synthControl.stop(); 
+    } catch (e) {} 
+    synthControl = null; 
+  } 
+  stopVisualMetronome(); 
+  document.getElementById("playBtn").classList.remove("playing"); 
+  document.getElementById("playIcon").innerText = "▶"; 
+}
+
+/* --- RENDERIZAÇÃO DA PARTITURA --- */
+let renderTimeout = null;
+
+function renderScore() { 
+  try {
+    visualObj = ABCJS.renderAbc("paper", document.getElementById('abcInput').value, { 
+      scale: currentZoom / 100, 
+      visualTranspose: currentTranspose, 
+      responsive: "resize" 
+    })[0]; 
+  } catch (e) {
+    console.error("Erro ao renderizar:", e);
+    // Em caso de erro, mostra mensagem simples
+    document.getElementById('paper').innerHTML = '<div style="padding: 20px; color: #666; font-style: italic;">Erro ao renderizar a partitura. Verifique o código ABC.</div>';
+  }
+}
+
+// Função para atualizar a partitura com debounce (evita renderizar a cada tecla)
+function updateScoreWithDebounce() {
+  if (renderTimeout) {
+    clearTimeout(renderTimeout);
+  }
+  
+  renderTimeout = setTimeout(() => {
+    renderScore();
+  }, 500); // Renderiza 500ms após parar de digitar
+}
 
 /* --- BIBLIOTECA (GITHUB + LOCAL) --- */
 async function carregarArquivosServidor() {
@@ -198,7 +750,13 @@ function renderLibrary() {
     const musics = extractMusics(file.content);
     musics.forEach(m => {
       const mDiv = document.createElement('div'); mDiv.className = 'music-item'; mDiv.innerText = `🎵 ${m.title}`;
-      mDiv.onclick = () => { currentFileHandle = file.handle; document.getElementById('abcInput').value = m.content; document.getElementById('musicInfoTag').innerText = "| " + m.title; renderScore(); };
+      mDiv.onclick = () => { 
+        currentFileHandle = file.handle; 
+        document.getElementById('abcInput').value = m.content; 
+        document.getElementById('musicInfoTag').innerText = "| " + m.title; 
+        renderScore(); // Renderizar imediatamente ao selecionar música
+        stopTraining(); // Parar treino se mudar de música
+      };
       mList.appendChild(mDiv);
     });
     container.appendChild(fDiv);
@@ -223,16 +781,70 @@ async function salvarArquivoLocal() {
 }
 
 /* --- UTILITÁRIOS --- */
-function updateBPM() { if (isPlaying) { stopPlayback(); setTimeout(togglePlay, 100); } renderScore(); }
-function startVisualMetronome() { stopVisualMetronome(); const ms = 60000 / parseInt(document.getElementById('bpmValue').value); const dot = document.getElementById('metronomeVisual'); metroInterval = setInterval(() => { dot.classList.add('metronome-active'); setTimeout(() => dot.classList.remove('metronome-active'), 100); }, ms); }
-function stopVisualMetronome() { if (metroInterval) clearInterval(metroInterval); }
-function changeTranspose(n) { currentTranspose += n; document.getElementById('transposeLabel').textContent = currentTranspose; renderScore(); }
-function changeZoom(n) { currentZoom += n; document.getElementById('zoomLabel').textContent = currentZoom + '%'; renderScore(); }
-function toggleAccordion(idx) { document.getElementById(`list-${idx}`).classList.toggle('show'); }
-function toggleEditor() { document.getElementById('editorContainer').classList.toggle('hidden'); }
-function toggleSidebar() { document.getElementById('sidebar').classList.toggle('hidden'); }
+function updateBPM() { 
+  if (isPlaying && !trainingActive) { 
+    stopPlayback(); 
+    setTimeout(togglePlay, 100); 
+  } 
+  renderScore(); 
+}
 
-window.onload = () => { renderScore(); carregarArquivosServidor(); document.getElementById('bpmValue').addEventListener('change', updateBPM); };
+function startVisualMetronome() { 
+  stopVisualMetronome(); 
+  const ms = 60000 / parseInt(document.getElementById('bpmValue').value); 
+  const dot = document.getElementById('metronomeVisual'); 
+  metroInterval = setInterval(() => { 
+    dot.classList.add('metronome-active'); 
+    setTimeout(() => dot.classList.remove('metronome-active'), 100); 
+  }, ms); 
+}
+
+function stopVisualMetronome() { 
+  if (metroInterval) clearInterval(metroInterval); 
+}
+
+function changeTranspose(n) { 
+  currentTranspose += n; 
+  document.getElementById('transposeLabel').textContent = currentTranspose; 
+  renderScore(); 
+}
+
+function changeZoom(n) { 
+  currentZoom += n; 
+  document.getElementById('zoomLabel').textContent = currentZoom + '%'; 
+  renderScore(); 
+}
+
+function toggleAccordion(idx) { 
+  document.getElementById(`list-${idx}`).classList.toggle('show'); 
+}
+
+function toggleEditor() { 
+  document.getElementById('editorContainer').classList.toggle('hidden'); 
+}
+
+function toggleSidebar() { 
+  document.getElementById('sidebar').classList.toggle('hidden'); 
+}
+
+// Lista de arquivos do servidor
+const arquivosNoServidor = [
+  'musica/Hino01.txt', 
+  'livro/8012 - PDF - Guitarra - 1001 Jazz Licks - Jack Shneidman.txt', 
+  'livro/Violino.txt'
+];
+
+window.onload = () => { 
+  renderScore(); 
+  carregarArquivosServidor(); 
+  
+  // Adicionar listener para atualizar partitura enquanto digita
+  const abcInput = document.getElementById('abcInput');
+  abcInput.addEventListener('input', updateScoreWithDebounce);
+  
+  // Atualizar quando BPM muda
+  document.getElementById('bpmValue').addEventListener('change', updateBPM); 
+};
 </script>
 </body>
 </html>
