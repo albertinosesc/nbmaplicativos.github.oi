@@ -329,6 +329,113 @@
   .music-list.show { display: block; }
   .music-item { padding: 10px 15px; font-size: 12px; cursor: pointer; border-bottom: 1px solid #f9f9f9; }
   .music-item:hover { background: #e3f2fd; color: #2196f3; }
+
+/* Estilos para o metrônomo */
+.metro-beat-indicator {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e9ecef;
+  border: 2px solid #dee2e6;
+  transition: all 0.1s ease;
+}
+
+.metro-beat-active {
+  background: #3b82f6 !important;
+  border-color: #1d4ed8 !important;
+  transform: scale(1.2);
+}
+
+.metro-beat-strong {
+  background: #ef4444 !important;
+  border-color: #dc2626 !important;
+}
+
+#metroVisual.active {
+  background: #ef4444;
+  animation: metroPulse 0.5s;
+}
+
+@keyframes metroPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+/* Controle de volume do metrônomo */
+.metro-volume-container {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 10px;
+}
+
+.metro-volume-slider {
+  width: 80px;
+  height: 6px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: #e9ecef;
+  border-radius: 3px;
+  outline: none;
+}
+
+.metro-volume-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ef4444;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.metro-volume-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ef4444;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+}
+
+.metro-volume-value {
+  font-size: 11px;
+  color: #666;
+  min-width: 30px;
+  text-align: center;
+  font-weight: bold;
+}
+
+/* Indicador de metrônomo ativo */
+.metro-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #666;
+  margin-left: 5px;
+}
+
+.metro-indicator.active {
+  color: #ef4444;
+  font-weight: bold;
+}
+
+/* Info do compasso */
+.metro-time-signature {
+  font-size: 11px;
+  color: #666;
+  margin-left: 5px;
+  font-weight: bold;
+  background: #f8f9fa;
+  padding: 2px 6px;
+  border-radius: 10px;
+  border: 1px solid #dee2e6;
+}
 </style>
 </head>
 <body>
@@ -345,6 +452,27 @@
   <button id="playBtn" class="header-btn" onclick="togglePlay()"><span id="playIcon">▶</span> <span id="playText">Tocar</span></button>
   <div class="control-group"> BPM: <input type="number" id="bpmValue" class="bpm-input" value="100" min="40" max="300" style="width:45px; border:none; background:transparent; font-weight:bold; color:#2196f3; outline:none; text-align:center;"><div id="metronomeVisual"></div></div>
   <div class="control-group"> Zoom: <button onclick="changeZoom(-10)">-</button><span id="zoomLabel">100%</span><button onclick="changeZoom(10)">+</button></div>
+
+  <!-- METRÔNOMO SIMPLES -->
+  <div class="control-group" style="margin-left: 5px;">
+    <button id="metroToggleBtn" onclick="toggleSimpleMetronome()" style="border: none; background: none; cursor: pointer; font-weight: bold; padding: 0 5px; display: flex; align-items: center; gap: 5px;">
+      <span id="metroIcon">🥁</span>
+      <span id="metroText">Metrônomo</span>
+    </button>
+    <div id="metroVisual" style="width: 12px; height: 12px; border-radius: 50%; background: #ccc; margin-left: 5px; display: inline-block;"></div>
+    <div class="metro-indicator" id="metroStatusIndicator">
+      <span id="metroStatusText">OFF</span>
+    </div>
+    <div class="metro-time-signature" id="metroTimeSigDisplay">4/4</div>
+    
+    <!-- Controle de volume -->
+    <div class="metro-volume-container">
+      <span style="font-size: 11px; color: #666;">🔊</span>
+      <input type="range" id="metroVolumeSlider" class="metro-volume-slider" min="0" max="100" value="50">
+      <span id="metroVolumeValue" class="metro-volume-value">50%</span>
+    </div>
+  </div>
+
   <div id="musicInfoTag" style="font-size:11px; color:#666; font-weight:bold; margin-left:10px;"></div>
   <div style="margin-left: auto;">
     <button class="header-btn" onclick="selectFolder()" style="background: #e3f2fd; color: #2196f3;">📂 Abrir Pasta</button>
@@ -483,6 +611,277 @@ let isResizing = false;
 let currentResizeHandle = null;
 let startX = 0;
 let startWidth = 0;
+
+/* --- METRÔNOMO SIMPLES --- */
+let metroAudioContext = null;
+let metroOscillator = null;
+let metroGainNode = null;
+let metroFilter = null;
+let metroSimpleInterval = null;
+let metroIsPlaying = false;
+let metroCurrentBeat = 0;
+let metroBeatsPerMeasure = 4;
+let metroVolume = 0.5;
+
+// Função para extrair o compasso (M:) do código ABC
+function extractTimeSignature() {
+  const abcText = document.getElementById('abcInput').value;
+  const lines = abcText.split('\n');
+  
+  // Procura pela linha M: (compasso)
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (trimmed.startsWith('M:')) {
+      const timeSig = trimmed.substring(2).trim();
+      
+      // Converte diferentes formatos de compasso para número de beats
+      if (timeSig === '4/4' || timeSig === 'C' || timeSig === 'C|') {
+        metroBeatsPerMeasure = 4;
+        return '4/4';
+      } else if (timeSig === '3/4') {
+        metroBeatsPerMeasure = 3;
+        return '3/4';
+      } else if (timeSig === '2/4') {
+        metroBeatsPerMeasure = 2;
+        return '2/4';
+      } else if (timeSig === '6/8') {
+        metroBeatsPerMeasure = 2; // 6/8 tem 2 batidas fortes
+        return '6/8';
+      } else if (timeSig === '2/2' || timeSig === 'C|') {
+        metroBeatsPerMeasure = 2;
+        return '2/2';
+      } else if (timeSig === '3/8') {
+        metroBeatsPerMeasure = 1; // 3/8 tem 1 batida forte
+        return '3/8';
+      } else {
+        // Tenta extrair numerador do formato X/Y
+        const match = timeSig.match(/(\d+)\/(\d+)/);
+        if (match) {
+          const numerator = parseInt(match[1]);
+          const denominator = parseInt(match[2]);
+          
+          // Para compassos simples, beats = numerador
+          // Para compassos compostos (denominador 8 e numerador múltiplo de 3), beats = numerador / 3
+          if (denominator === 8 && numerator % 3 === 0) {
+            metroBeatsPerMeasure = numerator / 3;
+          } else {
+            metroBeatsPerMeasure = numerator;
+          }
+          return timeSig;
+        }
+      }
+    }
+  }
+  
+  // Compasso padrão se não encontrar
+  metroBeatsPerMeasure = 4;
+  return '4/4';
+}
+
+// Atualizar display do compasso
+function updateTimeSignatureDisplay() {
+  const timeSig = extractTimeSignature();
+  document.getElementById('metroTimeSigDisplay').textContent = timeSig;
+}
+
+// Toggle do metrônomo simples
+function toggleSimpleMetronome() {
+  if (metroIsPlaying) {
+    stopSimpleMetronome();
+  } else {
+    startSimpleMetronome();
+  }
+}
+
+// Iniciar metrônomo simples
+function startSimpleMetronome() {
+  if (metroIsPlaying) return;
+  
+  // Atualizar compasso baseado no código ABC
+  updateTimeSignatureDisplay();
+  
+  // Obter BPM atual da música
+  const bpm = parseInt(document.getElementById('bpmValue').value);
+  
+  // Obter volume do slider
+  const volumeSlider = document.getElementById('metroVolumeSlider');
+  metroVolume = volumeSlider ? parseInt(volumeSlider.value) / 100 : 0.5;
+  
+  // Inicializar AudioContext se necessário
+  if (!metroAudioContext) {
+    metroAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  
+  // Criar nós de áudio
+  metroOscillator = metroAudioContext.createOscillator();
+  metroGainNode = metroAudioContext.createGain();
+  metroFilter = metroAudioContext.createBiquadFilter();
+  
+  // Configurar filtro (som mais agradável)
+  metroFilter.type = 'lowpass';
+  metroFilter.frequency.setValueAtTime(800, metroAudioContext.currentTime);
+  
+  // Conectar nós
+  metroOscillator.connect(metroFilter);
+  metroFilter.connect(metroGainNode);
+  metroGainNode.connect(metroAudioContext.destination);
+  
+  // Configurar oscilador
+  metroOscillator.type = 'sine';
+  
+  // Configurar ganho (volume)
+  metroGainNode.gain.setValueAtTime(0, metroAudioContext.currentTime);
+  
+  // Iniciar oscilador
+  metroOscillator.start();
+  
+  // Iniciar intervalo
+  const msPerBeat = 60000 / bpm;
+  metroCurrentBeat = 0;
+  metroIsPlaying = true;
+  
+  // Atualizar UI
+  updateMetroUI();
+  
+  // Tocar primeiro beat imediatamente
+  playMetroClick();
+  
+  // Configurar intervalo
+  metroSimpleInterval = setInterval(() => {
+    if (metroIsPlaying) {
+      metroCurrentBeat = (metroCurrentBeat + 1) % metroBeatsPerMeasure;
+      playMetroClick();
+    }
+  }, msPerBeat);
+}
+
+// Tocar clique do metrônomo
+function playMetroClick() {
+  if (!metroAudioContext || !metroIsPlaying) return;
+  
+  // Determinar frequência baseado no beat
+  let frequency = 800; // Hz para beats normais
+  let duration = 0.05; // segundos
+  
+  if (metroCurrentBeat === 0) {
+    // Beat forte (primeiro tempo)
+    frequency = 1200;
+    duration = 0.08;
+  }
+  
+  // Atualizar oscilador
+  metroOscillator.frequency.setValueAtTime(frequency, metroAudioContext.currentTime);
+  
+  // Envelope ADSR rápido
+  const now = metroAudioContext.currentTime;
+  metroGainNode.gain.cancelScheduledValues(now);
+  metroGainNode.gain.setValueAtTime(0, now);
+  metroGainNode.gain.linearRampToValueAtTime(metroVolume * 0.3, now + 0.001);
+  metroGainNode.gain.exponentialRampToValueAtTime(0.001, now + duration);
+  
+  // Atualizar indicador visual
+  updateMetroVisual();
+}
+
+// Atualizar UI do metrônomo
+function updateMetroUI() {
+  const metroIcon = document.getElementById('metroIcon');
+  const metroText = document.getElementById('metroText');
+  const metroStatusText = document.getElementById('metroStatusText');
+  const metroStatusIndicator = document.getElementById('metroStatusIndicator');
+  const metroVisual = document.getElementById('metroVisual');
+  
+  if (metroIsPlaying) {
+    metroIcon.textContent = "⏹";
+    metroText.textContent = "Parar";
+    metroStatusText.textContent = "ON";
+    metroStatusIndicator.classList.add('active');
+    if (metroVisual) metroVisual.style.background = "#ef4444";
+  } else {
+    metroIcon.textContent = "🥁";
+    metroText.textContent = "Metrônomo";
+    metroStatusText.textContent = "OFF";
+    metroStatusIndicator.classList.remove('active');
+    if (metroVisual) metroVisual.style.background = "#ccc";
+  }
+}
+
+// Atualizar indicador visual
+function updateMetroVisual() {
+  const visual = document.getElementById('metroVisual');
+  if (visual) {
+    visual.classList.remove('active');
+    void visual.offsetWidth; // Trigger reflow
+    visual.classList.add('active');
+  }
+}
+
+// Parar metrônomo simples
+function stopSimpleMetronome() {
+  if (!metroIsPlaying) return;
+  
+  // Parar intervalo
+  if (metroSimpleInterval) {
+    clearInterval(metroSimpleInterval);
+    metroSimpleInterval = null;
+  }
+  
+  // Parar áudio
+  if (metroOscillator) {
+    try {
+      const now = metroAudioContext.currentTime;
+      metroGainNode.gain.cancelScheduledValues(now);
+      metroGainNode.gain.setValueAtTime(metroGainNode.gain.value, now);
+      metroGainNode.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      setTimeout(() => {
+        if (metroOscillator) {
+          metroOscillator.stop();
+          metroOscillator.disconnect();
+        }
+      }, 100);
+    } catch (e) {
+      console.error("Erro ao parar metrônomo:", e);
+    }
+    metroOscillator = null;
+  }
+  
+  // Resetar estado
+  metroIsPlaying = false;
+  metroCurrentBeat = 0;
+  
+  // Atualizar UI
+  updateMetroUI();
+}
+
+// Sincronizar metrônomo com BPM quando mudar
+function syncMetroWithBPM() {
+  if (metroIsPlaying) {
+    stopSimpleMetronome();
+    setTimeout(startSimpleMetronome, 100);
+  }
+}
+
+// Atualizar volume do metrônomo
+function updateMetroVolume() {
+  const volumeSlider = document.getElementById('metroVolumeSlider');
+  const volumeValue = document.getElementById('metroVolumeValue');
+  
+  if (volumeSlider && volumeValue) {
+    const value = volumeSlider.value;
+    volumeValue.textContent = value + '%';
+    metroVolume = value / 100;
+  }
+}
+
+// Evento para quando o código ABC mudar (para detectar mudança de compasso)
+function onAbcInputChange() {
+  updateTimeSignatureDisplay();
+  if (metroIsPlaying) {
+    // Reiniciar metrônomo com novo compasso
+    stopSimpleMetronome();
+    setTimeout(startSimpleMetronome, 100);
+  }
+}
 
 /* --- AFINADOR (WEB AUDIO) --- */
 let oscillator = null, gainNode = null, currentActiveNoteBtn = null;
@@ -1392,6 +1791,9 @@ function updateBPM() {
   } else {
     renderScore(); 
   }
+  
+  // Sincronizar metrônomo com novo BPM
+  syncMetroWithBPM();
 }
 
 function changeZoom(n) { 
@@ -1441,6 +1843,8 @@ window.onload = () => {
   
   const abcInput = document.getElementById('abcInput');
   abcInput.addEventListener('input', updateScoreWithDebounce);
+  // Adicionar listener para detectar mudanças no compasso
+  abcInput.addEventListener('input', onAbcInputChange);
   
   document.getElementById('bpmValue').addEventListener('change', updateBPM);
   document.getElementById('bpmValue').addEventListener('keyup', function(e) {
@@ -1449,7 +1853,16 @@ window.onload = () => {
     }
   });
   
+  // Adicionar listener para o controle de volume
+  const volumeSlider = document.getElementById('metroVolumeSlider');
+  if (volumeSlider) {
+    volumeSlider.addEventListener('input', updateMetroVolume);
+  }
+  
   window.addEventListener('resize', updateSizeIndicators);
+  
+  // Inicializar display do compasso
+  updateTimeSignatureDisplay();
 };
 </script>
 </body>
