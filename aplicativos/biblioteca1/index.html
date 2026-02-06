@@ -629,6 +629,69 @@
     font-size: 13px; 
     cursor: pointer; 
     border-bottom: 1px solid #f9f9f9; 
+    transition: background-color 0.2s;
+  }
+  
+  .music-item:hover {
+    background-color: #f0f7ff;
+  }
+  
+  .music-item.active {
+    background-color: #e3f2fd;
+    border-left: 3px solid #2196f3;
+  }
+  
+  /* Estilos para navegação entre músicas no editor */
+  .music-navigation {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    margin-bottom: 10px;
+    border-bottom: 1px solid #eee;
+  }
+  
+  .music-nav-btn {
+    background: #f0f7ff;
+    border: 1px solid #2196f3;
+    color: #2196f3;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    transition: all 0.2s;
+  }
+  
+  .music-nav-btn:hover {
+    background: #2196f3;
+    color: white;
+  }
+  
+  .music-nav-btn:disabled {
+    background: #f5f5f5;
+    border-color: #ddd;
+    color: #999;
+    cursor: not-allowed;
+  }
+  
+  .music-nav-info {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    text-align: center;
+    flex-grow: 1;
+  }
+  
+  .music-current {
+    background-color: #e8f5e9;
+    border-left: 3px solid #4caf50;
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-weight: bold;
   }
   
   /* Estilos para touch */
@@ -816,13 +879,29 @@
       <div class="size-indicator" id="sidebarSize">300px</div>
     </div>
   </div>
-  <div class="editor-container" id="editorContainer"><textarea id="abcInput" spellcheck="false">X:1
-T:Novo Estudo
+  <div class="editor-container" id="editorContainer">
+    <div class="music-navigation" id="musicNavigation" style="display: none;">
+      <button id="prevMusicBtn" class="music-nav-btn" onclick="navigateToPrevMusic()">◀ Anterior</button>
+      <div class="music-nav-info" id="currentMusicInfo">Música 1 de 3</div>
+      <button id="nextMusicBtn" class="music-nav-btn" onclick="navigateToNextMusic()">Próximo ▶</button>
+    </div>
+    <textarea id="abcInput" spellcheck="false">X:1
+T:Exemplo 1
+L:1/4
 Q:1/4=100
 M:4/4
-L:1/4
 K:C
-C D E F | G A B c |]</textarea>
+C D E F | G A B c |]
+
+     X:2
+T:Exemplo 2
+L:1/4
+Q:1/4=100
+M:4/4
+K:C
+c B A G | F E D C |]
+
+</textarea>
     <div class="resize-handle" id="editorResize">
       <div class="size-indicator" id="editorSize">400px</div>
     </div>
@@ -839,6 +918,12 @@ C D E F | G A B c |]</textarea>
 let visualObj = null, synthControl = null, audioContext = null;
 let currentTranspose = 0, currentZoom = 100, metroInterval = null, isPlaying = false;
 let currentFileHandle = null, fileLibrary = [];
+let currentMusicItem = null; // Variável para controlar a música ativa na biblioteca
+
+// --- VARIÁVEIS PARA MÚLTIPLAS MÚSICAS NO EDITOR ---
+let currentMusicIndex = 0; // Índice da música atual no editor
+let allMusicsInEditor = []; // Array com todas as músicas do editor
+let editorMusicsExtracted = false; // Flag para indicar se as músicas já foram extraídas
 
 // --- VARIÁVEIS DE TREINO ---
 let trainingActive = false;
@@ -879,7 +964,7 @@ let metroVolume = 0.5;
 
 // Função para extrair o compasso (M:) do código ABC
 function extractTimeSignature() {
-  const abcText = document.getElementById('abcInput').value;
+  const abcText = getCurrentMusicText();
   const lines = abcText.split('\n');
   
   // Procura pela linha M: (compasso)
@@ -1463,7 +1548,7 @@ async function startPlaybackWithBpm(bpm) {
     
     if (!audioContext) audioContext = new AudioContext();
     
-    const abcText = document.getElementById('abcInput').value;
+    const abcText = getCurrentMusicText();
     const lines = abcText.split('\n');
     
     let qLineFound = false;
@@ -1962,7 +2047,7 @@ function updateLayoutAfterToggle() {
 
 /* --- FUNÇÕES AUXILIARES PARA DURAÇÃO DA MÚSICA --- */
 function calculateMusicDuration(bpm) {
-  const abcText = document.getElementById('abcInput').value;
+  const abcText = getCurrentMusicText();
   const lines = abcText.split('\n');
   
   let defaultNoteLength = 1/4;
@@ -2066,7 +2151,7 @@ async function togglePlay() {
     
     if (!audioContext) audioContext = new AudioContext();
     
-    const abcText = document.getElementById('abcInput').value;
+    const abcText = getCurrentMusicText();
     const lines = abcText.split('\n');
     
     let qLineFound = false;
@@ -2154,7 +2239,7 @@ let renderTimeout = null;
 
 function renderScore() { 
   try {
-    const abcText = document.getElementById('abcInput').value;
+    const abcText = getCurrentMusicText();
     const escalaDesejada = currentZoom / 100;
     const container = document.getElementById('paper-container');
     
@@ -2191,6 +2276,175 @@ function updateScoreWithDebounce() {
   }, 500);
 }
 
+/* --- SISTEMA DE MÚLTIPLAS MÚSICAS NO EDITOR --- */
+
+// Extrair todas as músicas do texto do editor
+function extractAllMusicsFromEditor() {
+  const fullText = document.getElementById('abcInput').value;
+  const lines = fullText.split('\n');
+  const musics = [];
+  let currentMusic = null;
+  let musicStarted = false;
+  
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+    
+    // Se encontrar uma nova música (X:)
+    if (trimmed.startsWith('X:')) {
+      // Se já tínhamos uma música em andamento, salvá-la
+      if (currentMusic) {
+        currentMusic.endLine = i - 1;
+        musics.push(currentMusic);
+      }
+      
+      // Começar nova música
+      musicStarted = true;
+      currentMusic = {
+        startLine: i,
+        endLine: lines.length - 1, // Será atualizado quando encontrar próxima música
+        lines: [line],
+        title: "Música sem título",
+        number: trimmed.substring(2).trim()
+      };
+    } 
+    // Se já estamos em uma música, adicionar a linha
+    else if (currentMusic && musicStarted) {
+      currentMusic.lines.push(line);
+      
+      // Tentar extrair título
+      if (trimmed.startsWith('T:')) {
+        currentMusic.title = trimmed.substring(2).trim();
+      }
+      
+      // Se encontrar o final da música (|])
+      if (trimmed.includes('|]')) {
+        musicStarted = false;
+      }
+    }
+  }
+  
+  // Adicionar a última música se existir
+  if (currentMusic) {
+    currentMusic.endLine = lines.length - 1;
+    musics.push(currentMusic);
+  }
+  
+  return musics;
+}
+
+// Obter o texto da música atual
+function getCurrentMusicText() {
+  if (allMusicsInEditor.length === 0) {
+    extractMusicsFromEditor();
+  }
+  
+  if (allMusicsInEditor.length > 0 && currentMusicIndex >= 0 && currentMusicIndex < allMusicsInEditor.length) {
+    return allMusicsInEditor[currentMusicIndex].lines.join('\n');
+  }
+  
+  // Fallback: retornar todo o texto do editor
+  return document.getElementById('abcInput').value;
+}
+
+// Extrair músicas do editor e atualizar a navegação
+function extractMusicsFromEditor() {
+  allMusicsInEditor = extractAllMusicsFromEditor();
+  editorMusicsExtracted = true;
+  
+  // Atualizar navegação
+  updateMusicNavigation();
+  
+  // Se houver músicas, renderizar a primeira
+  if (allMusicsInEditor.length > 0) {
+    renderCurrentMusic();
+  }
+  
+  return allMusicsInEditor;
+}
+
+// Navegar para a música anterior
+function navigateToPrevMusic() {
+  if (currentMusicIndex > 0) {
+    currentMusicIndex--;
+    renderCurrentMusic();
+    updateMusicNavigation();
+  }
+}
+
+// Navegar para a próxima música
+function navigateToNextMusic() {
+  if (currentMusicIndex < allMusicsInEditor.length - 1) {
+    currentMusicIndex++;
+    renderCurrentMusic();
+    updateMusicNavigation();
+  }
+}
+
+// Renderizar a música atual
+function renderCurrentMusic() {
+  if (allMusicsInEditor.length === 0 || currentMusicIndex < 0 || currentMusicIndex >= allMusicsInEditor.length) {
+    return;
+  }
+  
+  const music = allMusicsInEditor[currentMusicIndex];
+  
+  // Atualizar informações da música
+  document.getElementById('musicInfoTag').innerText = `Música ${music.number}: ${music.title}`;
+  
+  // Extrair e configurar BPM
+  const bpm = extractBPMFromMusic(music.lines.join('\n'));
+  if (bpm) {
+    document.getElementById('bpmValue').value = bpm;
+  }
+  
+  // Renderizar partitura
+  setTimeout(() => {
+    renderScore();
+    updateTimeSignatureDisplay();
+    
+    // Sincronizar metrônomo se estiver tocando
+    if (metroIsPlaying) {
+      syncMetroWithBPM();
+    }
+  }, 50);
+}
+
+// Atualizar navegação de músicas
+function updateMusicNavigation() {
+  const nav = document.getElementById('musicNavigation');
+  const prevBtn = document.getElementById('prevMusicBtn');
+  const nextBtn = document.getElementById('nextMusicBtn');
+  const info = document.getElementById('currentMusicInfo');
+  
+  if (allMusicsInEditor.length > 1) {
+    nav.style.display = 'flex';
+    prevBtn.disabled = currentMusicIndex === 0;
+    nextBtn.disabled = currentMusicIndex === allMusicsInEditor.length - 1;
+    
+    const music = allMusicsInEditor[currentMusicIndex];
+    info.innerHTML = `<span class="music-current">Música ${currentMusicIndex + 1} de ${allMusicsInEditor.length}</span><br><small>${music.title}</small>`;
+  } else {
+    nav.style.display = 'none';
+  }
+}
+
+// Extrair BPM de uma música
+function extractBPMFromMusic(abcText) {
+  const lines = abcText.split('\n');
+  
+  for (const line of lines) {
+    if (line.trim().startsWith('Q:')) {
+      const qMatch = line.match(/Q:.*?=(\d+)/);
+      if (qMatch && qMatch[1]) {
+        return parseInt(qMatch[1]);
+      }
+    }
+  }
+  
+  return null;
+}
+
 /* --- BIBLIOTECA (GITHUB + LOCAL) --- */
 async function carregarArquivosServidor() {
   const status = document.getElementById('libraryStatus');
@@ -2220,38 +2474,100 @@ async function selectFolder() {
 }
 
 function renderLibrary() {
-  const container = document.getElementById('fileContainerList'); container.innerHTML = '';
+  const container = document.getElementById('fileContainerList'); 
+  container.innerHTML = '';
+  
   fileLibrary.forEach((file, fIdx) => {
-    const fDiv = document.createElement('div'); fDiv.className = 'file-container';
-    fDiv.innerHTML = `<div class="file-header" onclick="toggleAccordion(${fIdx})"><span>${file.handle ? '📁' : '🌐'} ${file.name}</span></div><div class="music-list" id="list-${fIdx}"></div>`;
+    const fDiv = document.createElement('div'); 
+    fDiv.className = 'file-container';
+    fDiv.innerHTML = `
+      <div class="file-header" onclick="toggleAccordion(${fIdx})">
+        <span>${file.handle ? '📁' : '🌐'} ${file.name}</span>
+      </div>
+      <div class="music-list" id="list-${fIdx}"></div>`;
+    
     const mList = fDiv.querySelector('.music-list');
     const musics = extractMusics(file.content);
-    musics.forEach(m => {
-      const mDiv = document.createElement('div'); mDiv.className = 'music-item'; mDiv.innerText = `🎵 ${m.title}`;
+    
+    musics.forEach((m, mIdx) => {
+      const mDiv = document.createElement('div'); 
+      mDiv.className = 'music-item'; 
+      mDiv.innerText = `🎵 ${m.title}`;
+      mDiv.dataset.fileIndex = fIdx;
+      mDiv.dataset.musicIndex = mIdx;
+      
       mDiv.onclick = () => { 
-        currentFileHandle = file.handle; 
-        document.getElementById('abcInput').value = m.content; 
+        // Remover classe 'active' de todos os itens de música
+        document.querySelectorAll('.music-item').forEach(item => {
+          item.classList.remove('active');
+        });
+        
+        // Adicionar classe 'active' ao item clicado
+        mDiv.classList.add('active');
+        currentMusicItem = mDiv;
+        
+        // Carregar a música no editor
+        loadMusicIntoEditor(m.content);
+        
+        // Extrair músicas do editor
+        extractMusicsFromEditor();
+        
+        // Atualizar informações da música
         document.getElementById('musicInfoTag').innerText = "| " + m.title; 
-        renderScore();
+        
+        // PARAR TREINO E PLAYBACK ATUAL
         stopTraining();
+        stopPlayback();
+        
+        // GARANTIR QUE A PARTITURA SEJA RENDERIZADA IMEDIATAMENTE
+        setTimeout(() => {
+          renderScore();
+          
+          // ATUALIZAR METRÔNOMO COM O COMPASSO DA NOVA MÚSICA
+          updateTimeSignatureDisplay();
+          
+          // SINCRONIZAR METRÔNOMO SE ESTIVER TOCANDO
+          syncMetroWithBPM();
+        }, 50);
       };
+      
       mList.appendChild(mDiv);
     });
+    
     container.appendChild(fDiv);
   });
 }
 
+// Carregar música no editor
+function loadMusicIntoEditor(abcContent) {
+  document.getElementById('abcInput').value = abcContent;
+}
+
 function extractMusics(content) {
-  const musics = []; const lines = content.split('\n'); let current = null;
+  const musics = []; 
+  const lines = content.split('\n'); 
+  let current = null;
+  
   lines.forEach(l => {
-    if (l.trim().startsWith('X:')) { if (current) musics.push(current); current = { title: "Sem título", content: l + '\n' }; }
-    else if (current) { current.content += l + '\n'; if (l.trim().startsWith('T:')) current.title = l.replace('T:', '').trim(); }
+    if (l.trim().startsWith('X:')) { 
+      if (current) musics.push(current); 
+      current = { title: "Sem título", content: l + '\n' }; 
+    }
+    else if (current) { 
+      current.content += l + '\n'; 
+      if (l.trim().startsWith('T:')) current.title = l.replace('T:', '').trim(); 
+    }
   });
-  if (current) musics.push(current); return musics;
+  
+  if (current) musics.push(current); 
+  return musics;
 }
 
 async function salvarArquivoLocal() {
-  if (!currentFileHandle) { alert("Arquivos do servidor não podem ser salvos localmente aqui."); return; }
+  if (!currentFileHandle) { 
+    alert("Arquivos do servidor não podem ser salvos localmente aqui."); 
+    return; 
+  }
   const writable = await currentFileHandle.createWritable();
   await writable.write(document.getElementById('abcInput').value);
   await writable.close();
@@ -2262,7 +2578,7 @@ async function salvarArquivoLocal() {
 function updateBPM() { 
   const bpm = parseInt(document.getElementById('bpmValue').value);
   
-  const abcText = document.getElementById('abcInput').value;
+  const abcText = getCurrentMusicText();
   const lines = abcText.split('\n');
   
   let qLineFound = false;
@@ -2289,7 +2605,8 @@ function updateBPM() {
     }
   }
   
-  document.getElementById('abcInput').value = updatedLines.join('\n');
+  // Atualizar apenas a música atual no editor
+  updateCurrentMusicInEditor(updatedLines.join('\n'));
   
   if (isPlaying && !trainingActive) { 
     stopPlayback(); 
@@ -2300,6 +2617,34 @@ function updateBPM() {
   
   // Sincronizar metrônomo com novo BPM
   syncMetroWithBPM();
+}
+
+// Atualizar apenas a música atual no editor
+function updateCurrentMusicInEditor(newMusicText) {
+  if (allMusicsInEditor.length === 0 || currentMusicIndex < 0 || currentMusicIndex >= allMusicsInEditor.length) {
+    return;
+  }
+  
+  const fullEditorText = document.getElementById('abcInput').value;
+  const lines = fullEditorText.split('\n');
+  const music = allMusicsInEditor[currentMusicIndex];
+  
+  // Substituir as linhas da música atual
+  const beforeMusic = lines.slice(0, music.startLine).join('\n');
+  const afterMusic = lines.slice(music.endLine + 1).join('\n');
+  
+  let newFullText = beforeMusic;
+  if (beforeMusic) newFullText += '\n';
+  newFullText += newMusicText;
+  if (afterMusic) newFullText += '\n' + afterMusic;
+  
+  document.getElementById('abcInput').value = newFullText;
+  
+  // Atualizar a música no array
+  music.lines = newMusicText.split('\n');
+  
+  // Re-extrair músicas para atualizar índices
+  extractMusicsFromEditor();
 }
 
 function changeZoom(n) { 
@@ -2340,17 +2685,31 @@ const arquivosNoServidor = [
   'livro/8012 - PDF - Guitarra - 1001 Jazz Licks - Jack Shneidman.txt'
 ];
 
+// Inicialização da aplicação
 window.onload = () => { 
+  // Extrair músicas do editor inicial
+  extractMusicsFromEditor();
+  
+  // Renderizar a primeira música
   renderScore(); 
+  
+  // Carregar arquivos do servidor
   carregarArquivosServidor(); 
   
+  // Inicializar sistema de redimensionamento
   initResizeHandles();
   loadLayoutFromStorage();
   
+  // Configurar eventos do editor
   const abcInput = document.getElementById('abcInput');
-  abcInput.addEventListener('input', updateScoreWithDebounce);
-  abcInput.addEventListener('input', onAbcInputChange);
+  abcInput.addEventListener('input', function() {
+    // Quando o editor mudar, re-extrair as músicas
+    extractMusicsFromEditor();
+    updateScoreWithDebounce();
+    onAbcInputChange();
+  });
   
+  // Configurar eventos do BPM
   document.getElementById('bpmValue').addEventListener('change', updateBPM);
   document.getElementById('bpmValue').addEventListener('keyup', function(e) {
     if (e.key === 'Enter') {
@@ -2358,18 +2717,21 @@ window.onload = () => {
     }
   });
   
+  // Configurar volume do metrônomo
   const volumeSlider = document.getElementById('metroVolumeSlider');
   if (volumeSlider) {
     volumeSlider.addEventListener('input', updateMetroVolume);
   }
   
+  // Configurar redimensionamento da janela
   window.addEventListener('resize', updateSizeIndicators);
   
+  // Inicializar display do compasso
   updateTimeSignatureDisplay();
   
   // Feedback tátil para dispositivos touch
   if ('ontouchstart' in window) {
-    document.querySelectorAll('.header-btn, .control-group button, .training-btn, .note-btn, .instrument-btn').forEach(btn => {
+    document.querySelectorAll('.header-btn, .control-group button, .training-btn, .note-btn, .instrument-btn, .music-nav-btn').forEach(btn => {
       btn.addEventListener('touchstart', function() {
         this.style.transform = 'scale(0.98)';
         this.style.transition = 'transform 0.1s';
