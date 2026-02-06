@@ -1,1317 +1,146 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>Editor ABC - Estúdio Completo</title>
-
-<script src="https://cdn.jsdelivr.net/npm/abcjs@6.5.2/dist/abcjs-basic-min.js"></script>
-
-<style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  html, body { height: 100vh; font-family: 'Segoe UI', Arial, sans-serif; overflow: hidden; background: #f4f4f4; }
-  
-  .header { height: 55px; background: #fff; border-bottom: 1px solid #ccc; display: flex; align-items: center; padding: 0 15px; gap: 10px; }
-  .header-btn { padding: 8px 12px; font-size: 13px; cursor: pointer; background: #fff; border: 1px solid #ccc; border-radius: 6px; font-weight: 500; display: flex; align-items: center; gap: 5px; }
-  .btn-save { background: #22c55e !important; color: white !important; border: none !important; }
-  .btn-tuner { background: #6366f1 !important; color: white !important; border: none !important; }
-  .btn-train { background: #f97316 !important; color: white !important; border: none !important; }
-  #playBtn { background: #28a745; color: white; border: none; min-width: 90px; justify-content: center; }
-  #playBtn.playing { background: #dc3545; }
-  #metronomeVisual { width: 12px; height: 12px; border-radius: 50%; background: #ccc; transition: background 0.1s; margin-left: 5px; }
-  .metronome-active { background: #2196f3 !important; transform: scale(1.2); }
-  .control-group { display: flex; align-items: center; gap: 8px; background: #f8f9fa; padding: 5px 12px; border-radius: 20px; border: 1px solid #dee2e6; font-size: 13px; }
-  .control-group button { border: none; background: none; cursor: pointer; font-weight: bold; padding: 0 5px; }
-
-  .app-container { display: flex; height: calc(100vh - 55px); }
-  .sidebar { width: 300px; background: #fff; border-right: 1px solid #ccc; overflow-y: auto; padding: 10px; transition: all 0.3s ease; position: relative; }
-  .sidebar.hidden { width: 0; opacity: 0; padding: 0; border: none; }
-  .file-container { margin-bottom: 8px; border-radius: 6px; overflow: hidden; border: 1px solid #eee; background: white; }
-  .file-header { padding: 12px; background: #fafafa; cursor: pointer; font-size: 13px; font-weight: 600; display: flex; justify-content: space-between; }
-  .music-list { display: none; background: #fff; }
-  .music-list.show { display: block; }
-  .music-item { padding: 10px 15px; font-size: 12px; cursor: pointer; border-bottom: 1px solid #f9f9f9; }
-  .music-item:hover { background: #e3f2fd; color: #2196f3; }
-  
-  .editor-container { width: 400px; padding: 10px; display: flex; flex-direction: column; background: #fff; border-right: 1px solid #ccc; transition: all 0.3s ease; position: relative; }
-  .editor-container.hidden { width: 0; opacity: 0; padding: 0; border: none; }
-  textarea { width: 100%; height: 100%; font-family: 'Courier New', monospace; font-size: 15px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; resize: none; outline: none; }
-  .score-container { flex: 1; padding: 10px; overflow: hidden; display: flex; flex-direction: column; transition: all 0.3s ease; position: relative; }
-  .score-container.hidden { width: 0; opacity: 0; padding: 0; border: none; overflow: hidden; }
-#paper-container { 
-  flex: 1; 
-  overflow: auto !important; 
-  background: white; 
-  border: 1px solid #ccc; 
-  border-radius: 8px;
-  height: 100%; /* Garante que o container ocupe o espaço disponível */
-}
-
-#paper { 
-  padding: 10px; 
-  display: block; /* Mudado de inline-block para block */
-  width: 100%;
-  height: auto !important; /* Força a altura a se ajustar ao conteúdo */
-}
-
-/* Garante que o SVG não seja limitado */
-#paper svg {
-  display: block;
-  max-width: none !important; 
-}
-
-  /* Divisores arrastáveis */
-  .resize-handle {
-    position: absolute;
-    top: 0;
-    right: -5px;
-    width: 10px;
-    height: 100%;
-    cursor: col-resize;
-    z-index: 100;
-    background: transparent;
-    transition: background-color 0.2s;
-  }
-  .resize-handle:hover, .resize-handle.resizing {
-    background-color: rgba(59, 130, 246, 0.3);
-  }
-  .resize-handle::after {
-    content: '';
-    position: absolute;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    width: 2px;
-    height: 30px;
-    background: #ccc;
-    border-radius: 1px;
-  }
-  .resize-handle:hover::after, .resize-handle.resizing::after {
-    background: #3b82f6;
-    width: 3px;
-  }
-  
-  /* Indicadores de tamanho */
-  .size-indicator {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: rgba(0, 0, 0, 0.7);
-    color: white;
-    padding: 3px 8px;
-    border-radius: 4px;
-    font-size: 11px;
-    font-weight: bold;
-    display: none;
-    z-index: 101;
-  }
-  .resize-handle:hover .size-indicator,
-  .resize-handle.resizing .size-indicator {
-    display: block;
-  }
-
-  /* Modais */
-  .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; align-items: center; justify-content: center; }
-  .modal-content { background: white; padding: 25px; border-radius: 15px; width: 380px; text-align: center; }
-  .modal-content.train { width: 420px; }
-  .tuner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-  .instrument-btn { padding: 12px; border: 1px solid #ddd; border-radius: 10px; cursor: pointer; background: #fdfdfd; font-weight: 600; }
-  .notes-container { display: flex; justify-content: center; gap: 8px; margin-top: 15px; flex-wrap: wrap; border-top: 1px solid #eee; padding-top: 20px; }
-  .note-btn { width: 45px; height: 45px; border-radius: 50%; border: 2px solid #6366f1; background: white; color: #6366f3; cursor: pointer; font-weight: bold; }
-  .note-btn.active { background: #6366f1; color: white; }
-  .btn-stop-tuner { width: 100%; margin-top: 20px; padding: 12px; background: #ff4757; color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-
-  /* Painel de Treino */
-  .training-panel { position: fixed; top: 60px; right: 20px; background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.15); width: 280px; z-index: 900; display: none; }
-  .training-panel.active { display: block; }
-  .training-header { font-size: 16px; font-weight: bold; margin-bottom: 15px; color: #f97316; display: flex; align-items: center; gap: 8px; }
-  .training-stats { background: #f8f9fa; padding: 12px; border-radius: 8px; margin-bottom: 15px; }
-  .stat-row { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 13px; }
-  .stat-value { font-weight: bold; color: #f97316; }
-  .training-controls { display: flex; gap: 8px; }
-  .training-btn { flex: 1; padding: 10px; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; }
-  .btn-pause { background: #f97316; color: white; }
-  .btn-stop { background: #dc3545; color: white; }
-  .progress-bar { height: 6px; background: #e9ecef; border-radius: 3px; overflow: hidden; margin-top: 15px; }
-  .progress-fill { height: 100%; background: #22c55e; width: 0%; transition: width 0.3s; }
-
-  /* Formulário de Treino */
-  .form-group { margin-bottom: 15px; text-align: left; }
-  .form-label { display: block; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: #333; }
-  .form-input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 8px; font-size: 14px; }
-  .form-row { display: flex; gap: 10px; }
-  .form-row .form-group { flex: 1; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NBM_Aplicativos</title>
 </head>
 <body>
-
-<div class="header">
-  <button class="header-btn" onclick="toggleSidebar()">📁 Biblioteca</button>
-  <button class="header-btn" onclick="toggleEditor()">✏️ Editor</button>
-  
-  <button class="header-btn btn-save" onclick="salvarArquivoLocal()">💾 Salvar</button>
-  <button class="header-btn btn-tuner" onclick="openTuner()">🎸 Afinador</button>
-  <button class="header-btn btn-train" onclick="openTrainingConfig()">🏋️ Treino</button>
-  <div style="width: 1px; height: 25px; background: #ddd; margin: 0 5px;"></div>
-  <div class="control-group"> Tom: <button onclick="changeTranspose(-1)">-</button><span id="transposeLabel">0</span><button onclick="changeTranspose(1)">+</button></div>
-  <button id="playBtn" class="header-btn" onclick="togglePlay()"><span id="playIcon">▶</span> <span id="playText">Tocar</span></button>
-  <div class="control-group"> BPM: <input type="number" id="bpmValue" class="bpm-input" value="100" min="40" max="300" style="width:45px; border:none; background:transparent; font-weight:bold; color:#2196f3; outline:none; text-align:center;"><div id="metronomeVisual"></div></div>
-  <div class="control-group"> Zoom: <button onclick="changeZoom(-10)">-</button><span id="zoomLabel">100%</span><button onclick="changeZoom(10)">+</button></div>
-  <div id="musicInfoTag" style="font-size:11px; color:#666; font-weight:bold; margin-left:10px;"></div>
-  <div style="margin-left: auto;">
-    <button class="header-btn" onclick="selectFolder()" style="background: #e3f2fd; color: #2196f3;">📂 Abrir Pasta</button>
-    <button class="header-btn" onclick="resetLayout()" style="background: #f8f9fa; color: #666; margin-left: 5px;">🔄 Layout</button>
-  </div>
-</div>
-
-<!-- Modal Afinador -->
-<div id="tunerModal" class="modal-overlay">
-  <div class="modal-content">
-    <h3>Afinador Cello Infinito</h3>
-    <div class="tuner-grid">
-      <div class="instrument-btn" onclick="showTunerNotes('violao')">🎸 Violão</div>
-      <div class="instrument-btn" onclick="showTunerNotes('violino')">🎻 Violino</div>
-      <div class="instrument-btn" onclick="showTunerNotes('cavaquinho')">🪕 Cavaco</div>
-      <div class="instrument-btn" onclick="showTunerNotes('ukulele')">🌴 Ukulele</div>
-    </div>
-    <div id="tunerNotesArea" class="notes-container" style="display:none;"></div>
-    <button class="btn-stop-tuner" onclick="stopTunerAudio()">⏹ PARAR SOM</button>
-    <p onclick="closeTuner()" style="margin-top:15px; cursor:pointer; font-size:12px; color:#666">Fechar</p>
-  </div>
-</div>
-
-<!-- Modal Configuração de Treino -->
-<div id="trainingModal" class="modal-overlay">
-  <div class="modal-content train">
-    <h3>🏋️ Configurar Treino</h3>
-    <div class="form-group">
-      <label class="form-label">BPM Inicial:</label>
-      <input type="number" id="trainStartBpm" class="form-input" value="60" min="40" max="200">
-    </div>
-    <div class="form-group">
-      <label class="form-label">BPM Final:</label>
-      <input type="number" id="trainEndBpm" class="form-input" value="120" min="50" max="300">
-    </div>
-    <div class="form-row">
-      <div class="form-group">
-        <label class="form-label">Incremento:</label>
-        <input type="number" id="trainIncrement" class="form-input" value="5" min="1" max="20">
-      </div>
-      <div class="form-group">
-        <label class="form-label">Repetições por BPM:</label>
-        <input type="number" id="trainRepetitions" class="form-input" value="3" min="1" max="10">
-      </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">Intervalo entre repetições (segundos):</label>
-      <input type="number" id="trainInterval" class="form-input" value="1" min="0" max="10" step="0.1">
-    </div>
-    <button class="btn-stop-tuner" onclick="startTraining()" style="background: #22c55e;">▶ INICIAR TREINO</button>
-    <p onclick="closeTrainingModal()" style="margin-top:15px; cursor:pointer; font-size:12px; color:#666">Cancelar</p>
-  </div>
-</div>
-
-<!-- Painel de Controle de Treino -->
-<div id="trainingPanel" class="training-panel">
-  <div class="training-header">🏋️ TREINO ATIVO</div>
-  <div class="training-stats">
-    <div class="stat-row">
-      <span>BPM Atual:</span>
-      <span id="currentTrainBpm" class="stat-value">60</span>
-    </div>
-    <div class="stat-row">
-      <span>Repetição:</span>
-      <span id="currentRepetition" class="stat-value">1/3</span>
-    </div>
-    <div class="stat-row">
-      <span>Progresso:</span>
-      <span id="trainProgress" class="stat-value">0%</span>
-    </div>
-    <div class="stat-row">
-      <span>Status:</span>
-      <span id="trainStatus" class="stat-value">Tocando...</span>
-    </div>
-  </div>
-  <div class="training-controls">
-    <button class="training-btn btn-pause" onclick="toggleTrainingPause()">⏸ Pausar</button>
-    <button class="training-btn btn-stop" onclick="stopTraining()">⏹ Parar</button>
-  </div>
-  <div class="progress-bar">
-    <div class="progress-fill" id="trainProgressBar"></div>
-  </div>
-</div>
-
-<div class="app-container">
-  <div class="sidebar" id="sidebar">
-    <div id="libraryStatus" style="font-size: 11px; margin-bottom: 10px; color: #999;">Carregando...</div>
-    <div id="fileContainerList"></div>
-    <div class="resize-handle" id="sidebarResize">
-      <div class="size-indicator" id="sidebarSize">300px</div>
-    </div>
-  </div>
-  <div class="editor-container" id="editorContainer"><textarea id="abcInput" spellcheck="false">X:1
-T:Novo Estudo
-Q:1/4=100
-M:4/4
-L:1/4
-K:C
-C D E F | G A B c |]</textarea>
-    <div class="resize-handle" id="editorResize">
-      <div class="size-indicator" id="editorSize">400px</div>
-    </div>
-  </div>
-  <div class="score-container" id="scoreContainer"><div id="paper-container"><div id="paper"></div></div>
-    <div class="resize-handle" id="scoreResize">
-      <div class="size-indicator" id="scoreSize">flexível</div>
-    </div>
-  </div>
-</div>
-
-<script>
-let visualObj = null, synthControl = null, audioContext = null;
-let currentTranspose = 0, currentZoom = 100, metroInterval = null, isPlaying = false;
-let currentFileHandle = null, fileLibrary = [];
-
-// --- VARIÁVEIS DE TREINO ---
-let trainingActive = false;
-let trainingPaused = false;
-let trainingConfig = {
-  startBpm: 60,
-  endBpm: 120,
-  increment: 5,
-  repetitions: 3,
-  interval: 1,
-  currentBpm: 60,
-  currentRepetition: 1,
-  currentCycle: 1
-};
-let trainingTimeout = null;
-let musicDurationMs = 0; // Duração da música em milissegundos
-
-// --- VARIÁVEIS DE REDIMENSIONAMENTO ---
-let sidebarWidth = 300;
-let editorWidth = 400;
-let isResizing = false;
-let currentResizeHandle = null;
-let startX = 0;
-let startWidth = 0;
-
-/* --- AFINADOR (WEB AUDIO) --- */
-let oscillator = null, gainNode = null, currentActiveNoteBtn = null;
-const freqs = { 'E,,': 82.41, 'A,,': 110.00, 'D,': 146.83, 'G,': 196.00, 'B,': 246.94, 'E': 329.63, 'D': 293.66, 'A': 440.00, 'e': 659.25, 'B': 493.88, 'G': 392.00, 'd': 587.33, 'C': 261.63 };
-
-function openTuner() { document.getElementById('tunerModal').style.display = 'flex'; }
-function closeTuner() { stopTunerAudio(); document.getElementById('tunerModal').style.display = 'none'; }
-function playTunerNote(freqKey, btnElement) {
-  if (!audioContext) audioContext = new AudioContext();
-  if (currentActiveNoteBtn === btnElement) { stopTunerAudio(); return; }
-  stopTunerAudio();
-  currentActiveNoteBtn = btnElement; btnElement.classList.add('active');
-  oscillator = audioContext.createOscillator(); gainNode = audioContext.createGain();
-  oscillator.type = 'sawtooth'; oscillator.frequency.setValueAtTime(freqs[freqKey], audioContext.currentTime);
-  const filter = audioContext.createBiquadFilter(); filter.type = 'lowpass'; filter.frequency.setValueAtTime(1000, audioContext.currentTime);
-  oscillator.connect(filter); filter.connect(gainNode); gainNode.connect(audioContext.destination);
-  gainNode.gain.setValueAtTime(0, audioContext.currentTime); gainNode.gain.linearRampToValueAtTime(0.2, audioContext.currentTime + 0.1);
-  oscillator.start();
-}
-function stopTunerAudio() {
-  if (oscillator) { gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.1); const os = oscillator; setTimeout(() => os.stop(), 120); oscillator = null; }
-  if (currentActiveNoteBtn) { currentActiveNoteBtn.classList.remove('active'); currentActiveNoteBtn = null; }
-}
-function showTunerNotes(inst) {
-  stopTunerAudio(); const area = document.getElementById('tunerNotesArea'); area.style.display = 'flex'; area.innerHTML = '';
-  const instData = {
-    violao: { nomes: ['E2','A2','D3','G3','B3','E4'], notas: ['E,,', 'A,,', 'D,', 'G,', 'B,', 'E'] },
-    violino: { nomes: ['G3','D4','A4','E5'], notas: ['G,', 'D', 'A', 'e'] },
-    cavaquinho: { nomes: ['D4','G4','B4','D5'], notas: ['D', 'G', 'B', 'd'] },
-    ukulele: { nomes: ['G4','C4','E4','A4'], notas: ['G', 'C', 'E', 'A'] }
-  };
-  instData[inst].nomes.forEach((nome, idx) => {
-    const btn = document.createElement('button'); btn.className = 'note-btn'; btn.innerText = nome;
-    btn.onclick = () => playTunerNote(instData[inst].notas[idx], btn); area.appendChild(btn);
-  });
-}
-
-/* --- SISTEMA DE REDIMENSIONAMENTO --- */
-function initResizeHandles() {
-  const sidebarResize = document.getElementById('sidebarResize');
-  const editorResize = document.getElementById('editorResize');
-  const scoreResize = document.getElementById('scoreResize');
-  
-  // Configurar evento de mouse para cada handle
-  [sidebarResize, editorResize, scoreResize].forEach(handle => {
-    if (!handle) return;
+    <h1>NBM Aplicativos</h1>
+    <br>
+    <p><a href="https://script.google.com/macros/s/AKfycbyLTQ_w3ls6Ms1tQbFv2dUX9ZM9hNu8AjLuZir8lN3fWiNLwXE9lGYP0Yy1kvmlq7mi/exec" target="_blank">Site Principal</a></li></p>
     
-    handle.addEventListener('mousedown', startResize);
-  });
-  
-  // Atualizar indicadores de tamanho
-  updateSizeIndicators();
-}
+    <h2>Aplicativos</h2>
+   <ul>
+        <li><a href="aplicativos/Converter_Generator HTML.html" target="_blank">Converter Generator ABC - HTML</a></li>
+       
+        <li><a href="aplicativos/Gerador_Variações_Números _ABC.html" target="_blank">Gerador Variações Números ABC</a></li> 
+        <li><a href="aplicativos/Gerador_Variações_Números_Sequência.html" target="_blank">Gerador Variações Números Sequência</a></li> 
+       
+        <li><a href="aplicativos/metronomo.html" target="_blank">Metrônomo</a></li> 
+       <li><a href="aplicativos/casa.html" target="_blank">casa</a></li> 
 
-function startResize(e) {
-  e.preventDefault();
-  isResizing = true;
-  currentResizeHandle = e.target;
-  startX = e.clientX;
-  
-  // Determinar qual elemento está sendo redimensionado
-  const handleId = currentResizeHandle.id;
-  let targetElement = null;
-  
-  if (handleId === 'sidebarResize') {
-    targetElement = document.getElementById('sidebar');
-    startWidth = sidebarWidth;
-  } else if (handleId === 'editorResize') {
-    targetElement = document.getElementById('editorContainer');
-    startWidth = editorWidth;
-  } else if (handleId === 'scoreResize') {
-    targetElement = document.getElementById('scoreContainer');
-    startWidth = targetElement.offsetWidth;
-  }
-  
-  if (targetElement) {
-    currentResizeHandle.classList.add('resizing');
+       
+        <li><a href="aplicativos/NBM_aulas_lecionadas/NBM_aulas_lecionadas.html" target="_blank">NBM Aulas Lecionadas</a></li> 
+        <li><a href="aplicativos/Unir_Notação_ABC.html" target="_blank">Unir Notação ABC</a></li>    
+       <li><a href="aplicativos/NBM_Treinador_Auditivo/NBM_Treinador_Auditivo.html" target="_blank">NBM - Treinador Auditivo</a></li> 
+       <li><a href="aplicativos/NBM_Treinador_Auditivo/Treino_Auditivo.html" target="_blank">NBM - Treino Auditivo</a></li> 
+       <li><a href="aplicativos/NBM_conversor_grafico_harmônico/NBM_conversor_gráfico_harmônico.html" target="_blank">NBM Conversor Gráfico Harmônico</a></li> 
+       <li><a href="aplicativos/NBM_abc2svg_Editor/abc2svg.html" target="_blank">NBM Editor abc2svg</a></li> 
+       <li><a href="https://abcplus.sourceforge.net/abcplus_en.html" target="_blank">Tutorial abc</a></li> 
+       <li><a href="https://michaeleskin.com/tools/abctools_website_generator.html" target="_blank">Ferramentas de transcrição ABC Website Builder</a></li> 
+       <li><a href="https://www.mcmusiceditor.com/index.php?id=home" target="_blank">MC Musiceditor</a></li> 
+       <li><a href="https://michaeleskin.com/abctools/abctools.html" target="_blank">Ferramentas de transcrição ABC</a></li> 
+       <li><a href="http://moinejf.free.fr/js/edit-1.xhtml" target="_blank">abc2svg Editor</a></li> 
+       <li><a href="aplicativos/NBM_Editor_de_livros/NBM_Editor_de_livros.html" target="_blank">NBM - Editor de Livros</a></li> 
+       <li><a href="aplicativos/NBM_Pesquisa_Avançada_Biblioteca/pesquisa_avançada.html" target="_blank">NBM - Pesquisa Avançada</a></li> 
+       <li><a href="aplicativos/NBM_Progressão_Harmônica/NBM_Progressão_Harmônica.html" target="_blank">NBM - Progressão Harmônica</a></li> 
+       <li><a href="aplicativos/NBM_abc_dividir_mesclar/NBM_abc_dividir_mesclar.html" target="_blank">NBM - ABC - dividir_mesclar</a></li>
+       <li><a href="aplicativos/NBM_Livro_interativo/index.html" target="_blank">NBM - Livro_interativo_Professor</a></li>  
+       <li><a href="aplicativos/NBM_Livro_interativo/resultado.html" target="_blank">NBM - Livro_interativo_Aluno</a></li>  
+       <li><a href="aplicativos/23/editor.html" target="_blank">NBM - Professor</a></li>  
+       <li><a href="aplicativos/23/resultado.html" target="_blank">NBM - Aluno</a></li>  
+       <li><a href="aplicativos/NBM_Editor_html_css_js_py_txt/index.html" target="_blank">NBM - Editor_html_css_js_python_txt</a></li>  
+       <li><a href="aplicativos/editor_pesquisa/editor_pesquisa.html" target="_blank">editor_pesquisa</a></li> 
+       <li><a href="aplicativos/NBM_Conversor_cifra_para_grau.html" target="_blank">ABC - Converter_Cifra para Grau</a></li>
+       <li><a href="aplicativos/NBM_Violão-Acordes/index.html" target="_blank">NBM - Violão Acordes</a></li>  
+       <li><a href="aplicativos/NBM_Siga_o_Ritmo/index.html" target="_blank">NBM - Siga o Ritmo</a></li>  
+       <li><a href="aplicativos/NBM_Diagrama_de_Acorde/index.html" target="_blank">NBM_Diagrama_acordes</a></li>  
+       <li><a href="aplicativos/tabela_registro_935-GUITARRA/tabela_935-GUITARRA.html" target="_blank">NBM_Tabela_Registro - 935 - Guitarra - Albertino Moura</a></li>
+       <li><a href="aplicativos/NBM_roleta_musical/roleta_musical.html" target="_blank">Roleta Musical</a></li>
+       <li><a href="aplicativos/NBM_visualizador_html/index.html" target="_blank">NBM_visualizador_html</a></li> 
+       <li><a href="aplicativos/NBM_Afinador/Afinador.html" target="_blank">NBM_Afinador</a></li> 
+       
+       <li><a href="aplicativos/projeto-musical2/index.html" target="_blank">banco de dados</a></li> 
+       <li><a href="aplicativos/teste.html" target="_blank">teste</a></li> 
+       <li><a href="aplicativos/alfabeto.html" target="_blank">Alfabeto</a></li> 
+
+
+    </ul>
     
-    // Adicionar eventos de mouse global
-    document.addEventListener('mousemove', handleResize);
-    document.addEventListener('mouseup', stopResize);
+     <h2>Livros HTML</h2>
+    <ul>
+        <li><a href="livros_html/livros_html.html" target="_blank">Livros HTML</a></li>
+    </ul>
+
+
     
-    // Prevenir seleção de texto durante o redimensionamento
-    document.body.style.userSelect = 'none';
-    document.body.style.cursor = 'col-resize';
-  }
-}
+     <h2>Ferramentas Visualizador</h2>
+    <ul>
+       <li><a href="aplicativos/NBM_visualizador_v1/index.html" target="_blank">NBM_visualizador_v1</a></li> 
+       <li><a href="aplicativos/NBM_visualizador_v2/index.html" target="_blank">NBM_visualizador_v2</a></li>
+       <li><a href="aplicativos/NBM_visualizador_v1/content/html/Gerador_Plataforma.html" target="_blank">Gerador de Plataforma</a></li> 
+       <li><a href="aplicativos/NBM_visualizador_v1/content/html/conversor_ABC_js.html" target="_blank">conversor ABC e text para js</a></li> 
+       <li><a href="aplicativos/NBM_visualizador_v1/content/html/texto_indice.html" target="_blank">Gerar Texto Índice</a></li> 
+       <li><a href="aplicativos/midiplayer/leitormidi.html" target="_blank">Leitor Midi</a></li> 
+       <li><a href="aplicativos/cifra/cifrapronto.html" target="_blank">cifra</a></li>  
+       <li><a href="aplicativos/notatecla/notatecla.html" target="_blank">NBM_Nota Tecla</a></li> 
+       <li><a href="aplicativos/NBM_visualizador_v2/content/html/Biblioteca_Partituras_PDF/Biblioteca_Partituras_PDF.html" target="_blank">Biblioteca Partituras</a></li> 
+       <li><a href="https://script.google.com/macros/s/AKfycbxLPphdnHHS3500c5btqaiw5XJrUDlh8QAFY3KloQyzEmPslgT2Lt_9qUfwnbPx3aQ2/exec" target="_blank">Registro de Atividades</a></li> 
+       <li><a href="https://script.google.com/macros/s/AKfycbzTD97B6G709HAAKNPyO2kj1wlM2Ux5FjmVRFZz2pCrppHS1DaMssDRznDi8QBSDbVA/exec" target="_blank">Gráfico Harmônico_Enviar_Visualizar</a></li> 
+       <li><a href="https://script.google.com/macros/s/AKfycbz-bqy0y4wahk0Nn9p5cWMRRBs-eQYON2hRLAwI9XulgOhd_cTq7mFS-ymVsNmYEUTx/exec" target="_blank">Visualizador de Grades de Escalas</a></li> 
+       <li><a href="https://script.google.com/macros/s/AKfycbz92dZ0clPLFPOOKtZM3M7SDBNjbe6elW7OBANCiHQvtdiPqJPV9gwfAP8AV_Gup9m5/exec" target="_blank"style="background-color: yellow;">Visualizador de Progressão Harmônica</a></li> 
+       <li><a href="https://script.google.com/macros/s/AKfycbzVKUVvizp9gE4Cz4UzYiWzJravsSrU2P8Yjy8ASW08UNOaHyFgi7OWw_XwqulFIe8t/exec"target="_blank">Visualizador de Cifras e Progressões</a></li>
+       <li><a href="https://script.google.com/macros/s/AKfycbwRUdv5JRn7kh-CdTSRf-cevO_MuqnW-HtHCNZA35gav-XlhM5uNVLsbY7lfYrNS243Fg/exec"target="_blank">Livro_Edição</a></li>
 
-function handleResize(e) {
-  if (!isResizing || !currentResizeHandle) return;
-  
-  e.preventDefault();
-  const deltaX = e.clientX - startX;
-  const handleId = currentResizeHandle.id;
-  
-  if (handleId === 'sidebarResize') {
-    // Redimensionar sidebar
-    const newWidth = Math.max(200, Math.min(600, startWidth + deltaX));
-    sidebarWidth = newWidth;
-    document.getElementById('sidebar').style.width = `${sidebarWidth}px`;
-    document.getElementById('sidebarSize').textContent = `${sidebarWidth}px`;
-    
-  } else if (handleId === 'editorResize') {
-    // Redimensionar editor
-    const newWidth = Math.max(300, Math.min(800, startWidth + deltaX));
-    editorWidth = newWidth;
-    document.getElementById('editorContainer').style.width = `${editorWidth}px`;
-    document.getElementById('editorSize').textContent = `${editorWidth}px`;
-    
-  } else if (handleId === 'scoreResize') {
-    // Redimensionar score (apenas atualizar indicador)
-    const targetElement = document.getElementById('scoreContainer');
-    if (targetElement) {
-      const newWidth = Math.max(400, startWidth + deltaX);
-      document.getElementById('scoreSize').textContent = `${Math.round(newWidth)}px`;
-    }
-  }
-  
-  // Forçar redesenho da partitura
-  if (visualObj) {
-    renderScore();
-  }
-}
+       <li><a href="https://script.google.com/macros/s/AKfycbyd6kuPfoCOPmRTjBDRgN0nPJD468083AtAqmCYGXC3JXuTCI7gQMyGFfp0yNymLTac9A/exec" target="_blank">Multi_Ritmo</a></li>
+        <li><a href="aplicativos/visualizadorDiagrama.html" target="_blank">visualizadorDiagrama</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbxvAbDPFvSBiXUeWSoYeUZ_ThkGps3UC9AISolbLtAvZQZzSL0yqSWUnevWTfHM45c/exec"target="_blank">Enviar Arquivos Drive - rascunho</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbwEW_-8tB-FyFzdXuXUQcjC6_b673JRiu0QrQKdu77RfvXhODTs-gLcCEnkYwOqrZGX8w/exec"target="_blank">Buscar Arquivos Drive</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbyNwz14JGIdxs-vFfe0rUOySYYdoa6jyfchtwzNGj_XKFb2H7jL38WRu52X4VKd0aWJbg/exec"target="_blank">Biblioteca Geral de Música_albertinosesc2025</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbxAJoxP2gFi1XN8nTkrKEwECGoUfrz1zGCEIomyClxfhIcpwkc_GpM8Y-WwxbEEx9hv/exec"target="_blank">Enviar Arquivos Drive_albertinosesc2025</a></li>
+    </ul>
 
-function stopResize() {
-  if (!isResizing) return;
-  
-  isResizing = false;
-  if (currentResizeHandle) {
-    currentResizeHandle.classList.remove('resizing');
-  }
-  
-  // Remover eventos de mouse global
-  document.removeEventListener('mousemove', handleResize);
-  document.removeEventListener('mouseup', stopResize);
-  
-  // Restaurar seleção de texto e cursor
-  document.body.style.userSelect = '';
-  document.body.style.cursor = '';
-  
-  // Atualizar todos os indicadores
-  updateSizeIndicators();
-  
-  // Salvar tamanhos no localStorage
-  saveLayoutToStorage();
-}
+    <h2>albertinosesc2025</h2>
+    <ul>
+        <li><a href="https://script.google.com/macros/s/AKfycbxjckk2VwrcDaObH9E-wz0vkWUJ1AhZq4R4K8cULC9fuyuJB10YeiI_7plX-wDzvFEy/exec"target="_blank">Biblioteca Geral de Música_albertinosesc2025</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbxAJoxP2gFi1XN8nTkrKEwECGoUfrz1zGCEIomyClxfhIcpwkc_GpM8Y-WwxbEEx9hv/exec"target="_blank">Enviar Arquivos Drive_albertinosesc2025</a></li>
+        <li><a href="aplicativos/abcNormalizador.html" target="_blank">abc Normalizador</a></li> 
+        <li><a href="aplicativos/ExtratorDeTítulosABC.html" target="_blank">Extrator De Títulos ABC</a></li> 
+        <li><a href="https://script.google.com/macros/s/AKfycbyNS-zs5tdCOHbE67Mu81ytI7LopIBQYG-ym0yhZtwRcyZPlLWatdYGvHvWmFTluwZL/exec"target="_blank">Catálogo de Músicas</a></li>
+        <li><a href="aplicativos/Sequencer_Interativo.html" target="_blank">Sequencer_Interativo</a></li>
+        <li><a href="aplicativos/reprodutoraudioescrita.html" target="_blank">Reprodutor de Áudio/Escrita</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycby-0fnDhFslYNYvEhsJdVcH0GSR48Ej3ijezu22FqK83nzolTU3nGXemyzzNHuH7jk-dg/exec"target="_blank">1 - Gerenciador_Projetos</a></li>
+        <li><a href="aplicativos/percepção.html" target="_blank">Percepção Musical</a></li> 
+        <li><a href="aplicativos/percepção2.html" target="_blank">Percepção Musical2</a></li> 
+        <li><a href="aplicativos/acorde.html" target="_blank">Percepção de Acorde</a></li> 
+        <li><a href="aplicativos/acorde2.html" target="_blank">Percepção de Acorde2</a></li> 
+        <li><a href="https://script.google.com/macros/s/AKfycbxcx1Y1UNPPq1NdgztmnYXCwLagvhDordcemTfso4U2dLFSCbNgXeP1Z5rQt7NmXv7k/exec"target="_blank">dicionário_estilos_musicais</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbzfM5tdKEgdrrgq7mHFaPcMvzt89b2OL5rSr682LOBXlDZA7Am0e9S--Wsit0ZLpcds/exec"target="_blank">dicionário_estilos_musicais-2</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbypUDFJzN1clR1rXUiuS26YiRpt_9KzsLt4JCA0UkNCC0XmxBatpTCJca_uZ2atHS5GnQ/exec"target="_blank">Buscado de conteúdos - html</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbyMOe9BfkxE0AvcaOJsbu8Ne7SZOBfZwbR4UBJirWUwd2XiXQLmQbRKs10hKkTBKPZt/exec"target="_blank">Enciclopédia de Ritmos</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbzjywwgWSeIvd8aWxuKm7RXPeaDMogvp6KldoL3c5myqi0WKb0nRjqwfhmIPWa0tWFp/exec"target="_blank">Estudo de Idiomas</a></li>
+        <li><a href="aplicativos/beat_identifiador.html" target="_blank">Beat_Identifiador</a></li>
+        <li><a href="https://albertinosesc.github.io/nbmcurso2.github.io/" target="_blank">Beat</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbw0eF8MYAVcoTAAxXHvTvXWpjv7eF1tcnHSLsN7sHnLyolO3CpGrqcJWmD9zoh4ImMjFQ/exec"target="_blank">Novo Editor de Livro</a></li>
+        <li><a href="https://script.google.com/macros/s/AKfycbw2YHnsPcdJrIytb0WkbNxvuBqLHRLFB3bKt-nLYZ9V4AufjYfeW9kMKx6YmeyFoTFP/exec"target="_blank">Visualizador Html</a></li>
+        <li><a href="aplicativos/EditorNBM2/EditorNBM2.html" target="_blank">EditorNBM2</a></li> 
+        <li><a href="aplicativos/0-GeradorIndiceHtml.html" target="_blank">0 - Gerador Indice Html</a></li>
+        <li><a href="aplicativos/ditadoRitmico.html" target="_blank">Ditado Ritmico</a></li> 
+        <li><a href="aplicativos/Editor_acorde2/Editor_acorde1.html" target="_blank">Editor_acorde1</a></li> 
+<li><a href="https://script.google.com/macros/s/AKfycbyBEWSkJFIZ1Z_LTWp51ICakbh1kGZIDEX3ptfSQObUwgVrW1DOCT0tG5w-ZwvGjML20w/exec"target="_blank">Acompanhamento de Atividades</a></li>
+<li><a href="https://script.google.com/macros/s/AKfycbwgz38krYC6c_hagPGY5mGf3nToJifqziw0xPf9AAMb-9HzhOhhtigRe7jBr8FhbwqX/exec"target="_blank">Harmonia Editor</a></li>
 
-function updateSizeIndicators() {
-  // Atualizar sidebar
-  const sidebar = document.getElementById('sidebar');
-  if (sidebar && !sidebar.classList.contains('hidden')) {
-    sidebarWidth = sidebar.offsetWidth;
-    document.getElementById('sidebarSize').textContent = `${sidebarWidth}px`;
-  }
-  
-  // Atualizar editor
-  const editor = document.getElementById('editorContainer');
-  if (editor && !editor.classList.contains('hidden')) {
-    editorWidth = editor.offsetWidth;
-    document.getElementById('editorSize').textContent = `${editorWidth}px`;
-  }
-  
-  // Atualizar score
-  const score = document.getElementById('scoreContainer');
-  if (score && !score.classList.contains('hidden')) {
-    const scoreWidth = score.offsetWidth;
-    document.getElementById('scoreSize').textContent = `${scoreWidth}px`;
-  }
-}
 
-function saveLayoutToStorage() {
-  try {
-    const layout = {
-      sidebarWidth: sidebarWidth,
-      editorWidth: editorWidth,
-      sidebarVisible: !document.getElementById('sidebar').classList.contains('hidden'),
-      editorVisible: !document.getElementById('editorContainer').classList.contains('hidden'),
-      scoreVisible: !document.getElementById('scoreContainer').classList.contains('hidden')
-    };
-    localStorage.setItem('abcEditorLayout', JSON.stringify(layout));
-  } catch (e) {
-    console.error('Erro ao salvar layout:', e);
-  }
-}
+        <li><a href="aplicativos/aplicativosNBM/NBM-Editor Offline.html" target="_blank">NBM-Editor Offline.html</a></li>
+        <li><a href="aplicativos/aplicativosNBM/Unificador.html" target="_blank">Unificador.html</a></li>
+        <li><a href="aplicativos/aplicativosNBM/UnirAcordeMelodia.html" target="_blank">UnirAcordeMelodia.html</a></li>
+        <li><a href="aplicativos/aplicativosNBM/UnirArquivosABC.html" target="_blank">UnirArquivosABC.html</a></li>
+        <li><a href="aplicativos/analisaOrganizaABC.html" target="_blank">Caderno do Aluno - gerenciar notação</a></li> 
+        <li><a href="aplicativos/AnalisaGerenciaABC.html" target="_blank">Analisa Gerencia ABC</a></li> 
+        <br>
+        <li><a href="aplicativos/1/index.html" target="_blank">Biblioteca NBM</a></li> 
+        <li><a href="aplicativos/1/atualizadorJson.html" target="_blank">Atualizador Json</a></li> 
+        <li><a href="aplicativos/1/arvoreeditor.html" target="_blank">Árvore Editor</a></li> 
+        <br>
+        <h2>NBM - Teste</h2>
+        <li><a href="aplicativos/biblioteca1/index.html" target="_blank">biblioteca1</a></li> 
+    </ul>
 
-function loadLayoutFromStorage() {
-  try {
-    const saved = localStorage.getItem('abcEditorLayout');
-    if (saved) {
-      const layout = JSON.parse(saved);
-      
-      // Aplicar larguras
-      if (layout.sidebarWidth) {
-        sidebarWidth = layout.sidebarWidth;
-        document.getElementById('sidebar').style.width = `${sidebarWidth}px`;
-      }
-      
-      if (layout.editorWidth) {
-        editorWidth = layout.editorWidth;
-        document.getElementById('editorContainer').style.width = `${editorWidth}px`;
-      }
-      
-      // Aplicar visibilidade
-      if (layout.sidebarVisible === false) {
-        document.getElementById('sidebar').classList.add('hidden');
-      }
-      if (layout.editorVisible === false) {
-        document.getElementById('editorContainer').classList.add('hidden');
-      }
-      if (layout.scoreVisible === false) {
-        document.getElementById('scoreContainer').classList.add('hidden');
-      }
-      
-      // Atualizar indicadores
-      setTimeout(updateSizeIndicators, 100);
-    }
-  } catch (e) {
-    console.error('Erro ao carregar layout:', e);
-  }
-}
-
-function resetLayout() {
-  // Restaurar tamanhos padrão
-  sidebarWidth = 300;
-  editorWidth = 400;
-  
-  document.getElementById('sidebar').style.width = `${sidebarWidth}px`;
-  document.getElementById('editorContainer').style.width = `${editorWidth}px`;
-  
-  // Mostrar todos os painéis
-  document.getElementById('sidebar').classList.remove('hidden');
-  document.getElementById('editorContainer').classList.remove('hidden');
-  document.getElementById('scoreContainer').classList.remove('hidden');
-  
-  // Atualizar indicadores
-  updateSizeIndicators();
-  
-  // Remover do localStorage
-  localStorage.removeItem('abcEditorLayout');
-  
-  // Forçar redesenho
-  if (visualObj) {
-    renderScore();
-  }
-  
-  alert('Layout restaurado para padrão!');
-}
-
-/* --- FUNÇÕES AUXILIARES PARA DURAÇÃO DA MÚSICA --- */
-function calculateMusicDuration(bpm) {
-  const abcText = document.getElementById('abcInput').value;
-  const lines = abcText.split('\n');
-  
-  // Encontrar valores de L (unidade de nota padrão) e M (compasso)
-  let defaultNoteLength = 1/4; // padrão L:1/4
-  let meter = "4/4"; // padrão
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith('L:')) {
-      const lValue = trimmed.substring(2).trim();
-      if (lValue === '1/8') defaultNoteLength = 1/8;
-      else if (lValue === '1/16') defaultNoteLength = 1/16;
-      else if (lValue === '1/2') defaultNoteLength = 1/2;
-      else if (lValue === '1') defaultNoteLength = 1;
-      // Mantém 1/4 como padrão para outros valores
-    }
-    if (trimmed.startsWith('M:')) {
-      meter = trimmed.substring(2).trim();
-    }
-  }
-  
-  // Analisar o compasso (ex: "4/4", "3/4", "6/8")
-  let beatsPerMeasure = 4; // padrão para 4/4
-  let beatValue = 4; // valor da nota que representa uma batida
-  
-  if (meter.includes('/')) {
-    const parts = meter.split('/');
-    const numerator = parseInt(parts[0]) || 4;
-    const denominator = parseInt(parts[1]) || 4;
-    
-    // Em compassos simples (2/4, 3/4, 4/4), cada nota de denominador é uma batida
-    // Em compassos compostos (6/8, 9/8, 12/8), agrupamos em 3
-    if (denominator === 8 && numerator % 3 === 0) {
-      // Compasso composto: 6/8 = 2 batidas (grupos de 3 colcheias)
-      beatsPerMeasure = numerator / 3;
-      beatValue = 8; // colcheia
-    } else {
-      // Compasso simples
-      beatsPerMeasure = numerator;
-      beatValue = denominator;
-    }
-  }
-  
-  // Contar o número total de compassos
-  let measureCount = 0;
-  let inMusic = false;
-  
-  for (const line of lines) {
-    const trimmed = line.trim();
-    
-    if (trimmed.startsWith('K:')) {
-      inMusic = true;
-      continue;
-    }
-    
-    if (inMusic && trimmed && !trimmed.startsWith('%')) {
-      // Contar barras de compasso
-      const bars = (trimmed.match(/\|/g) || []).length;
-      measureCount += bars;
-      
-      // Se não tem barra no final, adiciona um compasso implícito
-      if (!trimmed.includes('|') && trimmed !== '') {
-        measureCount += 1;
-      }
-    }
-  }
-  
-  // Se não encontrou barras, estimar baseado no conteúdo
-  if (measureCount === 0) {
-    // Estimar baseado no comprimento da música
-    const musicLines = lines.filter(l => {
-      const trimmed = l.trim();
-      return trimmed && !trimmed.startsWith('%') && !trimmed.startsWith('X:') && 
-             !trimmed.startsWith('T:') && !trimmed.startsWith('M:') && 
-             !trimmed.startsWith('L:') && !trimmed.startsWith('K:') && 
-             !trimmed.startsWith('Q:');
-    });
-    
-    if (musicLines.length > 0) {
-      // Estimativa grosseira: cada linha com conteúdo = ~1 compasso
-      measureCount = Math.max(1, musicLines.length);
-    } else {
-      measureCount = 2; // mínimo padrão
-    }
-  }
-  
-  // Calcular duração total em batidas
-  const totalBeats = measureCount * beatsPerMeasure;
-  
-  // Calcular milissegundos por batida
-  // Q:1/4=100 significa 100 semínimas por minuto
-  // Precisamos converter para a unidade de batida
-  const msPerBeat = 60000 / bpm;
-  
-  // Ajustar se a batida não for semínima (1/4)
-  // Se beatValue = 8 (colcheia), cada batida é mais curta
-  // Se beatValue = 2 (mínima), cada batida é mais longa
-  const beatRatio = 4 / beatValue; // relação com semínima (1/4)
-  
-  return Math.ceil(totalBeats * msPerBeat * beatRatio);
-}
-
-/* --- SISTEMA DE TREINO --- */
-function openTrainingConfig() {
-  document.getElementById('trainingModal').style.display = 'flex';
-}
-
-function closeTrainingModal() {
-  document.getElementById('trainingModal').style.display = 'none';
-}
-
-async function startTraining() {
-  // Coletar configuração
-  trainingConfig.startBpm = parseInt(document.getElementById('trainStartBpm').value);
-  trainingConfig.endBpm = parseInt(document.getElementById('trainEndBpm').value);
-  trainingConfig.increment = parseInt(document.getElementById('trainIncrement').value);
-  trainingConfig.repetitions = parseInt(document.getElementById('trainRepetitions').value);
-  trainingConfig.interval = parseFloat(document.getElementById('trainInterval').value);
-  
-  // Validar
-  if (trainingConfig.startBpm >= trainingConfig.endBpm) {
-    alert("BPM inicial deve ser menor que BPM final!");
-    return;
-  }
-  
-  // Calcular duração da música no BPM inicial
-  musicDurationMs = calculateMusicDuration(trainingConfig.startBpm);
-  
-  // Inicializar treino
-  trainingActive = true;
-  trainingPaused = false;
-  trainingConfig.currentBpm = trainingConfig.startBpm;
-  trainingConfig.currentRepetition = 1;
-  trainingConfig.currentCycle = 1;
-  
-  // Mostrar painel de treino
-  document.getElementById('trainingPanel').classList.add('active');
-  document.getElementById('trainingModal').style.display = 'none';
-  
-  // Atualizar UI
-  updateTrainingUI();
-  document.getElementById('trainStatus').textContent = "Iniciando...";
-  
-  // Pequena pausa para UI atualizar
-  setTimeout(() => {
-    if (trainingActive && !trainingPaused) {
-      startTrainingCycle();
-    }
-  }, 500);
-}
-
-function startTrainingCycle() {
-  if (!trainingActive || trainingPaused) return;
-  
-  // Calcular progresso
-  const totalCycles = Math.ceil((trainingConfig.endBpm - trainingConfig.startBpm) / trainingConfig.increment);
-  const currentCycleIndex = Math.floor((trainingConfig.currentBpm - trainingConfig.startBpm) / trainingConfig.increment);
-  const progress = Math.round(((currentCycleIndex * trainingConfig.repetitions + trainingConfig.currentRepetition - 1) / 
-                              (totalCycles * trainingConfig.repetitions)) * 100);
-  
-  // Atualizar UI
-  document.getElementById('currentTrainBpm').textContent = trainingConfig.currentBpm;
-  document.getElementById('currentRepetition').textContent = 
-    trainingConfig.currentRepetition + '/' + trainingConfig.repetitions;
-  document.getElementById('trainProgress').textContent = progress + '%';
-  document.getElementById('trainProgressBar').style.width = progress + '%';
-  document.getElementById('trainStatus').textContent = "Tocando...";
-  
-  // Atualizar BPM na interface principal
-  document.getElementById('bpmValue').value = trainingConfig.currentBpm;
-  
-  // Calcular nova duração para o BPM atual
-  musicDurationMs = calculateMusicDuration(trainingConfig.currentBpm);
-  
-  // Tocar música com BPM atual
-  playAtBpm(trainingConfig.currentBpm);
-  
-  // Agendar próximo passo baseado na duração da música
-  trainingTimeout = setTimeout(() => {
-    if (!trainingActive || trainingPaused) return;
-    
-    // Quando a música terminar, preparar próxima repetição
-    prepareNextRepetition();
-  }, musicDurationMs);
-}
-
-function prepareNextRepetition() {
-  if (!trainingActive || trainingPaused) return;
-  
-  document.getElementById('trainStatus').textContent = "Intervalo...";
-  
-  // Agendar próxima repetição após o intervalo configurado
-  setTimeout(() => {
-    if (!trainingActive || trainingPaused) return;
-    
-    // Avançar repetição ou BPM
-    if (trainingConfig.currentRepetition < trainingConfig.repetitions) {
-      trainingConfig.currentRepetition++;
-    } else {
-      trainingConfig.currentRepetition = 1;
-      trainingConfig.currentBpm += trainingConfig.increment;
-      
-      // Verificar se terminou
-      if (trainingConfig.currentBpm > trainingConfig.endBpm) {
-        stopTraining();
-        alert("🎉 Treino concluído!");
-        return;
-      }
-    }
-    
-    // Iniciar próximo ciclo imediatamente após o intervalo
-    startTrainingCycle();
-  }, trainingConfig.interval * 1000);
-}
-
-function playAtBpm(bpm) {
-  // Parar playback atual se estiver tocando
-  if (isPlaying) {
-    stopPlayback();
-    isPlaying = false;
-  }
-  
-  // Aguardar um pouco antes de iniciar
-  setTimeout(() => {
-    if (!trainingActive || trainingPaused) return;
-    
-    // Atualizar BPM no código ABC
-    const abcText = document.getElementById('abcInput').value;
-    const lines = abcText.split('\n');
-    
-    // Atualiza o campo Q: no código ABC
-    let qLineFound = false;
-    let updatedLines = lines.map(line => {
-      if (line.trim().startsWith('Q:')) {
-        qLineFound = true;
-        // Extrai apenas a parte antes do '=' e mantém o formato
-        const qParts = line.split('=');
-        if (qParts.length > 0) {
-          return `Q:${qParts[0].split(':')[1].trim()}=${bpm}`;
-        }
-        return `Q:1/4=${bpm}`;
-      }
-      return line;
-    });
-    
-    // Se não encontrou Q:, adiciona após a linha X: ou T:
-    if (!qLineFound) {
-      const xIndex = updatedLines.findIndex(l => l.trim().startsWith('X:'));
-      if (xIndex !== -1) {
-        // Procura linha T: para inserir depois
-        const tIndex = updatedLines.findIndex((l, idx) => idx > xIndex && l.trim().startsWith('T:'));
-        const insertIndex = tIndex !== -1 ? tIndex + 1 : xIndex + 1;
-        updatedLines.splice(insertIndex, 0, `Q:1/4=${bpm}`);
-      } else {
-        updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
-      }
-    }
-    
-    // Atualiza o textarea
-    document.getElementById('abcInput').value = updatedLines.join('\n');
-    document.getElementById('bpmValue').value = bpm;
-    
-    // Iniciar playback
-    startPlaybackForTraining(bpm);
-  }, 50);
-}
-
-async function startPlaybackForTraining(bpm) {
-  try {
-    isPlaying = true;
-    const btn = document.getElementById("playBtn");
-    btn.classList.add("playing");
-    btn.querySelector('#playIcon').innerText = "⏹";
-    
-    if (!audioContext) audioContext = new AudioContext();
-    
-    const abcText = document.getElementById('abcInput').value;
-    const lines = abcText.split('\n');
-    
-    // Garante que o campo Q: está correto
-    let qLineFound = false;
-    let updatedLines = lines.map(line => {
-      if (line.trim().startsWith('Q:')) {
-        qLineFound = true;
-        // Extrai apenas a parte antes do '=' e mantém o formato
-        const qParts = line.split('=');
-        if (qParts.length > 0) {
-          return `Q:${qParts[0].split(':')[1].trim()}=${bpm}`;
-        }
-        return `Q:1/4=${bpm}`;
-      }
-      return line;
-    });
-    
-    // Se não encontrou Q:, adiciona após a linha X: ou T:
-    if (!qLineFound) {
-      const xIndex = updatedLines.findIndex(l => l.trim().startsWith('X:'));
-      if (xIndex !== -1) {
-        // Procura linha T: para inserir depois
-        const tIndex = updatedLines.findIndex((l, idx) => idx > xIndex && l.trim().startsWith('T:'));
-        const insertIndex = tIndex !== -1 ? tIndex + 1 : xIndex + 1;
-        updatedLines.splice(insertIndex, 0, `Q:1/4=${bpm}`);
-      } else {
-        updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
-      }
-    }
-    
-    visualObj = ABCJS.renderAbc("paper", updatedLines.join('\n'), { 
-      scale: currentZoom / 100, 
-      visualTranspose: currentTranspose, 
-      responsive: "resize" 
-    })[0];
-    
-    synthControl = new ABCJS.synth.CreateSynth();
-    await synthControl.init({ 
-      visualObj, 
-      audioContext, 
-      soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/", 
-      options: { 
-        program: 0, 
-        midiTranspose: currentTranspose,
-        chordsOff: false,
-        qpm: bpm
-      } 
-    });
-    
-    await synthControl.prime();
-    await synthControl.start();
-    startVisualMetronome();
-    
-  } catch (e) {
-    console.error("Erro ao tocar:", e);
-    isPlaying = false;
-    document.getElementById('trainStatus').textContent = "Erro";
-  }
-}
-
-function toggleTrainingPause() {
-  if (!trainingActive) return;
-  
-  trainingPaused = !trainingPaused;
-  
-  const pauseBtn = document.querySelector('.btn-pause');
-  if (trainingPaused) {
-    pauseBtn.textContent = "▶ Retomar";
-    document.getElementById('trainStatus').textContent = "Pausado";
-    
-    // Pausar playback atual
-    if (synthControl && isPlaying) {
-      try {
-        synthControl.pause();
-      } catch (e) {}
-    }
-    
-    // Limpar timeout
-    if (trainingTimeout) {
-      clearTimeout(trainingTimeout);
-      trainingTimeout = null;
-    }
-  } else {
-    pauseBtn.textContent = "⏸ Pausar";
-    document.getElementById('trainStatus').textContent = "Retomando...";
-    
-    // Retomar playback se estava tocando
-    if (synthControl && isPlaying) {
-      try {
-        synthControl.play();
-      } catch (e) {}
-    }
-    
-    // Continuar ciclo após pequena pausa
-    setTimeout(() => {
-      if (trainingActive && !trainingPaused) {
-        // Recriar o timeout para próxima repetição
-        const remainingTime = musicDurationMs - (synthControl ? (synthControl.position() || 0) * musicDurationMs : 0);
-        if (remainingTime > 0) {
-          trainingTimeout = setTimeout(() => {
-            if (trainingActive && !trainingPaused) {
-              prepareNextRepetition();
-            }
-          }, remainingTime);
-        } else {
-          startTrainingCycle();
-        }
-      }
-    }, 100);
-  }
-}
-
-function stopTraining() {
-  trainingActive = false;
-  trainingPaused = false;
-  
-  // Limpar timeout
-  if (trainingTimeout) {
-    clearTimeout(trainingTimeout);
-    trainingTimeout = null;
-  }
-  
-  // Parar playback atual
-  stopPlayback();
-  
-  // Esconder painel de treino
-  document.getElementById('trainingPanel').classList.remove('active');
-  
-  // Resetar BPM para o valor original
-  document.getElementById('bpmValue').value = 100;
-}
-
-function updateTrainingUI() {
-  if (!trainingActive) return;
-  
-  document.getElementById('currentTrainBpm').textContent = trainingConfig.currentBpm;
-  document.getElementById('currentRepetition').textContent = 
-    trainingConfig.currentRepetition + '/' + trainingConfig.repetitions;
-}
-
-/* --- PLAY E TRANSPOSE CORRIGIDO --- */
-async function togglePlay() {
-  // Se treino estiver ativo, usar sistema de treino
-  if (trainingActive) {
-    toggleTrainingPause();
-    return;
-  }
-  
-  const btn = document.getElementById("playBtn");
-  if (isPlaying) { 
-    stopPlayback(); 
-    isPlaying = false; 
-    return; 
-  }
-  
-  try {
-    isPlaying = true; 
-    const bpm = parseInt(document.getElementById('bpmValue').value);
-    btn.classList.add("playing"); 
-    btn.querySelector('#playIcon').innerText = "⏹";
-    
-    if (!audioContext) audioContext = new AudioContext();
-    
-    // Atualiza o campo Q: no código ABC
-    const abcText = document.getElementById('abcInput').value;
-    const lines = abcText.split('\n');
-    
-    // Verifica se já existe um campo Q: e atualiza, se não, adiciona
-    let qLineFound = false;
-    let updatedLines = lines.map(line => {
-      if (line.trim().startsWith('Q:')) {
-        qLineFound = true;
-        // Extrai apenas a parte antes do '=' e mantém o formato
-        const qParts = line.split('=');
-        if (qParts.length > 0) {
-          return `Q:${qParts[0].split(':')[1].trim()}=${bpm}`;
-        }
-        return `Q:1/4=${bpm}`;
-      }
-      return line;
-    });
-    
-    // Se não encontrou Q:, adiciona após a linha X: ou T:
-    if (!qLineFound) {
-      const xIndex = updatedLines.findIndex(l => l.trim().startsWith('X:'));
-      if (xIndex !== -1) {
-        // Procura linha T: para inserir depois
-        const tIndex = updatedLines.findIndex((l, idx) => idx > xIndex && l.trim().startsWith('T:'));
-        const insertIndex = tIndex !== -1 ? tIndex + 1 : xIndex + 1;
-        updatedLines.splice(insertIndex, 0, `Q:1/4=${bpm}`);
-      } else {
-        updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
-      }
-    }
-    
-    visualObj = ABCJS.renderAbc("paper", updatedLines.join('\n'), { 
-      scale: currentZoom / 100, 
-      visualTranspose: currentTranspose, 
-      responsive: "resize" 
-    })[0];
-    
-    synthControl = new ABCJS.synth.CreateSynth();
-    await synthControl.init({ 
-      visualObj, 
-      audioContext, 
-      soundFontUrl: "https://paulrosen.github.io/midi-js-soundfonts/FluidR3_GM/", 
-      options: { 
-        program: 0, 
-        midiTranspose: currentTranspose,
-        chordsOff: false,
-        qpm: bpm  // Adiciona o BPM nas opções
-      } 
-    });
-    
-    await synthControl.prime(); 
-    await synthControl.start(); 
-    startVisualMetronome();
-    
-    // Configurar listener para detectar término
-    const checkEndInterval = setInterval(() => {
-      if (!isPlaying) {
-        clearInterval(checkEndInterval);
-        return;
-      }
-      
-      try {
-        if (synthControl && synthControl.position() >= 0.99) {
-          clearInterval(checkEndInterval);
-          stopPlayback();
-          isPlaying = false;
-        }
-      } catch (e) {
-        // Ignorar erros
-      }
-    }, 100);
-    
-  } catch (e) { 
-    console.error("Erro ao tocar:", e);
-    isPlaying = false; 
-  }
-}
-
-function stopPlayback() { 
-  if (synthControl) { 
-    try { 
-      synthControl.stop(); 
-    } catch (e) {} 
-    synthControl = null; 
-  } 
-  stopVisualMetronome(); 
-  document.getElementById("playBtn").classList.remove("playing"); 
-  document.getElementById("playIcon").innerText = "▶"; 
-}
-
-/* --- RENDERIZAÇÃO DA PARTITURA --- */
-let renderTimeout = null;
-
-function renderScore() { 
-  try {
-    const abcText = document.getElementById('abcInput').value;
-    const escalaDesejada = currentZoom / 100;
-    
-    // Limpa o conteúdo anterior para evitar bugs de altura residual
-    document.getElementById('paper').innerHTML = "";
-
-    visualObj = ABCJS.renderAbc("paper", abcText, { 
-      scale: escalaDesejada,
-      visualTranspose: currentTranspose,
-      responsive: undefined,
-      paddingtop: 0,
-      paddingbottom: 30, // Adiciona uma margem extra no fundo para evitar cortes
-      paddingright: 0,
-      paddingleft: 0,
-      add_classes: true
-    })[0]; 
-
-  } catch (e) {
-    console.error("Erro ao renderizar:", e);
-  }
-}
-
-// Função para atualizar a partitura com debounce (evita renderizar a cada tecla)
-function updateScoreWithDebounce() {
-  if (renderTimeout) {
-    clearTimeout(renderTimeout);
-  }
-  
-  renderTimeout = setTimeout(() => {
-    renderScore();
-  }, 500); // Renderiza 500ms após parar de digitar
-}
-
-/* --- FUNÇÕES PARA MOSTRAR/ESCONDER ELEMENTOS --- */
-function toggleSidebar() { 
-  const sidebar = document.getElementById('sidebar');
-  sidebar.classList.toggle('hidden'); 
-  updateSizeIndicators();
-  saveLayoutToStorage();
-}
-
-function toggleEditor() { 
-  const editor = document.getElementById('editorContainer');
-  editor.classList.toggle('hidden'); 
-  updateSizeIndicators();
-  saveLayoutToStorage();
-}
-
-function toggleScore() { 
-  const score = document.getElementById('scoreContainer');
-  score.classList.toggle('hidden'); 
-  updateSizeIndicators();
-  saveLayoutToStorage();
-}
-
-/* --- BIBLIOTECA (GITHUB + LOCAL) --- */
-async function carregarArquivosServidor() {
-  const status = document.getElementById('libraryStatus');
-  for (const url of arquivosNoServidor) {
-    try {
-      const resp = await fetch(url);
-      if (resp.ok) {
-        const content = await resp.text();
-        fileLibrary.push({ name: url.split('/').pop(), content, handle: null });
-      }
-    } catch (e) { console.error("Erro ao carregar remoto:", url); }
-  }
-  status.innerText = "Arquivos carregados.";
-  renderLibrary();
-}
-
-async function selectFolder() {
-  const dirHandle = await window.showDirectoryPicker();
-  fileLibrary = fileLibrary.filter(f => f.handle === null); // Mantém os do servidor
-  for await (const entry of dirHandle.values()) {
-    if (entry.name.endsWith('.txt')) {
-      const file = await entry.getFile();
-      fileLibrary.push({ name: entry.name, content: await file.text(), handle: entry });
-    }
-  }
-  renderLibrary();
-}
-
-function renderLibrary() {
-  const container = document.getElementById('fileContainerList'); container.innerHTML = '';
-  fileLibrary.forEach((file, fIdx) => {
-    const fDiv = document.createElement('div'); fDiv.className = 'file-container';
-    fDiv.innerHTML = `<div class="file-header" onclick="toggleAccordion(${fIdx})"><span>${file.handle ? '📁' : '🌐'} ${file.name}</span></div><div class="music-list" id="list-${fIdx}"></div>`;
-    const mList = fDiv.querySelector('.music-list');
-    const musics = extractMusics(file.content);
-    musics.forEach(m => {
-      const mDiv = document.createElement('div'); mDiv.className = 'music-item'; mDiv.innerText = `🎵 ${m.title}`;
-      mDiv.onclick = () => { 
-        currentFileHandle = file.handle; 
-        document.getElementById('abcInput').value = m.content; 
-        document.getElementById('musicInfoTag').innerText = "| " + m.title; 
-        renderScore(); // Renderizar imediatamente ao selecionar música
-        stopTraining(); // Parar treino se mudar de música
-      };
-      mList.appendChild(mDiv);
-    });
-    container.appendChild(fDiv);
-  });
-}
-
-function extractMusics(content) {
-  const musics = []; const lines = content.split('\n'); let current = null;
-  lines.forEach(l => {
-    if (l.trim().startsWith('X:')) { if (current) musics.push(current); current = { title: "Sem título", content: l + '\n' }; }
-    else if (current) { current.content += l + '\n'; if (l.trim().startsWith('T:')) current.title = l.replace('T:', '').trim(); }
-  });
-  if (current) musics.push(current); return musics;
-}
-
-async function salvarArquivoLocal() {
-  if (!currentFileHandle) { alert("Arquivos do servidor não podem ser salvos localmente aqui."); return; }
-  const writable = await currentFileHandle.createWritable();
-  await writable.write(document.getElementById('abcInput').value);
-  await writable.close();
-  alert("Salvo com sucesso!");
-}
-
-/* --- UTILITÁRIOS --- */
-function updateBPM() { 
-  const bpm = parseInt(document.getElementById('bpmValue').value);
-  
-  // Atualiza o campo Q: no código ABC
-  const abcText = document.getElementById('abcInput').value;
-  const lines = abcText.split('\n');
-  
-  // Encontra e atualiza a linha Q:
-  let qLineFound = false;
-  let updatedLines = lines.map(line => {
-    if (line.trim().startsWith('Q:')) {
-      qLineFound = true;
-      // Extrai apenas a parte antes do '=' e mantém o formato
-      const qParts = line.split('=');
-      if (qParts.length > 0) {
-        return `Q:${qParts[0].split(':')[1].trim()}=${bpm}`;
-      }
-      return `Q:1/4=${bpm}`;
-    }
-    return line;
-  });
-  
-  // Se não encontrou Q:, adiciona após a linha X: ou T:
-  if (!qLineFound) {
-    const xIndex = updatedLines.findIndex(l => l.trim().startsWith('X:'));
-    if (xIndex !== -1) {
-      // Procura linha T: para inserir depois
-      const tIndex = updatedLines.findIndex((l, idx) => idx > xIndex && l.trim().startsWith('T:'));
-      const insertIndex = tIndex !== -1 ? tIndex + 1 : xIndex + 1;
-      updatedLines.splice(insertIndex, 0, `Q:1/4=${bpm}`);
-    } else {
-      updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
-    }
-  }
-  
-  // Atualiza o textarea
-  document.getElementById('abcInput').value = updatedLines.join('\n');
-  
-  if (isPlaying && !trainingActive) { 
-    stopPlayback(); 
-    setTimeout(togglePlay, 100); 
-  } else {
-    renderScore(); 
-  }
-}
-
-function changeZoom(n) { 
-  currentZoom = Math.max(10, currentZoom + n); // Mínimo de 10%
-  const label = document.getElementById('zoomLabel');
-  if (label) label.textContent = currentZoom + '%'; 
-  renderScore(); 
-}
-
-function startVisualMetronome() { 
-  stopVisualMetronome(); 
-  const bpm = parseInt(document.getElementById('bpmValue').value);
-  const ms = 60000 / bpm; 
-  const dot = document.getElementById('metronomeVisual'); 
-  metroInterval = setInterval(() => { 
-    dot.classList.add('metronome-active'); 
-    setTimeout(() => dot.classList.remove('metronome-active'), 100); 
-  }, ms); 
-}
-
-function stopVisualMetronome() { 
-  if (metroInterval) clearInterval(metroInterval); 
-}
-
-function changeTranspose(n) { 
-  currentTranspose += n; 
-  document.getElementById('transposeLabel').textContent = currentTranspose; 
-  renderScore(); 
-}
-
-function toggleAccordion(idx) { 
-  document.getElementById(`list-${idx}`).classList.toggle('show'); 
-}
-
-// Lista de arquivos do servidor
-const arquivosNoServidor = [
-  'musica/Hino01.txt', 
-  'livro/8012 - PDF - Guitarra - 1001 Jazz Licks - Jack Shneidman.txt'
-];
-
-window.onload = () => { 
-  renderScore(); 
-  carregarArquivosServidor(); 
-  
-  // Inicializar sistema de redimensionamento
-  initResizeHandles();
-  loadLayoutFromStorage();
-  
-  // Adicionar listener para atualizar partitura enquanto digita
-  const abcInput = document.getElementById('abcInput');
-  abcInput.addEventListener('input', updateScoreWithDebounce);
-  
-  // Atualizar quando BPM muda
-  document.getElementById('bpmValue').addEventListener('change', updateBPM);
-  // Também atualiza quando o usuário pressiona Enter no campo BPM
-  document.getElementById('bpmValue').addEventListener('keyup', function(e) {
-    if (e.key === 'Enter') {
-      updateBPM();
-    }
-  });
-  
-  // Atualizar indicadores quando a janela é redimensionada
-  window.addEventListener('resize', updateSizeIndicators);
-};
-</script>
+         <h2>NBM - Alunos</h2>
+    <ul>
+       
+    </ul>
+    <br><br><br><br>
 </body>
 </html>
