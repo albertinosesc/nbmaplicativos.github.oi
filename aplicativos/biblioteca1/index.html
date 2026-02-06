@@ -37,8 +37,27 @@
   textarea { width: 100%; height: 100%; font-family: 'Courier New', monospace; font-size: 15px; padding: 15px; border: 1px solid #ddd; border-radius: 4px; resize: none; outline: none; }
   .score-container { flex: 1; padding: 10px; overflow: hidden; display: flex; flex-direction: column; transition: all 0.3s ease; position: relative; }
   .score-container.hidden { width: 0; opacity: 0; padding: 0; border: none; overflow: hidden; }
-  #paper-container { flex: 1; overflow: auto; background: white; border: 1px solid #ccc; border-radius: 8px; }
-  #paper { padding: 30px; transform-origin: top left; }
+#paper-container { 
+  flex: 1; 
+  overflow: auto !important; 
+  background: white; 
+  border: 1px solid #ccc; 
+  border-radius: 8px;
+  height: 100%; /* Garante que o container ocupe o espaço disponível */
+}
+
+#paper { 
+  padding: 10px; 
+  display: block; /* Mudado de inline-block para block */
+  width: 100%;
+  height: auto !important; /* Força a altura a se ajustar ao conteúdo */
+}
+
+/* Garante que o SVG não seja limitado */
+#paper svg {
+  display: block;
+  max-width: none !important; 
+}
 
   /* Divisores arrastáveis */
   .resize-handle {
@@ -752,7 +771,40 @@ function playAtBpm(bpm) {
   setTimeout(() => {
     if (!trainingActive || trainingPaused) return;
     
-    // Atualizar BPM
+    // Atualizar BPM no código ABC
+    const abcText = document.getElementById('abcInput').value;
+    const lines = abcText.split('\n');
+    
+    // Atualiza o campo Q: no código ABC
+    let qLineFound = false;
+    let updatedLines = lines.map(line => {
+      if (line.trim().startsWith('Q:')) {
+        qLineFound = true;
+        // Extrai apenas a parte antes do '=' e mantém o formato
+        const qParts = line.split('=');
+        if (qParts.length > 0) {
+          return `Q:${qParts[0].split(':')[1].trim()}=${bpm}`;
+        }
+        return `Q:1/4=${bpm}`;
+      }
+      return line;
+    });
+    
+    // Se não encontrou Q:, adiciona após a linha X: ou T:
+    if (!qLineFound) {
+      const xIndex = updatedLines.findIndex(l => l.trim().startsWith('X:'));
+      if (xIndex !== -1) {
+        // Procura linha T: para inserir depois
+        const tIndex = updatedLines.findIndex((l, idx) => idx > xIndex && l.trim().startsWith('T:'));
+        const insertIndex = tIndex !== -1 ? tIndex + 1 : xIndex + 1;
+        updatedLines.splice(insertIndex, 0, `Q:1/4=${bpm}`);
+      } else {
+        updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
+      }
+    }
+    
+    // Atualiza o textarea
+    document.getElementById('abcInput').value = updatedLines.join('\n');
     document.getElementById('bpmValue').value = bpm;
     
     // Iniciar playback
@@ -771,8 +823,34 @@ async function startPlaybackForTraining(bpm) {
     
     const abcText = document.getElementById('abcInput').value;
     const lines = abcText.split('\n');
-    let updatedLines = lines.map(l => l.trim().startsWith('Q:') ? `Q:1/4=${bpm}` : l);
-    if (!updatedLines.some(l => l.startsWith('Q:'))) updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
+    
+    // Garante que o campo Q: está correto
+    let qLineFound = false;
+    let updatedLines = lines.map(line => {
+      if (line.trim().startsWith('Q:')) {
+        qLineFound = true;
+        // Extrai apenas a parte antes do '=' e mantém o formato
+        const qParts = line.split('=');
+        if (qParts.length > 0) {
+          return `Q:${qParts[0].split(':')[1].trim()}=${bpm}`;
+        }
+        return `Q:1/4=${bpm}`;
+      }
+      return line;
+    });
+    
+    // Se não encontrou Q:, adiciona após a linha X: ou T:
+    if (!qLineFound) {
+      const xIndex = updatedLines.findIndex(l => l.trim().startsWith('X:'));
+      if (xIndex !== -1) {
+        // Procura linha T: para inserir depois
+        const tIndex = updatedLines.findIndex((l, idx) => idx > xIndex && l.trim().startsWith('T:'));
+        const insertIndex = tIndex !== -1 ? tIndex + 1 : xIndex + 1;
+        updatedLines.splice(insertIndex, 0, `Q:1/4=${bpm}`);
+      } else {
+        updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
+      }
+    }
     
     visualObj = ABCJS.renderAbc("paper", updatedLines.join('\n'), { 
       scale: currentZoom / 100, 
@@ -901,16 +979,43 @@ async function togglePlay() {
   
   try {
     isPlaying = true; 
-    const bpm = document.getElementById('bpmValue').value;
+    const bpm = parseInt(document.getElementById('bpmValue').value);
     btn.classList.add("playing"); 
     btn.querySelector('#playIcon').innerText = "⏹";
     
     if (!audioContext) audioContext = new AudioContext();
     
+    // Atualiza o campo Q: no código ABC
     const abcText = document.getElementById('abcInput').value;
     const lines = abcText.split('\n');
-    let updatedLines = lines.map(l => l.trim().startsWith('Q:') ? `Q:1/4=${bpm}` : l);
-    if (!updatedLines.some(l => l.startsWith('Q:'))) updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
+    
+    // Verifica se já existe um campo Q: e atualiza, se não, adiciona
+    let qLineFound = false;
+    let updatedLines = lines.map(line => {
+      if (line.trim().startsWith('Q:')) {
+        qLineFound = true;
+        // Extrai apenas a parte antes do '=' e mantém o formato
+        const qParts = line.split('=');
+        if (qParts.length > 0) {
+          return `Q:${qParts[0].split(':')[1].trim()}=${bpm}`;
+        }
+        return `Q:1/4=${bpm}`;
+      }
+      return line;
+    });
+    
+    // Se não encontrou Q:, adiciona após a linha X: ou T:
+    if (!qLineFound) {
+      const xIndex = updatedLines.findIndex(l => l.trim().startsWith('X:'));
+      if (xIndex !== -1) {
+        // Procura linha T: para inserir depois
+        const tIndex = updatedLines.findIndex((l, idx) => idx > xIndex && l.trim().startsWith('T:'));
+        const insertIndex = tIndex !== -1 ? tIndex + 1 : xIndex + 1;
+        updatedLines.splice(insertIndex, 0, `Q:1/4=${bpm}`);
+      } else {
+        updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
+      }
+    }
     
     visualObj = ABCJS.renderAbc("paper", updatedLines.join('\n'), { 
       scale: currentZoom / 100, 
@@ -926,7 +1031,8 @@ async function togglePlay() {
       options: { 
         program: 0, 
         midiTranspose: currentTranspose,
-        chordsOff: false 
+        chordsOff: false,
+        qpm: bpm  // Adiciona o BPM nas opções
       } 
     });
     
@@ -975,15 +1081,25 @@ let renderTimeout = null;
 
 function renderScore() { 
   try {
-    visualObj = ABCJS.renderAbc("paper", document.getElementById('abcInput').value, { 
-      scale: currentZoom / 100, 
-      visualTranspose: currentTranspose, 
-      responsive: "resize" 
+    const abcText = document.getElementById('abcInput').value;
+    const escalaDesejada = currentZoom / 100;
+    
+    // Limpa o conteúdo anterior para evitar bugs de altura residual
+    document.getElementById('paper').innerHTML = "";
+
+    visualObj = ABCJS.renderAbc("paper", abcText, { 
+      scale: escalaDesejada,
+      visualTranspose: currentTranspose,
+      responsive: undefined,
+      paddingtop: 0,
+      paddingbottom: 30, // Adiciona uma margem extra no fundo para evitar cortes
+      paddingright: 0,
+      paddingleft: 0,
+      add_classes: true
     })[0]; 
+
   } catch (e) {
     console.error("Erro ao renderizar:", e);
-    // Em caso de erro, mostra mensagem simples
-    document.getElementById('paper').innerHTML = '<div style="padding: 20px; color: #666; font-style: italic;">Erro ao renderizar a partitura. Verifique o código ABC.</div>';
   }
 }
 
@@ -1089,16 +1205,62 @@ async function salvarArquivoLocal() {
 
 /* --- UTILITÁRIOS --- */
 function updateBPM() { 
+  const bpm = parseInt(document.getElementById('bpmValue').value);
+  
+  // Atualiza o campo Q: no código ABC
+  const abcText = document.getElementById('abcInput').value;
+  const lines = abcText.split('\n');
+  
+  // Encontra e atualiza a linha Q:
+  let qLineFound = false;
+  let updatedLines = lines.map(line => {
+    if (line.trim().startsWith('Q:')) {
+      qLineFound = true;
+      // Extrai apenas a parte antes do '=' e mantém o formato
+      const qParts = line.split('=');
+      if (qParts.length > 0) {
+        return `Q:${qParts[0].split(':')[1].trim()}=${bpm}`;
+      }
+      return `Q:1/4=${bpm}`;
+    }
+    return line;
+  });
+  
+  // Se não encontrou Q:, adiciona após a linha X: ou T:
+  if (!qLineFound) {
+    const xIndex = updatedLines.findIndex(l => l.trim().startsWith('X:'));
+    if (xIndex !== -1) {
+      // Procura linha T: para inserir depois
+      const tIndex = updatedLines.findIndex((l, idx) => idx > xIndex && l.trim().startsWith('T:'));
+      const insertIndex = tIndex !== -1 ? tIndex + 1 : xIndex + 1;
+      updatedLines.splice(insertIndex, 0, `Q:1/4=${bpm}`);
+    } else {
+      updatedLines.splice(1, 0, `Q:1/4=${bpm}`);
+    }
+  }
+  
+  // Atualiza o textarea
+  document.getElementById('abcInput').value = updatedLines.join('\n');
+  
   if (isPlaying && !trainingActive) { 
     stopPlayback(); 
     setTimeout(togglePlay, 100); 
-  } 
+  } else {
+    renderScore(); 
+  }
+}
+
+function changeZoom(n) { 
+  currentZoom = Math.max(10, currentZoom + n); // Mínimo de 10%
+  const label = document.getElementById('zoomLabel');
+  if (label) label.textContent = currentZoom + '%'; 
   renderScore(); 
 }
 
 function startVisualMetronome() { 
   stopVisualMetronome(); 
-  const ms = 60000 / parseInt(document.getElementById('bpmValue').value); 
+  const bpm = parseInt(document.getElementById('bpmValue').value);
+  const ms = 60000 / bpm; 
   const dot = document.getElementById('metronomeVisual'); 
   metroInterval = setInterval(() => { 
     dot.classList.add('metronome-active'); 
@@ -1113,12 +1275,6 @@ function stopVisualMetronome() {
 function changeTranspose(n) { 
   currentTranspose += n; 
   document.getElementById('transposeLabel').textContent = currentTranspose; 
-  renderScore(); 
-}
-
-function changeZoom(n) { 
-  currentZoom += n; 
-  document.getElementById('zoomLabel').textContent = currentZoom + '%'; 
   renderScore(); 
 }
 
@@ -1145,7 +1301,13 @@ window.onload = () => {
   abcInput.addEventListener('input', updateScoreWithDebounce);
   
   // Atualizar quando BPM muda
-  document.getElementById('bpmValue').addEventListener('change', updateBPM); 
+  document.getElementById('bpmValue').addEventListener('change', updateBPM);
+  // Também atualiza quando o usuário pressiona Enter no campo BPM
+  document.getElementById('bpmValue').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') {
+      updateBPM();
+    }
+  });
   
   // Atualizar indicadores quando a janela é redimensionada
   window.addEventListener('resize', updateSizeIndicators);
