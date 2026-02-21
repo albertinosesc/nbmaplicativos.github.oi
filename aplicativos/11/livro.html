@@ -9,22 +9,100 @@
 
 <a href="index.html">⬅ Voltar</a>
 
-<h1 id="tituloLivro"></h1>
+<h1>Registrar Estudo</h1>
 
-<h2>Registrar Estudo</h2>
-
-<input type="text" id="exercicio" placeholder="Exercício ou Lição">
+<input type="text" id="exercicio" placeholder="Exercício">
 <input type="number" id="bpm" placeholder="BPM">
 <input type="number" id="tempo" placeholder="Tempo (min)">
 
 <h3>Tonalidades</h3>
-<div id="tonalidades"></div>
+<div id="tons"></div>
 
-<button onclick="registrarEstudo()">Salvar Estudo</button>
+<button id="salvar">Salvar</button>
 
 <h2>Histórico</h2>
 <div id="historico"></div>
 
-<script src="script.js"></script>
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs } 
+from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyC_3jn_T3hZlcBImj5hUWmnGzmobkTega0",
+  authDomain: "diario-musical-394e2.firebaseapp.com",
+  projectId: "diario-musical-394e2",
+  storageBucket: "diario-musical-394e2.firebasestorage.app",
+  messagingSenderId: "547061797104",
+  appId: "1:547061797104:web:5af0fba7236e1456e33235"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const params = new URLSearchParams(window.location.search);
+const uid = params.get("uid");
+const livroId = params.get("livro");
+
+const tonalidades = [
+"C","G","D","A","E","B","F#","C#",
+"F","Bb","Eb","Ab","Db","Gb","Cb",
+"Cm","Gm","Dm","Am","Em","Bm"
+];
+
+const tonsDiv = document.getElementById("tons");
+
+tonalidades.forEach(t=>{
+  tonsDiv.innerHTML += `
+    <label>
+      <input type="checkbox" value="${t}"> ${t}
+    </label>
+  `;
+});
+
+document.getElementById("salvar").onclick = async () => {
+
+  const exercicio = document.getElementById("exercicio").value;
+  const bpm = document.getElementById("bpm").value;
+  const tempo = document.getElementById("tempo").value;
+
+  const checks = document.querySelectorAll("#tons input:checked");
+  const tons = Array.from(checks).map(c=>c.value);
+
+  await addDoc(collection(db, "usuarios", uid, "livros", livroId, "estudos"), {
+    exercicio,
+    bpm,
+    tempo,
+    tons,
+    data: new Date()
+  });
+
+  location.reload();
+};
+
+async function carregarHistorico(){
+  const hist = document.getElementById("historico");
+  hist.innerHTML = "";
+
+  const snapshot = await getDocs(collection(db, "usuarios", uid, "livros", livroId, "estudos"));
+
+  snapshot.forEach(docSnap=>{
+    const e = docSnap.data();
+    hist.innerHTML += `
+      <div class="card">
+        ${new Date(e.data.seconds * 1000).toLocaleDateString()}<br>
+        Exercício: ${e.exercicio}<br>
+        BPM: ${e.bpm}<br>
+        Tempo: ${e.tempo} min<br>
+        Tons: ${e.tons.join(", ")}
+      </div>
+    `;
+  });
+}
+
+carregarHistorico();
+
+</script>
 </body>
 </html>
