@@ -5,7 +5,7 @@
 <title>Livro</title>
 
 <style>
-body { font-family: Arial; max-width: 900px; margin: auto; padding: 20px; }
+body { font-family: Arial; max-width: 950px; margin: auto; padding: 20px; }
 input { margin: 5px; padding: 6px; }
 button { padding: 6px 10px; margin: 5px; cursor: pointer; }
 .card { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
@@ -15,7 +15,6 @@ button { padding: 6px 10px; margin: 5px; cursor: pointer; }
 .progress-container { width:100%; background:#eee; border-radius:8px; overflow:hidden; margin-top:8px; }
 .progress-bar { height:18px; background:#4CAF50; text-align:center; color:white; font-size:11px; }
 </style>
-
 </head>
 <body>
 
@@ -62,10 +61,14 @@ const livroId = params.get("livro");
 
 let estudoEditando = null;
 
+// Buscar dados do livro
 const livroRef = doc(db, "livros", livroId);
 const livroSnap = await getDoc(livroRef);
-const instrumento = livroSnap.data().instrumento;
+const livroData = livroSnap.data();
+const instrumento = livroData.instrumento;
+const nomeLivro = livroData.nome;
 
+// Tonalidades por instrumento
 function obterTonalidades(inst){
   if(inst === "Saxofone") return ["C","D","E","G","A"];
   if(inst === "Trompete") return ["F","B","C","E","G"];
@@ -133,6 +136,7 @@ function limparFormulario(){
   renderizarTons();
 }
 
+// HISTÓRICO ORGANIZADO
 async function carregarHistorico(){
 
   const hist = document.getElementById("historico");
@@ -218,24 +222,59 @@ window.excluirEstudo = async function(id){
   }
 };
 
+// EXPORTAR TXT ORGANIZADO
 document.getElementById("exportar").onclick = async () => {
 
   const snapshot = await getDocs(collection(db,"livros",livroId,"estudos"));
 
-  let texto = "RELATÓRIO DE ESTUDOS\n\n";
+  const dataGeracao = new Date().toLocaleDateString();
+
+  let texto = "";
+  texto += "RELATÓRIO DE ESTUDOS\n";
+  texto += "Livro: " + nomeLivro + "\n";
+  texto += "Instrumento: " + instrumento + "\n";
+  texto += "Gerado em: " + dataGeracao + "\n";
+  texto += "====================================================\n\n";
+
+  let dados = [];
 
   snapshot.forEach(docSnap=>{
     const e = docSnap.data();
     if(e.data){
-      const data = new Date(e.data.seconds*1000).toLocaleDateString();
-      texto += `${data} | ${e.exercicio} | ${e.bpm} BPM | ${e.progresso}% | ${e.tons.join(",")}\n`;
+      const dataObj = new Date(e.data.seconds*1000);
+      const mesAno = dataObj.toLocaleString('pt-BR',{month:'long',year:'numeric'});
+      dados.push({dataObj,mesAno,...e});
     }
   });
+
+  const agrupado = {};
+
+  dados.forEach(e=>{
+    if(!agrupado[e.mesAno]) agrupado[e.mesAno]={};
+    if(!agrupado[e.mesAno][e.exercicio]) agrupado[e.mesAno][e.exercicio]=[];
+    agrupado[e.mesAno][e.exercicio].push(e);
+  });
+
+  for(const mes in agrupado){
+    texto += "📅 " + mes.toUpperCase() + "\n";
+
+    for(const exercicio in agrupado[mes]){
+      texto += "   🎵 " + exercicio + "\n";
+
+      agrupado[mes][exercicio].forEach(e=>{
+        texto += `      ${e.dataObj.toLocaleDateString()} | ${e.bpm} BPM | ${e.progresso}% | ${e.tons.join(",")}\n`;
+      });
+
+      texto += "\n";
+    }
+
+    texto += "----------------------------------------------------\n\n";
+  }
 
   const blob = new Blob([texto], { type: "text/plain" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
-  link.download = "relatorio_estudos.txt";
+  link.download = nomeLivro.replace(/\s/g,"_") + "_relatorio.txt";
   link.click();
 };
 
