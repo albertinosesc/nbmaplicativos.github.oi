@@ -2,35 +2,45 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Diário Musical</title>
-<link rel="stylesheet" href="style.css">
+<title>🎼 Diário Musical</title>
+<style>
+body {
+  font-family: Arial;
+  max-width: 800px;
+  margin: auto;
+  padding: 20px;
+}
+input {
+  margin: 5px;
+  padding: 6px;
+}
+button {
+  padding: 6px 10px;
+  margin: 5px;
+  cursor: pointer;
+}
+.card {
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin: 10px 0;
+}
+</style>
 </head>
 <body>
 
 <h1>🎼 Diário Musical</h1>
 
-<div id="loginArea">
-  <button id="loginBtn">Login com Google</button>
-</div>
+<h2>📚 Meus Livros</h2>
+<div id="livros"></div>
 
-<div id="app" style="display:none;">
-  <p id="usuario"></p>
-  <button id="logoutBtn">Sair</button>
-
-  <h2>📚 Meus Livros</h2>
-  <div id="livros"></div>
-
-  <h3>Novo Livro</h3>
-  <input type="text" id="nomeLivro" placeholder="Nome do Livro">
-  <input type="text" id="instrumento" placeholder="Instrumento">
-  <button id="addLivro">Adicionar</button>
-</div>
+<h3>➕ Novo Livro</h3>
+<input type="text" id="nomeLivro" placeholder="Nome do Livro">
+<input type="text" id="instrumento" placeholder="Instrumento">
+<button id="addLivro">Adicionar</button>
 
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getAuth, GoogleAuthProvider, signInWithPopup, signOut, onAuthStateChanged } 
-from "https://www.gstatic.com/firebasejs/12.9.0/firebase-auth.js";
 import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } 
 from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
@@ -44,71 +54,50 @@ const firebaseConfig = {
 };
 
 const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
 const db = getFirestore(app);
-const provider = new GoogleAuthProvider();
 
-const loginBtn = document.getElementById("loginBtn");
-const logoutBtn = document.getElementById("logoutBtn");
-const loginArea = document.getElementById("loginArea");
-const appArea = document.getElementById("app");
+const livrosDiv = document.getElementById("livros");
 
-loginBtn.onclick = () => signInWithPopup(auth, provider);
-logoutBtn.onclick = () => signOut(auth);
-
-onAuthStateChanged(auth, async (user) => {
-
-  if(user){
-
-    loginArea.style.display = "none";
-    appArea.style.display = "block";
-    document.getElementById("usuario").innerText = user.email;
-
-    carregarLivros(user.uid);
-
-    document.getElementById("addLivro").onclick = async () => {
-      const nome = document.getElementById("nomeLivro").value;
-      const instrumento = document.getElementById("instrumento").value;
-
-      await addDoc(collection(db, "usuarios", user.uid, "livros"), {
-        nome,
-        instrumento
-      });
-
-      location.reload();
-    };
-
-  } else {
-    loginArea.style.display = "block";
-    appArea.style.display = "none";
-  }
-});
-
-async function carregarLivros(uid){
-  const livrosDiv = document.getElementById("livros");
+async function carregarLivros(){
   livrosDiv.innerHTML = "";
+  const snapshot = await getDocs(collection(db, "livros"));
 
-  const querySnapshot = await getDocs(collection(db, "usuarios", uid, "livros"));
-
-  querySnapshot.forEach((docSnap) => {
+  snapshot.forEach(docSnap=>{
     const data = docSnap.data();
 
     livrosDiv.innerHTML += `
       <div class="card">
         <strong>${data.nome}</strong> - ${data.instrumento}
         <br>
-        <a href="livro.html?uid=${uid}&livro=${docSnap.id}">Abrir</a>
-        <button onclick="excluirLivro('${uid}','${docSnap.id}')">Excluir</button>
+        <a href="livro.html?livro=${docSnap.id}">Abrir</a>
+        <button onclick="excluirLivro('${docSnap.id}')">Excluir</button>
       </div>
     `;
   });
 }
 
-window.excluirLivro = async (uid, livroId) => {
-  await deleteDoc(doc(db, "usuarios", uid, "livros", livroId));
+document.getElementById("addLivro").onclick = async () => {
+  const nome = document.getElementById("nomeLivro").value;
+  const instrumento = document.getElementById("instrumento").value;
+
+  if(!nome) return;
+
+  await addDoc(collection(db, "livros"), {
+    nome,
+    instrumento
+  });
+
   location.reload();
 };
 
+window.excluirLivro = async (id) => {
+  await deleteDoc(doc(db, "livros", id));
+  location.reload();
+};
+
+carregarLivros();
+
 </script>
+
 </body>
 </html>
