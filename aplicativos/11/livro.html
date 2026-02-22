@@ -24,6 +24,21 @@ button {
   padding: 10px;
   margin: 10px 0;
 }
+.progress-container {
+  width: 100%;
+  background: #eee;
+  border-radius: 8px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.progress-bar {
+  height: 20px;
+  background: #4CAF50;
+  width: 0%;
+  text-align: center;
+  color: white;
+  font-size: 12px;
+}
 </style>
 </head>
 <body>
@@ -34,10 +49,13 @@ button {
 
 <input type="text" id="exercicio" placeholder="Exercício">
 <input type="number" id="bpm" placeholder="BPM">
-<input type="number" id="tempo" placeholder="Tempo (min)">
 
 <h3>Tonalidades</h3>
 <div id="tons"></div>
+
+<div class="progress-container">
+  <div class="progress-bar" id="barraProgresso">0%</div>
+</div>
 
 <button id="salvar">Salvar Estudo</button>
 
@@ -67,12 +85,10 @@ const livroId = params.get("livro");
 
 let estudoEditando = null;
 
-// 🔎 Buscar instrumento do livro
 const livroRef = doc(db, "livros", livroId);
 const livroSnap = await getDoc(livroRef);
 const instrumento = livroSnap.data().instrumento;
 
-// 🎵 Tonalidades por instrumento
 function obterTonalidades(inst){
   if(inst === "Saxofone"){
     return ["C","D","E","G","A"];
@@ -83,12 +99,20 @@ function obterTonalidades(inst){
   return ["C","D","E","F","G","A","B"];
 }
 
-// 🎯 Criar checkboxes dinamicamente
+const tonalidades = obterTonalidades(instrumento);
+
+function atualizarBarra(){
+  const checks = document.querySelectorAll("#tons input:checked");
+  const porcentagem = Math.round((checks.length / tonalidades.length) * 100);
+  const barra = document.getElementById("barraProgresso");
+  barra.style.width = porcentagem + "%";
+  barra.innerText = porcentagem + "%";
+  return porcentagem;
+}
+
 function renderizarTons(selecionados = []){
   const tonsDiv = document.getElementById("tons");
   tonsDiv.innerHTML = "";
-
-  const tonalidades = obterTonalidades(instrumento);
 
   tonalidades.forEach(t=>{
     const checked = selecionados.includes(t) ? "checked" : "";
@@ -98,28 +122,34 @@ function renderizarTons(selecionados = []){
       </label>
     `;
   });
+
+  document.querySelectorAll("#tons input").forEach(c=>{
+    c.addEventListener("change", atualizarBarra);
+  });
+
+  atualizarBarra();
 }
 
 renderizarTons();
 
-// 💾 SALVAR OU ATUALIZAR
 document.getElementById("salvar").onclick = async () => {
 
   const exercicio = document.getElementById("exercicio").value;
   const bpm = document.getElementById("bpm").value;
-  const tempo = document.getElementById("tempo").value;
 
   const checks = document.querySelectorAll("#tons input:checked");
   const tons = Array.from(checks).map(c=>c.value);
 
+  const progresso = atualizarBarra();
+
   if(estudoEditando){
     await updateDoc(doc(db,"livros",livroId,"estudos",estudoEditando),{
-      exercicio,bpm,tempo,tons
+      exercicio,bpm,tons,progresso
     });
     estudoEditando = null;
   } else {
     await addDoc(collection(db,"livros",livroId,"estudos"),{
-      exercicio,bpm,tempo,tons,data:new Date()
+      exercicio,bpm,tons,progresso,data:new Date()
     });
   }
 
@@ -127,15 +157,12 @@ document.getElementById("salvar").onclick = async () => {
   carregarHistorico();
 };
 
-// 🧹 LIMPAR FORMULÁRIO
 function limparFormulario(){
   document.getElementById("exercicio").value = "";
   document.getElementById("bpm").value = "";
-  document.getElementById("tempo").value = "";
   renderizarTons();
 }
 
-// 📜 HISTÓRICO
 async function carregarHistorico(){
   const hist = document.getElementById("historico");
   hist.innerHTML = "";
@@ -150,8 +177,12 @@ async function carregarHistorico(){
         ${e.data ? new Date(e.data.seconds*1000).toLocaleDateString() : ""}<br>
         Exercício: ${e.exercicio}<br>
         BPM: ${e.bpm}<br>
-        Tempo: ${e.tempo} min<br>
-        Tons: ${e.tons ? e.tons.join(", ") : ""}<br>
+        Progresso: ${e.progresso}% 
+        <div class="progress-container">
+          <div class="progress-bar" style="width:${e.progresso}%">
+            ${e.progresso}%
+          </div>
+        </div>
         <button onclick="editar('${docSnap.id}')">Editar</button>
         <button onclick="excluir('${docSnap.id}')">Excluir</button>
       </div>
@@ -159,7 +190,6 @@ async function carregarHistorico(){
   });
 }
 
-// ✏ EDITAR
 window.editar = async (id)=>{
   const ref = doc(db,"livros",livroId,"estudos",id);
   const snap = await getDoc(ref);
@@ -167,7 +197,6 @@ window.editar = async (id)=>{
 
   document.getElementById("exercicio").value = e.exercicio;
   document.getElementById("bpm").value = e.bpm;
-  document.getElementById("tempo").value = e.tempo;
 
   renderizarTons(e.tons || []);
 
@@ -175,7 +204,6 @@ window.editar = async (id)=>{
   window.scrollTo(0,0);
 };
 
-// 🗑 EXCLUIR
 window.excluir = async (id)=>{
   await deleteDoc(doc(db,"livros",livroId,"estudos",id));
   carregarHistorico();
