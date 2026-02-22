@@ -4,41 +4,15 @@
 <meta charset="UTF-8">
 <title>Livro</title>
 <style>
-body {
-  font-family: Arial;
-  max-width: 800px;
-  margin: auto;
-  padding: 20px;
-}
-input {
-  margin: 5px;
-  padding: 6px;
-}
-button {
-  padding: 6px 10px;
-  margin: 5px;
-  cursor: pointer;
-}
-.card {
-  border: 1px solid #ccc;
-  padding: 10px;
-  margin: 10px 0;
-}
-.progress-container {
-  width: 100%;
-  background: #eee;
-  border-radius: 8px;
-  overflow: hidden;
-  margin-top: 8px;
-}
-.progress-bar {
-  height: 20px;
-  background: #4CAF50;
-  width: 0%;
-  text-align: center;
-  color: white;
-  font-size: 12px;
-}
+body { font-family: Arial; max-width: 900px; margin: auto; padding: 20px; }
+input { margin: 5px; padding: 6px; }
+button { padding: 6px 10px; margin: 5px; cursor: pointer; }
+.card { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+.mes { background:#f0f0f0; padding:10px; margin-top:20px; }
+.exercicioResumo { background:#fafafa; padding:8px; margin:5px 0; cursor:pointer; }
+.detalhes { margin-left:20px; display:none; }
+.progress-container { width:100%; background:#eee; border-radius:8px; overflow:hidden; margin-top:8px; }
+.progress-bar { height:18px; background:#4CAF50; text-align:center; color:white; font-size:11px; }
 </style>
 </head>
 <body>
@@ -58,8 +32,9 @@ button {
 </div>
 
 <button id="salvar">Salvar Estudo</button>
+<button id="exportar">📄 Exportar TXT</button>
 
-<h2>📜 Histórico</h2>
+<h2>📊 Histórico Organizado</h2>
 <div id="historico"></div>
 
 <script type="module">
@@ -90,12 +65,8 @@ const livroSnap = await getDoc(livroRef);
 const instrumento = livroSnap.data().instrumento;
 
 function obterTonalidades(inst){
-  if(inst === "Saxofone"){
-    return ["C","D","E","G","A"];
-  }
-  if(inst === "Trompete"){
-    return ["F","B","C","E","G"];
-  }
+  if(inst === "Saxofone") return ["C","D","E","G","A"];
+  if(inst === "Trompete") return ["F","B","C","E","G"];
   return ["C","D","E","F","G","A","B"];
 }
 
@@ -116,11 +87,9 @@ function renderizarTons(selecionados = []){
 
   tonalidades.forEach(t=>{
     const checked = selecionados.includes(t) ? "checked" : "";
-    tonsDiv.innerHTML += `
-      <label>
-        <input type="checkbox" value="${t}" ${checked}> ${t}
-      </label>
-    `;
+    tonsDiv.innerHTML += `<label>
+      <input type="checkbox" value="${t}" ${checked}> ${t}
+    </label>`;
   });
 
   document.querySelectorAll("#tons input").forEach(c=>{
@@ -164,49 +133,86 @@ function limparFormulario(){
 }
 
 async function carregarHistorico(){
+
   const hist = document.getElementById("historico");
   hist.innerHTML = "";
 
   const snapshot = await getDocs(collection(db,"livros",livroId,"estudos"));
 
+  let dados = [];
+
   snapshot.forEach(docSnap=>{
     const e = docSnap.data();
-
-    hist.innerHTML += `
-      <div class="card">
-        ${e.data ? new Date(e.data.seconds*1000).toLocaleDateString() : ""}<br>
-        Exercício: ${e.exercicio}<br>
-        BPM: ${e.bpm}<br>
-        Progresso: ${e.progresso}% 
-        <div class="progress-container">
-          <div class="progress-bar" style="width:${e.progresso}%">
-            ${e.progresso}%
-          </div>
-        </div>
-        <button onclick="editar('${docSnap.id}')">Editar</button>
-        <button onclick="excluir('${docSnap.id}')">Excluir</button>
-      </div>
-    `;
+    if(e.data){
+      const dataObj = new Date(e.data.seconds*1000);
+      const mesAno = dataObj.toLocaleString('pt-BR',{month:'long',year:'numeric'});
+      dados.push({id:docSnap.id,...e,dataObj,mesAno});
+    }
   });
+
+  const agrupado = {};
+
+  dados.forEach(e=>{
+    if(!agrupado[e.mesAno]) agrupado[e.mesAno]={};
+    if(!agrupado[e.mesAno][e.exercicio]) agrupado[e.mesAno][e.exercicio]=[];
+    agrupado[e.mesAno][e.exercicio].push(e);
+  });
+
+  for(const mes in agrupado){
+
+    hist.innerHTML += `<div class="mes"><h3>📅 ${mes}</h3></div>`;
+
+    for(const exercicio in agrupado[mes]){
+
+      const lista = agrupado[mes][exercicio];
+      const mediaBpm = Math.round(lista.reduce((s,e)=>s+Number(e.bpm),0)/lista.length);
+      const mediaProg = Math.round(lista.reduce((s,e)=>s+Number(e.progresso),0)/lista.length);
+
+      const idGrupo = mes+exercicio;
+
+      hist.innerHTML += `
+        <div class="exercicioResumo" onclick="toggle('${idGrupo}')">
+          🎵 ${exercicio} — ${lista.length} registros — Média ${mediaBpm} BPM — ${mediaProg}%
+        </div>
+        <div class="detalhes" id="${idGrupo}">
+          ${lista.map(e=>`
+            <div class="card">
+              ${e.dataObj.toLocaleDateString()} |
+              BPM: ${e.bpm} |
+              Progresso: ${e.progresso}% |
+              Tons: ${e.tons.join(",")}
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+  }
 }
 
-window.editar = async (id)=>{
-  const ref = doc(db,"livros",livroId,"estudos",id);
-  const snap = await getDoc(ref);
-  const e = snap.data();
-
-  document.getElementById("exercicio").value = e.exercicio;
-  document.getElementById("bpm").value = e.bpm;
-
-  renderizarTons(e.tons || []);
-
-  estudoEditando = id;
-  window.scrollTo(0,0);
+window.toggle = function(id){
+  const el = document.getElementById(id);
+  el.style.display = el.style.display==="none"?"block":"none";
 };
 
-window.excluir = async (id)=>{
-  await deleteDoc(doc(db,"livros",livroId,"estudos",id));
-  carregarHistorico();
+document.getElementById("exportar").onclick = async () => {
+
+  const snapshot = await getDocs(collection(db,"livros",livroId,"estudos"));
+
+  let texto = "RELATÓRIO DE ESTUDOS\n\n";
+
+  snapshot.forEach(docSnap=>{
+    const e = docSnap.data();
+    if(e.data){
+      const data = new Date(e.data.seconds*1000).toLocaleDateString();
+      texto += `${data} | ${e.exercicio} | ${e.bpm} BPM | ${e.progresso}% | ${e.tons.join(",")}\n`;
+    }
+  });
+
+  const blob = new Blob([texto], { type: "text/plain" });
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = "relatorio_estudos.txt";
+  link.click();
 };
 
 carregarHistorico();
