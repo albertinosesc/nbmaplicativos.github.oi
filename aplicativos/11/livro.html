@@ -24,6 +24,10 @@ button {
   padding: 10px;
   margin: 10px 0;
 }
+.edicao {
+  background: #f5f5f5;
+  padding: 10px;
+}
 </style>
 </head>
 <body>
@@ -47,16 +51,24 @@ button {
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs } 
-from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  getDocs, 
+  getDoc,
+  updateDoc,
+  deleteDoc,
+  doc 
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC_3jn_T3hZlcBImj5hUWmnGzmobkTega0",
-  authDomain: "diario-musical-394e2.firebaseapp.com",
+  apiKey: "SUA_KEY",
+  authDomain: "SUA_AUTH",
   projectId: "diario-musical-394e2",
-  storageBucket: "diario-musical-394e2.firebasestorage.app",
-  messagingSenderId: "547061797104",
-  appId: "1:547061797104:web:5af0fba7236e1456e33235"
+  storageBucket: "SUA_BUCKET",
+  messagingSenderId: "SUA_ID",
+  appId: "SUA_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -65,21 +77,45 @@ const db = getFirestore(app);
 const params = new URLSearchParams(window.location.search);
 const livroId = params.get("livro");
 
-const tonalidades = [
-"C","G","D","A","E","B","F#","C#",
-"F","Bb","Eb","Ab","Db","Gb","Cb",
-"Cm","Gm","Dm","Am","Em","Bm"
-];
+let instrumentoLivro = "";
 
-const tonsDiv = document.getElementById("tons");
+// 🔎 Buscar instrumento do livro
+async function buscarInstrumento(){
+  const livroRef = doc(db,"livros",livroId);
+  const snap = await getDoc(livroRef);
+  instrumentoLivro = snap.data().instrumento;
+  gerarTonalidades();
+}
 
-tonalidades.forEach(t=>{
-  tonsDiv.innerHTML += `
-    <label>
-      <input type="checkbox" value="${t}"> ${t}
-    </label>
-  `;
-});
+function gerarTonalidades(){
+
+  let tonalidades = [];
+
+  if(instrumentoLivro.toLowerCase().includes("sax")){
+    tonalidades = ["C","D","E","G","A"];
+  }
+  else if(instrumentoLivro.toLowerCase().includes("trompete")){
+    tonalidades = ["F","B","C","E","G"];
+  }
+  else{
+    tonalidades = [
+      "C","G","D","A","E","B",
+      "F","Bb","Eb","Ab",
+      "Cm","Gm","Dm","Am"
+    ];
+  }
+
+  const tonsDiv = document.getElementById("tons");
+  tonsDiv.innerHTML = "";
+
+  tonalidades.forEach(t=>{
+    tonsDiv.innerHTML += `
+      <label>
+        <input type="checkbox" value="${t}"> ${t}
+      </label>
+    `;
+  });
+}
 
 document.getElementById("salvar").onclick = async () => {
 
@@ -90,7 +126,7 @@ document.getElementById("salvar").onclick = async () => {
   const checks = document.querySelectorAll("#tons input:checked");
   const tons = Array.from(checks).map(c=>c.value);
 
-  await addDoc(collection(db, "livros", livroId, "estudos"), {
+  await addDoc(collection(db,"livros",livroId,"estudos"),{
     exercicio,
     bpm,
     tempo,
@@ -105,22 +141,50 @@ async function carregarHistorico(){
   const hist = document.getElementById("historico");
   hist.innerHTML = "";
 
-  const snapshot = await getDocs(collection(db, "livros", livroId, "estudos"));
+  const snapshot = await getDocs(collection(db,"livros",livroId,"estudos"));
 
   snapshot.forEach(docSnap=>{
     const e = docSnap.data();
+
     hist.innerHTML += `
       <div class="card">
-        ${new Date(e.data.seconds * 1000).toLocaleDateString()}<br>
-        Exercício: ${e.exercicio}<br>
+        <strong>${e.exercicio}</strong><br>
         BPM: ${e.bpm}<br>
         Tempo: ${e.tempo} min<br>
-        Tons: ${e.tons.join(", ")}
+        Tons: ${e.tons.join(", ")}<br><br>
+
+        <button onclick="editar('${docSnap.id}','${e.exercicio}','${e.bpm}','${e.tempo}')">
+          Editar
+        </button>
+
+        <button onclick="excluir('${docSnap.id}')">
+          Excluir
+        </button>
       </div>
     `;
   });
 }
 
+window.excluir = async (id)=>{
+  await deleteDoc(doc(db,"livros",livroId,"estudos",id));
+  location.reload();
+};
+
+window.editar = async (id,exercicio,bpm,tempo)=>{
+  const novoExercicio = prompt("Exercício:",exercicio);
+  const novoBpm = prompt("BPM:",bpm);
+  const novoTempo = prompt("Tempo:",tempo);
+
+  await updateDoc(doc(db,"livros",livroId,"estudos",id),{
+    exercicio: novoExercicio,
+    bpm: novoBpm,
+    tempo: novoTempo
+  });
+
+  location.reload();
+};
+
+buscarInstrumento();
 carregarHistorico();
 
 </script>
