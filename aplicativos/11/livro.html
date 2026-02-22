@@ -24,10 +24,6 @@ button {
   padding: 10px;
   margin: 10px 0;
 }
-.edicao {
-  background: #f5f5f5;
-  padding: 10px;
-}
 </style>
 </head>
 <body>
@@ -51,24 +47,16 @@ button {
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  getDocs, 
-  getDoc,
-  updateDoc,
-  deleteDoc,
-  doc 
-} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { getFirestore, collection, addDoc, getDocs, updateDoc, deleteDoc, doc, getDoc } 
+from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "SUA_KEY",
-  authDomain: "SUA_AUTH",
+  apiKey: "SUA_API_KEY_AQUI",
+  authDomain: "diario-musical-394e2.firebaseapp.com",
   projectId: "diario-musical-394e2",
-  storageBucket: "SUA_BUCKET",
-  messagingSenderId: "SUA_ID",
-  appId: "SUA_APP_ID"
+  storageBucket: "diario-musical-394e2.firebasestorage.app",
+  messagingSenderId: "547061797104",
+  appId: "1:547061797104:web:5af0fba7236e1456e33235"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -77,46 +65,44 @@ const db = getFirestore(app);
 const params = new URLSearchParams(window.location.search);
 const livroId = params.get("livro");
 
-let instrumentoLivro = "";
+let estudoEditando = null;
 
 // 🔎 Buscar instrumento do livro
-async function buscarInstrumento(){
-  const livroRef = doc(db,"livros",livroId);
-  const snap = await getDoc(livroRef);
-  instrumentoLivro = snap.data().instrumento;
-  gerarTonalidades();
+const livroRef = doc(db, "livros", livroId);
+const livroSnap = await getDoc(livroRef);
+const instrumento = livroSnap.data().instrumento;
+
+// 🎵 Tonalidades por instrumento
+function obterTonalidades(inst){
+  if(inst === "Saxofone"){
+    return ["C","D","E","G","A"];
+  }
+  if(inst === "Trompete"){
+    return ["F","B","C","E","G"];
+  }
+  return ["C","D","E","F","G","A","B"];
 }
 
-function gerarTonalidades(){
-
-  let tonalidades = [];
-
-  if(instrumentoLivro.toLowerCase().includes("sax")){
-    tonalidades = ["C","D","E","G","A"];
-  }
-  else if(instrumentoLivro.toLowerCase().includes("trompete")){
-    tonalidades = ["F","B","C","E","G"];
-  }
-  else{
-    tonalidades = [
-      "C","G","D","A","E","B",
-      "F","Bb","Eb","Ab",
-      "Cm","Gm","Dm","Am"
-    ];
-  }
-
+// 🎯 Criar checkboxes dinamicamente
+function renderizarTons(selecionados = []){
   const tonsDiv = document.getElementById("tons");
   tonsDiv.innerHTML = "";
 
+  const tonalidades = obterTonalidades(instrumento);
+
   tonalidades.forEach(t=>{
+    const checked = selecionados.includes(t) ? "checked" : "";
     tonsDiv.innerHTML += `
       <label>
-        <input type="checkbox" value="${t}"> ${t}
+        <input type="checkbox" value="${t}" ${checked}> ${t}
       </label>
     `;
   });
 }
 
+renderizarTons();
+
+// 💾 SALVAR OU ATUALIZAR
 document.getElementById("salvar").onclick = async () => {
 
   const exercicio = document.getElementById("exercicio").value;
@@ -126,17 +112,30 @@ document.getElementById("salvar").onclick = async () => {
   const checks = document.querySelectorAll("#tons input:checked");
   const tons = Array.from(checks).map(c=>c.value);
 
-  await addDoc(collection(db,"livros",livroId,"estudos"),{
-    exercicio,
-    bpm,
-    tempo,
-    tons,
-    data: new Date()
-  });
+  if(estudoEditando){
+    await updateDoc(doc(db,"livros",livroId,"estudos",estudoEditando),{
+      exercicio,bpm,tempo,tons
+    });
+    estudoEditando = null;
+  } else {
+    await addDoc(collection(db,"livros",livroId,"estudos"),{
+      exercicio,bpm,tempo,tons,data:new Date()
+    });
+  }
 
-  location.reload();
+  limparFormulario();
+  carregarHistorico();
 };
 
+// 🧹 LIMPAR FORMULÁRIO
+function limparFormulario(){
+  document.getElementById("exercicio").value = "";
+  document.getElementById("bpm").value = "";
+  document.getElementById("tempo").value = "";
+  renderizarTons();
+}
+
+// 📜 HISTÓRICO
 async function carregarHistorico(){
   const hist = document.getElementById("historico");
   hist.innerHTML = "";
@@ -148,46 +147,42 @@ async function carregarHistorico(){
 
     hist.innerHTML += `
       <div class="card">
-        <strong>${e.exercicio}</strong><br>
+        ${e.data ? new Date(e.data.seconds*1000).toLocaleDateString() : ""}<br>
+        Exercício: ${e.exercicio}<br>
         BPM: ${e.bpm}<br>
         Tempo: ${e.tempo} min<br>
-        Tons: ${e.tons.join(", ")}<br><br>
-
-        <button onclick="editar('${docSnap.id}','${e.exercicio}','${e.bpm}','${e.tempo}')">
-          Editar
-        </button>
-
-        <button onclick="excluir('${docSnap.id}')">
-          Excluir
-        </button>
+        Tons: ${e.tons ? e.tons.join(", ") : ""}<br>
+        <button onclick="editar('${docSnap.id}')">Editar</button>
+        <button onclick="excluir('${docSnap.id}')">Excluir</button>
       </div>
     `;
   });
 }
 
+// ✏ EDITAR
+window.editar = async (id)=>{
+  const ref = doc(db,"livros",livroId,"estudos",id);
+  const snap = await getDoc(ref);
+  const e = snap.data();
+
+  document.getElementById("exercicio").value = e.exercicio;
+  document.getElementById("bpm").value = e.bpm;
+  document.getElementById("tempo").value = e.tempo;
+
+  renderizarTons(e.tons || []);
+
+  estudoEditando = id;
+  window.scrollTo(0,0);
+};
+
+// 🗑 EXCLUIR
 window.excluir = async (id)=>{
   await deleteDoc(doc(db,"livros",livroId,"estudos",id));
-  location.reload();
+  carregarHistorico();
 };
 
-window.editar = async (id,exercicio,bpm,tempo)=>{
-  const novoExercicio = prompt("Exercício:",exercicio);
-  const novoBpm = prompt("BPM:",bpm);
-  const novoTempo = prompt("Tempo:",tempo);
-
-  await updateDoc(doc(db,"livros",livroId,"estudos",id),{
-    exercicio: novoExercicio,
-    bpm: novoBpm,
-    tempo: novoTempo
-  });
-
-  location.reload();
-};
-
-buscarInstrumento();
 carregarHistorico();
 
 </script>
-
 </body>
 </html>
