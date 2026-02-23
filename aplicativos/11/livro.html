@@ -44,9 +44,11 @@ button{
 </head>
 <body>
 
+<button onclick="window.location.href='index.html'">🔙 Voltar</button>
+
 <h1 id="tituloLivro"></h1>
 
-<h3>➕ Novo Estudo</h3>
+<h3>➕ Novo / Editar Estudo</h3>
 <input type="text" id="exercicio" placeholder="Exercício">
 <input type="number" id="bpm" placeholder="BPM">
 
@@ -70,12 +72,12 @@ import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, getDoc, upda
 from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC_3jn_T3hZlcBImj5hUWmnGzmobkTega0",
-  authDomain: "diario-musical-394e2.firebaseapp.com",
-  projectId: "diario-musical-394e2",
-  storageBucket: "diario-musical-394e2.firebasestorage.app",
-  messagingSenderId: "547061797104",
-  appId: "1:547061797104:web:5af0fba7236e1456e33235"
+  apiKey: "SUA_CHAVE",
+  authDomain: "SEU_AUTH",
+  projectId: "SEU_PROJECT",
+  storageBucket: "SEU_BUCKET",
+  messagingSenderId: "SEU_ID",
+  appId: "SEU_APP"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -86,6 +88,7 @@ const livroId = urlParams.get("livro");
 
 let instrumento = "";
 let totalNotas = 0;
+let editandoId = null;
 
 const cromatica = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
 
@@ -110,7 +113,7 @@ function obterExtensao(inst){
   return notas;
 }
 
-function gerarCheckbox(){
+function gerarCheckbox(extensoesMarcadas = []){
   const container = document.getElementById("extensao");
   container.innerHTML = "";
   const notas = obterExtensao(instrumento);
@@ -128,20 +131,30 @@ function gerarCheckbox(){
     const div = document.createElement("div");
     div.className="oitava";
     div.innerHTML = `<strong>Oitava ${oit}</strong><br>`;
+
     oitavas[oit].forEach(n=>{
-      div.innerHTML += `<label><input type="checkbox" value="${n}"> ${n}</label> `;
+      const checked = extensoesMarcadas.includes(n) ? "checked" : "";
+      div.innerHTML += `<label>
+        <input type="checkbox" value="${n}" ${checked}> ${n}
+      </label> `;
     });
+
     container.appendChild(div);
   }
 
   document.querySelectorAll("#extensao input").forEach(cb=>{
     cb.addEventListener("change", atualizarBarra);
   });
+
+  atualizarBarra();
 }
 
 function atualizarBarra(){
   const marcados = document.querySelectorAll("#extensao input:checked").length;
-  const porcentagem = Math.round((marcados/totalNotas)*100);
+  const porcentagem = totalNotas > 0 
+    ? Math.round((marcados/totalNotas)*100)
+    : 0;
+
   document.getElementById("barra").style.width = porcentagem+"%";
 }
 
@@ -159,17 +172,29 @@ async function carregarLivro(){
 document.getElementById("salvar").onclick = async ()=>{
   const exercicio = document.getElementById("exercicio").value;
   const bpm = document.getElementById("bpm").value;
+
   const marcados = [...document.querySelectorAll("#extensao input:checked")]
                     .map(cb=>cb.value);
+
   const progresso = Math.round((marcados.length/totalNotas)*100);
 
-  await addDoc(collection(db,"livros",livroId,"estudos"),{
-    exercicio,
-    bpm,
-    extensao:marcados,
-    progresso,
-    data:new Date()
-  });
+  if(editandoId){
+    await updateDoc(doc(db,"livros",livroId,"estudos",editandoId),{
+      exercicio,
+      bpm,
+      extensao:marcados,
+      progresso
+    });
+    editandoId = null;
+  }else{
+    await addDoc(collection(db,"livros",livroId,"estudos"),{
+      exercicio,
+      bpm,
+      extensao:marcados,
+      progresso,
+      data:new Date()
+    });
+  }
 
   location.reload();
 };
@@ -194,18 +219,20 @@ async function carregarHistorico(){
   });
 }
 
+window.editar = async (id)=>{
+  const snap = await getDoc(doc(db,"livros",livroId,"estudos",id));
+  const data = snap.data();
+
+  document.getElementById("exercicio").value = data.exercicio;
+  document.getElementById("bpm").value = data.bpm;
+
+  gerarCheckbox(data.extensao);
+  editandoId = id;
+};
+
 window.excluir = async (id)=>{
   if(!confirm("Excluir estudo?")) return;
   await deleteDoc(doc(db,"livros",livroId,"estudos",id));
-  location.reload();
-};
-
-window.editar = async (id)=>{
-  const novoBpm = prompt("Novo BPM:");
-  if(!novoBpm) return;
-  await updateDoc(doc(db,"livros",livroId,"estudos",id),{
-    bpm:novoBpm
-  });
   location.reload();
 };
 
