@@ -2,41 +2,24 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>🎼 Diário Musical</title>
+<title>📚 Diário Musical</title>
+
 <style>
-body {
-  font-family: Arial;
-  max-width: 800px;
-  margin: auto;
-  padding: 20px;
-}
-input {
-  margin: 5px;
-  padding: 6px;
-}
-button {
-  padding: 6px 10px;
-  margin: 5px;
-  cursor: pointer;
-}
-.card {
-  border: 1px solid #ccc;
-  padding: 10px;
-  margin: 10px 0;
-}
+body { font-family: Arial; max-width: 800px; margin: auto; padding: 20px; }
+input, button { padding: 6px; margin: 5px; }
+.card { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
 </style>
+
 </head>
 <body>
 
-<h1>🎼 Diário Musical</h1>
+<h1>📚 Meus Livros</h1>
 
-<h2>📚 Meus Livros</h2>
-<div id="livros"></div>
-
-<h3>➕ Novo Livro</h3>
 <input type="text" id="nomeLivro" placeholder="Nome do Livro">
 <input type="text" id="instrumento" placeholder="Instrumento">
-<button id="addLivro">Adicionar</button>
+<button id="addLivro">Salvar Livro</button>
+
+<div id="listaLivros"></div>
 
 <script type="module">
 
@@ -56,21 +39,23 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const livrosDiv = document.getElementById("livros");
+const lista = document.getElementById("listaLivros");
 
-async function carregarLivros(){
-  livrosDiv.innerHTML = "";
+async function carregarLivros() {
+  lista.innerHTML = "";
   const snapshot = await getDocs(collection(db, "livros"));
 
-  snapshot.forEach(docSnap=>{
+  snapshot.forEach(docSnap => {
     const data = docSnap.data();
 
-    livrosDiv.innerHTML += `
+    lista.innerHTML += `
       <div class="card">
         <strong>${data.nome}</strong> - ${data.instrumento}
         <br>
-        <a href="livro.html?livro=${docSnap.id}">Abrir</a>
-        <button onclick="excluirLivro('${docSnap.id}', '${data.nome}')">Excluir</button>
+        📅 ${data.data}
+        <br>
+        <a href="livro.html?id=${docSnap.id}">Abrir</a>
+        <button onclick="excluir('${docSnap.id}')">Excluir</button>
       </div>
     `;
   });
@@ -80,34 +65,26 @@ document.getElementById("addLivro").onclick = async () => {
   const nome = document.getElementById("nomeLivro").value;
   const instrumento = document.getElementById("instrumento").value;
 
-  if(!nome) return alert("Digite o nome do livro.");
+  if (!nome) return alert("Digite o nome do livro");
 
   await addDoc(collection(db, "livros"), {
     nome,
-    instrumento
+    instrumento,
+    data: new Date().toLocaleDateString()
   });
 
   location.reload();
 };
 
-window.excluirLivro = async (id, nomeLivro) => {
-
-  const confirmar = confirm(
-    `⚠️ Tem certeza que deseja excluir o livro:\n\n"${nomeLivro}"?\n\nEssa ação não pode ser desfeita.`
-  );
-
-  if(!confirmar) return;
-
-  await deleteDoc(doc(db, "livros", id));
-
-  alert("📕 Livro excluído com sucesso!");
-
-  location.reload();
+window.excluir = async (id) => {
+  if(confirm("Deseja excluir este livro?")){
+    await deleteDoc(doc(db, "livros", id));
+    location.reload();
+  }
 };
 
 carregarLivros();
 
 </script>
-
 </body>
 </html>
