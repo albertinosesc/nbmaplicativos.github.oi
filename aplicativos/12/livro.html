@@ -2,20 +2,14 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>📖 Livro</title>
+<title>🎼 Diário Musical</title>
 
 <style>
 body{
   font-family: Arial;
-  max-width: 800px;
+  max-width: 900px;
   margin:auto;
   padding:20px;
-}
-
-button{
-  padding:6px 10px;
-  margin:5px 0;
-  cursor:pointer;
 }
 
 input, textarea, select{
@@ -24,23 +18,50 @@ input, textarea, select{
   margin:5px 0;
 }
 
+button{
+  padding:6px 10px;
+  margin:5px 0;
+  cursor:pointer;
+}
+
 .card{
   border:1px solid #ccc;
   padding:10px;
   margin:10px 0;
 }
 
-.status-iniciando{ color:orange; font-weight:bold; }
-.status-andamento{ color:blue; font-weight:bold; }
-.status-finalizado{ color:green; font-weight:bold; }
+.status-iniciando{color:orange;font-weight:bold;}
+.status-andamento{color:blue;font-weight:bold;}
+.status-finalizado{color:green;font-weight:bold;}
 
+hr{
+  margin:30px 0;
+}
 </style>
 </head>
 <body>
 
-<button onclick="window.location.href='index.html'">⬅ Voltar</button>
+<h1>🎼 Diário Musical</h1>
 
-<h2 id="tituloLivro">Carregando...</h2>
+<!-- ================= LIVROS (FUNÇÃO DO INDEX) ================= -->
+
+<h2>📚 Meus Livros</h2>
+<div id="listaLivros"></div>
+
+<h3>➕ Novo Livro</h3>
+<input type="text" id="nomeLivro" placeholder="Nome do Livro">
+<input type="text" id="instrumento" placeholder="Instrumento">
+<button id="addLivro">Adicionar Livro</button>
+
+<hr>
+
+<!-- ================= CONTEÚDO DO LIVRO ================= -->
+
+<div id="areaLivro" style="display:none;">
+
+<button onclick="voltarLivros()">⬅ Voltar para Livros</button>
+
+<h2 id="tituloLivro"></h2>
 
 <h3>➕ Novo Registro</h3>
 
@@ -59,30 +80,23 @@ input, textarea, select{
 <h3>📒 Histórico</h3>
 <div id="registros"></div>
 
+</div>
+
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  getDocs, 
-  doc, 
-  getDoc, 
-  deleteDoc,
-  query,
-  orderBy
+  getFirestore, collection, addDoc, getDocs,
+  deleteDoc, doc, getDoc, query, orderBy
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
-
-// 🔥 COLOQUE AQUI SUAS CHAVES REAIS
 const firebaseConfig = {
-  apiKey: "SUA_CHAVE_AQUI",
-  authDomain: "SEU_AUTH_AQUI",
-  projectId: "SEU_PROJECT_ID",
+  apiKey: "SUA_CHAVE",
+  authDomain: "SEU_AUTH",
+  projectId: "SEU_PROJECT",
   storageBucket: "SEU_BUCKET",
-  messagingSenderId: "SEU_SENDER_ID",
-  appId: "SEU_APP_ID"
+  messagingSenderId: "SEU_ID",
+  appId: "SEU_APP"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -91,23 +105,59 @@ const db = getFirestore(app);
 const urlParams = new URLSearchParams(window.location.search);
 const livroId = urlParams.get("livro");
 
-if(!livroId){
-  alert("Livro não encontrado.");
-}
-
+const listaLivros = document.getElementById("listaLivros");
+const areaLivro = document.getElementById("areaLivro");
 const registrosDiv = document.getElementById("registros");
 
+// ===================== LIVROS =====================
+
+async function carregarLivros(){
+  listaLivros.innerHTML="";
+  const snapshot = await getDocs(collection(db,"livros"));
+
+  snapshot.forEach(docSnap=>{
+    const l = docSnap.data();
+
+    listaLivros.innerHTML += `
+      <div class="card">
+        <strong>${l.nome}</strong> - ${l.instrumento}
+        <br>
+        <a href="livro.html?livro=${docSnap.id}">Abrir</a>
+        <button onclick="excluirLivro('${docSnap.id}')">Excluir</button>
+      </div>
+    `;
+  });
+}
+
+document.getElementById("addLivro").onclick = async ()=>{
+  const nome = document.getElementById("nomeLivro").value;
+  const instrumento = document.getElementById("instrumento").value;
+
+  if(!nome) return alert("Digite o nome do livro");
+
+  await addDoc(collection(db,"livros"),{nome,instrumento});
+  location.reload();
+};
+
+window.excluirLivro = async(id)=>{
+  if(!confirm("Excluir livro?")) return;
+  await deleteDoc(doc(db,"livros",id));
+  location.reload();
+};
+
+// ===================== CONTEÚDO DO LIVRO =====================
+
+function voltarLivros(){
+  window.location.href="livro.html";
+}
+
 async function carregarLivro(){
+  if(!livroId) return;
 
-  const livroRef = doc(db,"livros",livroId);
-  const livroSnap = await getDoc(livroRef);
+  areaLivro.style.display="block";
 
-  if(!livroSnap.exists()){
-    alert("Livro não existe.");
-    return;
-  }
-
-  const livro = livroSnap.data();
+  const snap = await getDoc(doc(db,"livros",livroId));
+  const livro = snap.data();
 
   document.getElementById("tituloLivro").innerText =
     livro.nome + " - " + livro.instrumento;
@@ -116,8 +166,7 @@ async function carregarLivro(){
 }
 
 async function carregarRegistros(){
-
-  registrosDiv.innerHTML = "";
+  registrosDiv.innerHTML="";
 
   const q = query(
     collection(db,"livros",livroId,"registros"),
@@ -126,103 +175,54 @@ async function carregarRegistros(){
 
   const snapshot = await getDocs(q);
 
-  snapshot.forEach(docSnap => {
-
+  snapshot.forEach(docSnap=>{
     const r = docSnap.data();
 
-    let classeStatus = "";
-    if(r.status === "Iniciando") classeStatus = "status-iniciando";
-    if(r.status === "Em andamento") classeStatus = "status-andamento";
-    if(r.status === "Finalizado") classeStatus = "status-finalizado";
+    let classe="";
+    if(r.status==="Iniciando") classe="status-iniciando";
+    if(r.status==="Em andamento") classe="status-andamento";
+    if(r.status==="Finalizado") classe="status-finalizado";
 
-    registrosDiv.innerHTML += `
+    registrosDiv.innerHTML+=`
       <div class="card">
         <strong>${r.data}</strong><br>
         ${r.observacoes || ""}<br>
-        <span class="${classeStatus}">${r.status}</span>
+        <span class="${classe}">${r.status}</span>
         <br><br>
-        <button onclick="excluir('${docSnap.id}')">Excluir</button>
+        <button onclick="excluirRegistro('${docSnap.id}')">Excluir</button>
       </div>
     `;
   });
 
   if(snapshot.empty){
-    registrosDiv.innerHTML = "Nenhum registro ainda.";
+    registrosDiv.innerHTML="Nenhum registro ainda.";
   }
 }
 
-document.getElementById("salvar").addEventListener("click", async () => {
+document.getElementById("salvar").onclick = async ()=>{
+  const data = document.getElementById("data").value;
+  const obs = document.getElementById("obs").value;
+  const status = document.getElementById("status").value;
 
-  try{
+  if(!data) return alert("Preencha a data.");
 
-    const data = document.getElementById("data").value;
-    const observacoes = document.getElementById("obs").value;
-    const status = document.getElementById("status").value;
+  await addDoc(collection(db,"livros",livroId,"registros"),{
+    data,observacoes:obs,status
+  });
 
-    if(!data){
-      alert("Preencha a data.");
-      return;
-    }
+  location.reload();
+};
 
-    await addDoc(collection(db,"livros",livroId,"registros"),{
-      data,
-      observacoes,
-      status
-    });
-
-    alert("Salvo com sucesso!");
-    location.reload();
-
-  }catch(error){
-    console.error(error);
-    alert("Erro ao salvar. Veja o console (F12).");
-  }
-
-});
-
-window.excluir = async (id)=>{
-  if(!confirm("Deseja excluir este registro?")) return;
-
+window.excluirRegistro = async(id)=>{
+  if(!confirm("Excluir registro?")) return;
   await deleteDoc(doc(db,"livros",livroId,"registros",id));
   location.reload();
 };
 
-
-// 📄 EXPORTAR RELATÓRIO TXT
-document.getElementById("exportar").addEventListener("click", async ()=>{
-
-  const livroSnap = await getDoc(doc(db,"livros",livroId));
-  const livro = livroSnap.data();
-
-  const q = query(
-    collection(db,"livros",livroId,"registros"),
-    orderBy("data","desc")
-  );
-
-  const snapshot = await getDocs(q);
-
-  let texto = "";
-  texto += "RELATÓRIO DE ESTUDOS\n";
-  texto += "Livro: " + livro.nome + "\n";
-  texto += "Instrumento: " + livro.instrumento + "\n";
-  texto += "Gerado em: " + new Date().toLocaleDateString() + "\n";
-  texto += "----------------------------------------\n\n";
-
-  snapshot.forEach(docSnap=>{
-    const r = docSnap.data();
-    texto += `${r.data} | ${r.status}\n`;
-    texto += (r.observacoes || "") + "\n\n";
-  });
-
-  const blob = new Blob([texto],{type:"text/plain"});
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = livro.nome.replace(/\s/g,"_") + "_relatorio.txt";
-  link.click();
-});
-
+carregarLivros();
 carregarLivro();
 
 </script>
+
 </body>
 </html>
