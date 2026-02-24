@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>📖 Livro</title>
+
+<style>
+body{
+  font-family: Arial;
+  max-width: 800px;
+  margin:auto;
+  padding:20px;
+}
+
+button{
+  padding:6px 10px;
+  margin:5px 0;
+  cursor:pointer;
+}
+
+input, textarea, select{
+  padding:6px;
+  margin:5px 0;
+  width:100%;
+}
+
+.card{
+  border:1px solid #ccc;
+  padding:10px;
+  margin:10px 0;
+}
+
+.progress-bar{
+  height:20px;
+  background:#ddd;
+  margin-top:5px;
+}
+
+.progress{
+  height:20px;
+  background:#4CAF50;
+  color:white;
+  text-align:center;
+}
+
+.status{
+  font-weight:bold;
+}
+</style>
+</head>
+<body>
+
+<button onclick="voltar()">⬅ Voltar</button>
+
+<h2 id="tituloLivro"></h2>
+
+<h3>➕ Novo Registro</h3>
+
+<input type="date" id="data">
+<textarea id="obs" placeholder="Observações"></textarea>
+
+<select id="status">
+  <option value="Iniciando">Iniciando</option>
+  <option value="Em andamento">Em andamento</option>
+  <option value="Finalizado">Finalizado</option>
+</select>
+
+<button id="addRegistro">Salvar</button>
+
+<h3>📒 Registros</h3>
+<div id="registros"></div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
+import { getFirestore, collection, addDoc, getDocs, doc, getDoc, deleteDoc, updateDoc }
+from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "SUA_CHAVE_AQUI",
+  authDomain: "SEU_AUTH",
+  projectId: "SEU_PROJECT",
+  storageBucket: "SEU_BUCKET",
+  messagingSenderId: "SEU_ID",
+  appId: "SEU_APP"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const urlParams = new URLSearchParams(window.location.search);
+const livroId = urlParams.get("livro");
+
+const registrosDiv = document.getElementById("registros");
+
+function voltar(){
+  window.location.href = "index.html";
+}
+
+async function carregarLivro(){
+  const livroRef = doc(db,"livros",livroId);
+  const livroSnap = await getDoc(livroRef);
+  const livro = livroSnap.data();
+
+  document.getElementById("tituloLivro").innerText =
+    livro.nome + " - " + livro.instrumento;
+
+  carregarRegistros();
+}
+
+async function carregarRegistros(){
+  registrosDiv.innerHTML="";
+  const snapshot = await getDocs(collection(db,"livros",livroId,"registros"));
+
+  let total = 0;
+  let finalizados = 0;
+
+  snapshot.forEach(docSnap=>{
+    const data = docSnap.data();
+    total++;
+
+    if(data.status === "Finalizado") finalizados++;
+
+    registrosDiv.innerHTML += `
+      <div class="card">
+        <strong>${data.data}</strong><br>
+        ${data.observacoes}<br>
+        <span class="status">${data.status}</span>
+        <br><br>
+        <button onclick="editarRegistro('${docSnap.id}','${data.data}','${data.observacoes}','${data.status}')">Editar</button>
+        <button onclick="excluirRegistro('${docSnap.id}')">Excluir</button>
+      </div>
+    `;
+  });
+
+  if(total > 0){
+    const porcentagem = Math.round((finalizados/total)*100);
+    registrosDiv.innerHTML += `
+      <h3>📊 Progresso do Livro</h3>
+      <div class="progress-bar">
+        <div class="progress" style="width:${porcentagem}%">
+          ${porcentagem}%
+        </div>
+      </div>
+    `;
+  }
+}
+
+document.getElementById("addRegistro").onclick = async ()=>{
+  const data = document.getElementById("data").value;
+  const observacoes = document.getElementById("obs").value;
+  const status = document.getElementById("status").value;
+
+  if(!data) return alert("Preencha a data");
+
+  await addDoc(collection(db,"livros",livroId,"registros"),{
+    data,
+    observacoes,
+    status
+  });
+
+  location.reload();
+};
+
+window.excluirRegistro = async (id)=>{
+  if(confirm("Tem certeza que deseja excluir este registro?")){
+    await deleteDoc(doc(db,"livros",livroId,"registros",id));
+    location.reload();
+  }
+};
+
+window.editarRegistro = async (id,data,obs,status)=>{
+  const novaData = prompt("Editar Data:", data);
+  if(!novaData) return;
+
+  const novaObs = prompt("Editar Observação:", obs);
+  if(novaObs === null) return;
+
+  const novoStatus = prompt("Status (Iniciando, Em andamento, Finalizado):", status);
+  if(!novoStatus) return;
+
+  await updateDoc(doc(db,"livros",livroId,"registros",id),{
+    data: novaData,
+    observacoes: novaObs,
+    status: novoStatus
+  });
+
+  location.reload();
+};
+
+carregarLivro();
+
+</script>
+
+</body>
+</html>
