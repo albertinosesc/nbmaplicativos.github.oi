@@ -5,11 +5,13 @@
 <title>📖 Livro</title>
 
 <style>
-body { font-family: Arial; max-width: 800px; margin: auto; padding: 20px; }
-input, button { padding: 6px; margin: 5px; }
+body { font-family: Arial; max-width: 1000px; margin: auto; padding: 20px; }
+input, select, button { padding: 6px; margin: 5px; }
 .card { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
+table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: center; }
+th { background: #f0f0f0; }
 </style>
-
 </head>
 <body>
 
@@ -25,7 +27,7 @@ input, button { padding: 6px; margin: 5px; }
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } 
+import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc } 
 from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -51,23 +53,119 @@ async function carregarSubs() {
   const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros"));
 
   snapshot.forEach(docSnap => {
-    const data = docSnap.data();
+    const sub = docSnap.data();
+    const subId = docSnap.id;
 
     lista.innerHTML += `
       <div class="card">
-        <strong>${data.nome}</strong>
-        <br>
-        📅 ${data.data}
-        <br>
-        <button onclick="excluir('${docSnap.id}')">Excluir</button>
+        <h3>${sub.nome}</h3>
+        📅 Criado em: ${sub.data}
+        
+        <h4>➕ Novo Estudo</h4>
+        <input type="text" id="musica_${subId}" placeholder="Música">
+        <select id="status_${subId}">
+          <option>Iniciando</option>
+          <option>Em andamento</option>
+          <option>Finalizado</option>
+        </select>
+        <input type="number" id="bpm_${subId}" placeholder="BPM">
+        <button onclick="addEstudo('${subId}')">Salvar</button>
+
+        <table>
+          <thead>
+            <tr>
+              <th>Música</th>
+              <th>Status</th>
+              <th>BPM</th>
+              <th>Data</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabela_${subId}"></tbody>
+        </table>
+
+        <button onclick="excluirSub('${subId}')">Excluir Sub-Livro</button>
       </div>
+    `;
+
+    carregarEstudos(subId);
+  });
+}
+
+async function carregarEstudos(subId) {
+  const tabela = document.getElementById(`tabela_${subId}`);
+  tabela.innerHTML = "";
+
+  const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
+
+  snapshot.forEach(docSnap => {
+    const est = docSnap.data();
+    const estId = docSnap.id;
+
+    tabela.innerHTML += `
+      <tr>
+        <td>${est.musica}</td>
+        <td>${est.status}</td>
+        <td>${est.bpm}</td>
+        <td>${est.data}</td>
+        <td>
+          <button onclick="editarEstudo('${subId}','${estId}','${est.musica}','${est.status}','${est.bpm}')">Editar</button>
+          <button onclick="excluirEstudo('${subId}','${estId}')">Excluir</button>
+        </td>
+      </tr>
     `;
   });
 }
 
+window.addEstudo = async (subId) => {
+  const musica = document.getElementById(`musica_${subId}`).value;
+  const status = document.getElementById(`status_${subId}`).value;
+  const bpm = document.getElementById(`bpm_${subId}`).value;
+
+  if (!musica) return alert("Digite o nome da música");
+
+  await addDoc(collection(db, "livros", livroId, "sublivros", subId, "estudos"), {
+    musica,
+    status,
+    bpm,
+    data: new Date().toLocaleDateString()
+  });
+
+  location.reload();
+};
+
+window.editarEstudo = async (subId, estId, musica, status, bpm) => {
+  const novaMusica = prompt("Editar música:", musica);
+  const novoStatus = prompt("Editar status:", status);
+  const novoBpm = prompt("Editar BPM:", bpm);
+
+  if(!novaMusica) return;
+
+  await updateDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId), {
+    musica: novaMusica,
+    status: novoStatus,
+    bpm: novoBpm
+  });
+
+  location.reload();
+};
+
+window.excluirEstudo = async (subId, estId) => {
+  if(confirm("Excluir estudo?")){
+    await deleteDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId));
+    location.reload();
+  }
+};
+
+window.excluirSub = async (subId) => {
+  if(confirm("Excluir sub-livro?")){
+    await deleteDoc(doc(db, "livros", livroId, "sublivros", subId));
+    location.reload();
+  }
+};
+
 document.getElementById("addSub").onclick = async () => {
   const nome = document.getElementById("nomeSub").value;
-
   if (!nome) return alert("Digite o nome do sub-livro");
 
   await addDoc(collection(db, "livros", livroId, "sublivros"), {
@@ -76,13 +174,6 @@ document.getElementById("addSub").onclick = async () => {
   });
 
   location.reload();
-};
-
-window.excluir = async (id) => {
-  if(confirm("Deseja excluir este sub-livro?")){
-    await deleteDoc(doc(db, "livros", livroId, "sublivros", id));
-    location.reload();
-  }
 };
 
 window.voltar = () => {
