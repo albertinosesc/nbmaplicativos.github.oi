@@ -19,9 +19,9 @@ button{
 }
 
 input, textarea, select{
+  width:100%;
   padding:6px;
   margin:5px 0;
-  width:100%;
 }
 
 .card{
@@ -30,29 +30,17 @@ input, textarea, select{
   margin:10px 0;
 }
 
-.progress-bar{
-  height:20px;
-  background:#ddd;
-  margin-top:10px;
-}
+.status-iniciando{ color:orange; font-weight:bold; }
+.status-andamento{ color:blue; font-weight:bold; }
+.status-finalizado{ color:green; font-weight:bold; }
 
-.progress{
-  height:20px;
-  background:#4CAF50;
-  color:white;
-  text-align:center;
-}
-
-.status{
-  font-weight:bold;
-}
 </style>
 </head>
 <body>
 
-<button onclick="voltar()">⬅ Voltar</button>
+<button onclick="window.location.href='index.html'">⬅ Voltar</button>
 
-<h2 id="tituloLivro"></h2>
+<h2 id="tituloLivro">Carregando...</h2>
 
 <h3>➕ Novo Registro</h3>
 
@@ -65,25 +53,36 @@ input, textarea, select{
   <option value="Finalizado">Finalizado</option>
 </select>
 
-<button id="addRegistro">Salvar</button>
-<button id="exportar">📄 Exportar Relatório TXT</button>
+<button id="salvar">Salvar</button>
+<button id="exportar">📄 Exportar TXT</button>
 
-<h3>📒 Registros</h3>
+<h3>📒 Histórico</h3>
 <div id="registros"></div>
 
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, doc, getDoc, deleteDoc, updateDoc }
-from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  getDocs, 
+  doc, 
+  getDoc, 
+  deleteDoc,
+  query,
+  orderBy
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
+
+// 🔥 COLOQUE AQUI SUAS CHAVES REAIS
 const firebaseConfig = {
   apiKey: "SUA_CHAVE_AQUI",
-  authDomain: "SEU_AUTH",
-  projectId: "SEU_PROJECT",
+  authDomain: "SEU_AUTH_AQUI",
+  projectId: "SEU_PROJECT_ID",
   storageBucket: "SEU_BUCKET",
-  messagingSenderId: "SEU_ID",
-  appId: "SEU_APP"
+  messagingSenderId: "SEU_SENDER_ID",
+  appId: "SEU_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -92,15 +91,22 @@ const db = getFirestore(app);
 const urlParams = new URLSearchParams(window.location.search);
 const livroId = urlParams.get("livro");
 
-const registrosDiv = document.getElementById("registros");
-
-function voltar(){
-  window.location.href = "index.html";
+if(!livroId){
+  alert("Livro não encontrado.");
 }
 
+const registrosDiv = document.getElementById("registros");
+
 async function carregarLivro(){
+
   const livroRef = doc(db,"livros",livroId);
   const livroSnap = await getDoc(livroRef);
+
+  if(!livroSnap.exists()){
+    alert("Livro não existe.");
+    return;
+  }
+
   const livro = livroSnap.data();
 
   document.getElementById("tituloLivro").innerText =
@@ -110,127 +116,113 @@ async function carregarLivro(){
 }
 
 async function carregarRegistros(){
-  registrosDiv.innerHTML="";
-  const snapshot = await getDocs(collection(db,"livros",livroId,"registros"));
 
-  let registros = [];
-  snapshot.forEach(docSnap=>{
-    registros.push({
-      id: docSnap.id,
-      ...docSnap.data()
-    });
-  });
+  registrosDiv.innerHTML = "";
 
-  // 🔥 ORDENAÇÃO AUTOMÁTICA POR DATA (mais recente primeiro)
-  registros.sort((a,b)=> new Date(b.data) - new Date(a.data));
+  const q = query(
+    collection(db,"livros",livroId,"registros"),
+    orderBy("data","desc")
+  );
 
-  let total = registros.length;
-  let finalizados = registros.filter(r=>r.status==="Finalizado").length;
+  const snapshot = await getDocs(q);
 
-  registros.forEach(r=>{
+  snapshot.forEach(docSnap => {
+
+    const r = docSnap.data();
+
+    let classeStatus = "";
+    if(r.status === "Iniciando") classeStatus = "status-iniciando";
+    if(r.status === "Em andamento") classeStatus = "status-andamento";
+    if(r.status === "Finalizado") classeStatus = "status-finalizado";
+
     registrosDiv.innerHTML += `
       <div class="card">
         <strong>${r.data}</strong><br>
-        ${r.observacoes}<br>
-        <span class="status">${r.status}</span>
+        ${r.observacoes || ""}<br>
+        <span class="${classeStatus}">${r.status}</span>
         <br><br>
-        <button onclick="editarRegistro('${r.id}','${r.data}','${r.observacoes}','${r.status}')">Editar</button>
-        <button onclick="excluirRegistro('${r.id}')">Excluir</button>
+        <button onclick="excluir('${docSnap.id}')">Excluir</button>
       </div>
     `;
   });
 
-  if(total > 0){
-    const porcentagem = Math.round((finalizados/total)*100);
-    registrosDiv.innerHTML += `
-      <h3>📊 Progresso do Livro</h3>
-      <div class="progress-bar">
-        <div class="progress" style="width:${porcentagem}%">
-          ${porcentagem}%
-        </div>
-      </div>
-    `;
+  if(snapshot.empty){
+    registrosDiv.innerHTML = "Nenhum registro ainda.";
   }
 }
 
-document.getElementById("addRegistro").onclick = async ()=>{
-  const data = document.getElementById("data").value;
-  const observacoes = document.getElementById("obs").value;
-  const status = document.getElementById("status").value;
+document.getElementById("salvar").addEventListener("click", async () => {
 
-  if(!data) return alert("Preencha a data");
+  try{
 
-  await addDoc(collection(db,"livros",livroId,"registros"),{
-    data,
-    observacoes,
-    status
-  });
+    const data = document.getElementById("data").value;
+    const observacoes = document.getElementById("obs").value;
+    const status = document.getElementById("status").value;
 
-  location.reload();
-};
+    if(!data){
+      alert("Preencha a data.");
+      return;
+    }
 
-window.excluirRegistro = async (id)=>{
-  if(confirm("Tem certeza que deseja excluir este registro?")){
-    await deleteDoc(doc(db,"livros",livroId,"registros",id));
+    await addDoc(collection(db,"livros",livroId,"registros"),{
+      data,
+      observacoes,
+      status
+    });
+
+    alert("Salvo com sucesso!");
     location.reload();
+
+  }catch(error){
+    console.error(error);
+    alert("Erro ao salvar. Veja o console (F12).");
   }
-};
 
-window.editarRegistro = async (id,data,obs,status)=>{
-  const novaData = prompt("Editar Data:", data);
-  if(!novaData) return;
+});
 
-  const novaObs = prompt("Editar Observação:", obs);
-  if(novaObs === null) return;
+window.excluir = async (id)=>{
+  if(!confirm("Deseja excluir este registro?")) return;
 
-  const novoStatus = prompt("Status (Iniciando, Em andamento, Finalizado):", status);
-  if(!novoStatus) return;
-
-  await updateDoc(doc(db,"livros",livroId,"registros",id),{
-    data: novaData,
-    observacoes: novaObs,
-    status: novoStatus
-  });
-
+  await deleteDoc(doc(db,"livros",livroId,"registros",id));
   location.reload();
 };
 
-document.getElementById("exportar").onclick = async ()=>{
-  const snapshot = await getDocs(collection(db,"livros",livroId,"registros"));
+
+// 📄 EXPORTAR RELATÓRIO TXT
+document.getElementById("exportar").addEventListener("click", async ()=>{
+
   const livroSnap = await getDoc(doc(db,"livros",livroId));
   const livro = livroSnap.data();
 
-  let registros = [];
+  const q = query(
+    collection(db,"livros",livroId,"registros"),
+    orderBy("data","desc")
+  );
+
+  const snapshot = await getDocs(q);
+
+  let texto = "";
+  texto += "RELATÓRIO DE ESTUDOS\n";
+  texto += "Livro: " + livro.nome + "\n";
+  texto += "Instrumento: " + livro.instrumento + "\n";
+  texto += "Gerado em: " + new Date().toLocaleDateString() + "\n";
+  texto += "----------------------------------------\n\n";
+
   snapshot.forEach(docSnap=>{
-    registros.push(docSnap.data());
-  });
-
-  registros.sort((a,b)=> new Date(b.data) - new Date(a.data));
-
-  let texto="";
-  texto+="RELATÓRIO DE ESTUDOS\n";
-  texto+="Livro: "+livro.nome+"\n";
-  texto+="Instrumento: "+livro.instrumento+"\n";
-  texto+="Gerado em: "+new Date().toLocaleDateString()+"\n";
-  texto+="----------------------------------------\n\n";
-
-  registros.forEach(r=>{
-    texto+=`Data: ${r.data}\n`;
-    texto+=`Status: ${r.status}\n`;
-    texto+=`Observações: ${r.observacoes}\n`;
-    texto+="----------------------------------------\n";
+    const r = docSnap.data();
+    texto += `${r.data} | ${r.status}\n`;
+    texto += (r.observacoes || "") + "\n\n";
   });
 
   const blob = new Blob([texto],{type:"text/plain"});
-  const link=document.createElement("a");
-  link.href=URL.createObjectURL(blob);
-  link.download=livro.nome.replace(/\s/g,"_")+"_relatorio.txt";
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = livro.nome.replace(/\s/g,"_") + "_relatorio.txt";
   link.click();
-};
+});
 
 carregarLivro();
 
 </script>
-
 </body>
 </html>
