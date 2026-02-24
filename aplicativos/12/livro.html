@@ -33,7 +33,7 @@ input, textarea, select{
 .progress-bar{
   height:20px;
   background:#ddd;
-  margin-top:5px;
+  margin-top:10px;
 }
 
 .progress{
@@ -66,6 +66,7 @@ input, textarea, select{
 </select>
 
 <button id="addRegistro">Salvar</button>
+<button id="exportar">📄 Exportar Relatório TXT</button>
 
 <h3>📒 Registros</h3>
 <div id="registros"></div>
@@ -112,23 +113,29 @@ async function carregarRegistros(){
   registrosDiv.innerHTML="";
   const snapshot = await getDocs(collection(db,"livros",livroId,"registros"));
 
-  let total = 0;
-  let finalizados = 0;
-
+  let registros = [];
   snapshot.forEach(docSnap=>{
-    const data = docSnap.data();
-    total++;
+    registros.push({
+      id: docSnap.id,
+      ...docSnap.data()
+    });
+  });
 
-    if(data.status === "Finalizado") finalizados++;
+  // 🔥 ORDENAÇÃO AUTOMÁTICA POR DATA (mais recente primeiro)
+  registros.sort((a,b)=> new Date(b.data) - new Date(a.data));
 
+  let total = registros.length;
+  let finalizados = registros.filter(r=>r.status==="Finalizado").length;
+
+  registros.forEach(r=>{
     registrosDiv.innerHTML += `
       <div class="card">
-        <strong>${data.data}</strong><br>
-        ${data.observacoes}<br>
-        <span class="status">${data.status}</span>
+        <strong>${r.data}</strong><br>
+        ${r.observacoes}<br>
+        <span class="status">${r.status}</span>
         <br><br>
-        <button onclick="editarRegistro('${docSnap.id}','${data.data}','${data.observacoes}','${data.status}')">Editar</button>
-        <button onclick="excluirRegistro('${docSnap.id}')">Excluir</button>
+        <button onclick="editarRegistro('${r.id}','${r.data}','${r.observacoes}','${r.status}')">Editar</button>
+        <button onclick="excluirRegistro('${r.id}')">Excluir</button>
       </div>
     `;
   });
@@ -186,6 +193,39 @@ window.editarRegistro = async (id,data,obs,status)=>{
   });
 
   location.reload();
+};
+
+document.getElementById("exportar").onclick = async ()=>{
+  const snapshot = await getDocs(collection(db,"livros",livroId,"registros"));
+  const livroSnap = await getDoc(doc(db,"livros",livroId));
+  const livro = livroSnap.data();
+
+  let registros = [];
+  snapshot.forEach(docSnap=>{
+    registros.push(docSnap.data());
+  });
+
+  registros.sort((a,b)=> new Date(b.data) - new Date(a.data));
+
+  let texto="";
+  texto+="RELATÓRIO DE ESTUDOS\n";
+  texto+="Livro: "+livro.nome+"\n";
+  texto+="Instrumento: "+livro.instrumento+"\n";
+  texto+="Gerado em: "+new Date().toLocaleDateString()+"\n";
+  texto+="----------------------------------------\n\n";
+
+  registros.forEach(r=>{
+    texto+=`Data: ${r.data}\n`;
+    texto+=`Status: ${r.status}\n`;
+    texto+=`Observações: ${r.observacoes}\n`;
+    texto+="----------------------------------------\n";
+  });
+
+  const blob = new Blob([texto],{type:"text/plain"});
+  const link=document.createElement("a");
+  link.href=URL.createObjectURL(blob);
+  link.download=livro.nome.replace(/\s/g,"_")+"_relatorio.txt";
+  link.click();
 };
 
 carregarLivro();
