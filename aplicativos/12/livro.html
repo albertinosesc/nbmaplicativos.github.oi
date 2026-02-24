@@ -7,7 +7,7 @@
 <style>
 body{
   font-family: Arial;
-  max-width: 900px;
+  max-width: 1000px;
   margin:auto;
   padding:20px;
 }
@@ -43,7 +43,7 @@ hr{
 
 <h1>🎼 Diário Musical</h1>
 
-<!-- ================= LIVROS (FUNÇÃO DO INDEX) ================= -->
+<!-- ================= LIVROS ================= -->
 
 <h2>📚 Meus Livros</h2>
 <div id="listaLivros"></div>
@@ -63,7 +63,17 @@ hr{
 
 <h2 id="tituloLivro"></h2>
 
-<h3>➕ Novo Registro</h3>
+<h3>📘 Sub-Livros</h3>
+<div id="listaSubLivros"></div>
+
+<input type="text" id="novoSubLivro" placeholder="Nome do Sub-Livro">
+<button id="addSubLivro">Adicionar Sub-Livro</button>
+
+<hr>
+
+<div id="areaSubLivro" style="display:none;">
+
+<h3 id="tituloSubLivro"></h3>
 
 <input type="date" id="data">
 <textarea id="obs" placeholder="Observações"></textarea>
@@ -74,11 +84,12 @@ hr{
   <option value="Finalizado">Finalizado</option>
 </select>
 
-<button id="salvar">Salvar</button>
-<button id="exportar">📄 Exportar TXT</button>
+<button id="salvarRegistro">Salvar</button>
 
-<h3>📒 Histórico</h3>
+<h4>📒 Histórico</h4>
 <div id="registros"></div>
+
+</div>
 
 </div>
 
@@ -90,13 +101,14 @@ import {
   deleteDoc, doc, getDoc, query, orderBy
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
+// 🔥 SUAS CHAVES (que você enviou antes)
 const firebaseConfig = {
-  apiKey: "SUA_CHAVE",
-  authDomain: "SEU_AUTH",
-  projectId: "SEU_PROJECT",
-  storageBucket: "SEU_BUCKET",
-  messagingSenderId: "SEU_ID",
-  appId: "SEU_APP"
+  apiKey: "AIzaSyC_3jn_T3hZlcBImj5hUWmnGzmobkTega0",
+  authDomain: "diario-musical-394e2.firebaseapp.com",
+  projectId: "diario-musical-394e2",
+  storageBucket: "diario-musical-394e2.firebasestorage.app",
+  messagingSenderId: "547061797104",
+  appId: "1:547061797104:web:5af0fba7236e1456e33235"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -107,9 +119,13 @@ const livroId = urlParams.get("livro");
 
 const listaLivros = document.getElementById("listaLivros");
 const areaLivro = document.getElementById("areaLivro");
+const listaSubLivros = document.getElementById("listaSubLivros");
+const areaSubLivro = document.getElementById("areaSubLivro");
 const registrosDiv = document.getElementById("registros");
 
-// ===================== LIVROS =====================
+let subLivroIdAtual = null;
+
+/* ================= LIVROS ================= */
 
 async function carregarLivros(){
   listaLivros.innerHTML="";
@@ -145,7 +161,7 @@ window.excluirLivro = async(id)=>{
   location.reload();
 };
 
-// ===================== CONTEÚDO DO LIVRO =====================
+/* ================= LIVRO ================= */
 
 function voltarLivros(){
   window.location.href="livro.html";
@@ -162,14 +178,64 @@ async function carregarLivro(){
   document.getElementById("tituloLivro").innerText =
     livro.nome + " - " + livro.instrumento;
 
-  carregarRegistros();
+  carregarSubLivros();
 }
+
+/* ================= SUB-LIVROS ================= */
+
+async function carregarSubLivros(){
+  listaSubLivros.innerHTML="";
+
+  const snapshot = await getDocs(
+    collection(db,"livros",livroId,"sublivros")
+  );
+
+  snapshot.forEach(docSnap=>{
+    const s = docSnap.data();
+
+    listaSubLivros.innerHTML += `
+      <div class="card">
+        <strong>${s.nome}</strong>
+        <br>
+        <button onclick="abrirSubLivro('${docSnap.id}','${s.nome}')">Abrir</button>
+        <button onclick="excluirSubLivro('${docSnap.id}')">Excluir</button>
+      </div>
+    `;
+  });
+
+  if(snapshot.empty){
+    listaSubLivros.innerHTML="Nenhum sub-livro ainda.";
+  }
+}
+
+document.getElementById("addSubLivro").onclick = async ()=>{
+  const nome = document.getElementById("novoSubLivro").value;
+  if(!nome) return alert("Digite o nome");
+
+  await addDoc(collection(db,"livros",livroId,"sublivros"),{nome});
+  location.reload();
+};
+
+window.excluirSubLivro = async(id)=>{
+  if(!confirm("Excluir sub-livro?")) return;
+  await deleteDoc(doc(db,"livros",livroId,"sublivros",id));
+  location.reload();
+};
+
+window.abrirSubLivro = async(id,nome)=>{
+  subLivroIdAtual = id;
+  areaSubLivro.style.display="block";
+  document.getElementById("tituloSubLivro").innerText = nome;
+  carregarRegistros();
+};
+
+/* ================= REGISTROS ================= */
 
 async function carregarRegistros(){
   registrosDiv.innerHTML="";
 
   const q = query(
-    collection(db,"livros",livroId,"registros"),
+    collection(db,"livros",livroId,"sublivros",subLivroIdAtual,"registros"),
     orderBy("data","desc")
   );
 
@@ -178,44 +244,40 @@ async function carregarRegistros(){
   snapshot.forEach(docSnap=>{
     const r = docSnap.data();
 
-    let classe="";
-    if(r.status==="Iniciando") classe="status-iniciando";
-    if(r.status==="Em andamento") classe="status-andamento";
-    if(r.status==="Finalizado") classe="status-finalizado";
-
     registrosDiv.innerHTML+=`
       <div class="card">
         <strong>${r.data}</strong><br>
         ${r.observacoes || ""}<br>
-        <span class="${classe}">${r.status}</span>
+        ${r.status}
         <br><br>
         <button onclick="excluirRegistro('${docSnap.id}')">Excluir</button>
       </div>
     `;
   });
-
-  if(snapshot.empty){
-    registrosDiv.innerHTML="Nenhum registro ainda.";
-  }
 }
 
-document.getElementById("salvar").onclick = async ()=>{
+document.getElementById("salvarRegistro").onclick = async ()=>{
   const data = document.getElementById("data").value;
   const obs = document.getElementById("obs").value;
   const status = document.getElementById("status").value;
 
   if(!data) return alert("Preencha a data.");
 
-  await addDoc(collection(db,"livros",livroId,"registros"),{
-    data,observacoes:obs,status
-  });
+  await addDoc(
+    collection(db,"livros",livroId,"sublivros",subLivroIdAtual,"registros"),
+    {data, observacoes:obs, status}
+  );
 
   location.reload();
 };
 
 window.excluirRegistro = async(id)=>{
   if(!confirm("Excluir registro?")) return;
-  await deleteDoc(doc(db,"livros",livroId,"registros",id));
+
+  await deleteDoc(
+    doc(db,"livros",livroId,"sublivros",subLivroIdAtual,"registros",id)
+  );
+
   location.reload();
 };
 
@@ -223,6 +285,5 @@ carregarLivros();
 carregarLivro();
 
 </script>
-
 </body>
 </html>
