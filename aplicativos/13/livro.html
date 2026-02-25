@@ -143,6 +143,11 @@
       align-items: center;
       flex-wrap: wrap;
       gap: 10px;
+      cursor: pointer;
+    }
+
+    .card-header:hover {
+      background: linear-gradient(135deg, #3651c4, #3a75c4);
     }
 
     .card-header strong {
@@ -159,6 +164,7 @@
       background: rgba(255,255,255,0.2);
       padding: 6px 12px;
       font-size: 13px;
+      pointer-events: auto;
     }
 
     .card-actions button:hover {
@@ -167,6 +173,15 @@
 
     .card-content {
       padding: 20px;
+    }
+
+    /* Cards minimizados por padrão */
+    .card-content {
+      display: none;
+    }
+
+    .card-content.visible {
+      display: block;
     }
 
     /* Loading */
@@ -452,7 +467,7 @@
       <span>📑</span> Copiar Livro
     </button>
     <button onclick="exportarTXT()" class="btn-warning">
-      <span>📄</span> Exportar TXT (Ordem Atual)
+      <span>📄</span> Exportar TXT
     </button>
   </div>
 
@@ -509,21 +524,13 @@
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   
-  // ⚠️ CORREÇÃO IMPORTANTE: Pegar o ID da URL do parâmetro "livro" (não "id")
+  // Pegar o ID da URL do parâmetro "livro"
   const urlParams = new URLSearchParams(window.location.search);
-  let livroId = urlParams.get("livro"); // Mudamos de "id" para "livro"
-  
-  // Debug
-  console.log("🔍 URL completa:", window.location.href);
-  console.log("🔍 Parâmetros:", window.location.search);
-  console.log("🔍 ID do livro:", livroId);
+  let livroId = urlParams.get("livro");
   
   // Fallback para "id" caso alguém use o parâmetro antigo
   if (!livroId) {
     livroId = urlParams.get("id");
-    if (livroId) {
-      console.log("✅ Usando parâmetro 'id' como fallback");
-    }
   }
   
   // Elementos principais
@@ -777,7 +784,6 @@
       
       lista.innerHTML = '<div class="loading">Carregando sub-livros</div>';
       
-      console.log("📚 Carregando sub-livros do livro:", livroId);
       const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros"));
       
       let subs = [];
@@ -785,7 +791,6 @@
         subs.push({ id: docSnap.id, ...docSnap.data() });
       });
       
-      console.log(`✅ Encontrados ${subs.length} sub-livros`);
       subsCache = subs;
       
       if (ordenarSelect && ordenarSelect.value === "nome") {
@@ -823,13 +828,13 @@
       card.className = 'card';
       
       card.innerHTML = `
-        <div class="card-header">
+        <div class="card-header" onclick="toggleCard('${sub.id}')">
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
             <strong>${safeString(sub.nome) || 'Sem nome'}</strong>
             <span class="badge">📅 ${safeString(sub.data) || ""}</span>
           </div>
-          <div class="card-actions">
-            <button onclick="toggle('${sub.id}')">🔽</button>
+          <div class="card-actions" onclick="event.stopPropagation()">
+            <button onclick="toggleCard('${sub.id}')">🔽</button>
             <button onclick="copiarSub('${sub.id}')">📑 Copiar</button>
             <button class="btn-danger" onclick="excluirSub('${sub.id}')">❌ Excluir</button>
           </div>
@@ -899,10 +904,10 @@
     return ordemEstudos[subId].direcao === 'asc' ? '↑' : '↓';
   }
 
-  window.toggle = (id) => {
+  window.toggleCard = (id) => {
     const elemento = document.getElementById("conteudo_"+id);
     if (elemento) {
-      elemento.classList.toggle("hidden");
+      elemento.classList.toggle("visible");
     }
   };
 
@@ -1252,7 +1257,7 @@
 
   window.exportarTXT = async () => {
     try {
-      let texto = "=== RELATÓRIO DO LIVRO ===\n";
+      let texto = "=== RELATÓRIO DO LIVRO ===\n\n";
       texto += `Data: ${new Date().toLocaleDateString('pt-BR')}\n`;
       texto += `Total de Sub-Livros: ${subsCache?.length || 0}\n\n`;
       
@@ -1267,7 +1272,7 @@
         const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", sub.id, "estudos"));
         
         if (estudosSnap.empty) {
-          texto += "Nenhum estudo cadastrado\n";
+          texto += "Nenhum estudo cadastrado\n\n";
         } else {
           // Usar a mesma ordenação que está na tabela
           let estudos = [];
@@ -1279,23 +1284,11 @@
           const estudosOrdenados = ordenarEstudos(estudos, sub.id);
           
           estudosOrdenados.forEach(est => {
-            const dataCriacao = formatarData(est.criadoEm) || est.data || '-';
-            const dataAtualizacao = formatarData(est.atualizadoEm);
-            
-            texto += `\n🎵 ${est.musica || 'Sem nome'}\n`;
-            texto += `   📊 Status: ${est.status || 'N/A'}\n`;
-            texto += `   ⏱️ BPM: ${est.bpm || '-'}\n`;
-            if (est.observacao) {
-              texto += `   📝 Obs: ${est.observacao}\n`;
-            }
-            texto += `   📅 Criado: ${dataCriacao}\n`;
-            if (dataAtualizacao && dataAtualizacao !== dataCriacao) {
-              texto += `   ✏️ Atualizado: ${dataAtualizacao}\n`;
-            }
+            const bpm = est.bpm ? `${est.bpm}` : '-';
+            texto += `• ${est.musica || 'Sem nome'} | ${est.status || 'N/A'} | BPM:${bpm} | ${est.data || '-'}\n`;
           });
+          texto += "\n";
         }
-        
-        texto += "\n";
       }
       
       const blob = new Blob([texto], { type: "text/plain;charset=utf-8" });
@@ -1304,7 +1297,7 @@
       link.download = `livro_${livroId}_${new Date().toISOString().split('T')[0]}.txt`;
       link.click();
       
-      mostrarNotificacao('Arquivo exportado com a ordem atual da tabela!');
+      mostrarNotificacao('Arquivo exportado com sucesso!');
       
     } catch (error) {
       console.error("Erro ao exportar:", error);
@@ -1350,7 +1343,6 @@
   };
 
   // Inicializar
-  console.log("🚀 Iniciando aplicação com ID:", livroId);
   carregarSubs();
 </script>
 
