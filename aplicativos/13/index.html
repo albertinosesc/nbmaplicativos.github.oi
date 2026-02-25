@@ -133,6 +133,7 @@
     .livro-acoes {
       display: flex;
       gap: 8px;
+      flex-wrap: wrap;
     }
 
     .btn-abrir {
@@ -151,6 +152,26 @@
 
     .btn-abrir:hover {
       background: #05b586;
+      transform: translateY(-2px);
+    }
+
+    .btn-copiar {
+      background: var(--info);
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-copiar:hover {
+      background: #3aa8d0;
       transform: translateY(-2px);
     }
 
@@ -174,6 +195,26 @@
       transform: translateY(-2px);
     }
 
+    .btn-mover {
+      background: var(--warning);
+      color: var(--dark);
+      border: none;
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    .btn-mover:hover {
+      background: #e6b852;
+      transform: translateY(-2px);
+    }
+
     /* Formulário */
     .form-container {
       background: white;
@@ -191,7 +232,7 @@
       align-items: center;
     }
 
-    input {
+    input, select {
       flex: 1;
       min-width: 250px;
       padding: 12px 15px;
@@ -199,9 +240,10 @@
       border-radius: 8px;
       font-size: 14px;
       transition: border-color 0.2s;
+      background: white;
     }
 
-    input:focus {
+    input:focus, select:focus {
       outline: none;
       border-color: var(--primary);
     }
@@ -229,6 +271,85 @@
 
     button:active {
       transform: translateY(0);
+    }
+
+    /* Modal */
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0,0,0,0.5);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      z-index: 2000;
+    }
+
+    .modal-content {
+      background: white;
+      padding: 25px;
+      border-radius: 12px;
+      max-width: 500px;
+      width: 90%;
+      max-height: 80vh;
+      overflow-y: auto;
+    }
+
+    .modal h3 {
+      margin-bottom: 20px;
+      color: var(--dark);
+    }
+
+    .modal select {
+      width: 100%;
+      margin-bottom: 20px;
+    }
+
+    .modal-buttons {
+      display: flex;
+      gap: 10px;
+      justify-content: flex-end;
+    }
+
+    .modal-buttons button {
+      padding: 10px 20px;
+    }
+
+    .modal-buttons .cancelar {
+      background: var(--gray);
+    }
+
+    .sub-livros-lista {
+      max-height: 300px;
+      overflow-y: auto;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .sub-livro-item {
+      display: flex;
+      align-items: center;
+      padding: 10px;
+      border-bottom: 1px solid #e9ecef;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .sub-livro-item:hover {
+      background: #f8f9fa;
+    }
+
+    .sub-livro-item.selected {
+      background: #e7f3ff;
+      border-left: 4px solid var(--primary);
+    }
+
+    .sub-livro-item input[type="checkbox"] {
+      min-width: auto;
+      margin-right: 10px;
     }
 
     /* Loading */
@@ -362,7 +483,7 @@
         flex-direction: column;
       }
 
-      .btn-abrir, .btn-excluir {
+      .btn-abrir, .btn-copiar, .btn-excluir, .btn-mover {
         width: 100%;
         justify-content: center;
       }
@@ -379,7 +500,7 @@
       color: var(--gray);
     }
 
-    /* Estatísticas rápidas */
+    /* Estatísticas */
     .stats-bar {
       background: white;
       border-radius: 10px;
@@ -430,10 +551,31 @@
   </div>
 </div>
 
+<!-- Modal para Mover/Exportar Sub-livros -->
+<div id="moverModal" class="modal" style="display: none;">
+  <div class="modal-content">
+    <h3>📦 Mover Sub-livros</h3>
+    <p style="margin-bottom: 15px;">Selecione os sub-livros para mover:</p>
+    
+    <div id="subLivrosLista" class="sub-livros-lista"></div>
+    
+    <select id="livroDestino" style="margin-bottom: 20px;">
+      <option value="">Selecione o livro de destino...</option>
+    </select>
+    
+    <div class="modal-buttons">
+      <button class="cancelar" onclick="fecharModal()">Cancelar</button>
+      <button class="btn-success" onclick="confirmarMover()">Mover Selecionados</button>
+    </div>
+  </div>
+</div>
+
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } 
-  from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+  import { 
+    getFirestore, collection, addDoc, getDocs, deleteDoc, doc, 
+    writeBatch, query, where 
+  } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyC_3jn_T3hZlcBImj5hUWmnGzmobkTega0",
@@ -449,6 +591,10 @@
 
   const livrosDiv = document.getElementById("livros");
   const statsContainer = document.getElementById("statsContainer");
+  
+  // Variáveis para o modal
+  let livroOrigemId = null;
+  let subLivrosSelecionados = [];
 
   // Utilitários
   function mostrarNotificacao(mensagem, tipo = 'success') {
@@ -458,7 +604,7 @@
     const toast = document.createElement('div');
     toast.className = `toast ${tipo}`;
     
-    const icon = tipo === 'success' ? '✅' : '❌';
+    const icon = tipo === 'success' ? '✅' : tipo === 'error' ? '❌' : '⚠️';
     
     toast.innerHTML = `
       <span>${icon}</span>
@@ -487,6 +633,213 @@
     }
   }
 
+  // Função para copiar livro
+  window.copiarLivro = async (livroId) => {
+    if (!confirm("Copiar este livro com todos os sub-livros e estudos?")) return;
+    
+    try {
+      // Buscar livro original
+      const livroRef = doc(db, "livros", livroId);
+      const livroSnap = await getDocs(collection(db, "livros"));
+      const livroOriginal = livroSnap.docs.find(d => d.id === livroId);
+      
+      if (!livroOriginal) return;
+      
+      // Criar cópia do livro
+      const novoLivro = await addDoc(collection(db, "livros"), {
+        nome: livroOriginal.data().nome + " (Cópia)",
+        instrumento: livroOriginal.data().instrumento,
+        criadoEm: new Date()
+      });
+      
+      // Buscar todos os sub-livros do livro original
+      const subsSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
+      
+      let totalSubs = 0;
+      let totalEstudos = 0;
+      
+      // Para cada sub-livro, copiar e seus estudos
+      for (const subDoc of subsSnap.docs) {
+        const subData = subDoc.data();
+        
+        // Criar cópia do sub-livro
+        const novoSub = await addDoc(collection(db, "livros", novoLivro.id, "sublivros"), {
+          nome: subData.nome,
+          data: new Date().toLocaleDateString('pt-BR'),
+          criadoEm: new Date()
+        });
+        
+        totalSubs++;
+        
+        // Copiar estudos do sub-livro
+        const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", subDoc.id, "estudos"));
+        
+        for (const estudoDoc of estudosSnap.docs) {
+          const estudoData = estudoDoc.data();
+          await addDoc(collection(db, "livros", novoLivro.id, "sublivros", novoSub.id, "estudos"), {
+            musica: estudoData.musica,
+            status: estudoData.status,
+            bpm: estudoData.bpm || '',
+            observacao: estudoData.observacao || '',
+            data: estudoData.data,
+            criadoEm: estudoData.criadoEm || new Date(),
+            atualizadoEm: new Date()
+          });
+          totalEstudos++;
+        }
+      }
+      
+      mostrarNotificacao(`Livro copiado! ${totalSubs} sub-livros e ${totalEstudos} estudos.`);
+      carregarLivros();
+      
+    } catch (error) {
+      console.error("Erro ao copiar livro:", error);
+      mostrarNotificacao("Erro ao copiar livro", 'error');
+    }
+  };
+
+  // Função para abrir modal de mover sub-livros
+  window.abrirModalMover = async (livroId) => {
+    livroOrigemId = livroId;
+    subLivrosSelecionados = [];
+    
+    const modal = document.getElementById('moverModal');
+    const subLivrosLista = document.getElementById('subLivrosLista');
+    const livroDestinoSelect = document.getElementById('livroDestino');
+    
+    // Buscar sub-livros do livro origem
+    const subsSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
+    
+    if (subsSnap.empty) {
+      mostrarNotificacao("Este livro não tem sub-livros para mover", 'warning');
+      return;
+    }
+    
+    // Renderizar lista de sub-livros
+    subLivrosLista.innerHTML = '';
+    subsSnap.forEach(doc => {
+      const sub = doc.data();
+      const div = document.createElement('div');
+      div.className = 'sub-livro-item';
+      div.onclick = () => toggleSubLivro(doc.id, div);
+      
+      div.innerHTML = `
+        <input type="checkbox" value="${doc.id}" style="width: auto; min-width: auto;">
+        <span style="flex: 1;">📚 ${sub.nome}</span>
+        <span class="badge">${sub.data || ''}</span>
+      `;
+      
+      subLivrosLista.appendChild(div);
+    });
+    
+    // Buscar outros livros para destino (excluindo o atual)
+    const livrosSnap = await getDocs(collection(db, "livros"));
+    livroDestinoSelect.innerHTML = '<option value="">Selecione o livro de destino...</option>';
+    
+    livrosSnap.forEach(doc => {
+      if (doc.id !== livroId) {
+        const option = document.createElement('option');
+        option.value = doc.id;
+        option.textContent = `${doc.data().nome} (${doc.data().instrumento || 'Sem instrumento'})`;
+        livroDestinoSelect.appendChild(option);
+      }
+    });
+    
+    modal.style.display = 'flex';
+  };
+
+  // Função para selecionar/deselecionar sub-livro
+  window.toggleSubLivro = (subId, elemento) => {
+    const checkbox = elemento.querySelector('input[type="checkbox"]');
+    checkbox.checked = !checkbox.checked;
+    
+    if (checkbox.checked) {
+      elemento.classList.add('selected');
+      if (!subLivrosSelecionados.includes(subId)) {
+        subLivrosSelecionados.push(subId);
+      }
+    } else {
+      elemento.classList.remove('selected');
+      subLivrosSelecionados = subLivrosSelecionados.filter(id => id !== subId);
+    }
+  };
+
+  // Função para fechar modal
+  window.fecharModal = () => {
+    document.getElementById('moverModal').style.display = 'none';
+    livroOrigemId = null;
+    subLivrosSelecionados = [];
+  };
+
+  // Função para confirmar mover sub-livros
+  window.confirmarMover = async () => {
+    const livroDestinoId = document.getElementById('livroDestino').value;
+    
+    if (!livroDestinoId) {
+      mostrarNotificacao("Selecione um livro de destino", 'error');
+      return;
+    }
+    
+    if (subLivrosSelecionados.length === 0) {
+      mostrarNotificacao("Selecione pelo menos um sub-livro", 'error');
+      return;
+    }
+    
+    if (!confirm(`Mover ${subLivrosSelecionados.length} sub-livro(s) para o livro selecionado?`)) return;
+    
+    try {
+      let movidos = 0;
+      let estudosMovidos = 0;
+      
+      // Para cada sub-livro selecionado
+      for (const subId of subLivrosSelecionados) {
+        // Buscar dados do sub-livro
+        const subRef = doc(db, "livros", livroOrigemId, "sublivros", subId);
+        const subSnap = await getDocs(collection(db, "livros", livroOrigemId, "sublivros"));
+        const subData = subSnap.docs.find(d => d.id === subId)?.data();
+        
+        if (!subData) continue;
+        
+        // Buscar todos os estudos do sub-livro
+        const estudosSnap = await getDocs(collection(db, "livros", livroOrigemId, "sublivros", subId, "estudos"));
+        
+        // Criar o sub-livro no destino
+        const novoSubRef = await addDoc(collection(db, "livros", livroDestinoId, "sublivros"), {
+          nome: subData.nome,
+          data: subData.data,
+          criadoEm: subData.criadoEm || new Date()
+        });
+        
+        // Mover todos os estudos
+        for (const estudoDoc of estudosSnap.docs) {
+          const estudoData = estudoDoc.data();
+          await addDoc(collection(db, "livros", livroDestinoId, "sublivros", novoSubRef.id, "estudos"), {
+            musica: estudoData.musica,
+            status: estudoData.status,
+            bpm: estudoData.bpm || '',
+            observacao: estudoData.observacao || '',
+            data: estudoData.data,
+            criadoEm: estudoData.criadoEm || new Date(),
+            atualizadoEm: estudoData.atualizadoEm || new Date()
+          });
+          estudosMovidos++;
+        }
+        
+        // Deletar o sub-livro original
+        await deleteDoc(subRef);
+        movidos++;
+      }
+      
+      mostrarNotificacao(`${movidos} sub-livros e ${estudosMovidos} estudos movidos com sucesso!`);
+      fecharModal();
+      carregarLivros();
+      
+    } catch (error) {
+      console.error("Erro ao mover sub-livros:", error);
+      mostrarNotificacao("Erro ao mover sub-livros", 'error');
+    }
+  };
+
   async function carregarLivros() {
     try {
       livrosDiv.innerHTML = '<div class="loading">Carregando livros</div>';
@@ -498,6 +851,20 @@
         livros.push({ id: docSnap.id, ...docSnap.data() });
       });
       
+      // Contar total de sub-livros e estudos
+      let totalSubs = 0;
+      let totalEstudos = 0;
+      
+      for (const livro of livros) {
+        const subsSnap = await getDocs(collection(db, "livros", livro.id, "sublivros"));
+        totalSubs += subsSnap.size;
+        
+        for (const subDoc of subsSnap.docs) {
+          const estudosSnap = await getDocs(collection(db, "livros", livro.id, "sublivros", subDoc.id, "estudos"));
+          totalEstudos += estudosSnap.size;
+        }
+      }
+      
       // Atualizar estatísticas
       statsContainer.innerHTML = `
         <div class="stat-item">
@@ -505,8 +872,12 @@
           <span><strong>${livros.length}</strong> livros</span>
         </div>
         <div class="stat-item">
+          <span>📖</span>
+          <span><strong>${totalSubs}</strong> sub-livros</span>
+        </div>
+        <div class="stat-item">
           <span>🎵</span>
-          <span>Último: ${livros.length > 0 ? livros[0].nome : '-'}</span>
+          <span><strong>${totalEstudos}</strong> estudos</span>
         </div>
       `;
       
@@ -533,11 +904,7 @@
           <div class="livro-info">
             <div class="livro-nome">
               📖 ${livro.nome || 'Sem nome'}
-              <span class="badge">ID: ${livro.id.slice(0, 6)}...</span>
-            </div>
-            <div class="livro-instrumento">
-              <span>🎵</span>
-              ${livro.instrumento || 'Instrumento não definido'}
+              <span class="badge">${livro.instrumento || 'Sem instrumento'}</span>
             </div>
             <div class="livro-data">
               <span>📅</span>
@@ -548,6 +915,12 @@
             <a href="livro.html?livro=${livro.id}" class="btn-abrir">
               <span>🔍</span> Abrir
             </a>
+            <button class="btn-copiar" onclick="copiarLivro('${livro.id}')">
+              <span>📑</span> Copiar
+            </button>
+            <button class="btn-mover" onclick="abrirModalMover('${livro.id}')">
+              <span>📦</span> Mover
+            </button>
             <button class="btn-excluir" onclick="excluirLivro('${livro.id}')">
               <span>🗑️</span> Excluir
             </button>
@@ -601,15 +974,38 @@
   };
 
   window.excluirLivro = async (id) => {
-    if (!confirm("Tem certeza que deseja excluir este livro? Todos os estudos serão perdidos!")) return;
+    if (!confirm("Tem certeza que deseja excluir este livro? Todos os sub-livros e estudos serão perdidos!")) return;
     
     try {
+      // Primeiro, deletar todos os sub-livros e estudos
+      const subsSnap = await getDocs(collection(db, "livros", id, "sublivros"));
+      
+      for (const subDoc of subsSnap.docs) {
+        // Deletar estudos do sub-livro
+        const estudosSnap = await getDocs(collection(db, "livros", id, "sublivros", subDoc.id, "estudos"));
+        for (const estudoDoc of estudosSnap.docs) {
+          await deleteDoc(estudoDoc.ref);
+        }
+        // Deletar sub-livro
+        await deleteDoc(subDoc.ref);
+      }
+      
+      // Finalmente, deletar o livro
       await deleteDoc(doc(db, "livros", id));
+      
       mostrarNotificacao("Livro excluído!");
       carregarLivros();
     } catch (error) {
       console.error("Erro ao excluir livro:", error);
       mostrarNotificacao("Erro ao excluir livro", 'error');
+    }
+  };
+
+  // Fechar modal ao clicar fora
+  window.onclick = (event) => {
+    const modal = document.getElementById('moverModal');
+    if (event.target === modal) {
+      fecharModal();
     }
   };
 
