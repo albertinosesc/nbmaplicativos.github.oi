@@ -538,6 +538,38 @@ td *, th * {
     .table-actions button:last-child {
       background-color: var(--danger);
     }
+
+    /* Estilo para edição do nome do sub-livro */
+    .edit-sub-nome {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .edit-sub-nome input {
+      background: white;
+      color: var(--dark);
+      border: 2px solid rgba(255,255,255,0.3);
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 1.1em;
+      font-weight: bold;
+    }
+
+    .edit-sub-nome input:focus {
+      outline: none;
+      border-color: white;
+    }
+
+    .edit-sub-nome button {
+      background: rgba(255,255,255,0.2);
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .edit-sub-nome button:hover {
+      background: rgba(255,255,255,0.3);
+    }
   </style>
 </head>
 <body>
@@ -706,6 +738,12 @@ td *, th * {
     return value ? String(value).toLowerCase() : '';
   }
 
+  // Função para extrair número do início da string (para ordenação natural)
+  function extrairNumeroInicial(str) {
+    const match = str.match(/^(\d+)/);
+    return match ? parseInt(match[1]) : null;
+  }
+
   async function carregarEstatisticas() {
     if (!subsCache || !Array.isArray(subsCache)) return;
     
@@ -794,6 +832,19 @@ td *, th * {
         if (coluna === 'musica') {
           const musicaA = safeString(a.musica);
           const musicaB = safeString(b.musica);
+          
+          // Extrair o número do início da string
+          const numA = extrairNumeroInicial(musicaA);
+          const numB = extrairNumeroInicial(musicaB);
+          
+          // Se ambos têm números no início, ordenar numericamente
+          if (numA !== null && numB !== null) {
+            if (numA !== numB) {
+              return multiplicador * (numA - numB);
+            }
+          }
+          
+          // Caso contrário, ordenar alfabeticamente
           return multiplicador * musicaA.localeCompare(musicaB);
         } 
         else if (coluna === 'status') {
@@ -915,12 +966,13 @@ td *, th * {
       
       card.innerHTML = `
         <div class="card-header" onclick="toggleCard('${sub.id}')">
-          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;" id="header_nome_${sub.id}">
             <strong>${safeString(sub.nome) || 'Sem nome'}</strong>
             <span class="badge">📅 ${safeString(sub.data) || ""}</span>
           </div>
           <div class="card-actions" onclick="event.stopPropagation()">
             <button onclick="toggleCard('${sub.id}')">🔽</button>
+            <button onclick="editarSubNome('${sub.id}')">✏️ Editar Nome</button>
             <button onclick="copiarSub('${sub.id}')">📑 Copiar</button>
             <button class="btn-danger" onclick="excluirSub('${sub.id}')">❌ Excluir</button>
           </div>
@@ -998,6 +1050,72 @@ td *, th * {
   };
 
   window.alternarOrdem = alternarOrdem;
+
+  // Função para editar nome do sub-livro
+  window.editarSubNome = (subId) => {
+    const headerNome = document.getElementById(`header_nome_${subId}`);
+    const sub = subsCache.find(s => s.id === subId);
+    
+    if (!headerNome || !sub) return;
+    
+    // Salvar o nome original
+    const nomeOriginal = sub.nome || '';
+    
+    // Substituir por input de edição
+    headerNome.innerHTML = `
+      <div class="edit-sub-nome">
+        <input type="text" id="edit_sub_nome_${subId}" value="${safeString(nomeOriginal)}" placeholder="Nome do sub-livro">
+        <button class="btn-success" onclick="salvarSubNome('${subId}')">💾 Salvar</button>
+        <button class="btn-warning" onclick="cancelarSubNome('${subId}', '${nomeOriginal}')">❌ Cancelar</button>
+      </div>
+    `;
+  };
+
+  // Função para salvar nome do sub-livro
+  window.salvarSubNome = async (subId) => {
+    const input = document.getElementById(`edit_sub_nome_${subId}`);
+    if (!input) return;
+    
+    const novoNome = input.value.trim();
+    
+    if (!novoNome) {
+      mostrarNotificacao("Digite um nome para o sub-livro", 'error');
+      return;
+    }
+    
+    try {
+      await updateDoc(doc(db, "livros", livroId, "sublivros", subId), {
+        nome: novoNome,
+        atualizadoEm: serverTimestamp()
+      });
+      
+      mostrarNotificacao("Nome do sub-livro atualizado!");
+      
+      // Atualizar cache
+      const subIndex = subsCache.findIndex(s => s.id === subId);
+      if (subIndex !== -1) {
+        subsCache[subIndex].nome = novoNome;
+      }
+      
+      // Recarregar sub-livros para atualizar a interface
+      carregarSubs();
+      
+    } catch (error) {
+      console.error("Erro ao atualizar nome do sub-livro:", error);
+      mostrarNotificacao("Erro ao atualizar nome", 'error');
+    }
+  };
+
+  // Função para cancelar edição do nome
+  window.cancelarSubNome = (subId, nomeOriginal) => {
+    const headerNome = document.getElementById(`header_nome_${subId}`);
+    if (!headerNome) return;
+    
+    headerNome.innerHTML = `
+      <strong>${safeString(nomeOriginal) || 'Sem nome'}</strong>
+      <span class="badge">📅 ${safeString(subsCache.find(s => s.id === subId)?.data) || ""}</span>
+    `;
+  };
 
   async function carregarEstudos(subId) {
     const tabela = document.getElementById(`tabela_${subId}`);
