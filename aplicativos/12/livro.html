@@ -7,38 +7,36 @@
 <style>
 body { font-family: Arial; max-width: 1000px; margin: auto; padding: 20px; }
 input, select, button { padding: 6px; margin: 5px; }
-
 .card { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
-
 table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { border: 1px solid #ccc; padding: 2px; text-align: center; }
-
-.btn-tabela { padding: 1px 4px; font-size: 12px; margin: 1px; }
-
-.minimizado { display:none; }
-
-.topo { display:flex; justify-content:space-between; }
+th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
+th { background: #f0f0f0; }
+button.tabelaBtn { padding: 1px 4px; }
 </style>
 </head>
 <body>
 
-<div class="topo">
-  <button onclick="voltar()">⬅ Voltar</button>
-  <button onclick="copiarLivro()">📚 Copiar Livro Completo</button>
-</div>
+<button onclick="voltar()">⬅ Voltar</button>
 
 <h2>📖 Sub-Livros</h2>
 
 <input type="text" id="nomeSub" placeholder="Nome do Sub-Livro">
 <button id="addSub">Salvar Sub-Livro</button>
 
+<select id="ordenarSubs">
+  <option value="data">Ordenar por Data</option>
+  <option value="nome">Ordem Alfabética</option>
+</select>
+
 <div id="listaSubs"></div>
 
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc, getDoc } 
-from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import { 
+  getFirestore, collection, addDoc, getDocs, 
+  deleteDoc, doc, updateDoc, serverTimestamp 
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC_3jn_T3hZlcBImj5hUWmnGzmobkTega0",
@@ -52,79 +50,74 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-const livroId = new URLSearchParams(window.location.search).get("id");
+const urlParams = new URLSearchParams(window.location.search);
+const livroId = urlParams.get("id");
+
 const lista = document.getElementById("listaSubs");
+const ordenarSelect = document.getElementById("ordenarSubs");
 
 async function carregarSubs() {
-
   lista.innerHTML = "";
+
   const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros"));
+  let subs = [];
 
   snapshot.forEach(docSnap => {
+    subs.push({ id: docSnap.id, ...docSnap.data() });
+  });
 
-    const sub = docSnap.data();
-    const subId = docSnap.id;
+  // ORDENAR
+  if (ordenarSelect.value === "nome") {
+    subs.sort((a,b) => a.nome.localeCompare(b.nome));
+  } else {
+    subs.sort((a,b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
+  }
 
+  subs.forEach(sub => {
     lista.innerHTML += `
       <div class="card">
-        <h3 onclick="toggleSub('${subId}')" style="cursor:pointer">
-          ${sub.nome} 🔽
-        </h3>
+        <h3>${sub.nome}</h3>
+        📅 ${sub.data || ""}
 
-        <div id="conteudo_${subId}">
-          📅 Criado em: ${sub.data}
+        <h4>➕ Novo Estudo</h4>
+        <input type="text" id="musica_${sub.id}" placeholder="Música">
+        <select id="status_${sub.id}">
+          <option>Nível-1</option>
+          <option>Nível-2</option>
+          <option>Nível-3</option>
+        </select>
+        <input type="number" id="bpm_${sub.id}" placeholder="BPM">
+        <button onclick="addEstudo('${sub.id}')">Salvar</button>
 
-          <br>
-          <button onclick="copiarSub('${subId}','${sub.nome}')">
-            📄 Copiar Sub-Livro
-          </button>
+        <table>
+          <thead>
+            <tr>
+              <th>Música</th>
+              <th>Status</th>
+              <th>BPM</th>
+              <th>Data</th>
+              <th>Ações</th>
+            </tr>
+          </thead>
+          <tbody id="tabela_${sub.id}"></tbody>
+        </table>
 
-          <button onclick="excluirSub('${subId}')">
-            🗑 Excluir Sub-Livro
-          </button>
-
-          <h4>➕ Novo Estudo</h4>
-
-          <input type="text" id="musica_${subId}" placeholder="Música">
-          <select id="status_${subId}">
-            <option>Nível-1</option>
-            <option>Nível-2</option>
-            <option>Nível-3</option>
-          </select>
-          <input type="number" id="bpm_${subId}" placeholder="BPM">
-          <button onclick="addEstudo('${subId}')">Salvar</button>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Música</th>
-                <th>Status</th>
-                <th>BPM</th>
-                <th>Data</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="tabela_${subId}"></tbody>
-          </table>
-        </div>
+        <button onclick="excluirSub('${sub.id}')">Excluir</button>
       </div>
     `;
 
-    carregarEstudos(subId);
+    carregarEstudos(sub.id);
   });
 }
 
 async function carregarEstudos(subId) {
-
   const tabela = document.getElementById(`tabela_${subId}`);
   tabela.innerHTML = "";
 
   const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
 
   snapshot.forEach(docSnap => {
-
     const est = docSnap.data();
-    const estId = docSnap.id;
 
     tabela.innerHTML += `
       <tr>
@@ -133,156 +126,79 @@ async function carregarEstudos(subId) {
         <td>${est.bpm}</td>
         <td>${est.data}</td>
         <td>
-          <button class="btn-tabela"
-            onclick="editarEstudo('${subId}','${estId}','${est.musica}','${est.status}','${est.bpm}')">
-            ✏
-          </button>
-          <button class="btn-tabela"
-            onclick="excluirEstudo('${subId}','${estId}')">
-            🗑
-          </button>
+          <button class="tabelaBtn" onclick="editarEstudo('${subId}','${docSnap.id}','${est.musica}','${est.status}','${est.bpm}')">Editar</button>
+          <button class="tabelaBtn" onclick="excluirEstudo('${subId}','${docSnap.id}')">Excluir</button>
         </td>
       </tr>
     `;
   });
 }
 
-window.toggleSub = (subId)=>{
-  const div = document.getElementById("conteudo_"+subId);
-  div.classList.toggle("minimizado");
-};
-
-window.addEstudo = async (subId)=>{
-
+window.addEstudo = async (subId) => {
   const musica = document.getElementById(`musica_${subId}`).value;
   const status = document.getElementById(`status_${subId}`).value;
   const bpm = document.getElementById(`bpm_${subId}`).value;
 
-  if(!musica) return alert("Digite o nome da música");
+  if (!musica) return alert("Digite a música");
 
-  await addDoc(collection(db,"livros",livroId,"sublivros",subId,"estudos"),{
-    musica,status,bpm,
-    data:new Date().toLocaleDateString()
+  await addDoc(collection(db, "livros", livroId, "sublivros", subId, "estudos"), {
+    musica,
+    status,
+    bpm,
+    data: new Date().toLocaleDateString()
   });
 
-  location.reload();
+  carregarEstudos(subId);
 };
 
-window.editarEstudo = async (subId,estId,musica,status,bpm)=>{
+window.editarEstudo = async (subId, estId, musica, status, bpm) => {
+  const novaMusica = prompt("Música:", musica);
+  const novoStatus = prompt("Status:", status);
+  const novoBpm = prompt("BPM:", bpm);
 
-  const novaMusica = prompt("Editar música:",musica);
   if(!novaMusica) return;
 
-  const novoStatus = prompt("Editar status:",status);
-  const novoBpm = prompt("Editar BPM:",bpm);
-
-  await updateDoc(doc(db,"livros",livroId,"sublivros",subId,"estudos",estId),{
-    musica:novaMusica,status:novoStatus,bpm:novoBpm
+  await updateDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId), {
+    musica: novaMusica,
+    status: novoStatus,
+    bpm: novoBpm
   });
 
-  location.reload();
+  carregarEstudos(subId);
 };
 
-window.excluirEstudo = async (subId,estId)=>{
+window.excluirEstudo = async (subId, estId) => {
   if(confirm("Excluir estudo?")){
-    await deleteDoc(doc(db,"livros",livroId,"sublivros",subId,"estudos",estId));
-    location.reload();
+    await deleteDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId));
+    carregarEstudos(subId);
   }
 };
 
-window.excluirSub = async (subId)=>{
+window.excluirSub = async (subId) => {
   if(confirm("Excluir sub-livro?")){
-    await deleteDoc(doc(db,"livros",livroId,"sublivros",subId));
-    location.reload();
+    await deleteDoc(doc(db, "livros", livroId, "sublivros", subId));
+    carregarSubs();
   }
 };
 
-window.copiarSub = async (subId,nomeAtual)=>{
-
-  const novoNome = prompt("Nome do novo sub-livro:",nomeAtual+" - Cópia");
-  if(!novoNome) return;
-
-  const zerarBpm = confirm("Zerar BPM?");
-  const zerarStatus = confirm("Zerar Status?");
-  const zerarData = confirm("Zerar Datas?");
-
-  const novoSub = await addDoc(collection(db,"livros",livroId,"sublivros"),{
-    nome:novoNome,
-    data:new Date().toLocaleDateString()
-  });
-
-  const estudos = await getDocs(collection(db,"livros",livroId,"sublivros",subId,"estudos"));
-
-  estudos.forEach(async docSnap=>{
-    const est = docSnap.data();
-
-    await addDoc(collection(db,"livros",livroId,"sublivros",novoSub.id,"estudos"),{
-      musica:est.musica,
-      status:zerarStatus?"":est.status,
-      bpm:zerarBpm?"":est.bpm,
-      data:zerarData?new Date().toLocaleDateString():est.data
-    });
-  });
-
-  location.reload();
-};
-
-window.copiarLivro = async ()=>{
-
-  const novoNome = prompt("Nome do novo livro:");
-  if(!novoNome) return;
-
-  const zerarBpm = confirm("Zerar BPM?");
-  const zerarStatus = confirm("Zerar Status?");
-  const zerarData = confirm("Zerar Datas?");
-
-  const novoLivro = await addDoc(collection(db,"livros"),{
-    nome:novoNome,
-    data:new Date().toLocaleDateString()
-  });
-
-  const subs = await getDocs(collection(db,"livros",livroId,"sublivros"));
-
-  subs.forEach(async subDoc=>{
-
-    const subData = subDoc.data();
-
-    const novoSub = await addDoc(collection(db,"livros",novoLivro.id,"sublivros"),{
-      nome:subData.nome,
-      data:new Date().toLocaleDateString()
-    });
-
-    const estudos = await getDocs(collection(db,"livros",livroId,"sublivros",subDoc.id,"estudos"));
-
-    estudos.forEach(async estDoc=>{
-      const est = estDoc.data();
-
-      await addDoc(collection(db,"livros",novoLivro.id,"sublivros",novoSub.id,"estudos"),{
-        musica:est.musica,
-        status:zerarStatus?"":est.status,
-        bpm:zerarBpm?"":est.bpm,
-        data:zerarData?new Date().toLocaleDateString():est.data
-      });
-    });
-  });
-
-  alert("Livro copiado com sucesso!");
-};
-
-document.getElementById("addSub").onclick = async ()=>{
+document.getElementById("addSub").onclick = async () => {
   const nome = document.getElementById("nomeSub").value;
-  if(!nome) return alert("Digite o nome do sub-livro");
+  if (!nome) return alert("Digite o nome");
 
-  await addDoc(collection(db,"livros",livroId,"sublivros"),{
+  await addDoc(collection(db, "livros", livroId, "sublivros"), {
     nome,
-    data:new Date().toLocaleDateString()
+    data: new Date().toLocaleDateString(),
+    criadoEm: serverTimestamp()
   });
 
-  location.reload();
+  document.getElementById("nomeSub").value = "";
+  carregarSubs();
 };
 
-window.voltar = ()=>{
-  window.location.href="index.html";
+ordenarSelect.onchange = carregarSubs;
+
+window.voltar = () => {
+  window.location.href = "index.html";
 };
 
 carregarSubs();
