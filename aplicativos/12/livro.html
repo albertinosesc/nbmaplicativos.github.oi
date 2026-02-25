@@ -524,6 +524,12 @@
   const urlParams = new URLSearchParams(window.location.search);
   const livroId = urlParams.get("id");
   
+  // Verificar se o livroId existe
+  if (!livroId) {
+    alert("ID do livro não encontrado!");
+    window.location.href = "index.html";
+  }
+  
   const lista = document.getElementById("listaSubs");
   const ordenarSelect = document.getElementById("ordenarSubs");
   const searchInput = document.getElementById("searchMusica");
@@ -564,69 +570,101 @@
   function formatarData(timestamp) {
     if (!timestamp) return null;
     try {
-      if (timestamp.seconds) {
+      if (timestamp && typeof timestamp === 'object' && timestamp.seconds) {
         return new Date(timestamp.seconds * 1000).toLocaleDateString('pt-BR');
       }
-      return timestamp;
+      if (typeof timestamp === 'string') {
+        return timestamp;
+      }
+      return null;
     } catch (e) {
+      console.error("Erro ao formatar data:", e);
       return null;
     }
   }
 
+  function safeString(value) {
+    return value || '';
+  }
+
+  function safeLowerCase(value) {
+    return value ? String(value).toLowerCase() : '';
+  }
+
   async function carregarEstatisticas() {
-    if (!subsCache) return;
+    if (!subsCache || !Array.isArray(subsCache)) return;
     
     let totalEstudos = 0;
     const niveis = { 'Nível-1': 0, 'Nível-2': 0, 'Nível-3': 0 };
     
     for (const sub of subsCache) {
+      if (!sub || !sub.id) continue;
+      
       try {
         const estudos = await getDocs(collection(db, "livros", livroId, "sublivros", sub.id, "estudos"));
         estudos.forEach(doc => {
-          totalEstudos++;
-          niveis[doc.data().status]++;
+          const data = doc.data();
+          if (data && data.status) {
+            totalEstudos++;
+            if (niveis.hasOwnProperty(data.status)) {
+              niveis[data.status]++;
+            }
+          }
         });
       } catch (e) {
         console.error("Erro ao carregar estatísticas do sub:", sub.id, e);
       }
     }
     
-    document.getElementById('statsContainer').innerHTML = `
-      <div class="stat-card">
-        <div class="stat-value">${subsCache.length}</div>
-        <div class="stat-label">Sub-Livros</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${totalEstudos}</div>
-        <div class="stat-label">Total de Estudos</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${niveis['Nível-1']}</div>
-        <div class="stat-label">🌱 Nível 1</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${niveis['Nível-2']}</div>
-        <div class="stat-label">🌿 Nível 2</div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-value">${niveis['Nível-3']}</div>
-        <div class="stat-label">🌳 Nível 3</div>
-      </div>
-    `;
+    const statsContainer = document.getElementById('statsContainer');
+    if (statsContainer) {
+      statsContainer.innerHTML = `
+        <div class="stat-card">
+          <div class="stat-value">${subsCache.length}</div>
+          <div class="stat-label">Sub-Livros</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${totalEstudos}</div>
+          <div class="stat-label">Total de Estudos</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${niveis['Nível-1']}</div>
+          <div class="stat-label">🌱 Nível 1</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${niveis['Nível-2']}</div>
+          <div class="stat-label">🌿 Nível 2</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value">${niveis['Nível-3']}</div>
+          <div class="stat-label">🌳 Nível 3</div>
+        </div>
+      `;
+    }
   }
 
   function filtrarEstudos(estudos) {
-    const termoBusca = searchInput.value.toLowerCase();
-    const statusFiltro = filtroStatus.value;
+    if (!Array.isArray(estudos)) return [];
+    
+    const termoBusca = safeLowerCase(searchInput?.value);
+    const statusFiltro = filtroStatus?.value;
     
     return estudos.filter(est => {
-      const matchMusica = !termoBusca || (est.musica && est.musica.toLowerCase().includes(termoBusca));
-      const matchStatus = !statusFiltro || est.status === statusFiltro;
+      if (!est) return false;
+      
+      const musica = safeLowerCase(est.musica);
+      const status = safeString(est.status);
+      
+      const matchMusica = !termoBusca || musica.includes(termoBusca);
+      const matchStatus = !statusFiltro || status === statusFiltro;
+      
       return matchMusica && matchStatus;
     });
   }
 
   function ordenarEstudos(estudos, subId) {
+    if (!Array.isArray(estudos)) return [];
+    
     if (!ordemEstudos[subId]) {
       ordemEstudos[subId] = { coluna: 'data', direcao: 'desc' };
     }
@@ -636,19 +674,52 @@
     
     return [...estudos].sort((a, b) => {
       try {
+        if (!a || !b) return 0;
+        
         if (coluna === 'musica') {
-          return multiplicador * (a.musica || '').localeCompare(b.musica || '');
-        } else if (coluna === 'status') {
-          return multiplicador * (a.status || '').localeCompare(b.status || '');
-        } else if (coluna === 'bpm') {
+          const musicaA = safeString(a.musica);
+          const musicaB = safeString(b.musica);
+          return multiplicador * musicaA.localeCompare(musicaB);
+        } 
+        else if (coluna === 'status') {
+          const statusA = safeString(a.status);
+          const statusB = safeString(b.status);
+          return multiplicador * statusA.localeCompare(statusB);
+        } 
+        else if (coluna === 'bpm') {
           const bpmA = parseInt(a.bpm) || 0;
           const bpmB = parseInt(b.bpm) || 0;
           return multiplicador * (bpmA - bpmB);
-        } else if (coluna === 'data') {
-          const dataA = a.criadoEm?.seconds || new Date(a.data?.split('/').reverse().join('-')).getTime() || 0;
-          const dataB = b.criadoEm?.seconds || new Date(b.data?.split('/').reverse().join('-')).getTime() || 0;
+        } 
+        else if (coluna === 'data') {
+          let dataA = 0;
+          let dataB = 0;
+          
+          if (a.criadoEm?.seconds) {
+            dataA = a.criadoEm.seconds;
+          } else if (a.data) {
+            try {
+              const partes = String(a.data).split('/');
+              if (partes.length === 3) {
+                dataA = new Date(partes[2], partes[1]-1, partes[0]).getTime();
+              }
+            } catch (e) {}
+          }
+          
+          if (b.criadoEm?.seconds) {
+            dataB = b.criadoEm.seconds;
+          } else if (b.data) {
+            try {
+              const partes = String(b.data).split('/');
+              if (partes.length === 3) {
+                dataB = new Date(partes[2], partes[1]-1, partes[0]).getTime();
+              }
+            } catch (e) {}
+          }
+          
           return multiplicador * (dataB - dataA);
-        } else if (coluna === 'atualizadoEm') {
+        } 
+        else if (coluna === 'atualizadoEm') {
           const dataA = a.atualizadoEm?.seconds || a.criadoEm?.seconds || 0;
           const dataB = b.atualizadoEm?.seconds || b.criadoEm?.seconds || 0;
           return multiplicador * (dataB - dataA);
@@ -677,6 +748,11 @@
 
   async function carregarSubs() {
     try {
+      if (!lista) {
+        console.error("Elemento lista não encontrado");
+        return;
+      }
+      
       lista.innerHTML = '<div class="loading">Carregando sub-livros</div>';
       
       const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros"));
@@ -688,8 +764,8 @@
       
       subsCache = subs;
       
-      if (ordenarSelect.value === "nome") {
-        subs.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
+      if (ordenarSelect && ordenarSelect.value === "nome") {
+        subs.sort((a,b) => safeString(a.nome).localeCompare(safeString(b.nome)));
       } else {
         subs.sort((a,b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
       }
@@ -700,27 +776,33 @@
     } catch (error) {
       console.error("Erro detalhado:", error);
       mostrarNotificacao('Erro ao carregar dados: ' + error.message, 'error');
-      lista.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--danger);">❌ Erro ao carregar. Tente novamente.</div>';
+      if (lista) {
+        lista.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--danger);">❌ Erro ao carregar. Tente novamente.</div>';
+      }
     }
   }
 
   function renderizarSubs(subs) {
+    if (!lista) return;
+    
     lista.innerHTML = "";
     
-    if (subs.length === 0) {
+    if (!subs || subs.length === 0) {
       lista.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--gray);">📭 Nenhum sub-livro encontrado</div>';
       return;
     }
     
     subs.forEach(sub => {
+      if (!sub || !sub.id) return;
+      
       const card = document.createElement('div');
       card.className = 'card';
       
       card.innerHTML = `
         <div class="card-header">
           <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <strong>${sub.nome || 'Sem nome'}</strong>
-            <span class="badge">📅 ${sub.data || ""}</span>
+            <strong>${safeString(sub.nome) || 'Sem nome'}</strong>
+            <span class="badge">📅 ${safeString(sub.data) || ""}</span>
           </div>
           <div class="card-actions">
             <button onclick="toggle('${sub.id}')">🔽</button>
@@ -829,18 +911,20 @@
       
       let html = '';
       estudosOrdenados.forEach(est => {
+        if (!est) return;
+        
         const badgeClass = est.status === 'Nível-1' ? 'badge-nivel1' : 
                           est.status === 'Nível-2' ? 'badge-nivel2' : 'badge-nivel3';
         
-        const dataCriacao = est.criadoEm ? formatarData(est.criadoEm) : (est.data || '-');
-        const dataAtualizacao = est.atualizadoEm ? formatarData(est.atualizadoEm) : null;
-        const observacao = est.observacao || '';
+        const dataCriacao = formatarData(est.criadoEm) || est.data || '-';
+        const dataAtualizacao = formatarData(est.atualizadoEm);
+        const observacao = safeString(est.observacao);
         
         html += `
           <tr id="linha_${subId}_${est.id}">
-            <td><strong>${est.musica || 'Sem nome'}</strong></td>
-            <td><span class="badge ${badgeClass}">${est.status || 'N/A'}</span></td>
-            <td>${est.bpm || '-'} BPM</td>
+            <td><strong>${safeString(est.musica) || 'Sem nome'}</strong></td>
+            <td><span class="badge ${badgeClass}">${safeString(est.status) || 'N/A'}</span></td>
+            <td>${safeString(est.bpm) || '-'} BPM</td>
             <td class="observacao-cell">
               ${observacao ? 
                 `<div class="tooltip">
@@ -890,7 +974,7 @@
     if (!linha || !estudo) return;
     
     linha.innerHTML = `
-      <td><input type="text" id="edit_musica_${estId}" class="edit-input" value="${estudo.musica || ''}"></td>
+      <td><input type="text" id="edit_musica_${estId}" class="edit-input" value="${safeString(estudo.musica)}"></td>
       <td>
         <select id="edit_status_${estId}" class="edit-select">
           <option ${estudo.status === 'Nível-1' ? 'selected' : ''}>Nível-1</option>
@@ -898,8 +982,8 @@
           <option ${estudo.status === 'Nível-3' ? 'selected' : ''}>Nível-3</option>
         </select>
       </td>
-      <td><input type="number" id="edit_bpm_${estId}" class="edit-input" value="${estudo.bpm || ''}" min="20" max="300"></td>
-      <td><textarea id="edit_obs_${estId}" class="edit-textarea" placeholder="Observações">${estudo.observacao || ''}</textarea></td>
+      <td><input type="number" id="edit_bpm_${estId}" class="edit-input" value="${safeString(estudo.bpm)}" min="20" max="300"></td>
+      <td><textarea id="edit_obs_${estId}" class="edit-textarea" placeholder="Observações">${safeString(estudo.observacao)}</textarea></td>
       <td>${estudo.data || '-'}</td>
       <td>-</td>
       <td>
@@ -1171,8 +1255,8 @@
           const estudosOrdenados = ordenarEstudos(estudos, sub.id);
           
           estudosOrdenados.forEach(est => {
-            const dataCriacao = est.criadoEm ? formatarData(est.criadoEm) : est.data;
-            const dataAtualizacao = est.atualizadoEm ? formatarData(est.atualizadoEm) : null;
+            const dataCriacao = formatarData(est.criadoEm) || est.data || '-';
+            const dataAtualizacao = formatarData(est.atualizadoEm);
             
             texto += `\n🎵 ${est.musica || 'Sem nome'}\n`;
             texto += `   📊 Status: ${est.status || 'N/A'}\n`;
@@ -1180,7 +1264,7 @@
             if (est.observacao) {
               texto += `   📝 Obs: ${est.observacao}\n`;
             }
-            texto += `   📅 Criado: ${dataCriacao || '-'}\n`;
+            texto += `   📅 Criado: ${dataCriacao}\n`;
             if (dataAtualizacao && dataAtualizacao !== dataCriacao) {
               texto += `   ✏️ Atualizado: ${dataAtualizacao}\n`;
             }
@@ -1214,8 +1298,12 @@
     searchInput.addEventListener('input', () => {
       clearTimeout(searchTimeout);
       searchTimeout = setTimeout(() => {
-        if (subsCache) {
-          subsCache.forEach(sub => carregarEstudos(sub.id));
+        if (subsCache && Array.isArray(subsCache)) {
+          subsCache.forEach(sub => {
+            if (sub && sub.id) {
+              carregarEstudos(sub.id);
+            }
+          });
         }
       }, 300);
     });
@@ -1223,8 +1311,12 @@
   
   if (filtroStatus) {
     filtroStatus.addEventListener('change', () => {
-      if (subsCache) {
-        subsCache.forEach(sub => carregarEstudos(sub.id));
+      if (subsCache && Array.isArray(subsCache)) {
+        subsCache.forEach(sub => {
+          if (sub && sub.id) {
+            carregarEstudos(sub.id);
+          }
+        });
       }
     });
   }
