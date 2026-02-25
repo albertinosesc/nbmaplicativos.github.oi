@@ -5,19 +5,62 @@
 <title>📖 Livro</title>
 
 <style>
-body { font-family: Arial; max-width: 1000px; margin: auto; padding: 20px; }
-input, select, button { padding: 6px; margin: 5px; }
-.card { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { border: 1px solid #ccc; padding: 1px; text-align: center; }
+body { font-family: Arial; max-width: 1100px; margin: auto; padding: 20px; }
+
+input, select, button { padding: 6px; margin: 4px; }
+
+.card {
+  border: 1px solid #ccc;
+  padding: 10px;
+  margin: 10px 0;
+  border-radius: 6px;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 8px;
+}
+
+th, td {
+  border: 1px solid #ccc;
+  padding: 3px;
+  text-align: center;
+  font-size: 14px;
+}
+
 th { background: #f0f0f0; }
+
+.btn-tabela {
+  padding: 1px 4px;
+  font-size: 12px;
+  margin: 1px;
+}
+
+.sub-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.minimizado { display: none; }
+
+.topo {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 </style>
 </head>
 <body>
 
-<button onclick="voltar()">⬅ Voltar</button>
+<div class="topo">
+  <button onclick="voltar()">⬅ Voltar</button>
+  <button onclick="copiarLivro()">📚 Copiar Livro Completo</button>
+</div>
 
-<h2>📖 Sub-Livros2</h2>
+<h2>📖 Sub-Livros</h2>
 
 <input type="text" id="nomeSub" placeholder="Nome do Sub-Livro">
 <button id="addSub">Salvar Sub-Livro</button>
@@ -27,8 +70,11 @@ th { background: #f0f0f0; }
 <script type="module">
 
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
-import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc, updateDoc } 
-from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
+import {
+  getFirestore, collection, addDoc, getDocs,
+  deleteDoc, doc, updateDoc, getDoc,
+  query, orderBy
+} from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyC_3jn_T3hZlcBImj5hUWmnGzmobkTega0",
@@ -58,33 +104,48 @@ async function carregarSubs() {
 
     lista.innerHTML += `
       <div class="card">
-        <h3>${sub.nome}</h3>
-        📅 Criado em: ${sub.data}
-        
-        <h4>➕ Novo Estudo</h4>
-        <input type="text" id="musica_${subId}" placeholder="Música">
-        <select id="status_${subId}">
-          <option>Nível-1</option>
-          <option>Nível-2</option>
-          <option>Nível-3</option>
-        </select>
-        <input type="number" id="bpm_${subId}" placeholder="BPM">
-        <button onclick="addEstudo('${subId}')">Salvar</button>
+        <div class="sub-header" onclick="toggleSub('${subId}')">
+          <h3>${sub.nome}</h3>
+          <span>🔽</span>
+        </div>
 
-        <table>
-          <thead>
-            <tr>
-              <th>Música</th>
-              <th>Status</th>
-              <th>BPM</th>
-              <th>Data</th>
-              <th>Ações</th>
-            </tr>
-          </thead>
-          <tbody id="tabela_${subId}"></tbody>
-        </table>
+        <div id="conteudo_${subId}">
+          📅 Criado em: ${sub.data?.toDate().toLocaleDateString()}
 
-        <button onclick="excluirSub('${subId}')">Excluir Sub-Livro</button>
+          <br><br>
+
+          <button onclick="copiarSub('${subId}', '${sub.nome}')">
+            📄 Copiar Sub-Livro
+          </button>
+
+          <button onclick="excluirSub('${subId}')">
+            🗑 Excluir Sub-Livro
+          </button>
+
+          <h4>➕ Novo Estudo</h4>
+
+          <input type="text" id="musica_${subId}" placeholder="Música">
+          <select id="status_${subId}">
+            <option>Nível-1</option>
+            <option>Nível-2</option>
+            <option>Nível-3</option>
+          </select>
+          <input type="number" id="bpm_${subId}" placeholder="BPM">
+          <button onclick="addEstudo('${subId}')">Salvar</button>
+
+          <table>
+            <thead>
+              <tr>
+                <th>Música</th>
+                <th>Status</th>
+                <th>BPM</th>
+                <th>Data</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabela_${subId}"></tbody>
+          </table>
+        </div>
       </div>
     `;
 
@@ -93,10 +154,16 @@ async function carregarSubs() {
 }
 
 async function carregarEstudos(subId) {
+
   const tabela = document.getElementById(`tabela_${subId}`);
   tabela.innerHTML = "";
 
-  const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
+  const q = query(
+    collection(db, "livros", livroId, "sublivros", subId, "estudos"),
+    orderBy("data", "desc")
+  );
+
+  const snapshot = await getDocs(q);
 
   snapshot.forEach(docSnap => {
     const est = docSnap.data();
@@ -107,10 +174,17 @@ async function carregarEstudos(subId) {
         <td>${est.musica}</td>
         <td>${est.status}</td>
         <td>${est.bpm}</td>
-        <td>${est.data}</td>
+        <td>${est.data?.toDate().toLocaleDateString()}</td>
         <td>
-          <button onclick="editarEstudo('${subId}','${estId}','${est.musica}','${est.status}','${est.bpm}')">Editar</button>
-          <button onclick="excluirEstudo('${subId}','${estId}')">Excluir</button>
+          <button class="btn-tabela"
+            onclick="editarEstudo('${subId}','${estId}','${est.musica}','${est.status}','${est.bpm}')">
+            ✏
+          </button>
+
+          <button class="btn-tabela"
+            onclick="excluirEstudo('${subId}','${estId}')">
+            🗑
+          </button>
         </td>
       </tr>
     `;
@@ -118,6 +192,7 @@ async function carregarEstudos(subId) {
 }
 
 window.addEstudo = async (subId) => {
+
   const musica = document.getElementById(`musica_${subId}`).value;
   const status = document.getElementById(`status_${subId}`).value;
   const bpm = document.getElementById(`bpm_${subId}`).value;
@@ -128,18 +203,19 @@ window.addEstudo = async (subId) => {
     musica,
     status,
     bpm,
-    data: new Date().toLocaleDateString()
+    data: new Date()
   });
 
-  location.reload();
+  carregarSubs();
 };
 
 window.editarEstudo = async (subId, estId, musica, status, bpm) => {
+
   const novaMusica = prompt("Editar música:", musica);
+  if (!novaMusica) return;
+
   const novoStatus = prompt("Editar status:", status);
   const novoBpm = prompt("Editar BPM:", bpm);
-
-  if(!novaMusica) return;
 
   await updateDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId), {
     musica: novaMusica,
@@ -147,21 +223,114 @@ window.editarEstudo = async (subId, estId, musica, status, bpm) => {
     bpm: novoBpm
   });
 
-  location.reload();
+  carregarSubs();
 };
 
 window.excluirEstudo = async (subId, estId) => {
-  if(confirm("Excluir estudo?")){
+  if (confirm("Excluir estudo?")) {
     await deleteDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId));
-    location.reload();
+    carregarSubs();
   }
 };
 
 window.excluirSub = async (subId) => {
-  if(confirm("Excluir sub-livro?")){
+  if (confirm("Excluir sub-livro?")) {
     await deleteDoc(doc(db, "livros", livroId, "sublivros", subId));
-    location.reload();
+    carregarSubs();
   }
+};
+
+window.toggleSub = (subId) => {
+  const div = document.getElementById("conteudo_" + subId);
+  div.classList.toggle("minimizado");
+};
+
+window.copiarSub = async (subId, nomeAtual) => {
+
+  const novoNome = prompt("Nome do novo sub-livro:", nomeAtual + " - Cópia");
+  if (!novoNome) return;
+
+  const zerarBpm = confirm("Zerar BPM?");
+  const zerarStatus = confirm("Zerar Status?");
+  const zerarData = confirm("Zerar Datas?");
+
+  const novoSubRef = await addDoc(collection(db, "livros", livroId, "sublivros"), {
+    nome: novoNome,
+    data: new Date()
+  });
+
+  const estudosSnap = await getDocs(
+    collection(db, "livros", livroId, "sublivros", subId, "estudos")
+  );
+
+  estudosSnap.forEach(async docSnap => {
+    const est = docSnap.data();
+
+    await addDoc(
+      collection(db, "livros", livroId, "sublivros", novoSubRef.id, "estudos"),
+      {
+        musica: est.musica,
+        status: zerarStatus ? "" : est.status,
+        bpm: zerarBpm ? "" : est.bpm,
+        data: zerarData ? new Date() : est.data
+      }
+    );
+  });
+
+  carregarSubs();
+};
+
+window.copiarLivro = async () => {
+
+  const novoNome = prompt("Nome do novo livro:");
+  if (!novoNome) return;
+
+  const zerarBpm = confirm("Zerar BPM?");
+  const zerarStatus = confirm("Zerar Status?");
+  const zerarData = confirm("Zerar Datas?");
+
+  const livroSnap = await getDoc(doc(db, "livros", livroId));
+  const livroData = livroSnap.data();
+
+  const novoLivroRef = await addDoc(collection(db, "livros"), {
+    nome: novoNome,
+    data: new Date()
+  });
+
+  const subsSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
+
+  subsSnap.forEach(async subDoc => {
+
+    const subData = subDoc.data();
+
+    const novoSubRef = await addDoc(
+      collection(db, "livros", novoLivroRef.id, "sublivros"),
+      {
+        nome: subData.nome,
+        data: new Date()
+      }
+    );
+
+    const estudosSnap = await getDocs(
+      collection(db, "livros", livroId, "sublivros", subDoc.id, "estudos")
+    );
+
+    estudosSnap.forEach(async estDoc => {
+      const est = estDoc.data();
+
+      await addDoc(
+        collection(db, "livros", novoLivroRef.id, "sublivros", novoSubRef.id, "estudos"),
+        {
+          musica: est.musica,
+          status: zerarStatus ? "" : est.status,
+          bpm: zerarBpm ? "" : est.bpm,
+          data: zerarData ? new Date() : est.data
+        }
+      );
+    });
+  });
+
+  alert("Livro copiado com sucesso!");
 };
 
 document.getElementById("addSub").onclick = async () => {
@@ -170,10 +339,10 @@ document.getElementById("addSub").onclick = async () => {
 
   await addDoc(collection(db, "livros", livroId, "sublivros"), {
     nome,
-    data: new Date().toLocaleDateString()
+    data: new Date()
   });
 
-  location.reload();
+  carregarSubs();
 };
 
 window.voltar = () => {
