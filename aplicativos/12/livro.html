@@ -13,24 +13,17 @@ th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
 th { background: #f0f0f0; }
 button.tabelaBtn { padding: 1px 4px; }
 .hidden { display: none; }
-.topBar { margin-bottom:15px; }
+.topBar { margin-bottom:10px; }
 </style>
 </head>
 <body>
 
 <button onclick="voltar()">⬅ Voltar</button>
-<button onclick="copiarLivro()">📑 Copiar Livro</button>
-<button onclick="exportarTXT()">📄 Exportar TXT</button>
 
 <h2>📖 Sub-Livros</h2>
 
 <input type="text" id="nomeSub" placeholder="Nome do Sub-Livro">
 <button id="addSub">Salvar Sub-Livro</button>
-
-<select id="ordenarSubs">
-  <option value="data">Ordenar por Data</option>
-  <option value="nome">Ordem Alfabética</option>
-</select>
 
 <div id="listaSubs"></div>
 
@@ -58,44 +51,42 @@ const urlParams = new URLSearchParams(window.location.search);
 const livroId = urlParams.get("id");
 
 const lista = document.getElementById("listaSubs");
-const ordenarSelect = document.getElementById("ordenarSubs");
 
 async function carregarSubs() {
   lista.innerHTML = "";
+
   const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros"));
-  let subs = [];
 
   snapshot.forEach(docSnap => {
-    subs.push({ id: docSnap.id, ...docSnap.data() });
-  });
-
-  if (ordenarSelect.value === "nome") {
-    subs.sort((a,b) => a.nome.localeCompare(b.nome));
-  } else {
-    subs.sort((a,b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
-  }
-
-  subs.forEach(sub => {
+    const sub = docSnap.data();
+    const subId = docSnap.id;
 
     lista.innerHTML += `
       <div class="card">
         <div class="topBar">
           <strong>${sub.nome}</strong> 📅 ${sub.data || ""}
-          <button onclick="toggle('${sub.id}')">🔽</button>
-          <button onclick="copiarSub('${sub.id}')">📑 Copiar</button>
-          <button onclick="excluirSub('${sub.id}')">❌</button>
+          <button onclick="toggle('${subId}')">🔽</button>
+          <button onclick="excluirSub('${subId}')">❌</button>
         </div>
 
-        <div id="conteudo_${sub.id}">
+        <div id="conteudo_${subId}">
           <h4>➕ Novo Estudo</h4>
-          <input type="text" id="musica_${sub.id}" placeholder="Música">
-          <select id="status_${sub.id}">
+          <input type="text" id="musica_${subId}" placeholder="Música">
+          <select id="status_${subId}">
             <option>Nível-1</option>
             <option>Nível-2</option>
             <option>Nível-3</option>
           </select>
-          <input type="number" id="bpm_${sub.id}" placeholder="BPM">
-          <button onclick="addEstudo('${sub.id}')">Salvar</button>
+          <input type="number" id="bpm_${subId}" placeholder="BPM">
+          <button onclick="addEstudo('${subId}')">Salvar</button>
+
+          <br>
+
+          Ordenar músicas:
+          <select onchange="ordenarEstudos('${subId}', this.value)">
+            <option value="data">Ordem de Salvamento</option>
+            <option value="nome">Ordem Alfabética</option>
+          </select>
 
           <table>
             <thead>
@@ -107,13 +98,13 @@ async function carregarSubs() {
                 <th>Ações</th>
               </tr>
             </thead>
-            <tbody id="tabela_${sub.id}"></tbody>
+            <tbody id="tabela_${subId}"></tbody>
           </table>
         </div>
       </div>
     `;
 
-    carregarEstudos(sub.id);
+    carregarEstudos(subId, "data");
   });
 }
 
@@ -121,15 +112,24 @@ window.toggle = (id) => {
   document.getElementById("conteudo_"+id).classList.toggle("hidden");
 };
 
-async function carregarEstudos(subId) {
+async function carregarEstudos(subId, ordem="data") {
   const tabela = document.getElementById(`tabela_${subId}`);
   tabela.innerHTML = "";
 
   const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
 
+  let estudos = [];
   snapshot.forEach(docSnap => {
-    const est = docSnap.data();
+    estudos.push({ id: docSnap.id, ...docSnap.data() });
+  });
 
+  if (ordem === "nome") {
+    estudos.sort((a,b)=> a.musica.localeCompare(b.musica));
+  } else {
+    estudos.sort((a,b)=> (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
+  }
+
+  estudos.forEach(est => {
     tabela.innerHTML += `
       <tr>
         <td>${est.musica}</td>
@@ -137,12 +137,17 @@ async function carregarEstudos(subId) {
         <td>${est.bpm}</td>
         <td>${est.data}</td>
         <td>
-          <button class="tabelaBtn" onclick="excluirEstudo('${subId}','${docSnap.id}')">Excluir</button>
+          <button class="tabelaBtn" onclick="editarEstudo('${subId}','${est.id}','${est.musica}','${est.status}','${est.bpm}')">Editar</button>
+          <button class="tabelaBtn" onclick="excluirEstudo('${subId}','${est.id}')">Excluir</button>
         </td>
       </tr>
     `;
   });
 }
+
+window.ordenarEstudos = (subId, ordem) => {
+  carregarEstudos(subId, ordem);
+};
 
 window.addEstudo = async (subId) => {
   const musica = document.getElementById(`musica_${subId}`).value;
@@ -155,7 +160,27 @@ window.addEstudo = async (subId) => {
     musica,
     status,
     bpm,
-    data: new Date().toLocaleDateString()
+    data: new Date().toLocaleDateString(),
+    criadoEm: serverTimestamp()
+  });
+
+  carregarEstudos(subId);
+};
+
+window.editarEstudo = async (subId, estId, musica, status, bpm) => {
+  const novaMusica = prompt("Editar música:", musica);
+  if (novaMusica === null) return;
+
+  const novoStatus = prompt("Editar status:", status);
+  if (novoStatus === null) return;
+
+  const novoBpm = prompt("Editar BPM:", bpm);
+  if (novoBpm === null) return;
+
+  await updateDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId), {
+    musica: novaMusica,
+    status: novoStatus,
+    bpm: novoBpm
   });
 
   carregarEstudos(subId);
@@ -188,80 +213,6 @@ document.getElementById("addSub").onclick = async () => {
   document.getElementById("nomeSub").value = "";
   carregarSubs();
 };
-
-window.copiarSub = async (subId) => {
-  if(!confirm("Copiar este sub-livro com estudos?")) return;
-
-  const subSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
-  const subOriginal = subSnap.docs.find(d=>d.id===subId);
-  const novoSub = await addDoc(collection(db, "livros", livroId, "sublivros"), {
-    nome: subOriginal.data().nome + " (Cópia)",
-    data: new Date().toLocaleDateString(),
-    criadoEm: serverTimestamp()
-  });
-
-  const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
-  estudosSnap.forEach(async e=>{
-    await addDoc(collection(db, "livros", livroId, "sublivros", novoSub.id, "estudos"), e.data());
-  });
-
-  carregarSubs();
-};
-
-window.copiarLivro = async () => {
-  if(!confirm("Copiar livro inteiro com todos sub-livros?")) return;
-
-  const novoLivro = await addDoc(collection(db, "livros"), {
-    nome: "Livro Cópia",
-    data: new Date().toLocaleDateString(),
-    criadoEm: serverTimestamp()
-  });
-
-  const subsSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
-
-  for (const sub of subsSnap.docs) {
-    const novoSub = await addDoc(collection(db, "livros", novoLivro.id, "sublivros"), {
-      nome: sub.data().nome,
-      data: new Date().toLocaleDateString(),
-      criadoEm: serverTimestamp()
-    });
-
-    const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", sub.id, "estudos"));
-
-    estudosSnap.forEach(async e=>{
-      await addDoc(collection(db, "livros", novoLivro.id, "sublivros", novoSub.id, "estudos"), e.data());
-    });
-  }
-
-  alert("Livro copiado!");
-};
-
-window.exportarTXT = async () => {
-  let texto = "RELATÓRIO DO LIVRO\n\n";
-
-  const subsSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
-
-  for (const sub of subsSnap.docs) {
-    texto += "SUB-LIVRO: " + sub.data().nome + "\n";
-
-    const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", sub.id, "estudos"));
-
-    estudosSnap.forEach(e=>{
-      const est = e.data();
-      texto += `- ${est.musica} | ${est.status} | BPM:${est.bpm} | ${est.data}\n`;
-    });
-
-    texto += "\n";
-  }
-
-  const blob = new Blob([texto], { type: "text/plain" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "relatorio_livro.txt";
-  link.click();
-};
-
-ordenarSelect.onchange = carregarSubs;
 
 window.voltar = () => {
   window.location.href = "index.html";
