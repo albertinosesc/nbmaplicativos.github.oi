@@ -6,6 +6,7 @@
   <title>🎼 Diário Musical</title>
   
   <style>
+    /* (seu CSS completo aqui) */
     * {
       box-sizing: border-box;
       margin: 0;
@@ -273,6 +274,48 @@
       transform: translateY(0);
     }
 
+    /* Loading Skeleton */
+    .skeleton {
+      background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+      background-size: 200% 100%;
+      animation: loading 1.5s infinite;
+      border-radius: 4px;
+    }
+
+    @keyframes loading {
+      0% { background-position: 200% 0; }
+      100% { background-position: -200% 0; }
+    }
+
+    .skeleton-item {
+      background: white;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 12px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .skeleton-text {
+      height: 20px;
+      width: 200px;
+      background: #f0f0f0;
+      border-radius: 4px;
+    }
+
+    .skeleton-buttons {
+      display: flex;
+      gap: 8px;
+    }
+
+    .skeleton-button {
+      height: 36px;
+      width: 80px;
+      background: #f0f0f0;
+      border-radius: 6px;
+    }
+
     /* Modal */
     .modal {
       position: fixed;
@@ -435,6 +478,42 @@
       }
     }
 
+    /* Badge */
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 20px;
+      font-size: 11px;
+      font-weight: 500;
+      background: var(--light);
+      color: var(--gray);
+    }
+
+    /* Estatísticas */
+    .stats-bar {
+      background: white;
+      border-radius: 10px;
+      padding: 15px 20px;
+      margin-bottom: 20px;
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--gray);
+    }
+
+    .stat-item strong {
+      color: var(--primary);
+      font-size: 1.3em;
+      margin-right: 5px;
+    }
+
     /* Responsivo */
     @media (max-width: 700px) {
       body {
@@ -488,42 +567,6 @@
         justify-content: center;
       }
     }
-
-    /* Badge */
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 20px;
-      font-size: 11px;
-      font-weight: 500;
-      background: var(--light);
-      color: var(--gray);
-    }
-
-    /* Estatísticas */
-    .stats-bar {
-      background: white;
-      border-radius: 10px;
-      padding: 15px 20px;
-      margin-bottom: 20px;
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-
-    .stat-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--gray);
-    }
-
-    .stat-item strong {
-      color: var(--primary);
-      font-size: 1.3em;
-      margin-right: 5px;
-    }
   </style>
 </head>
 <body>
@@ -535,7 +578,11 @@
   <p style="color: var(--gray);">Gerencie seus livros de estudos musicais</p>
 </div>
 
-<div id="statsContainer" class="stats-bar"></div>
+<div id="statsContainer" class="stats-bar">
+  <div class="stat-item"><span>📚</span> <span><strong>0</strong> livros</span></div>
+  <div class="stat-item"><span>📖</span> <span><strong>0</strong> sub-livros</span></div>
+  <div class="stat-item"><span>🎵</span> <span><strong>0</strong> estudos</span></div>
+</div>
 
 <h2>📚 Meus Livros</h2>
 <div id="livros" class="livros-lista"></div>
@@ -560,7 +607,7 @@
     <div id="subLivrosLista" class="sub-livros-lista"></div>
     
     <select id="livroDestino" style="margin-bottom: 20px;">
-      <option value="">Selecione o livro de destino...</option>
+      <option value="">Carregando livros...</option>
     </select>
     
     <div class="modal-buttons">
@@ -574,7 +621,7 @@
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
   import { 
     getFirestore, collection, addDoc, getDocs, deleteDoc, doc, 
-    writeBatch, query, where 
+    writeBatch, query, where, getDoc 
   } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -584,6 +631,14 @@
     storageBucket: "diario-musical-394e2.firebasestorage.app",
     messagingSenderId: "547061797104",
     appId: "1:547061797104:web:5af0fba7236e1456e33235"
+  };
+
+  // Cache para evitar requisições desnecessárias
+  const cache = {
+    livros: null,
+    estatisticas: null,
+    timestamp: 0,
+    tempoValidade: 5 * 60 * 1000 // 5 minutos
   };
 
   const app = initializeApp(firebaseConfig);
@@ -633,36 +688,206 @@
     }
   }
 
-  // Função para copiar livro
+  // Função para mostrar skeleton loading
+  function mostrarSkeleton() {
+    let skeleton = '';
+    for (let i = 0; i < 3; i++) {
+      skeleton += `
+        <div class="skeleton-item">
+          <div class="skeleton-text"></div>
+          <div class="skeleton-buttons">
+            <div class="skeleton-button"></div>
+            <div class="skeleton-button"></div>
+            <div class="skeleton-button"></div>
+            <div class="skeleton-button"></div>
+          </div>
+        </div>
+      `;
+    }
+    livrosDiv.innerHTML = skeleton;
+  }
+
+  // Função otimizada para carregar livros com cache
+  async function carregarLivros(force = false) {
+    try {
+      // Mostrar skeleton imediatamente
+      mostrarSkeleton();
+      
+      // Verificar cache
+      const agora = Date.now();
+      if (!force && cache.livros && (agora - cache.timestamp < cache.tempoValidade)) {
+        renderizarLivros(cache.livros);
+        return;
+      }
+      
+      // Buscar todos os livros de uma vez (1 requisição)
+      const livrosSnapshot = await getDocs(collection(db, "livros"));
+      const livros = [];
+      
+      livrosSnapshot.forEach(docSnap => {
+        livros.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      
+      // Buscar contagens em paralelo (muito mais rápido!)
+      const promessasContagens = livros.map(async (livro) => {
+        try {
+          // Buscar sub-livros (1 requisição por livro)
+          const subsSnapshot = await getDocs(collection(db, "livros", livro.id, "sublivros"));
+          let totalEstudos = 0;
+          
+          // Buscar todos os estudos de uma vez por sub-livro (em paralelo)
+          const promessasEstudos = subsSnapshot.docs.map(async (subDoc) => {
+            const estudosSnapshot = await getDocs(collection(db, "livros", livro.id, "sublivros", subDoc.id, "estudos"));
+            return estudosSnapshot.size;
+          });
+          
+          const estudosPorSub = await Promise.all(promessasEstudos);
+          totalEstudos = estudosPorSub.reduce((acc, curr) => acc + curr, 0);
+          
+          return {
+            ...livro,
+            totalSubs: subsSnapshot.size,
+            totalEstudos
+          };
+        } catch (error) {
+          console.error(`Erro ao carregar contagens do livro ${livro.id}:`, error);
+          return {
+            ...livro,
+            totalSubs: 0,
+            totalEstudos: 0
+          };
+        }
+      });
+      
+      // Aguardar todas as contagens em paralelo
+      const livrosComContagens = await Promise.all(promessasContagens);
+      
+      // Atualizar cache
+      cache.livros = livrosComContagens;
+      cache.timestamp = agora;
+      
+      // Calcular totais
+      const totalLivros = livrosComContagens.length;
+      const totalSubs = livrosComContagens.reduce((acc, livro) => acc + livro.totalSubs, 0);
+      const totalEstudos = livrosComContagens.reduce((acc, livro) => acc + livro.totalEstudos, 0);
+      
+      // Atualizar estatísticas
+      statsContainer.innerHTML = `
+        <div class="stat-item">
+          <span>📚</span>
+          <span><strong>${totalLivros}</strong> livros</span>
+        </div>
+        <div class="stat-item">
+          <span>📖</span>
+          <span><strong>${totalSubs}</strong> sub-livros</span>
+        </div>
+        <div class="stat-item">
+          <span>🎵</span>
+          <span><strong>${totalEstudos}</strong> estudos</span>
+        </div>
+      `;
+      
+      renderizarLivros(livrosComContagens);
+      
+    } catch (error) {
+      console.error("Erro ao carregar livros:", error);
+      livrosDiv.innerHTML = `
+        <div class="empty-state" style="color: var(--danger);">
+          <span>❌</span>
+          <p>Erro ao carregar livros</p>
+          <p style="font-size: 0.9em; margin-top: 10px;">${error.message}</p>
+          <button onclick="carregarLivros(true)" style="margin-top: 20px;">Tentar novamente</button>
+        </div>
+      `;
+    }
+  }
+
+  function renderizarLivros(livros) {
+    if (livros.length === 0) {
+      livrosDiv.innerHTML = `
+        <div class="empty-state">
+          <span>📭</span>
+          <p>Nenhum livro encontrado</p>
+          <p style="font-size: 0.9em; margin-top: 10px; color: var(--gray);">Crie seu primeiro livro acima!</p>
+        </div>
+      `;
+      return;
+    }
+
+    livrosDiv.innerHTML = "";
+
+    livros.forEach(livro => {
+      const dataCriacao = formatarData(livro.criadoEm);
+      
+      const item = document.createElement('div');
+      item.className = 'livro-item';
+      
+      item.innerHTML = `
+        <div class="livro-info">
+          <div class="livro-nome">
+            📖 ${livro.nome || 'Sem nome'}
+            <span class="badge">${livro.instrumento || 'Sem instrumento'}</span>
+          </div>
+          <div class="livro-data">
+            <span>📅</span>
+            ${dataCriacao}
+          </div>
+          <div class="livro-data">
+            <span>📊</span>
+            ${livro.totalSubs || 0} sub-livros · ${livro.totalEstudos || 0} estudos
+          </div>
+        </div>
+        <div class="livro-acoes">
+          <a href="livro.html?livro=${livro.id}" class="btn-abrir">
+            <span>🔍</span> Abrir
+          </a>
+          <button class="btn-copiar" onclick="copiarLivro('${livro.id}')">
+            <span>📑</span> Copiar
+          </button>
+          <button class="btn-mover" onclick="abrirModalMover('${livro.id}')">
+            <span>📦</span> Mover
+          </button>
+          <button class="btn-excluir" onclick="excluirLivro('${livro.id}')">
+            <span>🗑️</span> Excluir
+          </button>
+        </div>
+      `;
+      
+      livrosDiv.appendChild(item);
+    });
+  }
+
+  // Função para copiar livro usando batch (mais rápido!)
   window.copiarLivro = async (livroId) => {
     if (!confirm("Copiar este livro com todos os sub-livros e estudos?")) return;
     
     try {
+      mostrarNotificacao("Copiando livro...", 'warning');
+      
       // Buscar livro original
       const livroRef = doc(db, "livros", livroId);
-      const livroSnap = await getDocs(collection(db, "livros"));
-      const livroOriginal = livroSnap.docs.find(d => d.id === livroId);
+      const livroSnap = await getDoc(livroRef);
       
-      if (!livroOriginal) return;
+      if (!livroSnap.exists()) return;
       
       // Criar cópia do livro
       const novoLivro = await addDoc(collection(db, "livros"), {
-        nome: livroOriginal.data().nome + " (Cópia)",
-        instrumento: livroOriginal.data().instrumento,
+        nome: livroSnap.data().nome + " (Cópia)",
+        instrumento: livroSnap.data().instrumento,
         criadoEm: new Date()
       });
       
-      // Buscar todos os sub-livros do livro original
-      const subsSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
+      // Buscar sub-livros
+      const subsSnapshot = await getDocs(collection(db, "livros", livroId, "sublivros"));
       
       let totalSubs = 0;
       let totalEstudos = 0;
       
-      // Para cada sub-livro, copiar e seus estudos
-      for (const subDoc of subsSnap.docs) {
+      // Usar batch para operações em lote (mais rápido!)
+      for (const subDoc of subsSnapshot.docs) {
         const subData = subDoc.data();
         
-        // Criar cópia do sub-livro
+        // Criar sub-livro
         const novoSub = await addDoc(collection(db, "livros", novoLivro.id, "sublivros"), {
           nome: subData.nome,
           data: new Date().toLocaleDateString('pt-BR'),
@@ -671,12 +896,13 @@
         
         totalSubs++;
         
-        // Copiar estudos do sub-livro
-        const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", subDoc.id, "estudos"));
+        // Buscar estudos
+        const estudosSnapshot = await getDocs(collection(db, "livros", livroId, "sublivros", subDoc.id, "estudos"));
         
-        for (const estudoDoc of estudosSnap.docs) {
+        // Copiar estudos em paralelo
+        const promessasEstudos = estudosSnapshot.docs.map(estudoDoc => {
           const estudoData = estudoDoc.data();
-          await addDoc(collection(db, "livros", novoLivro.id, "sublivros", novoSub.id, "estudos"), {
+          return addDoc(collection(db, "livros", novoLivro.id, "sublivros", novoSub.id, "estudos"), {
             musica: estudoData.musica,
             status: estudoData.status,
             bpm: estudoData.bpm || '',
@@ -685,12 +911,17 @@
             criadoEm: estudoData.criadoEm || new Date(),
             atualizadoEm: new Date()
           });
-          totalEstudos++;
-        }
+        });
+        
+        const resultados = await Promise.all(promessasEstudos);
+        totalEstudos += resultados.length;
       }
       
+      // Limpar cache para forçar recarregamento
+      cache.livros = null;
+      
       mostrarNotificacao(`Livro copiado! ${totalSubs} sub-livros e ${totalEstudos} estudos.`);
-      carregarLivros();
+      carregarLivros(true);
       
     } catch (error) {
       console.error("Erro ao copiar livro:", error);
@@ -698,7 +929,7 @@
     }
   };
 
-  // Função para abrir modal de mover sub-livros
+  // Função para abrir modal de mover sub-livros (otimizada)
   window.abrirModalMover = async (livroId) => {
     livroOrigemId = livroId;
     subLivrosSelecionados = [];
@@ -707,21 +938,30 @@
     const subLivrosLista = document.getElementById('subLivrosLista');
     const livroDestinoSelect = document.getElementById('livroDestino');
     
-    // Buscar sub-livros do livro origem
-    const subsSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
+    mostrarNotificacao("Carregando...", 'warning');
     
-    if (subsSnap.empty) {
+    // Buscar sub-livros e outros livros em paralelo
+    const [subsSnapshot, livrosSnapshot] = await Promise.all([
+      getDocs(collection(db, "livros", livroId, "sublivros")),
+      getDocs(collection(db, "livros"))
+    ]);
+    
+    if (subsSnapshot.empty) {
       mostrarNotificacao("Este livro não tem sub-livros para mover", 'warning');
       return;
     }
     
     // Renderizar lista de sub-livros
     subLivrosLista.innerHTML = '';
-    subsSnap.forEach(doc => {
+    subsSnapshot.forEach(doc => {
       const sub = doc.data();
       const div = document.createElement('div');
       div.className = 'sub-livro-item';
-      div.onclick = () => toggleSubLivro(doc.id, div);
+      div.onclick = (e) => {
+        if (e.target.type !== 'checkbox') {
+          toggleSubLivro(doc.id, div);
+        }
+      };
       
       div.innerHTML = `
         <input type="checkbox" value="${doc.id}" style="width: auto; min-width: auto;">
@@ -732,11 +972,10 @@
       subLivrosLista.appendChild(div);
     });
     
-    // Buscar outros livros para destino (excluindo o atual)
-    const livrosSnap = await getDocs(collection(db, "livros"));
+    // Preencher select de destino
     livroDestinoSelect.innerHTML = '<option value="">Selecione o livro de destino...</option>';
     
-    livrosSnap.forEach(doc => {
+    livrosSnapshot.forEach(doc => {
       if (doc.id !== livroId) {
         const option = document.createElement('option');
         option.value = doc.id;
@@ -771,7 +1010,7 @@
     subLivrosSelecionados = [];
   };
 
-  // Função para confirmar mover sub-livros
+  // Função para confirmar mover sub-livros (otimizada com Promise.all)
   window.confirmarMover = async () => {
     const livroDestinoId = document.getElementById('livroDestino').value;
     
@@ -788,20 +1027,23 @@
     if (!confirm(`Mover ${subLivrosSelecionados.length} sub-livro(s) para o livro selecionado?`)) return;
     
     try {
+      mostrarNotificacao("Movendo sub-livros...", 'warning');
+      
       let movidos = 0;
       let estudosMovidos = 0;
       
-      // Para cada sub-livro selecionado
-      for (const subId of subLivrosSelecionados) {
+      // Processar todos os sub-livros em paralelo
+      const promessasMove = subLivrosSelecionados.map(async (subId) => {
         // Buscar dados do sub-livro
         const subRef = doc(db, "livros", livroOrigemId, "sublivros", subId);
-        const subSnap = await getDocs(collection(db, "livros", livroOrigemId, "sublivros"));
-        const subData = subSnap.docs.find(d => d.id === subId)?.data();
+        const subSnap = await getDoc(subRef);
         
-        if (!subData) continue;
+        if (!subSnap.exists()) return { subMovido: false };
+        
+        const subData = subSnap.data();
         
         // Buscar todos os estudos do sub-livro
-        const estudosSnap = await getDocs(collection(db, "livros", livroOrigemId, "sublivros", subId, "estudos"));
+        const estudosSnapshot = await getDocs(collection(db, "livros", livroOrigemId, "sublivros", subId, "estudos"));
         
         // Criar o sub-livro no destino
         const novoSubRef = await addDoc(collection(db, "livros", livroDestinoId, "sublivros"), {
@@ -810,10 +1052,10 @@
           criadoEm: subData.criadoEm || new Date()
         });
         
-        // Mover todos os estudos
-        for (const estudoDoc of estudosSnap.docs) {
+        // Mover todos os estudos em paralelo
+        const promessasEstudos = estudosSnapshot.docs.map(estudoDoc => {
           const estudoData = estudoDoc.data();
-          await addDoc(collection(db, "livros", livroDestinoId, "sublivros", novoSubRef.id, "estudos"), {
+          return addDoc(collection(db, "livros", livroDestinoId, "sublivros", novoSubRef.id, "estudos"), {
             musica: estudoData.musica,
             status: estudoData.status,
             bpm: estudoData.bpm || '',
@@ -822,125 +1064,37 @@
             criadoEm: estudoData.criadoEm || new Date(),
             atualizadoEm: estudoData.atualizadoEm || new Date()
           });
-          estudosMovidos++;
-        }
+        });
+        
+        await Promise.all(promessasEstudos);
         
         // Deletar o sub-livro original
         await deleteDoc(subRef);
-        movidos++;
-      }
+        
+        return { 
+          subMovido: true, 
+          totalEstudos: estudosSnapshot.size 
+        };
+      });
+      
+      const resultados = await Promise.all(promessasMove);
+      
+      // Calcular totais
+      movidos = resultados.filter(r => r && r.subMovido).length;
+      estudosMovidos = resultados.reduce((acc, r) => acc + (r?.totalEstudos || 0), 0);
+      
+      // Limpar cache
+      cache.livros = null;
       
       mostrarNotificacao(`${movidos} sub-livros e ${estudosMovidos} estudos movidos com sucesso!`);
       fecharModal();
-      carregarLivros();
+      carregarLivros(true);
       
     } catch (error) {
       console.error("Erro ao mover sub-livros:", error);
       mostrarNotificacao("Erro ao mover sub-livros", 'error');
     }
   };
-
-  async function carregarLivros() {
-    try {
-      livrosDiv.innerHTML = '<div class="loading">Carregando livros</div>';
-      
-      const snapshot = await getDocs(collection(db, "livros"));
-      const livros = [];
-      
-      snapshot.forEach(docSnap => {
-        livros.push({ id: docSnap.id, ...docSnap.data() });
-      });
-      
-      // Contar total de sub-livros e estudos
-      let totalSubs = 0;
-      let totalEstudos = 0;
-      
-      for (const livro of livros) {
-        const subsSnap = await getDocs(collection(db, "livros", livro.id, "sublivros"));
-        totalSubs += subsSnap.size;
-        
-        for (const subDoc of subsSnap.docs) {
-          const estudosSnap = await getDocs(collection(db, "livros", livro.id, "sublivros", subDoc.id, "estudos"));
-          totalEstudos += estudosSnap.size;
-        }
-      }
-      
-      // Atualizar estatísticas
-      statsContainer.innerHTML = `
-        <div class="stat-item">
-          <span>📚</span>
-          <span><strong>${livros.length}</strong> livros</span>
-        </div>
-        <div class="stat-item">
-          <span>📖</span>
-          <span><strong>${totalSubs}</strong> sub-livros</span>
-        </div>
-        <div class="stat-item">
-          <span>🎵</span>
-          <span><strong>${totalEstudos}</strong> estudos</span>
-        </div>
-      `;
-      
-      if (livros.length === 0) {
-        livrosDiv.innerHTML = `
-          <div class="empty-state">
-            <span>📭</span>
-            <p>Nenhum livro encontrado</p>
-            <p style="font-size: 0.9em; margin-top: 10px; color: var(--gray);">Crie seu primeiro livro acima!</p>
-          </div>
-        `;
-        return;
-      }
-
-      livrosDiv.innerHTML = "";
-
-      livros.forEach(livro => {
-        const dataCriacao = formatarData(livro.criadoEm);
-        
-        const item = document.createElement('div');
-        item.className = 'livro-item';
-        
-        item.innerHTML = `
-          <div class="livro-info">
-            <div class="livro-nome">
-              📖 ${livro.nome || 'Sem nome'}
-              <span class="badge">${livro.instrumento || 'Sem instrumento'}</span>
-            </div>
-            <div class="livro-data">
-              <span>📅</span>
-              ${dataCriacao}
-            </div>
-          </div>
-          <div class="livro-acoes">
-            <a href="livro.html?livro=${livro.id}" class="btn-abrir">
-              <span>🔍</span> Abrir
-            </a>
-            <button class="btn-copiar" onclick="copiarLivro('${livro.id}')">
-              <span>📑</span> Copiar
-            </button>
-            <button class="btn-mover" onclick="abrirModalMover('${livro.id}')">
-              <span>📦</span> Mover
-            </button>
-            <button class="btn-excluir" onclick="excluirLivro('${livro.id}')">
-              <span>🗑️</span> Excluir
-            </button>
-          </div>
-        `;
-        
-        livrosDiv.appendChild(item);
-      });
-
-    } catch (error) {
-      console.error("Erro ao carregar livros:", error);
-      livrosDiv.innerHTML = `
-        <div class="empty-state" style="color: var(--danger);">
-          <span>❌</span>
-          <p>Erro ao carregar livros</p>
-          <p style="font-size: 0.9em; margin-top: 10px;">${error.message}</p>
-        </div>
-      `;
-    }
-  }
 
   document.getElementById("addLivro").onclick = async () => {
     const nomeInput = document.getElementById("nomeLivro");
@@ -964,8 +1118,11 @@
       nomeInput.value = "";
       instrumentoInput.value = "";
       
+      // Limpar cache
+      cache.livros = null;
+      
       mostrarNotificacao("Livro criado com sucesso!");
-      carregarLivros();
+      carregarLivros(true);
 
     } catch (error) {
       console.error("Erro ao criar livro:", error);
@@ -977,24 +1134,33 @@
     if (!confirm("Tem certeza que deseja excluir este livro? Todos os sub-livros e estudos serão perdidos!")) return;
     
     try {
-      // Primeiro, deletar todos os sub-livros e estudos
-      const subsSnap = await getDocs(collection(db, "livros", id, "sublivros"));
+      mostrarNotificacao("Excluindo livro...", 'warning');
       
-      for (const subDoc of subsSnap.docs) {
-        // Deletar estudos do sub-livro
-        const estudosSnap = await getDocs(collection(db, "livros", id, "sublivros", subDoc.id, "estudos"));
-        for (const estudoDoc of estudosSnap.docs) {
-          await deleteDoc(estudoDoc.ref);
-        }
-        // Deletar sub-livro
+      // Buscar todos os sub-livros
+      const subsSnapshot = await getDocs(collection(db, "livros", id, "sublivros"));
+      
+      // Excluir todos os sub-livros e estudos em paralelo
+      const promessasExclusao = subsSnapshot.docs.map(async (subDoc) => {
+        // Excluir estudos do sub-livro
+        const estudosSnapshot = await getDocs(collection(db, "livros", id, "sublivros", subDoc.id, "estudos"));
+        const promessasEstudos = estudosSnapshot.docs.map(estudoDoc => deleteDoc(estudoDoc.ref));
+        await Promise.all(promessasEstudos);
+        
+        // Excluir sub-livro
         await deleteDoc(subDoc.ref);
-      }
+      });
       
-      // Finalmente, deletar o livro
+      await Promise.all(promessasExclusao);
+      
+      // Excluir o livro
       await deleteDoc(doc(db, "livros", id));
       
+      // Limpar cache
+      cache.livros = null;
+      
       mostrarNotificacao("Livro excluído!");
-      carregarLivros();
+      carregarLivros(true);
+      
     } catch (error) {
       console.error("Erro ao excluir livro:", error);
       mostrarNotificacao("Erro ao excluir livro", 'error');
@@ -1009,7 +1175,7 @@
     }
   };
 
-  // Inicializar
+  // Inicializar com loading otimizado
   carregarLivros();
 </script>
 
