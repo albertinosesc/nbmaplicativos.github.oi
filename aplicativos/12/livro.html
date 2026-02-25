@@ -1,47 +1,132 @@
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
-<meta charset="UTF-8">
-<title>📖 Livro</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>📖 Meu Diário de Estudos</title>
 
-<style>
-body { font-family: Arial; max-width: 1000px; margin: auto; padding: 20px; }
-input, select, button { padding: 6px; margin: 5px; }
-.card { border: 1px solid #ccc; padding: 10px; margin: 10px 0; }
-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-th, td { border: 1px solid #ccc; padding: 4px; text-align: center; }
-th { background: #f0f0f0; }
-button.tabelaBtn { padding: 1px 4px; }
-.hidden { display: none; }
-.topBar { margin-bottom:10px; }
-</style>
+    <style>
+        :root {
+            --primary: #2563eb;
+            --danger: #ef4444;
+            --success: #22c55e;
+            --bg: #f8fafc;
+            --card: #ffffff;
+            --text: #1e293b;
+        }
+
+        body { 
+            font-family: 'Segoe UI', Roboto, sans-serif; 
+            max-width: 900px; 
+            margin: auto; 
+            padding: 20px; 
+            background-color: var(--bg);
+            color: var(--text);
+        }
+
+        /* Top Bar e Botões */
+        .header-actions { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        
+        button { 
+            padding: 8px 16px; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: 600; 
+            transition: opacity 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+        }
+        
+        button:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-default { background: #e2e8f0; color: #475569; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-danger { background: var(--danger); color: white; }
+        .btn-outline { background: transparent; border: 1px solid #cbd5e1; }
+
+        /* Inputs */
+        .input-group { background: var(--card); padding: 20px; border-radius: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 25px; }
+        input, select { 
+            padding: 10px; 
+            border: 1px solid #cbd5e1; 
+            border-radius: 6px; 
+            outline: none;
+        }
+
+        /* Cards de Sub-Livros */
+        .card { 
+            background: var(--card); 
+            border-radius: 12px; 
+            padding: 20px; 
+            margin: 15px 0; 
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+
+        .topBar { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 10px;
+        }
+
+        .sub-info { display: flex; flex-direction: column; }
+        .sub-name { font-size: 1.2rem; font-weight: bold; }
+        .sub-date { font-size: 0.8rem; color: #64748b; }
+
+        /* Tabela e Status */
+        .conteudo { margin-top: 15px; border-top: 1px solid #f1f5f9; padding-top: 15px; }
+        .hidden { display: none; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.95rem; }
+        th { text-align: left; padding: 12px; border-bottom: 2px solid #f1f5f9; color: #64748b; }
+        td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
+
+        .badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+        .nivel-1 { background: #fee2e2; color: #ef4444; }
+        .nivel-2 { background: #fef9c3; color: #ca8a04; }
+        .nivel-3 { background: #dcfce7; color: #22c55e; }
+
+    </style>
 </head>
 <body>
 
-<button onclick="voltar()">⬅ Voltar</button>
+<div class="header-actions">
+    <button class="btn-default" onclick="voltar()">⬅ Voltar</button>
+    <button class="btn-outline" onclick="copiarLivro()">📑 Copiar Livro</button>
+    <button class="btn-outline" onclick="exportarTXT()">📄 Exportar TXT</button>
+</div>
 
-<h2>📖 Sub-Livros</h2>
-
-<input type="text" id="nomeSub" placeholder="Nome do Sub-Livro">
-<button id="addSub">Salvar Sub-Livro</button>
+<div class="input-group">
+    <h2>📖 Adicionar Sub-Livro</h2>
+    <input type="text" id="nomeSub" placeholder="Ex: Módulo 1 - Acordes">
+    <button class="btn-primary" id="addSub">Salvar Sub-Livro</button>
+    
+    <div style="margin-top: 15px;">
+        <label>Ordenar por:</label>
+        <select id="ordenarSubs">
+            <option value="data">Data de Criação</option>
+            <option value="nome">Ordem Alfabética</option>
+        </select>
+    </div>
+</div>
 
 <div id="listaSubs"></div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
 import { 
-  getFirestore, collection, addDoc, getDocs, 
-  deleteDoc, doc, updateDoc, serverTimestamp 
+    getFirestore, collection, addDoc, getDocs, 
+    deleteDoc, doc, updateDoc, serverTimestamp, query, orderBy 
 } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyC_3jn_T3hZlcBImj5hUWmnGzmobkTega0",
-  authDomain: "diario-musical-394e2.firebaseapp.com",
-  projectId: "diario-musical-394e2",
-  storageBucket: "diario-musical-394e2.firebasestorage.app",
-  messagingSenderId: "547061797104",
-  appId: "1:547061797104:web:5af0fba7236e1456e33235"
+    apiKey: "AIzaSyC_3jn_T3hZlcBImj5hUWmnGzmobkTega0",
+    authDomain: "diario-musical-394e2.firebaseapp.com",
+    projectId: "diario-musical-394e2",
+    storageBucket: "diario-musical-394e2.firebasestorage.app",
+    messagingSenderId: "547061797104",
+    appId: "1:547061797104:web:5af0fba7236e1456e33235"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -49,174 +134,241 @@ const db = getFirestore(app);
 
 const urlParams = new URLSearchParams(window.location.search);
 const livroId = urlParams.get("id");
-
 const lista = document.getElementById("listaSubs");
+const ordenarSelect = document.getElementById("ordenarSubs");
 
+// --- CARREGAR SUB-LIVROS ---
 async function carregarSubs() {
-  lista.innerHTML = "";
+    lista.innerHTML = "<p>Carregando livros...</p>";
+    try {
+        const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros"));
+        let subs = [];
+        snapshot.forEach(docSnap => subs.push({ id: docSnap.id, ...docSnap.data() }));
 
-  const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros"));
+        // Ordenação Local
+        if (ordenarSelect.value === "nome") {
+            subs.sort((a,b) => a.nome.localeCompare(b.nome));
+        } else {
+            subs.sort((a,b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
+        }
 
-  snapshot.forEach(docSnap => {
-    const sub = docSnap.data();
-    const subId = docSnap.id;
+        lista.innerHTML = "";
+        subs.forEach(sub => {
+            const card = document.createElement("div");
+            card.className = "card";
+            card.innerHTML = `
+                <div class="topBar">
+                    <div class="sub-info">
+                        <span class="sub-name">${sub.nome}</span>
+                        <span class="sub-date">📅 Criado em: ${sub.data || "S/D"}</span>
+                    </div>
+                    <div>
+                        <button class="btn-outline" onclick="toggle('${sub.id}')">📂 Abrir</button>
+                        <button class="btn-outline" onclick="copiarSub('${sub.id}')" title="Copiar">📑</button>
+                        <button class="btn-danger" onclick="excluirSub('${sub.id}')">❌</button>
+                    </div>
+                </div>
 
-    lista.innerHTML += `
-      <div class="card">
-        <div class="topBar">
-          <strong>${sub.nome}</strong> 📅 ${sub.data || ""}
-          <button onclick="toggle('${subId}')">🔽</button>
-          <button onclick="excluirSub('${subId}')">❌</button>
-        </div>
+                <div id="conteudo_${sub.id}" class="conteudo hidden">
+                    <h4>➕ Novo Estudo</h4>
+                    <div style="display: flex; gap: 5px; flex-wrap: wrap;">
+                        <input type="text" id="musica_${sub.id}" placeholder="Música/Exercício" style="flex:2">
+                        <select id="status_${sub.id}">
+                            <option value="Nível-1">Nível-1 (Iniciante)</option>
+                            <option value="Nível-2">Nível-2 (Praticando)</option>
+                            <option value="Nível-3">Nível-3 (Dominado)</option>
+                        </select>
+                        <input type="number" id="bpm_${sub.id}" placeholder="BPM" style="width: 80px">
+                        <button class="btn-primary" onclick="addEstudo('${sub.id}')">Salvar</button>
+                    </div>
 
-        <div id="conteudo_${subId}">
-          <h4>➕ Novo Estudo</h4>
-          <input type="text" id="musica_${subId}" placeholder="Música">
-          <select id="status_${subId}">
-            <option>Nível-1</option>
-            <option>Nível-2</option>
-            <option>Nível-3</option>
-          </select>
-          <input type="number" id="bpm_${subId}" placeholder="BPM">
-          <button onclick="addEstudo('${subId}')">Salvar</button>
-
-          <br>
-
-          Ordenar músicas:
-          <select onchange="ordenarEstudos('${subId}', this.value)">
-            <option value="data">Ordem de Salvamento</option>
-            <option value="nome">Ordem Alfabética</option>
-          </select>
-
-          <table>
-            <thead>
-              <tr>
-                <th>Música</th>
-                <th>Status</th>
-                <th>BPM</th>
-                <th>Data</th>
-                <th>Ações</th>
-              </tr>
-            </thead>
-            <tbody id="tabela_${subId}"></tbody>
-          </table>
-        </div>
-      </div>
-    `;
-
-    carregarEstudos(subId, "data");
-  });
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Música</th>
+                                <th>Status</th>
+                                <th>BPM</th>
+                                <th>Data</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody id="tabela_${sub.id}"></tbody>
+                    </table>
+                </div>
+            `;
+            lista.appendChild(card);
+        });
+    } catch (e) {
+        lista.innerHTML = "Erro ao carregar dados.";
+    }
 }
 
-window.toggle = (id) => {
-  document.getElementById("conteudo_"+id).classList.toggle("hidden");
+// --- CONTROLE DE EXIBIÇÃO (LAZY LOADING) ---
+window.toggle = async (id) => {
+    const div = document.getElementById("conteudo_" + id);
+    const tabela = document.getElementById(`tabela_${id}`);
+    const isOpening = div.classList.contains("hidden");
+    
+    div.classList.toggle("hidden");
+
+    // Carrega do Firebase apenas se estiver abrindo e se a tabela estiver vazia
+    if (isOpening && tabela.innerHTML === "") {
+        tabela.innerHTML = "<tr><td colspan='5'>Carregando estudos...</td></tr>";
+        carregarEstudos(id);
+    }
 };
 
-async function carregarEstudos(subId, ordem="data") {
-  const tabela = document.getElementById(`tabela_${subId}`);
-  tabela.innerHTML = "";
+// --- CARREGAR ESTUDOS ---
+async function carregarEstudos(subId) {
+    const tabela = document.getElementById(`tabela_${subId}`);
+    try {
+        const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
+        tabela.innerHTML = "";
 
-  const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
+        if(snapshot.empty) {
+            tabela.innerHTML = "<tr><td colspan='5' style='color:#999'>Nenhum estudo registrado.</td></tr>";
+            return;
+        }
 
-  let estudos = [];
-  snapshot.forEach(docSnap => {
-    estudos.push({ id: docSnap.id, ...docSnap.data() });
-  });
+        snapshot.forEach(docSnap => {
+            const est = docSnap.data();
+            const nivelClass = est.status === "Nível-1" ? "nivel-1" : est.status === "Nível-2" ? "nivel-2" : "nivel-3";
 
-  if (ordem === "nome") {
-    estudos.sort((a,b)=> a.musica.localeCompare(b.musica));
-  } else {
-    estudos.sort((a,b)=> (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
-  }
-
-  estudos.forEach(est => {
-    tabela.innerHTML += `
-      <tr>
-        <td>${est.musica}</td>
-        <td>${est.status}</td>
-        <td>${est.bpm}</td>
-        <td>${est.data}</td>
-        <td>
-          <button class="tabelaBtn" onclick="editarEstudo('${subId}','${est.id}','${est.musica}','${est.status}','${est.bpm}')">Editar</button>
-          <button class="tabelaBtn" onclick="excluirEstudo('${subId}','${est.id}')">Excluir</button>
-        </td>
-      </tr>
-    `;
-  });
+            tabela.innerHTML += `
+                <tr>
+                    <td><strong>${est.musica}</strong></td>
+                    <td><span class="badge ${nivelClass}">${est.status}</span></td>
+                    <td>${est.bpm || '-'} <small>BPM</small></td>
+                    <td><small>${est.data}</small></td>
+                    <td>
+                        <button class="btn-danger" style="padding: 2px 8px" onclick="excluirEstudo('${subId}','${docSnap.id}')">Excluir</button>
+                    </td>
+                </tr>
+            `;
+        });
+    } catch (e) {
+        tabela.innerHTML = "Erro ao carregar.";
+    }
 }
 
-window.ordenarEstudos = (subId, ordem) => {
-  carregarEstudos(subId, ordem);
-};
-
+// --- AÇÕES ---
 window.addEstudo = async (subId) => {
-  const musica = document.getElementById(`musica_${subId}`).value;
-  const status = document.getElementById(`status_${subId}`).value;
-  const bpm = document.getElementById(`bpm_${subId}`).value;
+    const inputMusica = document.getElementById(`musica_${subId}`);
+    const musica = inputMusica.value;
+    if (!musica) return alert("Digite o nome da música");
 
-  if (!musica) return alert("Digite a música");
+    const btn = event.target;
+    btn.disabled = true;
+    btn.innerText = "Salvando...";
 
-  await addDoc(collection(db, "livros", livroId, "sublivros", subId, "estudos"), {
-    musica,
-    status,
-    bpm,
-    data: new Date().toLocaleDateString(),
-    criadoEm: serverTimestamp()
-  });
+    await addDoc(collection(db, "livros", livroId, "sublivros", subId, "estudos"), {
+        musica,
+        status: document.getElementById(`status_${subId}`).value,
+        bpm: document.getElementById(`bpm_${subId}`).value,
+        data: new Date().toLocaleDateString()
+    });
 
-  carregarEstudos(subId);
-};
-
-window.editarEstudo = async (subId, estId, musica, status, bpm) => {
-  const novaMusica = prompt("Editar música:", musica);
-  if (novaMusica === null) return;
-
-  const novoStatus = prompt("Editar status:", status);
-  if (novoStatus === null) return;
-
-  const novoBpm = prompt("Editar BPM:", bpm);
-  if (novoBpm === null) return;
-
-  await updateDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId), {
-    musica: novaMusica,
-    status: novoStatus,
-    bpm: novoBpm
-  });
-
-  carregarEstudos(subId);
+    inputMusica.value = "";
+    btn.disabled = false;
+    btn.innerText = "Salvar";
+    carregarEstudos(subId);
 };
 
 window.excluirEstudo = async (subId, estId) => {
-  if(confirm("Excluir estudo?")){
-    await deleteDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId));
-    carregarEstudos(subId);
-  }
+    if(confirm("Deseja excluir este estudo?")){
+        await deleteDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId));
+        carregarEstudos(subId);
+    }
 };
 
 window.excluirSub = async (subId) => {
-  if(confirm("Excluir sub-livro?")){
-    await deleteDoc(doc(db, "livros", livroId, "sublivros", subId));
-    carregarSubs();
-  }
+    if(confirm("Excluir sub-livro permanentemente?")){
+        await deleteDoc(doc(db, "livros", livroId, "sublivros", subId));
+        carregarSubs();
+    }
 };
 
 document.getElementById("addSub").onclick = async () => {
-  const nome = document.getElementById("nomeSub").value;
-  if (!nome) return alert("Digite o nome");
+    const nome = document.getElementById("nomeSub").value;
+    if (!nome) return alert("Digite o nome");
 
-  await addDoc(collection(db, "livros", livroId, "sublivros"), {
-    nome,
-    data: new Date().toLocaleDateString(),
-    criadoEm: serverTimestamp()
-  });
+    const btn = document.getElementById("addSub");
+    btn.disabled = true;
 
-  document.getElementById("nomeSub").value = "";
-  carregarSubs();
+    await addDoc(collection(db, "livros", livroId, "sublivros"), {
+        nome,
+        data: new Date().toLocaleDateString(),
+        criadoEm: serverTimestamp()
+    });
+
+    document.getElementById("nomeSub").value = "";
+    btn.disabled = false;
+    carregarSubs();
 };
 
-window.voltar = () => {
-  window.location.href = "index.html";
+// --- CÓPIAS E EXPORTAÇÃO ---
+window.copiarSub = async (subId) => {
+    if(!confirm("Copiar este sub-livro com estudos?")) return;
+    const subSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
+    const subOriginal = subSnap.docs.find(d=>d.id===subId);
+    
+    const novoSub = await addDoc(collection(db, "livros", livroId, "sublivros"), {
+        nome: subOriginal.data().nome + " (Cópia)",
+        data: new Date().toLocaleDateString(),
+        criadoEm: serverTimestamp()
+    });
+
+    const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
+    for (const e of estudosSnap.docs) {
+        await addDoc(collection(db, "livros", livroId, "sublivros", novoSub.id, "estudos"), e.data());
+    }
+    carregarSubs();
 };
+
+window.copiarLivro = async () => {
+    if(!confirm("Copiar livro inteiro? Isso pode demorar um pouco.")) return;
+    const novoLivro = await addDoc(collection(db, "livros"), {
+        nome: "Livro Cópia",
+        data: new Date().toLocaleDateString(),
+        criadoEm: serverTimestamp()
+    });
+
+    const subsSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
+    for (const sub of subsSnap.docs) {
+        const novoSub = await addDoc(collection(db, "livros", novoLivro.id, "sublivros"), {
+            nome: sub.data().nome,
+            data: new Date().toLocaleDateString(),
+            criadoEm: serverTimestamp()
+        });
+        const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", sub.id, "estudos"));
+        for (const e of estudosSnap.docs) {
+            await addDoc(collection(db, "livros", novoLivro.id, "sublivros", novoSub.id, "estudos"), e.data());
+        }
+    }
+    alert("Cópia concluída com sucesso!");
+};
+
+window.exportarTXT = async () => {
+    let texto = "RELATÓRIO DO LIVRO - " + new Date().toLocaleDateString() + "\n" + "=".repeat(30) + "\n\n";
+    const subsSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
+    for (const sub of subsSnap.docs) {
+        texto += "📌 SUB-LIVRO: " + sub.data().nome.toUpperCase() + "\n";
+        const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", sub.id, "estudos"));
+        estudosSnap.forEach(e => {
+            const est = e.data();
+            texto += `[${est.status}] ${est.musica} - BPM: ${est.bpm || 0} (${est.data})\n`;
+        });
+        texto += "\n";
+    }
+    const blob = new Blob([texto], { type: "text/plain" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "meu_progresso_musical.txt";
+    link.click();
+};
+
+ordenarSelect.onchange = carregarSubs;
+window.voltar = () => { window.location.href = "index.html"; };
 
 carregarSubs();
 
