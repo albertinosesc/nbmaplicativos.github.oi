@@ -453,60 +453,92 @@
     .tooltip:hover .tooltip-text {
       visibility: visible;
     }
+
+    /* Error container */
+    .error-container {
+      text-align: center;
+      padding: 60px 20px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+      margin: 40px auto;
+      max-width: 500px;
+    }
+
+    .error-container h3 {
+      color: var(--danger);
+      margin-bottom: 20px;
+      font-size: 24px;
+    }
+
+    .error-container p {
+      color: var(--gray);
+      margin-bottom: 30px;
+      font-size: 16px;
+    }
+
+    .error-container button {
+      background: var(--primary);
+      padding: 12px 30px;
+      font-size: 16px;
+    }
   </style>
 </head>
 <body>
 
 <div class="toast-container" id="toastContainer"></div>
 
-<div class="header-actions">
-  <button onclick="voltar()">
-    <span>⬅</span> Voltar
-  </button>
-  <button onclick="copiarLivro()" class="btn-success">
-    <span>📑</span> Copiar Livro
-  </button>
-  <button onclick="exportarTXT()" class="btn-warning">
-    <span>📄</span> Exportar TXT (Ordem Atual)
-  </button>
+<div id="mainContent">
+  <div class="header-actions">
+    <button onclick="voltar()">
+      <span>⬅</span> Voltar
+    </button>
+    <button onclick="copiarLivro()" class="btn-success">
+      <span>📑</span> Copiar Livro
+    </button>
+    <button onclick="exportarTXT()" class="btn-warning">
+      <span>📄</span> Exportar TXT (Ordem Atual)
+    </button>
+  </div>
+
+  <h2 style="margin-bottom: 20px;">📖 Gerenciador de Estudos</h2>
+
+  <!-- Estatísticas -->
+  <div id="statsContainer" class="stats-grid"></div>
+
+  <div class="form-group">
+    <input type="text" id="nomeSub" placeholder="Nome do Sub-Livro">
+    <button id="addSub" class="btn-success">
+      <span>➕</span> Salvar Sub-Livro
+    </button>
+  </div>
+
+  <!-- Filtros -->
+  <div class="filters">
+    <select id="ordenarSubs">
+      <option value="data">📅 Ordenar por Data</option>
+      <option value="nome">🔤 Ordem Alfabética</option>
+    </select>
+    
+    <input type="text" id="searchMusica" placeholder="🔍 Buscar música...">
+    
+    <select id="filtroStatus">
+      <option value="">🎵 Todos os níveis</option>
+      <option value="Nível-1">🌱 Nível 1</option>
+      <option value="Nível-2">🌿 Nível 2</option>
+      <option value="Nível-3">🌳 Nível 3</option>
+    </select>
+  </div>
+
+  <div id="listaSubs"></div>
 </div>
-
-<h2 style="margin-bottom: 20px;">📖 Gerenciador de Estudos</h2>
-
-<!-- Estatísticas -->
-<div id="statsContainer" class="stats-grid"></div>
-
-<div class="form-group">
-  <input type="text" id="nomeSub" placeholder="Nome do Sub-Livro">
-  <button id="addSub" class="btn-success">
-    <span>➕</span> Salvar Sub-Livro
-  </button>
-</div>
-
-<!-- Filtros -->
-<div class="filters">
-  <select id="ordenarSubs">
-    <option value="data">📅 Ordenar por Data</option>
-    <option value="nome">🔤 Ordem Alfabética</option>
-  </select>
-  
-  <input type="text" id="searchMusica" placeholder="🔍 Buscar música...">
-  
-  <select id="filtroStatus">
-    <option value="">🎵 Todos os níveis</option>
-    <option value="Nível-1">🌱 Nível 1</option>
-    <option value="Nível-2">🌿 Nível 2</option>
-    <option value="Nível-3">🌳 Nível 3</option>
-  </select>
-</div>
-
-<div id="listaSubs"></div>
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-app.js";
   import { 
     getFirestore, collection, addDoc, getDocs, 
-    deleteDoc, doc, updateDoc, serverTimestamp 
+    deleteDoc, doc, updateDoc, serverTimestamp,
+    query, where 
   } from "https://www.gstatic.com/firebasejs/12.9.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -518,18 +550,16 @@
     appId: "1:547061797104:web:5af0fba7236e1456e33235"
   };
 
+  // Inicializar Firebase
   const app = initializeApp(firebaseConfig);
   const db = getFirestore(app);
   
+  // Pegar o ID da URL
   const urlParams = new URLSearchParams(window.location.search);
-  const livroId = urlParams.get("id");
+  let livroId = urlParams.get("id");
   
-  // Verificar se o livroId existe
-  if (!livroId) {
-    alert("ID do livro não encontrado!");
-    window.location.href = "index.html";
-  }
-  
+  // Elementos principais
+  const mainContent = document.getElementById("mainContent");
   const lista = document.getElementById("listaSubs");
   const ordenarSelect = document.getElementById("ordenarSubs");
   const searchInput = document.getElementById("searchMusica");
@@ -537,11 +567,55 @@
   
   let subsCache = null;
   let estudosCache = new Map();
-  let ordemEstudos = {}; // { subId: { coluna: 'musica', direcao: 'asc' } }
+  let ordemEstudos = {};
+
+  // Função para mostrar erro e esconder conteúdo principal
+  function mostrarErroLivroNaoEncontrado() {
+    if (mainContent) {
+      mainContent.innerHTML = `
+        <div class="error-container">
+          <h3>❌ Livro não encontrado</h3>
+          <p>Não foi possível encontrar o livro solicitado. O ID fornecido é inválido ou o livro foi excluído.</p>
+          <button onclick="window.location.href='index.html'">
+            <span>⬅</span> Voltar para a página inicial
+          </button>
+        </div>
+      `;
+    }
+  }
+
+  // Verificar se o ID do livro existe
+  async function verificarLivroExistente() {
+    try {
+      if (!livroId) {
+        mostrarErroLivroNaoEncontrado();
+        return false;
+      }
+      
+      // Tentar buscar o livro para ver se existe
+      const livroRef = doc(db, "livros", livroId);
+      const livroSnap = await getDocs(collection(db, "livros"));
+      const livroExiste = livroSnap.docs.some(doc => doc.id === livroId);
+      
+      if (!livroExiste) {
+        mostrarErroLivroNaoEncontrado();
+        return false;
+      }
+      
+      return true;
+      
+    } catch (error) {
+      console.error("Erro ao verificar livro:", error);
+      mostrarNotificacao('Erro ao conectar com o banco de dados', 'error');
+      return false;
+    }
+  }
 
   // Utilitários
   function mostrarNotificacao(mensagem, tipo = 'success') {
     const container = document.getElementById('toastContainer');
+    if (!container) return;
+    
     const toast = document.createElement('div');
     toast.className = `toast ${tipo}`;
     
@@ -1325,8 +1399,15 @@
     window.location.href = "index.html";
   };
 
-  // Inicializar
-  carregarSubs();
+  // Inicializar - verificar livro primeiro
+  const init = async () => {
+    const livroExiste = await verificarLivroExistente();
+    if (livroExiste) {
+      carregarSubs();
+    }
+  };
+
+  init();
 </script>
 
 </body>
