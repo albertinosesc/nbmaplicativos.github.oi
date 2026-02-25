@@ -243,11 +243,12 @@
       width: 100%;
       border-collapse: collapse;
       background: white;
+      font-size: 14px;
     }
 
     th {
       background: #f8f9fa;
-      padding: 12px;
+      padding: 12px 8px;
       text-align: left;
       font-weight: 600;
       color: var(--dark);
@@ -267,7 +268,7 @@
     }
 
     td {
-      padding: 10px 12px;
+      padding: 10px 8px;
       border-bottom: 1px solid #e9ecef;
     }
 
@@ -275,14 +276,32 @@
       background: #f8f9fa;
     }
 
+    .data-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .data-criacao {
+      font-size: 12px;
+      color: var(--gray);
+    }
+
+    .data-atualizacao {
+      font-size: 11px;
+      color: var(--info);
+      font-style: italic;
+    }
+
     .table-actions {
       display: flex;
       gap: 5px;
+      flex-wrap: wrap;
     }
 
     .table-actions button {
       padding: 4px 8px;
-      font-size: 12px;
+      font-size: 11px;
     }
 
     /* Modo de edição */
@@ -295,6 +314,7 @@
       padding: 5px;
       border: 2px solid var(--primary);
       border-radius: 4px;
+      font-size: 13px;
     }
 
     .edit-select {
@@ -302,6 +322,7 @@
       padding: 5px;
       border: 2px solid var(--primary);
       border-radius: 4px;
+      font-size: 13px;
     }
 
     /* Estatísticas */
@@ -337,7 +358,7 @@
       display: inline-block;
       padding: 4px 8px;
       border-radius: 20px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 500;
     }
 
@@ -375,33 +396,31 @@
       display: none;
     }
 
-    /* Modal de edição */
-    .modal {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background: rgba(0,0,0,0.5);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 2000;
+    /* Tooltip */
+    .tooltip {
+      position: relative;
+      display: inline-block;
+      cursor: help;
     }
 
-    .modal-content {
-      background: white;
-      padding: 30px;
-      border-radius: 12px;
-      max-width: 500px;
-      width: 90%;
+    .tooltip .tooltip-text {
+      visibility: hidden;
+      background-color: var(--dark);
+      color: white;
+      text-align: center;
+      padding: 5px 10px;
+      border-radius: 6px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-size: 11px;
     }
 
-    .modal-buttons {
-      display: flex;
-      gap: 10px;
-      justify-content: flex-end;
-      margin-top: 20px;
+    .tooltip:hover .tooltip-text {
+      visibility: visible;
     }
   </style>
 </head>
@@ -511,6 +530,18 @@
     return null;
   }
 
+  function formatarData(timestamp) {
+    if (!timestamp) return null;
+    try {
+      if (timestamp.seconds) {
+        return new Date(timestamp.seconds * 1000).toLocaleDateString('pt-BR');
+      }
+      return timestamp;
+    } catch (e) {
+      return null;
+    }
+  }
+
   async function carregarEstatisticas() {
     if (!subsCache) return;
     
@@ -518,11 +549,15 @@
     const niveis = { 'Nível-1': 0, 'Nível-2': 0, 'Nível-3': 0 };
     
     for (const sub of subsCache) {
-      const estudos = await getDocs(collection(db, "livros", livroId, "sublivros", sub.id, "estudos"));
-      estudos.forEach(doc => {
-        totalEstudos++;
-        niveis[doc.data().status]++;
-      });
+      try {
+        const estudos = await getDocs(collection(db, "livros", livroId, "sublivros", sub.id, "estudos"));
+        estudos.forEach(doc => {
+          totalEstudos++;
+          niveis[doc.data().status]++;
+        });
+      } catch (e) {
+        console.error("Erro ao carregar estatísticas do sub:", sub.id, e);
+      }
     }
     
     document.getElementById('statsContainer').innerHTML = `
@@ -554,7 +589,7 @@
     const statusFiltro = filtroStatus.value;
     
     return estudos.filter(est => {
-      const matchMusica = !termoBusca || est.musica.toLowerCase().includes(termoBusca);
+      const matchMusica = !termoBusca || (est.musica && est.musica.toLowerCase().includes(termoBusca));
       const matchStatus = !statusFiltro || est.status === statusFiltro;
       return matchMusica && matchStatus;
     });
@@ -569,19 +604,27 @@
     const multiplicador = direcao === 'asc' ? 1 : -1;
     
     return [...estudos].sort((a, b) => {
-      if (coluna === 'musica') {
-        return multiplicador * a.musica.localeCompare(b.musica);
-      } else if (coluna === 'status') {
-        return multiplicador * a.status.localeCompare(b.status);
-      } else if (coluna === 'bpm') {
-        const bpmA = parseInt(a.bpm) || 0;
-        const bpmB = parseInt(b.bpm) || 0;
-        return multiplicador * (bpmA - bpmB);
-      } else if (coluna === 'data') {
-        // Ordenar por data (mais recente primeiro)
-        const dataA = new Date(a.data.split('/').reverse().join('-')) || 0;
-        const dataB = new Date(b.data.split('/').reverse().join('-')) || 0;
-        return multiplicador * (dataB - dataA);
+      try {
+        if (coluna === 'musica') {
+          return multiplicador * (a.musica || '').localeCompare(b.musica || '');
+        } else if (coluna === 'status') {
+          return multiplicador * (a.status || '').localeCompare(b.status || '');
+        } else if (coluna === 'bpm') {
+          const bpmA = parseInt(a.bpm) || 0;
+          const bpmB = parseInt(b.bpm) || 0;
+          return multiplicador * (bpmA - bpmB);
+        } else if (coluna === 'data') {
+          // Usar a data de criação ou a data simples
+          const dataA = a.criadoEm?.seconds || new Date(a.data?.split('/').reverse().join('-')).getTime() || 0;
+          const dataB = b.criadoEm?.seconds || new Date(b.data?.split('/').reverse().join('-')).getTime() || 0;
+          return multiplicador * (dataB - dataA);
+        } else if (coluna === 'atualizadoEm') {
+          const dataA = a.atualizadoEm?.seconds || a.criadoEm?.seconds || 0;
+          const dataB = b.atualizadoEm?.seconds || b.criadoEm?.seconds || 0;
+          return multiplicador * (dataB - dataA);
+        }
+      } catch (e) {
+        console.error("Erro na ordenação:", e);
       }
       return 0;
     });
@@ -593,10 +636,8 @@
     }
     
     if (ordemEstudos[subId].coluna === coluna) {
-      // Inverter direção
       ordemEstudos[subId].direcao = ordemEstudos[subId].direcao === 'asc' ? 'desc' : 'asc';
     } else {
-      // Nova coluna
       ordemEstudos[subId].coluna = coluna;
       ordemEstudos[subId].direcao = 'asc';
     }
@@ -618,7 +659,7 @@
       subsCache = subs;
       
       if (ordenarSelect.value === "nome") {
-        subs.sort((a,b) => a.nome.localeCompare(b.nome));
+        subs.sort((a,b) => (a.nome || '').localeCompare(b.nome || ''));
       } else {
         subs.sort((a,b) => (b.criadoEm?.seconds || 0) - (a.criadoEm?.seconds || 0));
       }
@@ -627,6 +668,7 @@
       carregarEstatisticas();
       
     } catch (error) {
+      console.error("Erro detalhado:", error);
       mostrarNotificacao('Erro ao carregar dados: ' + error.message, 'error');
       lista.innerHTML = '<div style="text-align: center; padding: 40px; color: var(--danger);">❌ Erro ao carregar. Tente novamente.</div>';
     }
@@ -646,8 +688,8 @@
       
       card.innerHTML = `
         <div class="card-header">
-          <div style="display: flex; align-items: center; gap: 10px;">
-            <strong>${sub.nome}</strong>
+          <div style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <strong>${sub.nome || 'Sem nome'}</strong>
             <span class="badge">📅 ${sub.data || ""}</span>
           </div>
           <div class="card-actions">
@@ -689,14 +731,18 @@
                     <span class="sort-icon">${obterIconeOrdem(sub.id, 'bpm')}</span>
                   </th>
                   <th onclick="alternarOrdem('${sub.id}', 'data')">
-                    Data 
+                    Data Criação 
                     <span class="sort-icon">${obterIconeOrdem(sub.id, 'data')}</span>
+                  </th>
+                  <th onclick="alternarOrdem('${sub.id}', 'atualizadoEm')">
+                    Última Atualização 
+                    <span class="sort-icon">${obterIconeOrdem(sub.id, 'atualizadoEm')}</span>
                   </th>
                   <th>Ações</th>
                 </tr>
               </thead>
               <tbody id="tabela_${sub.id}">
-                <tr><td colspan="5" style="text-align: center;">Carregando...</td></tr>
+                <tr><td colspan="6" style="text-align: center;">Carregando...</td></tr>
               </tbody>
             </table>
           </div>
@@ -716,13 +762,17 @@
   }
 
   window.toggle = (id) => {
-    document.getElementById("conteudo_"+id).classList.toggle("hidden");
+    const elemento = document.getElementById("conteudo_"+id);
+    if (elemento) {
+      elemento.classList.toggle("hidden");
+    }
   };
 
   window.alternarOrdem = alternarOrdem;
 
   async function carregarEstudos(subId) {
     const tabela = document.getElementById(`tabela_${subId}`);
+    if (!tabela) return;
     
     try {
       const snapshot = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
@@ -741,7 +791,7 @@
       const estudosOrdenados = ordenarEstudos(estudosFiltrados, subId);
       
       if (estudosOrdenados.length === 0) {
-        tabela.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">Nenhum estudo encontrado</td></tr>';
+        tabela.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 20px;">Nenhum estudo encontrado</td></tr>';
         return;
       }
       
@@ -750,12 +800,29 @@
         const badgeClass = est.status === 'Nível-1' ? 'badge-nivel1' : 
                           est.status === 'Nível-2' ? 'badge-nivel2' : 'badge-nivel3';
         
+        // Formatando as datas de forma segura
+        const dataCriacao = est.criadoEm ? formatarData(est.criadoEm) : (est.data || '-');
+        const dataAtualizacao = est.atualizadoEm ? formatarData(est.atualizadoEm) : null;
+        
         html += `
           <tr id="linha_${subId}_${est.id}">
-            <td><strong>${est.musica}</strong></td>
-            <td><span class="badge ${badgeClass}">${est.status}</span></td>
+            <td><strong>${est.musica || 'Sem nome'}</strong></td>
+            <td><span class="badge ${badgeClass}">${est.status || 'N/A'}</span></td>
             <td>${est.bpm || '-'} BPM</td>
-            <td>${est.data || '-'}</td>
+            <td>
+              <div class="tooltip">
+                ${dataCriacao}
+                <span class="tooltip-text">Data de cadastro</span>
+              </div>
+            </td>
+            <td>
+              ${dataAtualizacao && dataAtualizacao !== dataCriacao ? `
+                <div class="tooltip">
+                  ${dataAtualizacao} ✏️
+                  <span class="tooltip-text">Última modificação</span>
+                </div>
+              ` : '-'}
+            </td>
             <td>
               <div class="table-actions">
                 <button class="btn-info" onclick="editarEstudo('${subId}','${est.id}')">✏️ Editar</button>
@@ -770,19 +837,19 @@
       carregarEstatisticas();
       
     } catch (error) {
-      tabela.innerHTML = `<tr><td colspan="5" style="text-align: center; color: var(--danger);">Erro ao carregar estudos</td></tr>`;
+      console.error("Erro ao carregar estudos do sub:", subId, error);
+      tabela.innerHTML = `<tr><td colspan="6" style="text-align: center; color: var(--danger);">Erro ao carregar estudos</td></tr>`;
     }
   }
 
   window.editarEstudo = async (subId, estId) => {
     const linha = document.getElementById(`linha_${subId}_${estId}`);
-    const estudo = estudosCache.get(subId).find(e => e.id === estId);
+    const estudo = estudosCache.get(subId)?.find(e => e.id === estId);
     
-    if (!estudo) return;
+    if (!linha || !estudo) return;
     
-    // Substituir linha por inputs de edição
     linha.innerHTML = `
-      <td><input type="text" id="edit_musica_${estId}" class="edit-input" value="${estudo.musica}"></td>
+      <td><input type="text" id="edit_musica_${estId}" class="edit-input" value="${estudo.musica || ''}"></td>
       <td>
         <select id="edit_status_${estId}" class="edit-select">
           <option ${estudo.status === 'Nível-1' ? 'selected' : ''}>Nível-1</option>
@@ -792,6 +859,7 @@
       </td>
       <td><input type="number" id="edit_bpm_${estId}" class="edit-input" value="${estudo.bpm || ''}" min="20" max="300"></td>
       <td>${estudo.data || '-'}</td>
+      <td>-</td>
       <td>
         <div class="table-actions">
           <button class="btn-success" onclick="salvarEdicao('${subId}','${estId}')">💾 Salvar</button>
@@ -802,9 +870,15 @@
   };
 
   window.salvarEdicao = async (subId, estId) => {
-    const musica = document.getElementById(`edit_musica_${estId}`).value.trim();
-    const status = document.getElementById(`edit_status_${estId}`).value;
-    const bpm = document.getElementById(`edit_bpm_${estId}`).value;
+    const musicaInput = document.getElementById(`edit_musica_${estId}`);
+    const statusSelect = document.getElementById(`edit_status_${estId}`);
+    const bpmInput = document.getElementById(`edit_bpm_${estId}`);
+    
+    if (!musicaInput || !statusSelect) return;
+    
+    const musica = musicaInput.value.trim();
+    const status = statusSelect.value;
+    const bpm = bpmInput?.value || '';
     
     const erro = validarMusica(musica, bpm);
     if (erro) {
@@ -816,13 +890,15 @@
       await updateDoc(doc(db, "livros", livroId, "sublivros", subId, "estudos", estId), {
         musica,
         status,
-        bpm: bpm || ''
+        bpm: bpm || '',
+        atualizadoEm: serverTimestamp()
       });
       
       mostrarNotificacao('Estudo atualizado!');
       carregarEstudos(subId);
       
     } catch (error) {
+      console.error("Erro ao atualizar:", error);
       mostrarNotificacao('Erro ao atualizar estudo', 'error');
     }
   };
@@ -836,9 +912,11 @@
     const statusSelect = document.getElementById(`status_${subId}`);
     const bpmInput = document.getElementById(`bpm_${subId}`);
     
+    if (!musicaInput || !statusSelect) return;
+    
     const musica = musicaInput.value.trim();
     const status = statusSelect.value;
-    const bpm = bpmInput.value;
+    const bpm = bpmInput?.value || '';
     
     const erro = validarMusica(musica, bpm);
     if (erro) {
@@ -847,20 +925,24 @@
     }
     
     try {
+      const timestamp = serverTimestamp();
       await addDoc(collection(db, "livros", livroId, "sublivros", subId, "estudos"), {
         musica,
         status,
         bpm: bpm || '',
-        data: new Date().toLocaleDateString('pt-BR')
+        data: new Date().toLocaleDateString('pt-BR'),
+        criadoEm: timestamp,
+        atualizadoEm: timestamp
       });
       
       musicaInput.value = '';
-      bpmInput.value = '';
+      if (bpmInput) bpmInput.value = '';
       
       mostrarNotificacao('Estudo adicionado com sucesso!');
       carregarEstudos(subId);
       
     } catch (error) {
+      console.error("Erro ao adicionar:", error);
       mostrarNotificacao('Erro ao adicionar estudo', 'error');
     }
   };
@@ -873,6 +955,7 @@
       mostrarNotificacao('Estudo excluído!');
       carregarEstudos(subId);
     } catch (error) {
+      console.error("Erro ao excluir:", error);
       mostrarNotificacao('Erro ao excluir estudo', 'error');
     }
   };
@@ -881,7 +964,6 @@
     if (!confirm("Tem certeza que deseja excluir este sub-livro? Todos os estudos serão perdidos!")) return;
     
     try {
-      // Excluir todos os estudos primeiro
       const estudos = await getDocs(collection(db, "livros", livroId, "sublivros", subId, "estudos"));
       const promises = [];
       estudos.forEach(doc => {
@@ -889,20 +971,20 @@
       });
       await Promise.all(promises);
       
-      // Excluir o sub-livro
       await deleteDoc(doc(db, "livros", livroId, "sublivros", subId));
       
       mostrarNotificacao('Sub-livro excluído!');
       carregarSubs();
       
     } catch (error) {
+      console.error("Erro ao excluir sub:", error);
       mostrarNotificacao('Erro ao excluir sub-livro', 'error');
     }
   };
 
   document.getElementById("addSub").onclick = async () => {
     const nomeInput = document.getElementById("nomeSub");
-    const nome = nomeInput.value.trim();
+    const nome = nomeInput?.value.trim();
     
     if (!nome) {
       mostrarNotificacao("Digite o nome do sub-livro", 'error');
@@ -921,6 +1003,7 @@
       carregarSubs();
       
     } catch (error) {
+      console.error("Erro ao criar sub:", error);
       mostrarNotificacao('Erro ao criar sub-livro', 'error');
     }
   };
@@ -932,6 +1015,8 @@
       const subSnap = await getDocs(collection(db, "livros", livroId, "sublivros"));
       const subOriginal = subSnap.docs.find(d => d.id === subId);
       
+      if (!subOriginal) return;
+      
       const novoSub = await addDoc(collection(db, "livros", livroId, "sublivros"), {
         nome: subOriginal.data().nome + " (Cópia)",
         data: new Date().toLocaleDateString('pt-BR'),
@@ -942,7 +1027,15 @@
       
       const promises = [];
       estudosSnap.forEach(e => {
-        promises.push(addDoc(collection(db, "livros", livroId, "sublivros", novoSub.id, "estudos"), e.data()));
+        const data = e.data();
+        promises.push(addDoc(collection(db, "livros", livroId, "sublivros", novoSub.id, "estudos"), {
+          musica: data.musica,
+          status: data.status,
+          bpm: data.bpm || '',
+          data: new Date().toLocaleDateString('pt-BR'),
+          criadoEm: serverTimestamp(),
+          atualizadoEm: serverTimestamp()
+        }));
       });
       
       await Promise.all(promises);
@@ -951,6 +1044,7 @@
       carregarSubs();
       
     } catch (error) {
+      console.error("Erro ao copiar sub:", error);
       mostrarNotificacao('Erro ao copiar sub-livro', 'error');
     }
   };
@@ -977,13 +1071,22 @@
         const estudosSnap = await getDocs(collection(db, "livros", livroId, "sublivros", sub.id, "estudos"));
         
         for (const e of estudosSnap.docs) {
-          await addDoc(collection(db, "livros", novoLivro.id, "sublivros", novoSub.id, "estudos"), e.data());
+          const data = e.data();
+          await addDoc(collection(db, "livros", novoLivro.id, "sublivros", novoSub.id, "estudos"), {
+            musica: data.musica,
+            status: data.status,
+            bpm: data.bpm || '',
+            data: new Date().toLocaleDateString('pt-BR'),
+            criadoEm: serverTimestamp(),
+            atualizadoEm: serverTimestamp()
+          });
         }
       }
       
       mostrarNotificacao('Livro copiado com sucesso!');
       
     } catch (error) {
+      console.error("Erro ao copiar livro:", error);
       mostrarNotificacao('Erro ao copiar livro', 'error');
     }
   };
@@ -1009,7 +1112,14 @@
         } else {
           estudosSnap.forEach(e => {
             const est = e.data();
-            texto += `• ${est.musica} | ${est.status} | BPM: ${est.bpm || '-'} | ${est.data || '-'}\n`;
+            const dataCriacao = est.criadoEm ? formatarData(est.criadoEm) : est.data;
+            const dataAtualizacao = est.atualizadoEm ? formatarData(est.atualizadoEm) : null;
+            
+            texto += `• ${est.musica || 'Sem nome'} | ${est.status || 'N/A'} | BPM: ${est.bpm || '-'}\n`;
+            texto += `  📅 Criado: ${dataCriacao || '-'}\n`;
+            if (dataAtualizacao && dataAtualizacao !== dataCriacao) {
+              texto += `  ✏️ Atualizado: ${dataAtualizacao}\n`;
+            }
           });
         }
         
@@ -1025,28 +1135,35 @@
       mostrarNotificacao('Arquivo exportado com sucesso!');
       
     } catch (error) {
+      console.error("Erro ao exportar:", error);
       mostrarNotificacao('Erro ao exportar', 'error');
     }
   };
 
   // Event listeners
-  ordenarSelect.onchange = carregarSubs;
+  if (ordenarSelect) {
+    ordenarSelect.onchange = carregarSubs;
+  }
   
   let searchTimeout;
-  searchInput.addEventListener('input', () => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
+  if (searchInput) {
+    searchInput.addEventListener('input', () => {
+      clearTimeout(searchTimeout);
+      searchTimeout = setTimeout(() => {
+        if (subsCache) {
+          subsCache.forEach(sub => carregarEstudos(sub.id));
+        }
+      }, 300);
+    });
+  }
+  
+  if (filtroStatus) {
+    filtroStatus.addEventListener('change', () => {
       if (subsCache) {
         subsCache.forEach(sub => carregarEstudos(sub.id));
       }
-    }, 300);
-  });
-  
-  filtroStatus.addEventListener('change', () => {
-    if (subsCache) {
-      subsCache.forEach(sub => carregarEstudos(sub.id));
-    }
-  });
+    });
+  }
 
   window.voltar = () => {
     window.location.href = "index.html";
