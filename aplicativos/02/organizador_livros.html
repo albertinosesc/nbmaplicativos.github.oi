@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<title>Biblioteca Musical Online</title>
+
+<style>
+body { font-family: Arial; background:#f4f6f9; padding:20px; }
+h1 { text-align:center; }
+
+input, select, button {
+    padding:8px;
+    margin:5px;
+}
+
+button {
+    background:#2c3e50;
+    color:white;
+    border:none;
+    cursor:pointer;
+}
+
+.instrumento { margin-top:15px; }
+
+.instrumento-header {
+    background:#1a252f;
+    color:white;
+    padding:10px;
+    cursor:pointer;
+}
+
+.autor-header {
+    background:#34495e;
+    color:white;
+    padding:8px;
+    cursor:pointer;
+    margin-left:20px;
+}
+
+.lista {
+    margin-left:40px;
+    display:none;
+}
+</style>
+</head>
+<body>
+
+<h1>Biblioteca Musical Online</h1>
+
+<input type="text" id="novoInstrumento" placeholder="Novo Instrumento">
+<button onclick="addInstrumento()">Adicionar Instrumento</button>
+<br>
+
+<select id="selectInstrumento"></select>
+<input type="text" id="novoAutor" placeholder="Novo Autor">
+<button onclick="addAutor()">Adicionar Autor</button>
+<br>
+
+<select id="selectAutor"></select>
+<input type="text" id="novoLivro" placeholder="Novo Livro">
+<button onclick="addLivro()">Adicionar Livro</button>
+
+<br><br>
+<input type="text" id="busca" placeholder="Buscar Autor..." onkeyup="buscarAutor()">
+
+<div id="container"></div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyApDVbhNQQbK-K-ovylsDtu57hzXvOMLHY",
+  authDomain: "arquivos-bf613.firebaseapp.com",
+  projectId: "arquivos-bf613",
+  storageBucket: "arquivos-bf613.firebasestorage.app",
+  messagingSenderId: "447724148206",
+  appId: "1:447724148206:web:41181ad314ff960212aaff",
+  measurementId: "G-6LHFRXND3H"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+const container = document.getElementById("container");
+
+let biblioteca = {};
+
+function renderizar() {
+    container.innerHTML = "";
+
+    Object.keys(biblioteca).sort().forEach(instr => {
+
+        const divInstr = document.createElement("div");
+        divInstr.className = "instrumento";
+
+        const headerInstr = document.createElement("div");
+        headerInstr.className = "instrumento-header";
+        headerInstr.textContent = instr;
+        headerInstr.onclick = () => {
+            blocoAutores.style.display =
+                blocoAutores.style.display === "block" ? "none" : "block";
+        };
+
+        const blocoAutores = document.createElement("div");
+        blocoAutores.style.display = "none";
+
+        Object.keys(biblioteca[instr]).sort().forEach(autor => {
+
+            const divAutor = document.createElement("div");
+
+            const headerAutor = document.createElement("div");
+            headerAutor.className = "autor-header";
+            headerAutor.textContent = autor;
+            headerAutor.onclick = () => {
+                lista.style.display =
+                    lista.style.display === "block" ? "none" : "block";
+            };
+
+            const lista = document.createElement("div");
+            lista.className = "lista";
+
+            biblioteca[instr][autor].forEach(livro => {
+                const item = document.createElement("div");
+                item.textContent = livro;
+                lista.appendChild(item);
+            });
+
+            divAutor.appendChild(headerAutor);
+            divAutor.appendChild(lista);
+            blocoAutores.appendChild(divAutor);
+        });
+
+        divInstr.appendChild(headerInstr);
+        divInstr.appendChild(blocoAutores);
+        container.appendChild(divInstr);
+    });
+
+    atualizarSelects();
+}
+
+function atualizarSelects() {
+    const selectInstr = document.getElementById("selectInstrumento");
+    const selectAutor = document.getElementById("selectAutor");
+
+    selectInstr.innerHTML = "";
+    selectAutor.innerHTML = "";
+
+    Object.keys(biblioteca).sort().forEach(instr => {
+        let opt = new Option(instr, instr);
+        selectInstr.add(opt);
+    });
+
+    const instrSelecionado = selectInstr.value;
+    if (biblioteca[instrSelecionado]) {
+        Object.keys(biblioteca[instrSelecionado]).sort().forEach(autor => {
+            let opt = new Option(autor, autor);
+            selectAutor.add(opt);
+        });
+    }
+}
+
+document.getElementById("selectInstrumento").onchange = atualizarSelects;
+
+window.addInstrumento = async function() {
+    const instr = document.getElementById("novoInstrumento").value.trim();
+    if(!instr) return;
+    await addDoc(collection(db, "biblioteca"), {
+        instrumento: instr,
+        autor: "",
+        livro: ""
+    });
+}
+
+window.addAutor = async function() {
+    const instr = document.getElementById("selectInstrumento").value;
+    const autor = document.getElementById("novoAutor").value.trim();
+    if(!instr || !autor) return;
+    await addDoc(collection(db, "biblioteca"), {
+        instrumento: instr,
+        autor: autor,
+        livro: ""
+    });
+}
+
+window.addLivro = async function() {
+    const instr = document.getElementById("selectInstrumento").value;
+    const autor = document.getElementById("selectAutor").value;
+    const livro = document.getElementById("novoLivro").value.trim();
+    if(!instr || !autor || !livro) return;
+    await addDoc(collection(db, "biblioteca"), {
+        instrumento: instr,
+        autor: autor,
+        livro: livro
+    });
+}
+
+function buscarAutor() {
+    const termo = document.getElementById("busca").value.toLowerCase();
+    document.querySelectorAll(".autor-header").forEach(el => {
+        const nome = el.textContent.toLowerCase();
+        el.parentElement.style.display =
+            nome.includes(termo) ? "block" : "none";
+    });
+}
+
+onSnapshot(collection(db, "biblioteca"), snapshot => {
+    biblioteca = {};
+
+    snapshot.forEach(doc => {
+        const d = doc.data();
+
+        if(!biblioteca[d.instrumento])
+            biblioteca[d.instrumento] = {};
+
+        if(d.autor){
+            if(!biblioteca[d.instrumento][d.autor])
+                biblioteca[d.instrumento][d.autor] = [];
+
+            if(d.livro)
+                biblioteca[d.instrumento][d.autor].push(d.livro);
+        }
+    });
+
+    renderizar();
+});
+
+</script>
+
+</body>
+</html>
