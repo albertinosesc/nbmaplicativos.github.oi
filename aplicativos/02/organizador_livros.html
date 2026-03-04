@@ -152,11 +152,42 @@
             align-items: center;
             font-weight: 600;
             font-size: 1.2em;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .instrumento-header:hover {
+            background: linear-gradient(135deg, #34495e 0%, #2980b9 100%);
+        }
+
+        .instrumento-header .info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .instrumento-header .info::before {
+            content: '▼';
+            font-size: 0.8em;
+            transition: transform 0.3s;
+        }
+
+        .instrumento-header.collapsed .info::before {
+            transform: rotate(-90deg);
         }
 
         .instrumento-header .acoes {
             display: flex;
             gap: 10px;
+            cursor: default;
+        }
+
+        .badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 4px 8px;
+            border-radius: 20px;
+            font-size: 0.8em;
+            margin-left: 10px;
         }
 
         .autor-container {
@@ -201,6 +232,19 @@
 
         .autor-header.collapsed .info::before {
             transform: rotate(-90deg);
+        }
+
+        .autor-header .acoes {
+            display: flex;
+            gap: 5px;
+            cursor: default;
+        }
+
+        .autor-header .badge {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 2px 6px;
+            border-radius: 12px;
+            font-size: 0.7em;
         }
 
         /* Lista simples de livros */
@@ -325,6 +369,11 @@
                 gap: 10px;
                 text-align: center;
             }
+            
+            .instrumento-header .acoes {
+                width: 100%;
+                justify-content: center;
+            }
         }
     </style>
 </head>
@@ -398,8 +447,9 @@
                 </div>
             </div>
             <div class="form-group" style="margin-top: 15px;">
-                <label>Livros (um por linha ou separados por vírgula)</label>
-                <textarea id="novosLivros" placeholder="Exemplo:&#10;Dom Casmurro&#10;Memórias Póstumas de Brás Cubas&#10;O Alienista" rows="4"></textarea>
+                <label>Livros (um por linha)</label>
+                <textarea id="novosLivros" placeholder="Exemplo:&#10;1097 - VIOLÃO - ARENAS, Mario Rodriguez - La Escuela de la Guitarra 1&#10;1098 - VIOLÃO - ARENAS, Mario Rodriguez - La Escuela de la Guitarra 2&#10;1099 - VIOLÃO - ARENAS, Mario Rodriguez - La Escuela de la Guitarra 5_ Estudios y Preludios de Francisco Tarrega" rows="6"></textarea>
+                <div class="info-text">Digite um livro por linha (não use vírgulas para separar livros)</div>
             </div>
             <button onclick="addMultiplosLivros()" style="width: 100%; margin-top: 15px;">Adicionar Vários Livros</button>
         </div>
@@ -514,8 +564,12 @@
                     const headerInstr = document.createElement("div");
                     headerInstr.className = "instrumento-header";
                     
-                    const instrNome = document.createElement("span");
-                    instrNome.textContent = instr;
+                    const instrInfo = document.createElement("div");
+                    instrInfo.className = "info";
+                    
+                    // Nome do instrumento com contador de autores
+                    const totalAutores = Object.keys(biblioteca[instr]).length;
+                    instrInfo.innerHTML = `${instr} <span class="badge">${totalAutores} autor(es)</span>`;
                     
                     const instrAcoes = document.createElement("div");
                     instrAcoes.className = "acoes";
@@ -539,11 +593,23 @@
                     instrAcoes.appendChild(btnEditarInstr);
                     instrAcoes.appendChild(btnExcluirInstr);
                     
-                    headerInstr.appendChild(instrNome);
+                    headerInstr.appendChild(instrInfo);
                     headerInstr.appendChild(instrAcoes);
 
                     const blocoAutores = document.createElement("div");
                     blocoAutores.className = "autor-container";
+                    
+                    // Estado do collapse para instrumento
+                    let instrExpanded = false;
+                    
+                    headerInstr.onclick = (e) => {
+                        // Não fechar se clicou nos botões
+                        if (e.target.tagName === 'BUTTON') return;
+                        
+                        instrExpanded = !instrExpanded;
+                        blocoAutores.style.display = instrExpanded ? "block" : "none";
+                        headerInstr.classList.toggle("collapsed");
+                    };
 
                     Object.keys(biblioteca[instr])
                         .sort((a, b) => a.localeCompare(b))
@@ -556,7 +622,10 @@
                             
                             const autorInfo = document.createElement("div");
                             autorInfo.className = "info";
-                            autorInfo.textContent = autor;
+                            
+                            // Nome do autor com contador de livros
+                            const totalLivros = biblioteca[instr][autor].length;
+                            autorInfo.innerHTML = `${autor} <span class="badge">${totalLivros} livro(s)</span>`;
                             
                             const autorAcoes = document.createElement("div");
                             autorAcoes.className = "acoes";
@@ -587,11 +656,13 @@
                             const listaLivros = document.createElement("div");
                             listaLivros.className = "livros-simples";
                             
-                            // Estado do collapse
+                            // Estado do collapse para autor
                             let autorExpanded = false;
                             
                             headerAutor.onclick = (e) => {
+                                // Não fechar se clicou nos botões
                                 if (e.target.tagName === 'BUTTON') return;
+                                
                                 autorExpanded = !autorExpanded;
                                 listaLivros.style.display = autorExpanded ? "block" : "none";
                                 headerAutor.classList.toggle("collapsed");
@@ -658,6 +729,7 @@
                 return;
             }
 
+            // Separa apenas por quebra de linha
             const instrumentos = texto.split('\n')
                 .map(l => l.trim())
                 .filter(l => l.length > 0);
@@ -705,6 +777,7 @@
                 return;
             }
 
+            // Separa apenas por quebra de linha
             const autores = texto.split('\n')
                 .map(l => l.trim())
                 .filter(l => l.length > 0);
@@ -786,6 +859,7 @@
             }
         };
 
+        // CORREÇÃO: Agora separa apenas por quebra de linha, não mais por vírgula
         window.addMultiplosLivros = async function() {
             const instr = document.getElementById("selectInstrumentoAutor").value;
             const autor = document.getElementById("selectAutor").value;
@@ -800,7 +874,8 @@
                 return;
             }
 
-            const livros = texto.split(/\n|,/)
+            // Separa APENAS por quebra de linha (não mais por vírgula)
+            const livros = texto.split('\n')
                 .map(l => l.trim())
                 .filter(l => l.length > 0);
 
@@ -812,6 +887,7 @@
             try {
                 const existentes = biblioteca[instr]?.[autor]?.map(l => l.livro.toLowerCase()) || [];
                 let adicionados = 0;
+                let duplicados = 0;
 
                 for (const livro of livros) {
                     if (!existentes.includes(livro.toLowerCase())) {
@@ -821,11 +897,18 @@
                             livro: livro
                         });
                         adicionados++;
+                    } else {
+                        duplicados++;
                     }
                 }
 
                 document.getElementById("novosLivros").value = "";
-                showToast(`${adicionados} livro(s) adicionado(s) com sucesso!`);
+                
+                if (duplicados > 0) {
+                    showToast(`${adicionados} livro(s) adicionado(s). ${duplicados} duplicado(s) ignorado(s).`);
+                } else {
+                    showToast(`${adicionados} livro(s) adicionado(s) com sucesso!`);
+                }
             } catch (error) {
                 console.error("Erro:", error);
                 showToast("Erro ao adicionar livros", "erro");
@@ -980,7 +1063,7 @@
                 let hasMatch = false;
                 
                 instr.querySelectorAll(".autor-item").forEach(autor => {
-                    const autorNome = autor.querySelector(".info").textContent.toLowerCase();
+                    const autorNome = autor.querySelector(".autor-header .info").textContent.toLowerCase();
                     let autorMatch = autorNome.includes(termo);
                     
                     const livros = autor.querySelectorAll(".livro-titulo");
