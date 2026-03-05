@@ -275,20 +275,20 @@
 </head>
 <body>
     <div class="main-container">
-        <h1>📚 Biblioteca Musical - Google Drive</h1>
+        <h1>📚 Biblioteca Musical - Pasta Livros2026</h1>
 
         <div class="card">
             <div id="auth-section" class="login-section">
                 <button id="login-btn" class="login-btn" onclick="handleAuthClick()">
                     <img src="https://www.google.com/favicon.ico" alt="Google"> Conectar com Google Drive
                 </button>
-                <p style="margin-top: 20px; color: #666;">Conecte sua conta do Google para acessar suas pastas</p>
+                <p style="margin-top: 20px; color: #666;">Conecte sua conta do Google para acessar a pasta Livros2026</p>
             </div>
 
             <div id="drive-section" style="display: none;">
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                     <div class="info-bar" style="flex: 1; margin-right: 10px;">
-                        📁 Conectado ao Google Drive
+                        📁 Pasta: <strong>Livros2026</strong>
                     </div>
                     <button onclick="logout()" class="logout-btn">Sair</button>
                 </div>
@@ -296,7 +296,7 @@
                 <input type="text" id="busca" class="search-box" placeholder="🔍 Buscar por autor ou livro..." onkeyup="buscarElementos()">
 
                 <div id="container">
-                    <div class="loading">📂 Carregando suas pastas...</div>
+                    <div class="loading">📂 Carregando pasta Livros2026...</div>
                 </div>
 
                 <div id="stats" class="stats"></div>
@@ -306,11 +306,16 @@
 
     <script>
         // =============================================
-        // SUAS CREDENCIAIS DO GOOGLE CLOUD - JÁ INSERIDAS!
+        // SUAS CREDENCIAIS DO GOOGLE CLOUD
         // =============================================
         const CLIENT_ID = '609089935632-msmei0u121c32cok6v8kk8dr54sdgv90.apps.googleusercontent.com';
         const API_KEY = 'AIzaSyBs8F6mFBK9hY6v1Fx3NTL6nFZTTgWV--Q';
-        const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
+        const SCOPES = 'https://www.googleapis.com/auth/drive.file';
+        
+        // =============================================
+        // ID DA SUA PASTA ESPECÍFICA - Livros2026
+        // =============================================
+        const ID_PASTA_PRINCIPAL = '1E0fU7eaaVyxWi1DWXVymia-vQWRVgR3R';
         
         // Elementos DOM
         const authSection = document.getElementById('auth-section');
@@ -383,7 +388,7 @@
                 accessToken = resp.access_token;
                 authSection.style.display = 'none';
                 driveSection.style.display = 'block';
-                await listarPastas();
+                await listarPastaEspecifica();
             };
 
             if (accessToken === null) {
@@ -403,71 +408,104 @@
         };
 
         // =============================================
-        // LISTAR PASTAS E ARQUIVOS DO DRIVE
+        // LISTAR APENAS A PASTA ESPECÍFICA
         // =============================================
         
-        async function listarPastas() {
-            container.innerHTML = '<div class="loading">📂 Carregando pastas...</div>';
+        async function listarPastaEspecifica() {
+            container.innerHTML = '<div class="loading">📂 Carregando pasta Livros2026...</div>';
             biblioteca = {};
             
             try {
-                // Lista todas as pastas principais
-                const folderQuery = "mimeType='application/vnd.google-apps.folder' and trashed=false";
-                const folderResponse = await gapi.client.drive.files.list({
-                    'q': folderQuery,
-                    'pageSize': 100,
-                    'fields': 'files(id, name, parents)'
+                // Primeiro, pega o nome da pasta principal
+                const pastaResponse = await gapi.client.drive.files.get({
+                    fileId: ID_PASTA_PRINCIPAL,
+                    fields: 'name'
                 });
                 
-                const pastas = folderResponse.result.files || [];
+                const nomePastaPrincipal = pastaResponse.result.name || 'Livros2026';
                 
-                // Para cada pasta, busca os PDFs dentro dela
-                for (const pasta of pastas) {
-                    const pdfQuery = `'${pasta.id}' in parents and (mimeType='application/pdf' or name contains '.pdf') and trashed=false`;
-                    const pdfResponse = await gapi.client.drive.files.list({
-                        'q': pdfQuery,
+                // Lista TODOS os itens dentro da pasta (incluindo subpastas)
+                const query = `'${ID_PASTA_PRINCIPAL}' in parents and trashed=false`;
+                
+                let pageToken = null;
+                let todosArquivos = [];
+                
+                // Busca todos os arquivos (paginado)
+                do {
+                    const response = await gapi.client.drive.files.list({
+                        'q': query,
                         'pageSize': 100,
-                        'fields': 'files(id, name, webViewLink, webContentLink)'
+                        'pageToken': pageToken,
+                        'fields': 'nextPageToken, files(id, name, mimeType, webViewLink, webContentLink)'
                     });
                     
-                    const pdfs = pdfResponse.result.files || [];
+                    const arquivos = response.result.files || [];
+                    todosArquivos = todosArquivos.concat(arquivos);
+                    pageToken = response.result.nextPageToken;
+                    
+                } while (pageToken);
+                
+                if (todosArquivos.length === 0) {
+                    container.innerHTML = '<div class="loading">📭 Nenhum arquivo encontrado na pasta Livros2026.</div>';
+                    return;
+                }
+                
+                // Separa pastas e arquivos
+                const pastas = todosArquivos.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
+                const arquivos = todosArquivos.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
+                
+                // Cria a estrutura: pasta principal = instrumento
+                biblioteca[nomePastaPrincipal] = {};
+                
+                // Adiciona os arquivos que estão na raiz
+                if (arquivos.length > 0) {
+                    const pdfs = arquivos.filter(f => f.mimeType === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
                     
                     if (pdfs.length > 0) {
-                        // Usa o nome da pasta como instrumento
-                        const instrumento = pasta.name;
-                        
-                        if (!biblioteca[instrumento]) {
-                            biblioteca[instrumento] = {};
+                        biblioteca[nomePastaPrincipal]['Arquivos'] = pdfs.map(f => ({
+                            livro: f.name,
+                            link: f.webViewLink || f.webContentLink || `https://drive.google.com/file/d/${f.id}/view`,
+                            id: f.id
+                        }));
+                    }
+                }
+                
+                // Para cada subpasta, busca os arquivos dentro dela
+                for (const pasta of pastas) {
+                    const subQuery = `'${pasta.id}' in parents and trashed=false`;
+                    const subResponse = await gapi.client.drive.files.list({
+                        'q': subQuery,
+                        'pageSize': 100,
+                        'fields': 'files(id, name, mimeType, webViewLink, webContentLink)'
+                    });
+                    
+                    const arquivosSubpasta = subResponse.result.files || [];
+                    const pdfsSubpasta = arquivosSubpasta.filter(f => f.mimeType === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+                    
+                    if (pdfsSubpasta.length > 0) {
+                        // A subpasta vira o "autor"
+                        if (!biblioteca[nomePastaPrincipal][pasta.name]) {
+                            biblioteca[nomePastaPrincipal][pasta.name] = [];
                         }
                         
-                        // Agrupa em "Arquivos" por enquanto
-                        if (!biblioteca[instrumento]['Arquivos']) {
-                            biblioteca[instrumento]['Arquivos'] = [];
-                        }
-                        
-                        pdfs.forEach(pdf => {
-                            biblioteca[instrumento]['Arquivos'].push({
-                                livro: pdf.name,
-                                link: pdf.webViewLink || pdf.webContentLink || `https://drive.google.com/file/d/${pdf.id}/view`,
-                                id: pdf.id
+                        pdfsSubpasta.forEach(f => {
+                            biblioteca[nomePastaPrincipal][pasta.name].push({
+                                livro: f.name,
+                                link: f.webViewLink || f.webContentLink || `https://drive.google.com/file/d/${f.id}/view`,
+                                id: f.id
                             });
                         });
                     }
                 }
                 
-                // Se não encontrou nada, mostra mensagem
-                if (Object.keys(biblioteca).length === 0) {
-                    container.innerHTML = '<div class="loading">📭 Nenhum PDF encontrado nas suas pastas.</div>';
-                } else {
-                    renderizar();
-                }
+                renderizar();
                 
             } catch (error) {
                 console.error('Erro:', error);
                 container.innerHTML = `
                     <div style="text-align: center; padding: 40px; color: #dc3545;">
-                        ❌ Erro ao carregar pastas: ${error.message}<br>
-                        <button onclick="listarPastas()" style="margin-top: 20px; padding: 10px 20px;">Tentar novamente</button>
+                        ❌ Erro ao carregar pasta: ${error.message}<br>
+                        <button onclick="listarPastaEspecifica()" style="margin-top: 20px; padding: 10px 20px;">Tentar novamente</button>
                     </div>
                 `;
             }
