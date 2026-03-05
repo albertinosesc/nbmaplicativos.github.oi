@@ -91,6 +91,7 @@
             height: 24px;
         }
 
+        /* Estilo para pastas (instrumentos) */
         .instrumento {
             margin-bottom: 15px;
             border-radius: 10px;
@@ -117,13 +118,19 @@
         }
 
         .instrumento-header .info::before {
-            content: '▼';
-            font-size: 0.8em;
-            transition: transform 0.3s;
-            display: inline-block;
+            content: '📁';
+            font-size: 1.2em;
+            margin-right: 5px;
         }
 
-        .instrumento-header.collapsed .info::before {
+        .instrumento-header .info::after {
+            content: '▼';
+            font-size: 0.8em;
+            margin-left: 10px;
+            transition: transform 0.3s;
+        }
+
+        .instrumento-header.collapsed .info::after {
             transform: rotate(-90deg);
         }
 
@@ -135,13 +142,14 @@
             margin-left: 10px;
         }
 
-        .autores-container {
+        /* Container de subpastas (autores) */
+        .subpastas-container {
             background: #f8f9fa;
             padding: 10px;
             display: none;
         }
 
-        .autor-item {
+        .subpasta-item {
             margin: 10px 0;
             border-radius: 8px;
             overflow: hidden;
@@ -149,7 +157,7 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
-        .autor-header {
+        .subpasta-header {
             background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
             color: white;
             padding: 12px 20px;
@@ -160,30 +168,37 @@
             margin-left: 20px;
         }
 
-        .autor-header .info {
+        .subpasta-header .info {
             display: flex;
             align-items: center;
             gap: 10px;
         }
 
-        .autor-header .info::before {
-            content: '▼';
-            font-size: 0.8em;
-            transition: transform 0.3s;
-            display: inline-block;
+        .subpasta-header .info::before {
+            content: '📂';
+            font-size: 1.1em;
+            margin-right: 5px;
         }
 
-        .autor-header.collapsed .info::before {
+        .subpasta-header .info::after {
+            content: '▼';
+            font-size: 0.8em;
+            margin-left: 10px;
+            transition: transform 0.3s;
+        }
+
+        .subpasta-header.collapsed .info::after {
             transform: rotate(-90deg);
         }
 
-        .autor-header .badge {
+        .subpasta-header .badge {
             background: rgba(255, 255, 255, 0.2);
             padding: 2px 6px;
             border-radius: 12px;
             font-size: 0.7em;
         }
 
+        /* Container de livros */
         .livros-container {
             padding: 15px;
             margin-left: 40px;
@@ -293,7 +308,7 @@
                     <button onclick="logout()" class="logout-btn">Sair</button>
                 </div>
 
-                <input type="text" id="busca" class="search-box" placeholder="🔍 Buscar por autor ou livro..." onkeyup="buscarElementos()">
+                <input type="text" id="busca" class="search-box" placeholder="🔍 Buscar por pasta ou livro..." onkeyup="buscarElementos()">
 
                 <div id="container">
                     <div class="loading">📂 Carregando pasta Livros2026...</div>
@@ -429,15 +444,15 @@
         };
 
         // =============================================
-        // LISTAR TODAS AS SUBPASTAS E ARQUIVOS
+        // FUNÇÃO PRINCIPAL - LISTAR PASTA COMPLETA
         // =============================================
         
         async function listarPastaEspecifica() {
-            container.innerHTML = '<div class="loading">📂 Carregando pasta Livros2026...</div>';
+            container.innerHTML = '<div class="loading">📂 Carregando estrutura de pastas...</div>';
             biblioteca = {};
             
             try {
-                // Primeiro, pega o nome da pasta principal
+                // PASSO 1: Pega informações da pasta principal
                 const pastaResponse = await gapi.client.drive.files.get({
                     fileId: ID_PASTA_PRINCIPAL,
                     fields: 'name'
@@ -445,7 +460,8 @@
                 
                 const nomePastaPrincipal = pastaResponse.result.name || 'Livros2026';
                 
-                // PASSO 1: Lista TODAS as subpastas dentro da pasta principal
+                // PASSO 2: Busca TODAS as subpastas dentro da pasta principal
+                console.log('Buscando subpastas...');
                 const subpastasQuery = `'${ID_PASTA_PRINCIPAL}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
                 const subpastasResponse = await gapi.client.drive.files.list({
                     'q': subpastasQuery,
@@ -454,12 +470,15 @@
                 });
                 
                 const subpastas = subpastasResponse.result.files || [];
+                console.log('Subpastas encontradas:', subpastas);
                 
-                // Cria a estrutura principal
+                // Inicializa a estrutura
                 biblioteca[nomePastaPrincipal] = {};
                 
-                // PASSO 2: Para CADA subpasta, lista os PDFs dentro dela
+                // PASSO 3: Para CADA subpasta, busca os PDFs dentro dela
                 for (const subpasta of subpastas) {
+                    container.innerHTML = `<div class="loading">📂 Carregando: ${subpasta.name}...</div>`;
+                    
                     const pdfsQuery = `'${subpasta.id}' in parents and (mimeType='application/pdf' or name contains '.pdf') and trashed=false`;
                     const pdfsResponse = await gapi.client.drive.files.list({
                         'q': pdfsQuery,
@@ -468,18 +487,22 @@
                     });
                     
                     const pdfs = pdfsResponse.result.files || [];
+                    console.log(`PDFs em ${subpasta.name}:`, pdfs);
                     
                     if (pdfs.length > 0) {
-                        // A subpasta vira o "autor" dentro do instrumento principal
+                        // Adiciona a subpasta como uma categoria
                         biblioteca[nomePastaPrincipal][subpasta.name] = pdfs.map(f => ({
                             livro: f.name,
                             link: f.webViewLink || f.webContentLink || `https://drive.google.com/file/d/${f.id}/view`,
                             id: f.id
                         }));
+                    } else {
+                        // Se não tiver PDFs, adiciona mesmo assim para mostrar que a pasta existe
+                        biblioteca[nomePastaPrincipal][subpasta.name] = [];
                     }
                 }
                 
-                // PASSO 3: Também lista PDFs que estejam na raiz da pasta principal
+                // PASSO 4: Busca PDFs na raiz da pasta principal
                 const pdfsRaizQuery = `'${ID_PASTA_PRINCIPAL}' in parents and (mimeType='application/pdf' or name contains '.pdf') and trashed=false`;
                 const pdfsRaizResponse = await gapi.client.drive.files.list({
                     'q': pdfsRaizQuery,
@@ -490,13 +513,16 @@
                 const pdfsRaiz = pdfsRaizResponse.result.files || [];
                 
                 if (pdfsRaiz.length > 0) {
-                    biblioteca[nomePastaPrincipal]['Arquivos na raiz'] = pdfsRaiz.map(f => ({
+                    biblioteca[nomePastaPrincipal]['📁 Arquivos na raiz'] = pdfsRaiz.map(f => ({
                         livro: f.name,
                         link: f.webViewLink || f.webContentLink || `https://drive.google.com/file/d/${f.id}/view`,
                         id: f.id
                     }));
                 }
                 
+                console.log('Estrutura final:', biblioteca);
+                
+                // Verifica se encontrou alguma coisa
                 if (Object.keys(biblioteca[nomePastaPrincipal]).length === 0) {
                     container.innerHTML = '<div class="loading">📭 Nenhum PDF encontrado na pasta Livros2026.</div>';
                 } else {
@@ -528,70 +554,71 @@
         }
 
         // =============================================
-        // RENDERIZAR BIBLIOTECA
+        // RENDERIZAR BIBLIOTECA COM HIERARQUIA COMPLETA
         // =============================================
         
         function renderizar() {
             container.innerHTML = "";
 
-            Object.keys(biblioteca).sort().forEach(instrumento => {
-                const divInstrumento = document.createElement("div");
-                divInstrumento.className = "instrumento";
+            Object.keys(biblioteca).sort().forEach(pastaPrincipal => {
+                // Cria o elemento da pasta principal
+                const divPastaPrincipal = document.createElement("div");
+                divPastaPrincipal.className = "instrumento";
 
-                const headerInstrumento = document.createElement("div");
-                headerInstrumento.className = "instrumento-header collapsed";
+                const headerPrincipal = document.createElement("div");
+                headerPrincipal.className = "instrumento-header collapsed";
                 
-                const totalAutores = Object.keys(biblioteca[instrumento]).length;
+                const totalSubpastas = Object.keys(biblioteca[pastaPrincipal]).length;
                 
-                const infoSpan = document.createElement("span");
-                infoSpan.className = "info";
-                infoSpan.innerHTML = `${instrumento} <span class="badge">${totalAutores} pasta(s)</span>`;
+                const infoPrincipal = document.createElement("span");
+                infoPrincipal.className = "info";
+                infoPrincipal.innerHTML = `${pastaPrincipal} <span class="badge">${totalSubpastas} subpasta(s)</span>`;
                 
-                headerInstrumento.appendChild(infoSpan);
+                headerPrincipal.appendChild(infoPrincipal);
 
-                const autoresContainer = document.createElement("div");
-                autoresContainer.className = "autores-container";
-                autoresContainer.style.display = "none";
+                const subpastasContainer = document.createElement("div");
+                subpastasContainer.className = "subpastas-container";
+                subpastasContainer.style.display = "none";
 
-                // Estado para expandir/colapsar
-                let instrumentoExpandido = false;
-                headerInstrumento.onclick = (e) => {
+                // Estado para expandir/colapsar pasta principal
+                let principalExpandido = false;
+                headerPrincipal.onclick = (e) => {
                     if (e.target.tagName === 'BUTTON') return;
-                    instrumentoExpandido = !instrumentoExpandido;
-                    autoresContainer.style.display = instrumentoExpandido ? "block" : "none";
-                    headerInstrumento.classList.toggle("collapsed");
+                    principalExpandido = !principalExpandido;
+                    subpastasContainer.style.display = principalExpandido ? "block" : "none";
+                    headerPrincipal.classList.toggle("collapsed");
                 };
 
-                // Para cada autor (subpasta)
-                Object.keys(biblioteca[instrumento]).sort().forEach(autor => {
-                    const divAutor = document.createElement("div");
-                    divAutor.className = "autor-item";
+                // Para cada subpasta
+                Object.keys(biblioteca[pastaPrincipal]).sort().forEach(nomeSubpasta => {
+                    const livros = biblioteca[pastaPrincipal][nomeSubpasta];
+                    
+                    const divSubpasta = document.createElement("div");
+                    divSubpasta.className = "subpasta-item";
 
-                    const headerAutor = document.createElement("div");
-                    headerAutor.className = "autor-header collapsed";
+                    const headerSubpasta = document.createElement("div");
+                    headerSubpasta.className = "subpasta-header collapsed";
                     
-                    const totalLivros = biblioteca[instrumento][autor].length;
+                    const infoSubpasta = document.createElement("span");
+                    infoSubpasta.className = "info";
+                    infoSubpasta.innerHTML = `${nomeSubpasta} <span class="badge">${livros.length} livro(s)</span>`;
                     
-                    const autorInfoSpan = document.createElement("span");
-                    autorInfoSpan.className = "info";
-                    autorInfoSpan.innerHTML = `${autor} <span class="badge">${totalLivros} livro(s)</span>`;
-                    
-                    headerAutor.appendChild(autorInfoSpan);
+                    headerSubpasta.appendChild(infoSubpasta);
 
                     const livrosContainer = document.createElement("div");
                     livrosContainer.className = "livros-container";
                     livrosContainer.style.display = "none";
 
-                    let autorExpandido = false;
-                    headerAutor.onclick = (e) => {
+                    let subpastaExpandido = false;
+                    headerSubpasta.onclick = (e) => {
                         e.stopPropagation();
-                        autorExpandido = !autorExpandido;
-                        livrosContainer.style.display = autorExpandido ? "block" : "none";
-                        headerAutor.classList.toggle("collapsed");
+                        subpastaExpandido = !subpastaExpandido;
+                        livrosContainer.style.display = subpastaExpandido ? "block" : "none";
+                        headerSubpasta.classList.toggle("collapsed");
                     };
 
-                    // Adicionar livros
-                    biblioteca[instrumento][autor].forEach(livro => {
+                    // Adiciona os livros da subpasta
+                    livros.forEach(livro => {
                         const livroDiv = document.createElement("div");
                         livroDiv.className = "livro-item";
                         livroDiv.textContent = livro.livro;
@@ -606,14 +633,24 @@
                         livrosContainer.appendChild(livroDiv);
                     });
 
-                    divAutor.appendChild(headerAutor);
-                    divAutor.appendChild(livrosContainer);
-                    autoresContainer.appendChild(divAutor);
+                    // Se não tiver livros, mostra mensagem
+                    if (livros.length === 0) {
+                        const vazioDiv = document.createElement("div");
+                        vazioDiv.className = "livro-item";
+                        vazioDiv.style.color = "#999";
+                        vazioDiv.style.fontStyle = "italic";
+                        vazioDiv.textContent = "📭 Nenhum PDF nesta pasta";
+                        livrosContainer.appendChild(vazioDiv);
+                    }
+
+                    divSubpasta.appendChild(headerSubpasta);
+                    divSubpasta.appendChild(livrosContainer);
+                    subpastasContainer.appendChild(divSubpasta);
                 });
 
-                divInstrumento.appendChild(headerInstrumento);
-                divInstrumento.appendChild(autoresContainer);
-                container.appendChild(divInstrumento);
+                divPastaPrincipal.appendChild(headerPrincipal);
+                divPastaPrincipal.appendChild(subpastasContainer);
+                container.appendChild(divPastaPrincipal);
             });
 
             updateStats();
@@ -624,24 +661,24 @@
         // =============================================
         
         function updateStats() {
-            const totalInstrumentos = Object.keys(biblioteca).length;
-            let totalAutores = 0;
+            const totalPastas = Object.keys(biblioteca).length;
+            let totalSubpastas = 0;
             let totalLivros = 0;
             
-            Object.values(biblioteca).forEach(instr => {
-                totalAutores += Object.keys(instr).length;
-                Object.values(instr).forEach(livros => {
+            Object.values(biblioteca).forEach(pasta => {
+                totalSubpastas += Object.keys(pasta).length;
+                Object.values(pasta).forEach(livros => {
                     totalLivros += livros.length;
                 });
             });
             
             statsDiv.innerHTML = `
                 <div class="stat-card">
-                    <div class="stat-value">${totalInstrumentos}</div>
-                    <div class="stat-label">Pastas</div>
+                    <div class="stat-value">${totalPastas}</div>
+                    <div class="stat-label">Pasta Principal</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-value">${totalAutores}</div>
+                    <div class="stat-value">${totalSubpastas}</div>
                     <div class="stat-label">Subpastas</div>
                 </div>
                 <div class="stat-card">
@@ -658,25 +695,25 @@
         window.buscarElementos = function() {
             const termo = document.getElementById("busca").value.toLowerCase().trim();
             
-            document.querySelectorAll(".instrumento").forEach(instr => {
+            document.querySelectorAll(".instrumento").forEach(pasta => {
                 let hasMatch = false;
                 
-                instr.querySelectorAll(".autor-item").forEach(autor => {
-                    const autorTexto = autor.querySelector(".autor-header .info").textContent.toLowerCase();
-                    let autorMatch = autorTexto.includes(termo);
+                pasta.querySelectorAll(".subpasta-item").forEach(subpasta => {
+                    const subpastaTexto = subpasta.querySelector(".subpasta-header .info").textContent.toLowerCase();
+                    let subpastaMatch = subpastaTexto.includes(termo);
                     
-                    const livros = autor.querySelectorAll(".livro-item");
+                    const livros = subpasta.querySelectorAll(".livro-item");
                     livros.forEach(livro => {
                         if (livro.textContent.toLowerCase().includes(termo)) {
-                            autorMatch = true;
+                            subpastaMatch = true;
                         }
                     });
                     
-                    autor.style.display = autorMatch || termo === "" ? "block" : "none";
-                    if (autorMatch) hasMatch = true;
+                    subpasta.style.display = subpastaMatch || termo === "" ? "block" : "none";
+                    if (subpastaMatch) hasMatch = true;
                 });
                 
-                instr.style.display = hasMatch || termo === "" ? "block" : "none";
+                pasta.style.display = hasMatch || termo === "" ? "block" : "none";
             });
         };
 
