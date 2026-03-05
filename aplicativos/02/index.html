@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Biblioteca Musical - Google Drive</title>
+    <title>Biblioteca Musical - Livros2026</title>
     <style>
         * {
             box-sizing: border-box;
@@ -275,7 +275,7 @@
 </head>
 <body>
     <div class="main-container">
-        <h1>📚 Biblioteca Musical - Pasta Livros2026</h1>
+        <h1>📚 Biblioteca Musical - Livros2026</h1>
 
         <div class="card">
             <div id="auth-section" class="login-section">
@@ -364,7 +364,7 @@
             tokenClient = google.accounts.oauth2.initTokenClient({
                 client_id: CLIENT_ID,
                 scope: SCOPES,
-                callback: '',
+                callback: '', // Será definido depois
             });
             gisInited = true;
             maybeEnableButtons();
@@ -377,29 +377,50 @@
         }
 
         // =============================================
-        // AUTENTICAÇÃO
+        // AUTENTICAÇÃO COM TOKEN PERSISTENTE
         // =============================================
         
+        // Tenta restaurar token salvo
+        function tryRestoreToken() {
+            const savedToken = localStorage.getItem('google_access_token');
+            if (savedToken) {
+                accessToken = savedToken;
+                authSection.style.display = 'none';
+                driveSection.style.display = 'block';
+                listarPastaEspecifica();
+                return true;
+            }
+            return false;
+        }
+
         window.handleAuthClick = function() {
             tokenClient.callback = async (resp) => {
                 if (resp.error !== undefined) {
-                    throw (resp);
+                    console.error('Erro de autenticação:', resp);
+                    return;
                 }
+                
+                // Salva o token no localStorage para não pedir toda hora
                 accessToken = resp.access_token;
+                localStorage.setItem('google_access_token', accessToken);
+                
                 authSection.style.display = 'none';
                 driveSection.style.display = 'block';
                 await listarPastaEspecifica();
             };
 
-            if (accessToken === null) {
-                tokenClient.requestAccessToken({prompt: 'consent'});
-            } else {
-                tokenClient.requestAccessToken({prompt: ''});
-            }
+            // Solicita token com prompt automático
+            tokenClient.requestAccessToken({ 
+                prompt: '', // Não pede confirmação se já autorizou
+                hint: 'albertinosesc@gmail.com'
+            });
         };
 
         window.logout = function() {
+            // Remove o token salvo
             accessToken = null;
+            localStorage.removeItem('google_access_token');
+            
             authSection.style.display = 'block';
             driveSection.style.display = 'none';
             biblioteca = {};
@@ -408,7 +429,7 @@
         };
 
         // =============================================
-        // LISTAR APENAS A PASTA ESPECÍFICA
+        // LISTAR TODAS AS SUBPASTAS E ARQUIVOS
         // =============================================
         
         async function listarPastaEspecifica() {
@@ -424,45 +445,33 @@
                 
                 const nomePastaPrincipal = pastaResponse.result.name || 'Livros2026';
                 
-                // Lista TODOS os itens dentro da pasta (incluindo subpastas)
-                const query = `'${ID_PASTA_PRINCIPAL}' in parents and trashed=false`;
+                // PASSO 1: Lista TODAS as subpastas dentro da pasta principal
+                const subpastasQuery = `'${ID_PASTA_PRINCIPAL}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+                const subpastasResponse = await gapi.client.drive.files.list({
+                    'q': subpastasQuery,
+                    'pageSize': 100,
+                    'fields': 'files(id, name)'
+                });
                 
-                let pageToken = null;
-                let todosArquivos = [];
+                const subpastas = subpastasResponse.result.files || [];
                 
-                // Busca todos os arquivos (paginado)
-                do {
-                    const response = await gapi.client.drive.files.list({
-                        'q': query,
-                        'pageSize': 100,
-                        'pageToken': pageToken,
-                        'fields': 'nextPageToken, files(id, name, mimeType, webViewLink, webContentLink)'
-                    });
-                    
-                    const arquivos = response.result.files || [];
-                    todosArquivos = todosArquivos.concat(arquivos);
-                    pageToken = response.result.nextPageToken;
-                    
-                } while (pageToken);
-                
-                if (todosArquivos.length === 0) {
-                    container.innerHTML = '<div class="loading">📭 Nenhum arquivo encontrado na pasta Livros2026.</div>';
-                    return;
-                }
-                
-                // Separa pastas e arquivos
-                const pastas = todosArquivos.filter(f => f.mimeType === 'application/vnd.google-apps.folder');
-                const arquivos = todosArquivos.filter(f => f.mimeType !== 'application/vnd.google-apps.folder');
-                
-                // Cria a estrutura: pasta principal = instrumento
+                // Cria a estrutura principal
                 biblioteca[nomePastaPrincipal] = {};
                 
-                // Adiciona os arquivos que estão na raiz
-                if (arquivos.length > 0) {
-                    const pdfs = arquivos.filter(f => f.mimeType === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
+                // PASSO 2: Para CADA subpasta, lista os PDFs dentro dela
+                for (const subpasta of subpastas) {
+                    const pdfsQuery = `'${subpasta.id}' in parents and (mimeType='application/pdf' or name contains '.pdf') and trashed=false`;
+                    const pdfsResponse = await gapi.client.drive.files.list({
+                        'q': pdfsQuery,
+                        'pageSize': 100,
+                        'fields': 'files(id, name, webViewLink, webContentLink)'
+                    });
+                    
+                    const pdfs = pdfsResponse.result.files || [];
                     
                     if (pdfs.length > 0) {
-                        biblioteca[nomePastaPrincipal]['Arquivos'] = pdfs.map(f => ({
+                        // A subpasta vira o "autor" dentro do instrumento principal
+                        biblioteca[nomePastaPrincipal][subpasta.name] = pdfs.map(f => ({
                             livro: f.name,
                             link: f.webViewLink || f.webContentLink || `https://drive.google.com/file/d/${f.id}/view`,
                             id: f.id
@@ -470,44 +479,51 @@
                     }
                 }
                 
-                // Para cada subpasta, busca os arquivos dentro dela
-                for (const pasta of pastas) {
-                    const subQuery = `'${pasta.id}' in parents and trashed=false`;
-                    const subResponse = await gapi.client.drive.files.list({
-                        'q': subQuery,
-                        'pageSize': 100,
-                        'fields': 'files(id, name, mimeType, webViewLink, webContentLink)'
-                    });
-                    
-                    const arquivosSubpasta = subResponse.result.files || [];
-                    const pdfsSubpasta = arquivosSubpasta.filter(f => f.mimeType === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf'));
-                    
-                    if (pdfsSubpasta.length > 0) {
-                        // A subpasta vira o "autor"
-                        if (!biblioteca[nomePastaPrincipal][pasta.name]) {
-                            biblioteca[nomePastaPrincipal][pasta.name] = [];
-                        }
-                        
-                        pdfsSubpasta.forEach(f => {
-                            biblioteca[nomePastaPrincipal][pasta.name].push({
-                                livro: f.name,
-                                link: f.webViewLink || f.webContentLink || `https://drive.google.com/file/d/${f.id}/view`,
-                                id: f.id
-                            });
-                        });
-                    }
+                // PASSO 3: Também lista PDFs que estejam na raiz da pasta principal
+                const pdfsRaizQuery = `'${ID_PASTA_PRINCIPAL}' in parents and (mimeType='application/pdf' or name contains '.pdf') and trashed=false`;
+                const pdfsRaizResponse = await gapi.client.drive.files.list({
+                    'q': pdfsRaizQuery,
+                    'pageSize': 100,
+                    'fields': 'files(id, name, webViewLink, webContentLink)'
+                });
+                
+                const pdfsRaiz = pdfsRaizResponse.result.files || [];
+                
+                if (pdfsRaiz.length > 0) {
+                    biblioteca[nomePastaPrincipal]['Arquivos na raiz'] = pdfsRaiz.map(f => ({
+                        livro: f.name,
+                        link: f.webViewLink || f.webContentLink || `https://drive.google.com/file/d/${f.id}/view`,
+                        id: f.id
+                    }));
                 }
                 
-                renderizar();
+                if (Object.keys(biblioteca[nomePastaPrincipal]).length === 0) {
+                    container.innerHTML = '<div class="loading">📭 Nenhum PDF encontrado na pasta Livros2026.</div>';
+                } else {
+                    renderizar();
+                }
                 
             } catch (error) {
-                console.error('Erro:', error);
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 40px; color: #dc3545;">
-                        ❌ Erro ao carregar pasta: ${error.message}<br>
-                        <button onclick="listarPastaEspecifica()" style="margin-top: 20px; padding: 10px 20px;">Tentar novamente</button>
-                    </div>
-                `;
+                console.error('Erro detalhado:', error);
+                
+                // Se o token expirou, tenta renovar
+                if (error.status === 401) {
+                    localStorage.removeItem('google_access_token');
+                    accessToken = null;
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: #dc3545;">
+                            🔄 Sessão expirada. Clique em "Conectar" novamente.<br>
+                            <button onclick="handleAuthClick()" style="margin-top: 20px; padding: 10px 20px;">Conectar</button>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 40px; color: #dc3545;">
+                            ❌ Erro ao carregar pasta: ${error.message}<br>
+                            <button onclick="listarPastaEspecifica()" style="margin-top: 20px; padding: 10px 20px;">Tentar novamente</button>
+                        </div>
+                    `;
+                }
             }
         }
 
@@ -546,7 +562,7 @@
                     headerInstrumento.classList.toggle("collapsed");
                 };
 
-                // Para cada autor/pasta
+                // Para cada autor (subpasta)
                 Object.keys(biblioteca[instrumento]).sort().forEach(autor => {
                     const divAutor = document.createElement("div");
                     divAutor.className = "autor-item";
@@ -671,6 +687,11 @@
         window.onload = function() {
             loadGapi();
             loadGis();
+            
+            // Tenta restaurar token salvo
+            setTimeout(() => {
+                tryRestoreToken();
+            }, 1000);
         };
     </script>
 </body>
