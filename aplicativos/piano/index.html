@@ -1,0 +1,660 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Editor de Acordes Pro - Ultra</title>
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
+    <style>
+        :root { --key-w: 30px; --key-h: 120px; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f7f6; padding: 20px; color: #333; }
+        .container { background: white; padding: 25px; border-radius: 15px; max-width: 1100px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        
+        /* Teclado Principal de Seleção */
+        .keyboardWrap { overflow-x: auto; border: 1px solid #ddd; padding: 15px; background: #fff; border-radius: 8px; margin: 15px 0; }
+        #keyboard { position: relative; height: 160px; white-space: nowrap; }
+        .white { width: 30px; height: 150px; background: white; border: 1px solid #999; display: inline-block; position: relative; cursor: pointer; border-radius: 0 0 4px 4px; vertical-align: top; transition: background 0.2s; }
+        .black { width: 20px; height: 90px; background: #222; position: absolute; top: 0; left: 20px; z-index: 3; cursor: pointer; border-radius: 0 0 3px 3px; transition: background 0.2s; }
+        .activeWhite { background: #3a86ff !important; border-color: #1e3799; }
+        .activeBlack { background: #ff4757 !important; }
+        .noteLabel { position: absolute; bottom: 5px; font-size: 9px; width: 100%; text-align: center; color: #888; pointer-events: none; }
+
+        /* Painel de Controle */
+        .panel { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+        .control-box { border: 1px solid #eee; padding: 15px; border-radius: 8px; background: #fafafa; }
+        label { font-weight: bold; display: block; margin-top: 10px; font-size: 14px; }
+        input, textarea { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box; }
+        
+        /* Botões */
+        .button-group {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; flex: 1; }
+        .btn-export { background: #2ed573; color: white; }
+        .btn-export:hover { background: #26af5f; }
+        .btn-clear { background: #ff4757; color: white; }
+        .btn-clear:hover { background: #ee3a4a; }
+        .btn-reset { background: #f39c12; color: white; }
+        .btn-reset:hover { background: #e67e22; }
+        
+        /* Diagrama Exportável */
+        #unified-preview { 
+            background: white; 
+            padding: 20px; 
+            border: 1px solid #eee; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-top: 20px; 
+            border-radius: 10px; 
+        }
+        
+        .chord-title-input { 
+            font-size: 26px; 
+            font-weight: bold; 
+            color: #1e3799; 
+            text-align: center; 
+            border: 1px solid transparent; 
+            background: transparent; 
+            width: 100%; 
+            margin-bottom: 15px; 
+            outline: none; 
+        }
+        .chord-title-input:focus { border-bottom: 1px dashed #ccc; }
+
+        /* Container para o diagrama e pentagrama alinhados */
+        .diagram-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+        
+        /* Wrapper do diagrama para manter alinhamento */
+        #prev-diagram {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            margin-bottom: 5px;
+        }
+        
+        /* Wrapper do pentagrama para alinhar com o diagrama */
+        .score-wrapper {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            background: #f9f9f9;
+            padding: 5px 0;
+            border-radius: 8px;
+        }
+        
+        #prev-score {
+            display: inline-block;
+        }
+
+        /* Estilos Internos das Teclas do Diagrama */
+        .diag-white { display: inline-block; position: relative; border: 1px solid #000; background: #fff; vertical-align: top; border-radius: 0 0 3px 3px; }
+        .diag-black { position: absolute; background: #000; z-index: 2; border-radius: 0 0 2px 2px; }
+        
+        /* Ambos os elementos na parte inferior */
+        .info-wrap { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%; 
+            pointer-events: none; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: flex-end;
+            padding: 0 0 8px 0;
+            box-sizing: border-box; 
+        }
+        
+        .info-bottom {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            width: 100%;
+        }
+        
+        .diag-finger { 
+            background: #ff4757; 
+            color: white; 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: bold; 
+            z-index: 5;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            margin-bottom: 2px;
+        }
+        
+        .diag-cifra { 
+            font-weight: bold; 
+            font-size: 0.9em;
+            text-shadow: 0 1px 1px rgba(255,255,255,0.5);
+            background: rgba(255,255,255,0.8);
+            padding: 1px 3px;
+            border-radius: 3px;
+        }
+        
+        .diag-black .diag-cifra {
+            background: rgba(0,0,0,0.7);
+            color: white;
+        }
+        
+        .white-text { color: #000; }
+        .black-text { color: #fff; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎹 Editor de Acordes Profissional</h2>
+
+    <div class="keyboardWrap">
+        <div id="keyboard"></div>
+    </div>
+    
+    <div class="panel">
+        <div class="control-box">
+            <label>Dedilhado (separado por espaço):</label>
+            <input id="fingers" placeholder="1 3 5" value="1 3 5" oninput="atualizar()">
+            
+            <div style="display:flex; gap:10px">
+                <div style="flex:1">
+                    <label>Início:</label>
+                    <input id="start" value="C4" onchange="atualizar()">
+                </div>
+                <div style="flex:1">
+                    <label>Fim:</label>
+                    <input id="end" value="C5" onchange="atualizar()">
+                </div>
+            </div>
+
+            <label>Tamanho das Teclas: <span id="zoomVal">30</span>px</label>
+            <input type="range" id="zoom" min="20" max="60" value="30" oninput="ajustarZoom(this.value)">
+            
+            <div class="button-group">
+                <button class="btn-clear" onclick="limparTeclado()">Limpar Notas</button>
+                <button class="btn-reset" onclick="resetarTudo()">Limpar Tudo</button>
+            </div>
+        </div>
+        
+        <div class="control-box">
+            <label>Notação ABC (Edite aqui para alterar o diagrama):</label>
+            <textarea id="abcText" spellcheck="false" oninput="sincronizarDoABC()"></textarea>
+            <button onclick="limparTeclado()" style="margin-top:10px; background:#ff4757; color:white;">Limpar Notas</button>
+        </div>
+    </div>
+
+    <div id="unified-preview">
+        <input id="chordName" class="chord-title-input" value="C7M">
+        
+        <div class="diagram-container">
+            <div id="prev-diagram"></div>
+            
+            <div class="score-wrapper">
+                <div id="prev-score"></div>
+            </div>
+        </div>
+    </div>
+
+    <div style="text-align:center; margin-top:20px;">
+        <button class="btn-export" onclick="exportarHTML()">Exportar HTML Bonito</button>
+    </div>
+</div>
+
+<script>
+const escalaPadrao = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+let notasSelec = [];
+
+function notaParaNum(letra, acidental, oitava) {
+    let base = escalaPadrao.indexOf(letra);
+    let offset = 0;
+    if (acidental === "^") offset = 1;
+    if (acidental === "_") offset = -1;
+    return (parseInt(oitava) + 1) * 12 + base + offset;
+}
+
+function numParaNota(num) {
+    return escalaPadrao[num % 12] + (Math.floor(num / 12) - 1);
+}
+
+function formatarCifra(acc, char) {
+    if (acc === "^") return char + "#";
+    if (acc === "_") return char + "b";
+    return char;
+}
+
+function ajustarZoom(v) {
+    document.getElementById("zoomVal").innerText = v;
+    atualizar();
+}
+
+function criarTecladoSelecao() {
+    const kb = document.getElementById("keyboard");
+    kb.innerHTML = "";
+    let whites = {};
+    
+    for (let i = 21; i <= 108; i++) {
+        let n = numParaNota(i);
+        if (!n.includes("#")) {
+            let k = document.createElement("div");
+            k.className = "white";
+            k.dataset.nota = i;
+            k.onclick = () => clicarNoTeclado(i);
+            k.innerHTML = `<div class="noteLabel">${n}</div>`;
+            kb.appendChild(k);
+            whites[i] = k;
+        }
+    }
+    
+    for (let i = 21; i <= 108; i++) {
+        let n = numParaNota(i);
+        if (n.includes("#")) {
+            let p = whites[i-1];
+            if (p) {
+                let b = document.createElement("div");
+                b.className = "black";
+                b.dataset.nota = i;
+                b.onclick = (e) => { e.stopPropagation(); clicarNoTeclado(i); };
+                p.appendChild(b);
+            }
+        }
+    }
+}
+
+function atualizarCoresTeclado() {
+    document.querySelectorAll("#keyboard .white, #keyboard .black").forEach(el => {
+        el.classList.remove("activeWhite", "activeBlack");
+    });
+    
+    notasSelec.forEach(nota => {
+        const tecla = document.querySelector(`#keyboard [data-nota="${nota.num}"]`);
+        if (tecla) {
+            if (tecla.classList.contains("white")) {
+                tecla.classList.add("activeWhite");
+            } else {
+                tecla.classList.add("activeBlack");
+            }
+        }
+    });
+}
+
+function clicarNoTeclado(num) {
+    let existente = notasSelec.find(n => n.num === num);
+    if (existente) {
+        notasSelec = notasSelec.filter(n => n.num !== num);
+    } else {
+        let notaBase = escalaPadrao[num % 12];
+        let oitava = Math.floor(num / 12) - 1;
+        let char = notaBase[0];
+        let acc = notaBase.includes("#") ? "^" : "";
+        notasSelec.push({num, char, acc, oitava});
+    }
+    notasSelec.sort((a, b) => a.num - b.num);
+    
+    atualizarCoresTeclado();
+    gerarABC();
+}
+
+function gerarABC() {
+    if (notasSelec.length === 0) {
+        document.getElementById("abcText").value = "";
+        atualizar();
+        return;
+    }
+    
+    let abcString = notasSelec.map(n => {
+        let notaStr = n.char;
+        if (n.oitava > 4) notaStr = n.char.toLowerCase() + "'".repeat(n.oitava - 5);
+        else if (n.oitava < 4) notaStr = n.char + ",".repeat(4 - n.oitava);
+        return n.acc + notaStr;
+    }).join("");
+    
+    document.getElementById("abcText").value = `X:1\nM:4/4\nL:1/4\nK:C\n[${abcString}]`;
+    atualizar();
+}
+
+function sincronizarDoABC() {
+    let texto = document.getElementById("abcText").value;
+    let match = texto.match(/\[(.*?)\]/);
+    if (!match) return;
+    
+    let notasRaw = match[1];
+    let regex = /([\^_]*)([A-Ga-g])([,']*)/g;
+    let m;
+    notasSelec = [];
+    
+    while ((m = regex.exec(notasRaw)) !== null) {
+        let acc = m[1];
+        let letra = m[2].toUpperCase();
+        let oitava = 4;
+        if (m[2] === m[2].toLowerCase()) oitava = 5;
+        
+        let extras = m[3];
+        for(let c of extras) {
+            if (c === "'") oitava++;
+            if (c === ",") oitava--;
+        }
+        
+        let num = notaParaNum(letra, acc, oitava);
+        notasSelec.push({num, char: letra, acc, oitava});
+    }
+    
+    atualizarCoresTeclado();
+    atualizar();
+}
+
+function atualizar() {
+    desenharDiagrama();
+    
+    if (notasSelec.length === 0) {
+        document.getElementById("prev-score").innerHTML = '';
+        return;
+    }
+    
+    if (document.getElementById("abcText").value) {
+        try {
+            const startMatch = document.getElementById("start").value.match(/^([A-G])(\d+)$/);
+            const endMatch = document.getElementById("end").value.match(/^([A-G])(\d+)$/);
+            if (startMatch && endMatch) {
+                const startNum = notaParaNum(startMatch[1], "", startMatch[2]);
+                const endNum = notaParaNum(endMatch[1], "", endMatch[2]);
+                const numTeclas = endNum - startNum + 1;
+                const w = parseInt(document.getElementById("zoom").value);
+                
+                const larguraDiagrama = numTeclas * w;
+                document.getElementById("prev-score").style.width = larguraDiagrama + "px";
+            }
+            
+            ABCJS.renderAbc("prev-score", document.getElementById("abcText").value, { 
+                staffwidth: 220,
+                scale: 1.7,
+                paddingtop: 0,
+                paddingbottom: 0,
+                paddingleft: 0,
+                paddingright: 0
+            });
+        } catch(e) {
+            console.log("Erro ao renderizar ABC:", e);
+        }
+    }
+}
+
+function desenharDiagrama() {
+    const container = document.getElementById("prev-diagram");
+    container.innerHTML = "";
+    
+    let startMatch = document.getElementById("start").value.match(/^([A-G])(\d+)$/);
+    let endMatch = document.getElementById("end").value.match(/^([A-G])(\d+)$/);
+    
+    if (!startMatch || !endMatch) return;
+    
+    const startNum = notaParaNum(startMatch[1], "", startMatch[2]);
+    const endNum = notaParaNum(endMatch[1], "", endMatch[2]);
+    const w = parseInt(document.getElementById("zoom").value);
+    const h = w * 4.5;
+    const dedos = document.getElementById("fingers").value.trim().split(/\s+/).filter(d => d !== '');
+
+    let wrap = document.createElement("div");
+    wrap.style.position = "relative";
+    wrap.style.display = "inline-block";
+    wrap.style.height = (h + 10) + "px";
+
+    let whites = {};
+    for (let i = startNum; i <= endNum; i++) {
+        let notaPura = numParaNota(i);
+        if (!notaPura.includes("#")) {
+            let k = document.createElement("div");
+            k.className = "diag-white";
+            k.style.width = w + "px";
+            k.style.height = h + "px";
+            
+            let nSel = notasSelec.find(ns => ns.num === i);
+            if (nSel) {
+                k.style.background = "#d0e7ff";
+                let index = notasSelec.indexOf(nSel);
+                k.innerHTML = criarHTMLInfo(nSel, dedos[index] || "", false, w);
+            }
+            wrap.appendChild(k);
+            whites[i] = k;
+        }
+    }
+
+    for (let i = startNum; i <= endNum; i++) {
+        let notaPura = numParaNota(i);
+        if (notaPura.includes("#")) {
+            let p = whites[i-1];
+            if (p) {
+                let b = document.createElement("div");
+                b.className = "diag-black";
+                b.style.width = (w * 0.65) + "px";
+                b.style.height = (h * 0.6) + "px";
+                b.style.left = (w * 0.68) + "px";
+                b.style.top = "0";
+
+                let nSel = notasSelec.find(ns => ns.num === i);
+                if (nSel) {
+                    b.style.background = "#3a86ff";
+                    let index = notasSelec.indexOf(nSel);
+                    b.innerHTML = criarHTMLInfo(nSel, dedos[index] || "", true, w);
+                }
+                p.appendChild(b);
+            }
+        }
+    }
+    container.appendChild(wrap);
+}
+
+function criarHTMLInfo(nSel, dedo, isBlack, w) {
+    let cifra = formatarCifra(nSel.acc, nSel.char);
+    let circuloSiz = w * 0.4;
+    let fontSize = w * 0.3;
+    
+    let dedoHtml = dedo ? 
+        `<div class="diag-finger" style="width:${circuloSiz}px; height:${circuloSiz}px; font-size:${fontSize}px">${dedo}</div>` : 
+        '';
+    
+    return `<div class="info-wrap">
+        <div class="info-bottom">
+            ${dedoHtml}
+            <div class="diag-cifra" style="font-size:${fontSize}px">${cifra}</div>
+        </div>
+    </div>`;
+}
+
+function limparTeclado() {
+    notasSelec = [];
+    atualizarCoresTeclado();
+    gerarABC();
+    document.getElementById("prev-score").innerHTML = '';
+}
+
+function resetarTudo() {
+    notasSelec = [];
+    document.getElementById("fingers").value = "1 3 5";
+    document.getElementById("start").value = "C4";
+    document.getElementById("end").value = "C5";
+    document.getElementById("zoom").value = "30";
+    document.getElementById("zoomVal").innerText = "30";
+    document.getElementById("chordName").value = "C7M";
+    
+    atualizarCoresTeclado();
+    gerarABC();
+}
+
+// ⭐ FUNÇÃO DE EXPORTAÇÃO CORRIGIDA - HTML LIMPO E BEM ESTRUTURADO ⭐
+function exportarHTML() {
+    const titulo = document.getElementById("chordName").value;
+    const w = parseInt(document.getElementById("zoom").value);
+    
+    // Capturar o diagrama completo (incluindo as teclas pretas)
+    const diagramaElement = document.querySelector('#prev-diagram > div');
+    const diagramaHTML = diagramaElement ? diagramaElement.outerHTML : '';
+    
+    // Capturar o SVG do pentagrama
+    const svgScore = document.querySelector('#prev-score svg');
+    const scoreHTML = svgScore ? svgScore.outerHTML : '';
+    
+    // Calcular largura total do diagrama baseado no número de teclas
+    const startMatch = document.getElementById("start").value.match(/^([A-G])(\d+)$/);
+    const endMatch = document.getElementById("end").value.match(/^([A-G])(\d+)$/);
+    
+    let larguraTotal = 400; // valor padrão
+    
+    if (startMatch && endMatch) {
+        const startNum = notaParaNum(startMatch[1], "", startMatch[2]);
+        const endNum = notaParaNum(endMatch[1], "", endMatch[2]);
+        const numTeclas = endNum - startNum + 1;
+        larguraTotal = numTeclas * w + 50;
+    }
+    
+    // HTML limpo e bem estruturado
+    const htmlResumido = `<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body { 
+            font-family: 'Segoe UI', Arial, sans-serif; 
+            text-align: center; 
+            padding: 20px; 
+            background: #f5f5f5;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .acorde-card {
+            background: white;
+            max-width: 1000px;
+            width: fit-content;
+            margin: 0 auto;
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+        .chord-name { 
+            font-size: 48px; 
+            font-weight: bold; 
+            color: #1e3799; 
+            margin: 0 0 25px 0;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+        }
+        .diagrama-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+        }
+        .teclado-diagrama {
+            position: relative;
+            display: inline-block;
+            background: #fafafa;
+            padding: 15px 10px;
+            border-radius: 10px;
+        }
+        .score-container {
+            background: #f9f9f9;
+            padding: 15px 10px;
+            border-radius: 10px;
+            width: fit-content;
+            margin-top: 10px;
+        }
+        .diag-white { 
+            display: inline-block; 
+            position: relative; 
+            border: 1px solid #000; 
+            background: #fff; 
+            vertical-align: top; 
+            border-radius: 0 0 3px 3px; 
+        }
+        .diag-black { 
+            position: absolute; 
+            background: #000; 
+            z-index: 2; 
+            border-radius: 0 0 2px 2px; 
+        }
+        .info-wrap { 
+            position: absolute; 
+            width: 100%; 
+            height: 100%; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: flex-end;
+            padding: 0 0 8px 0;
+            box-sizing: border-box; 
+        }
+        .info-bottom {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            width: 100%;
+        }
+        .diag-finger { 
+            background: #ff4757; 
+            color: white; 
+            border-radius: 50%; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            font-weight: bold; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .diag-cifra { 
+            font-weight: bold; 
+            background: rgba(255,255,255,0.8);
+            padding: 1px 3px; 
+            border-radius: 3px; 
+        }
+        .diag-black .diag-cifra { 
+            background: rgba(0,0,0,0.7); 
+            color: white; 
+        }
+        svg {
+            max-width: 100%;
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="acorde-card">
+        <div class="chord-name">${titulo}</div>
+        <div class="diagrama-container">
+            <div class="teclado-diagrama">
+                ${diagramaHTML}
+            </div>
+            <div class="score-container">
+                ${scoreHTML}
+            </div>
+        </div>
+    </div>
+</body>
+</html>`;
+
+    const blob = new Blob([htmlResumido], {type: "text/html"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `acorde_${titulo}.html`;
+    a.click();
+}
+
+// Inicialização
+criarTecladoSelecao();
+setTimeout(() => {
+    clicarNoTeclado(60);
+    clicarNoTeclado(64);
+    clicarNoTeclado(67);
+}, 100);
+</script>
+
+</body>
+</html>
