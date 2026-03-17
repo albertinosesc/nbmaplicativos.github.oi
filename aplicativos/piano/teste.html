@@ -44,7 +44,7 @@
         .activeBlack { background: #ff4757 !important; }
         .noteLabel { position: absolute; bottom: 5px; font-size: 9px; width: 100%; text-align: center; color: #888; pointer-events: none; }
 
-        /* Braço de Violão SVG - Melhorado */
+        /* Braço de Violão SVG */
         .guitar-neck {
             position: relative;
             background: #f0e6d2;
@@ -68,6 +68,7 @@
             filter: drop-shadow(0 0 5px gold);
         }
         .guitar-note-marker.active {
+            fill: #3a86ff !important;
             stroke: #ffd700;
             stroke-width: 3;
         }
@@ -321,7 +322,7 @@ function setModo(modo) {
     atualizar();
 }
 
-// NOVO: Criar braço de violão em SVG
+// Criar braço de violão em SVG
 function criarBracoViolaoSVG() {
     const kb = document.getElementById("keyboard");
     kb.innerHTML = "";
@@ -401,8 +402,6 @@ function criarBracoViolaoSVG() {
             
             // Calcular a nota
             const notaNum = afinacaoViolao[string] + fret;
-            const notaNome = numParaNota(notaNum);
-            const cifra = formatarCifra(notaNome.includes('#') ? '^' : '', notaNome[0]);
             
             const marker = document.createElementNS(svgNS, "circle");
             marker.setAttribute("cx", x);
@@ -415,7 +414,6 @@ function criarBracoViolaoSVG() {
             marker.setAttribute("data-string", string);
             marker.setAttribute("data-fret", fret);
             marker.setAttribute("data-nota", notaNum);
-            marker.setAttribute("data-cifra", cifra);
             
             // Verificar se já está selecionada
             const nSel = notasSelec.find(n => n.num === notaNum);
@@ -424,7 +422,7 @@ function criarBracoViolaoSVG() {
                 marker.classList.add("active");
             }
             
-            // Adicionar evento de clique
+            // Adicionar evento de clique - AGORA SELECIONA APENAS UMA NOTA
             marker.addEventListener("click", (e) => {
                 e.stopPropagation();
                 const notaNum = parseInt(e.target.getAttribute("data-nota"));
@@ -439,15 +437,17 @@ function criarBracoViolaoSVG() {
                 const dedos = document.getElementById("fingers").value.trim().split(/\s+/).filter(d => d !== '');
                 const dedo = dedos[index] || '';
                 
-                const text = document.createElementNS(svgNS, "text");
-                text.setAttribute("x", x);
-                text.setAttribute("y", y + 5);
-                text.setAttribute("font-size", "10");
-                text.setAttribute("fill", "white");
-                text.setAttribute("text-anchor", "middle");
-                text.setAttribute("font-weight", "bold");
-                text.textContent = dedo;
-                svg.appendChild(text);
+                if (dedo) {
+                    const text = document.createElementNS(svgNS, "text");
+                    text.setAttribute("x", x);
+                    text.setAttribute("y", y + 5);
+                    text.setAttribute("font-size", "10");
+                    text.setAttribute("fill", "white");
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("font-weight", "bold");
+                    text.textContent = dedo;
+                    svg.appendChild(text);
+                }
             }
         }
     }
@@ -455,49 +455,25 @@ function criarBracoViolaoSVG() {
     kb.appendChild(svg);
 }
 
-// Clique no braço do violão - seleciona TODAS as notas iguais
+// Clique no braço do violão - SELECIONA APENAS A NOTA CLICADA
 function clicarNotaViolao(notaNum) {
-    const notaBase = notaNum % 12;
-    const letraBase = escalaPadrao[notaBase][0];
-    const temSustenido = escalaPadrao[notaBase].includes('#');
+    let existente = notasSelec.find(n => n.num === notaNum);
     
-    // Encontrar todas as notas iguais no braço
-    const todasNotasIguais = [];
-    
-    for (let fret = 0; fret <= 14; fret++) {
-        for (let string = 0; string < 6; string++) {
-            const num = afinacaoViolao[string] + fret;
-            if (num % 12 === notaBase) {
-                todasNotasIguais.push(num);
-            }
-        }
-    }
-    
-    // Verificar se alguma dessas notas já está selecionada
-    const temSelecionada = todasNotasIguais.some(num => 
-        notasSelec.some(n => n.num === num)
-    );
-    
-    if (temSelecionada) {
-        // Remover TODAS as notas iguais
-        notasSelec = notasSelec.filter(n => n.num % 12 !== notaBase);
+    if (existente) {
+        // Se já existe, remove apenas esta nota
+        notasSelec = notasSelec.filter(n => n.num !== notaNum);
     } else {
-        // Adicionar TODAS as notas iguais
-        todasNotasIguais.forEach(num => {
-            const notaBase = escalaPadrao[num % 12];
-            const oitava = Math.floor(num / 12) - 1;
-            const char = notaBase[0];
-            const acc = notaBase.includes("#") ? "^" : "";
-            
-            if (!notasSelec.some(n => n.num === num)) {
-                notasSelec.push({num, char, acc, oitava});
-            }
-        });
+        // Se não existe, adiciona apenas esta nota
+        let notaBase = escalaPadrao[notaNum % 12];
+        let oitava = Math.floor(notaNum / 12) - 1;
+        let char = notaBase[0];
+        let acc = notaBase.includes("#") ? "^" : "";
+        notasSelec.push({num: notaNum, char, acc, oitava});
     }
     
     notasSelec.sort((a, b) => a.num - b.num);
     
-    // Atualizar o braço
+    // Recriar o braço para atualizar
     criarBracoViolaoSVG();
     gerarABC();
 }
@@ -735,7 +711,7 @@ function desenharDiagramaPiano(container) {
     container.appendChild(wrap);
 }
 
-// NOVO: Desenhar diagrama de violão em SVG (igual ao exemplo)
+// Desenhar diagrama de violão em SVG (sem numeração das notas)
 function desenharDiagramaViolaoSVG(container) {
     const svgNS = "http://www.w3.org/2000/svg";
     const svg = document.createElementNS(svgNS, "svg");
@@ -808,7 +784,7 @@ function desenharDiagramaViolaoSVG(container) {
         svg.appendChild(fretLine);
     }
     
-    // Adicionar as notas selecionadas
+    // Adicionar as notas selecionadas (apenas círculos com dedos)
     notasSelec.forEach((nota, index) => {
         // Encontrar posição no braço
         for (let fret = 0; fret <= 4; fret++) {
