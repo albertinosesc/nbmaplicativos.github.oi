@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Galeria Infinita</title>
+
+<style>
+body { font-family: Arial; margin:0; display:flex; }
+
+.sidebar {
+  width:220px;
+  background:#222;
+  color:#fff;
+  padding:10px;
+  height:100vh;
+  overflow:auto;
+}
+
+.sidebar div {
+  padding:6px;
+  cursor:pointer;
+  border-bottom:1px solid #444;
+}
+
+.sidebar div:hover { background:#444; }
+
+.main {
+  flex:1;
+  padding:15px;
+  background:#f4f4f4;
+}
+
+input { width:100%; padding:6px; margin-top:5px; }
+
+button {
+  margin-top:5px;
+  padding:6px;
+  background:#007BFF;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+}
+
+.galeria.grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill,minmax(200px,1fr));
+  gap:10px;
+}
+
+.galeria.livro { display:block; }
+
+.card {
+  background:#fff;
+  padding:10px;
+}
+
+img { max-width:100%; }
+
+.link-box { display:flex; gap:5px; }
+</style>
+</head>
+
+<body>
+
+<div class="sidebar">
+  <button onclick="criarPasta()">+ Nova Pasta</button>
+  <div id="pastas"></div>
+</div>
+
+<div class="main">
+
+<h2>Galeria Infinita</h2>
+
+<input id="link" placeholder="Link da imagem">
+<input id="nome" placeholder="Nome da imagem">
+<input id="categoria" placeholder="Pasta">
+
+<button onclick="add()">Adicionar</button>
+<button onclick="exportar()">Exportar HTML</button>
+<button onclick="toggle()">Modo Livro</button>
+
+<input id="busca" placeholder="Buscar..." oninput="render()">
+
+<div id="galeria" class="galeria grid"></div>
+
+</div>
+
+<script>
+let lista = JSON.parse(localStorage.getItem("galeria_inf")) || [];
+let pastas = JSON.parse(localStorage.getItem("pastas_inf")) || ["Geral"];
+let pastaAtual = "Todas";
+let modo = false;
+
+function salvar(){
+  localStorage.setItem("galeria_inf", JSON.stringify(lista));
+  localStorage.setItem("pastas_inf", JSON.stringify(pastas));
+}
+
+function gerarNome(link){
+  return link.split("/").pop().split(".")[0];
+}
+
+function add(){
+  const l = document.getElementById("link").value.trim();
+  const n = document.getElementById("nome").value.trim() || gerarNome(l);
+  const c = document.getElementById("categoria").value.trim() || "Geral";
+
+  if(!l) return alert("Adicione um link");
+
+  if(!pastas.includes(c)) pastas.push(c);
+
+  lista.push({link:l,nome:n,categoria:c});
+  salvar();
+  render();
+}
+
+function del(i){
+  lista.splice(i,1);
+  salvar();
+  render();
+}
+
+function editar(i,c,v){
+  lista[i][c]=v;
+  salvar();
+}
+
+function criarPasta(){
+  let nome = prompt("Nome da pasta:");
+  if(!nome) return;
+  if(!pastas.includes(nome)){
+    pastas.push(nome);
+    salvar();
+    render();
+  }
+}
+
+function renomearPasta(p){
+  let novo = prompt("Novo nome:", p);
+  if(!novo) return;
+
+  lista.forEach(i=>{
+    if(i.categoria===p) i.categoria=novo;
+  });
+
+  pastas = pastas.map(x=>x===p?novo:x);
+  salvar();
+  render();
+}
+
+function excluirPasta(p){
+  if(!confirm("Excluir pasta?")) return;
+
+  lista = lista.filter(i=>i.categoria!==p);
+  pastas = pastas.filter(x=>x!==p);
+
+  salvar();
+  render();
+}
+
+function renderPastas(){
+  const el = document.getElementById("pastas");
+  el.innerHTML="";
+
+  ["Todas", ...pastas].forEach(p=>{
+    const d=document.createElement("div");
+    d.innerHTML = `
+      ${p}
+      ${p!=="Todas" ? `
+      <br>
+      <button onclick="event.stopPropagation();renomearPasta('${p}')">✏</button>
+      <button onclick="event.stopPropagation();excluirPasta('${p}')">❌</button>
+      ` : ""}
+    `;
+    d.onclick=()=>{pastaAtual=p;render();}
+    el.appendChild(d);
+  });
+}
+
+function render(){
+  renderPastas();
+
+  const busca = document.getElementById("busca").value.toLowerCase();
+  const galeria = document.getElementById("galeria");
+
+  galeria.className = "galeria " + (modo ? "livro" : "grid");
+  galeria.innerHTML="";
+
+  lista
+  .filter(i =>
+    (pastaAtual==="Todas"||i.categoria===pastaAtual) &&
+    (i.nome.toLowerCase().includes(busca) || i.categoria.toLowerCase().includes(busca))
+  )
+  .forEach((item,index)=>{
+    const d=document.createElement("div");
+    d.className="card";
+
+    d.innerHTML=`
+      <img src="${item.link}">
+      <input value="${item.nome}" onchange="editar(${index},'nome',this.value)">
+      <input value="${item.categoria}" onchange="editar(${index},'categoria',this.value)">
+      <div class="link-box">
+        <input value="${item.link}" readonly>
+        <button onclick="navigator.clipboard.writeText('${item.link}')">Copiar</button>
+      </div>
+      <button onclick="del(${index})">Excluir</button>
+    `;
+
+    galeria.appendChild(d);
+  });
+}
+
+function toggle(){
+  modo = !modo;
+  render();
+}
+
+// 🔥 EXPORTAÇÃO INFINITA REAL
+function exportar(){
+  const dados = JSON.stringify(lista);
+  const pastasDados = JSON.stringify(pastas);
+
+  let html = document.documentElement.outerHTML;
+
+  html = html.replace(
+    /let lista = .*?;/,
+    'let lista = ' + dados + ';'
+  );
+
+  html = html.replace(
+    /let pastas = .*?;/,
+    'let pastas = ' + pastasDados + ';'
+  );
+
+  const blob = new Blob([html], {type:"text/html"});
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "galeria_infinita.html";
+  a.click();
+}
+
+render();
+</script>
+
+</body>
+</html>
