@@ -2,71 +2,237 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Galeria</title>
-<link rel="stylesheet" href="style.css">
+<title>Galeria Pro</title>
+
+<style>
+body { font-family: Arial; margin:0; display:flex; }
+
+.sidebar {
+  width:220px;
+  background:#222;
+  color:#fff;
+  padding:10px;
+  height:100vh;
+  overflow:auto;
+}
+
+.sidebar div { padding:6px; cursor:pointer; }
+.sidebar div:hover { background:#444; }
+
+.main { flex:1; padding:15px; background:#f4f4f4; }
+
+input { width:100%; margin-top:5px; padding:6px; }
+
+button {
+  margin-top:5px;
+  padding:6px;
+  background:#007BFF;
+  color:#fff;
+  border:none;
+  cursor:pointer;
+}
+
+.galeria.grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill,minmax(200px,1fr));
+  gap:10px;
+}
+
+.galeria.livro { display:block; }
+
+.card {
+  background:#fff;
+  padding:10px;
+}
+
+img { max-width:100%; }
+
+.link-box { display:flex; gap:5px; }
+</style>
 </head>
 
 <body>
 
-<div class="sidebar" id="menu"></div>
+<div class="sidebar">
+  <button onclick="criarPasta()">+ Pasta</button>
+  <div id="pastas"></div>
+</div>
 
 <div class="main">
-<h2>Todas as imagens</h2>
+
+<h2>Galeria</h2>
+
+<input id="link" placeholder="Link">
+<input id="nome" placeholder="Nome">
+<input id="categoria" placeholder="Pasta">
+
+<button onclick="add()">Adicionar</button>
+<button onclick="exportar()">Exportar</button>
+<button onclick="toggle()">Modo Livro</button>
 
 <input id="busca" placeholder="Buscar..." oninput="render()">
-<button onclick="exportar()">Exportar HTML</button>
 
-<div id="galeria"></div>
+<div id="galeria" class="galeria grid"></div>
+
 </div>
 
 <script src="dados.js"></script>
 
 <script>
+let listaLocal = JSON.parse(localStorage.getItem("galeria_local")) || [];
+let lista = [];
+let pastas = [];
 let pastaAtual = "Todas";
+let modo = false;
 
-function getPastas(){
-  return [...new Set(lista.map(i=>i.categoria))];
+function iniciar(){
+  lista = [...(listaInicial || []), ...listaLocal];
+  pastas = [...new Set(lista.map(i=>i.categoria))];
 }
 
-function renderMenu(){
-  const m = document.getElementById("menu");
-  m.innerHTML = "<h3>Pastas</h3>";
+function salvar(){
+  localStorage.setItem("galeria_local", JSON.stringify(listaLocal));
+}
 
-  getPastas().forEach(p=>{
-    m.innerHTML += `<div><a href="pasta.html?cat=${p}" style="color:#fff">${p}</a></div>`;
+function add(){
+  const l = link.value.trim();
+  const n = nome.value.trim() || l.split("/").pop();
+  const c = categoria.value.trim() || "Geral";
+
+  if(!l) return alert("Adicione um link");
+
+  const item = {link:l,nome:n,categoria:c};
+  listaLocal.push(item);
+
+  salvar();
+  iniciar();
+  render();
+}
+
+function del(i){
+  const item = lista[i];
+  listaLocal = listaLocal.filter(x => x !== item);
+
+  salvar();
+  iniciar();
+  render();
+}
+
+function editar(i,c,v){
+  lista[i][c]=v;
+
+  const item = lista[i];
+  const idx = listaLocal.findIndex(x=>x.link===item.link);
+
+  if(idx>=0){
+    listaLocal[idx][c]=v;
+    salvar();
+  }
+}
+
+function criarPasta(){
+  let nome = prompt("Nome da pasta:");
+  if(!nome) return;
+
+  pastas.push(nome);
+  render();
+}
+
+function renomearPasta(p){
+  let novo = prompt("Novo nome:", p);
+  if(!novo) return;
+
+  lista.forEach(i=>{
+    if(i.categoria===p) i.categoria=novo;
+  });
+
+  salvar();
+  iniciar();
+  render();
+}
+
+function excluirPasta(p){
+  if(!confirm("Excluir pasta?")) return;
+
+  listaLocal = listaLocal.filter(i=>i.categoria!==p);
+
+  salvar();
+  iniciar();
+  render();
+}
+
+function renderPastas(){
+  pastasEl.innerHTML="";
+
+  ["Todas", ...pastas].forEach(p=>{
+    const d=document.createElement("div");
+
+    d.innerHTML = `
+      ${p}
+      ${p!=="Todas" ? `
+      <button onclick="event.stopPropagation();renomearPasta('${p}')">✏</button>
+      <button onclick="event.stopPropagation();excluirPasta('${p}')">❌</button>
+      `:""}
+    `;
+
+    d.onclick=()=>{pastaAtual=p;render();}
+    pastasEl.appendChild(d);
   });
 }
 
 function render(){
-  renderMenu();
+  renderPastas();
 
-  const busca = document.getElementById("busca").value.toLowerCase();
-  const g = document.getElementById("galeria");
-  g.innerHTML = "";
+  const b = busca.value.toLowerCase();
+  galeria.className = "galeria " + (modo?"livro":"grid");
+  galeria.innerHTML="";
 
   lista
-  .filter(i => i.nome.toLowerCase().includes(busca))
-  .forEach(i=>{
-    g.innerHTML += `
-      <div class="card">
-        <img src="${i.link}">
-        <p>${i.nome}</p>
-        <button onclick="navigator.clipboard.writeText('${i.link}')">Copiar link</button>
+  .filter(i =>
+    (pastaAtual==="Todas"||i.categoria===pastaAtual) &&
+    i.nome.toLowerCase().includes(b)
+  )
+  .forEach((item,index)=>{
+    const d=document.createElement("div");
+    d.className="card";
+
+    d.innerHTML=`
+      <img src="${item.link}">
+      <input value="${item.nome}" onchange="editar(${index},'nome',this.value)">
+      <input value="${item.categoria}" onchange="editar(${index},'categoria',this.value)">
+      <div class="link-box">
+        <input value="${item.link}" readonly>
+        <button onclick="navigator.clipboard.writeText('${item.link}')">Copiar</button>
       </div>
+      <button onclick="del(${index})">Excluir</button>
     `;
+
+    galeria.appendChild(d);
   });
 }
 
+function toggle(){
+  modo=!modo;
+  render();
+}
+
+// 🔥 EXPORTAÇÃO INFINITA
 function exportar(){
-  const html = document.documentElement.outerHTML;
+  let html = document.documentElement.outerHTML;
+
+  html = html.replace(
+    /let listaLocal = .*?;/,
+    'let listaLocal = ' + JSON.stringify(listaLocal) + ';'
+  );
 
   const blob = new Blob([html], {type:"text/html"});
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = "galeria_exportada.html";
+  a.download = "galeria_pro.html";
   a.click();
 }
 
+iniciar();
 render();
 </script>
 
