@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Editor de Acordes Pro - Ultra</title>
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
+    <!-- Adicionar html2canvas para captura de imagem -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <style>
         :root { --key-w: 30px; --key-h: 120px; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f7f6; padding: 20px; color: #333; }
@@ -33,6 +35,8 @@
         button { padding: 10px 20px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.3s; flex: 1; }
         .btn-export { background: #2ed573; color: white; }
         .btn-export:hover { background: #26af5f; }
+        .btn-image { background: #9b59b6; color: white; }
+        .btn-image:hover { background: #8e44ad; }
         .btn-clear { background: #ff4757; color: white; }
         .btn-clear:hover { background: #ee3a4a; }
         .btn-reset { background: #f39c12; color: white; }
@@ -148,6 +152,69 @@
         
         .white-text { color: #000; }
         .black-text { color: #fff; }
+
+        /* Modal de Preview da Imagem */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            position: relative;
+        }
+        
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            font-size: 30px;
+            cursor: pointer;
+            color: #333;
+        }
+        
+        .modal-close:hover {
+            color: #ff4757;
+        }
+        
+        .modal-image {
+            max-width: 100%;
+            max-height: 70vh;
+            width: auto;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+            object-fit: contain;
+        }
+        
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            justify-content: center;
+        }
+        
+        .modal-buttons button {
+            flex: 0 1 auto;
+            padding: 10px 20px;
+        }
     </style>
 </head>
 <body>
@@ -203,14 +270,28 @@
         </div>
     </div>
 
-    <div style="text-align:center; margin-top:20px;">
-        <button class="btn-export" onclick="exportarHTML()">Exportar HTML Bonito</button>
+    <div style="display:flex; gap:10px; margin-top:20px; justify-content:center;">
+        <button class="btn-export" onclick="exportarHTML()" style="flex:1;">📄 Exportar HTML</button>
+        <button class="btn-image" onclick="exportarImagem()" style="flex:1;">🖼️ Exportar como Imagem (6x7cm)</button>
+    </div>
+</div>
+
+<!-- Modal para preview da imagem -->
+<div class="modal" id="imageModal" onclick="if(event.target === this) fecharModal()">
+    <div class="modal-content">
+        <span class="modal-close" onclick="fecharModal()">&times;</span>
+        <img id="modalImage" class="modal-image" src="" alt="Preview do acorde">
+        <div class="modal-buttons">
+            <button class="btn-export" onclick="baixarImagem()">💾 Salvar Imagem</button>
+            <button class="btn-clear" onclick="fecharModal()">❌ Fechar</button>
+        </div>
     </div>
 </div>
 
 <script>
 const escalaPadrao = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 let notasSelec = [];
+let ultimaImagemCapturada = null;
 
 function notaParaNum(letra, acidental, oitava) {
     let base = escalaPadrao.indexOf(letra);
@@ -460,7 +541,6 @@ function criarHTMLInfo(nSel, dedo, isBlack, w) {
         `<div class="diag-finger" style="width:${circuloSiz}px; height:${circuloSiz}px; font-size:${fontSize}px; background:#ff4757; color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold; margin-bottom:2px;">${dedo}</div>` : 
         '';
     
-    // FORÇANDO O POSICIONAMENTO COM bottom EM VEZ DE padding
     return `<div style="position:absolute; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; bottom:15px; left:0;">
         <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
             ${dedoHtml}
@@ -489,7 +569,7 @@ function resetarTudo() {
     gerarABC();
 }
 
-// ⭐ FUNÇÃO DE EXPORTAÇÃO SUPER SIMPLIFICADA ⭐
+// ⭐ FUNÇÃO DE EXPORTAÇÃO HTML ⭐
 function exportarHTML() {
     const titulo = document.getElementById("chordName").value;
     
@@ -497,19 +577,18 @@ function exportarHTML() {
     const diagramaHTML = document.querySelector('#prev-diagram > div').outerHTML;
     const scoreHTML = document.querySelector('#prev-score svg').outerHTML;
     
-    // HTML extremamente simplificado - CSS MÍNIMO
+    // HTML extremamente simplificado
     const htmlResumido = `<!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
     <style>
-        body { text-align: center; padding: 20px; }
-        .chord-name { font-size: 40px; font-weight: bold; margin: 10px; }
+        body { text-align: center; padding: 20px; font-family: 'Segoe UI', Arial, sans-serif; }
+        .chord-name { font-size: 40px; font-weight: bold; margin: 10px; color: #1e3799; }
         .diagrama { position: relative; display: inline-block; }
         .score { margin-top: 20px; }
         .diag-white { display: inline-block; position: relative; border: 1px solid #000; background: #fff; vertical-align: top; }
         .diag-black { position: absolute; background: #000; z-index: 2; }
-        /* NÃO PRECISA DE MAIS NADA - OS ESTILOS JÁ VÃO INLINE */
     </style>
 </head>
 <body>
@@ -522,16 +601,176 @@ function exportarHTML() {
     const blob = new Blob([htmlResumido], {type: "text/html"});
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
-    a.download = `acorde_${titulo}.html`;
+    a.download = `acorde_${titulo.replace(/[^a-zA-Z0-9]/g, '_')}.html`;
     a.click();
+}
+
+// ⭐ FUNÇÃO CORRIGIDA - Usando a técnica que funciona ⭐
+function exportarImagem() {
+    const titulo = document.getElementById("chordName").value;
+    
+    // Validar se há notas selecionadas
+    if (notasSelec.length === 0) {
+        alert("Selecione algumas notas no teclado primeiro!");
+        return;
+    }
+    
+    // Verificar se o pentagrama existe
+    const svg = document.querySelector('#prev-score svg');
+    if (!svg) {
+        alert("Pentagrama não encontrado. Tente selecionar notas primeiro.");
+        return;
+    }
+    
+    // 1. CONVERTER SVG PARA IMAGEM (técnica que funciona!)
+    const svgData = new XMLSerializer().serializeToString(svg);
+    const imgSvg = new Image();
+    const svgBlob = new Blob([svgData], {type: "image/svg+xml;charset=utf-8"});
+    const url = URL.createObjectURL(svgBlob);
+    
+    imgSvg.onload = function() {
+        // 2. Converter cm para pixels (300 DPI)
+        const widthCm = 6;
+        const heightCm = 7;
+        const pixelsPerCm = 118.11;
+        const targetWidth = Math.round(widthCm * pixelsPerCm);
+        const targetHeight = Math.round(heightCm * pixelsPerCm);
+        
+        // 3. Criar container temporário
+        const containerTemp = document.createElement('div');
+        containerTemp.style.cssText = `
+            background: white;
+            width: ${targetWidth}px;
+            height: ${targetHeight}px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 15px;
+            box-sizing: border-box;
+            position: absolute;
+            left: -9999px;
+            top: -9999px;
+        `;
+        
+        // 4. Adicionar título
+        const tituloEl = document.createElement('div');
+        tituloEl.style.cssText = `
+            font-size: 32px;
+            font-weight: bold;
+            color: #1e3799;
+            margin-bottom: 10px;
+            text-align: center;
+            white-space: nowrap;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        `;
+        tituloEl.textContent = titulo;
+        containerTemp.appendChild(tituloEl);
+        
+        // 5. Clonar diagrama do piano
+        const diagramaOriginal = document.querySelector('#prev-diagram > div');
+        if (diagramaOriginal) {
+            const diagramaClone = diagramaOriginal.cloneNode(true);
+            diagramaClone.style.marginBottom = '15px';
+            containerTemp.appendChild(diagramaClone);
+        }
+        
+        // 6. Adicionar a IMAGEM do pentagrama (não o SVG)
+        const imgElement = document.createElement('img');
+        imgElement.src = url;
+        imgElement.style.cssText = `
+            width: 90%;
+            max-width: ${targetWidth - 40}px;
+            height: auto;
+            margin-top: 5px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            padding: 5px;
+        `;
+        containerTemp.appendChild(imgElement);
+        
+        document.body.appendChild(containerTemp);
+        
+        // 7. Auto-ajuste para caber na altura
+        const scale = Math.min(1, targetHeight / containerTemp.scrollHeight * 0.95);
+        containerTemp.style.transform = `scale(${scale})`;
+        containerTemp.style.transformOrigin = 'top center';
+        containerTemp.style.width = (targetWidth / scale) + 'px';
+        
+        // 8. Capturar com html2canvas
+        html2canvas(containerTemp, {
+            scale: 3,
+            backgroundColor: '#ffffff',
+            logging: false,
+            allowTaint: false,
+            useCORS: true,
+            width: targetWidth,
+            height: targetHeight
+        }).then(canvas => {
+            // Limpar
+            document.body.removeChild(containerTemp);
+            URL.revokeObjectURL(url);
+            
+            // Criar canvas final
+            const finalCanvas = document.createElement('canvas');
+            finalCanvas.width = targetWidth;
+            finalCanvas.height = targetHeight;
+            const ctx = finalCanvas.getContext('2d');
+            ctx.imageSmoothingEnabled = true;
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(canvas, 0, 0, targetWidth, targetHeight);
+            
+            // Salvar e mostrar
+            const imagemData = finalCanvas.toDataURL('image/png');
+            ultimaImagemCapturada = imagemData;
+            mostrarModal(imagemData, titulo);
+            
+        }).catch(error => {
+            console.error('Erro ao capturar imagem:', error);
+            alert('Erro ao gerar imagem. Tente novamente.');
+            if (document.body.contains(containerTemp)) {
+                document.body.removeChild(containerTemp);
+            }
+            URL.revokeObjectURL(url);
+        });
+    };
+    
+    imgSvg.src = url;
+}
+
+// Função para mostrar o modal com preview da imagem
+function mostrarModal(imagemData, titulo) {
+    const modal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    
+    modalImage.src = imagemData;
+    modal.classList.add('active');
+}
+
+// Função para fechar o modal
+function fecharModal() {
+    document.getElementById('imageModal').classList.remove('active');
+}
+
+// Função para baixar a imagem do modal
+function baixarImagem() {
+    if (!ultimaImagemCapturada) return;
+    
+    const titulo = document.getElementById("chordName").value;
+    const link = document.createElement('a');
+    link.download = `acorde_${titulo.replace(/[^a-zA-Z0-9]/g, '_')}_6x7cm.png`;
+    link.href = ultimaImagemCapturada;
+    link.click();
 }
 
 // Inicialização
 criarTecladoSelecao();
 setTimeout(() => {
-    clicarNoTeclado(60);
-    clicarNoTeclado(64);
-    clicarNoTeclado(67);
+    clicarNoTeclado(60); // C4
+    clicarNoTeclado(64); // E4
+    clicarNoTeclado(67); // G4
 }, 100);
 </script>
 
