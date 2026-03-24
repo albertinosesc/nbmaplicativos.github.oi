@@ -1,0 +1,954 @@
+
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+    <meta charset="UTF-8">
+    <title>Editor de Acordes Pro - Multi Diagramas</title>
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f4f7f6; padding: 20px; color: #333; }
+        .container { background: white; padding: 25px; border-radius: 15px; max-width: 1400px; margin: auto; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 25px;
+            text-align: center;
+        }
+        
+        .header h2 { margin: 0; color: white; }
+        .header p { margin: 10px 0 0; opacity: 0.9; }
+        
+        .main-layout {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 25px;
+        }
+        
+        .editor-panel, .diagrams-panel {
+            background: #fff;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+            border: 1px solid #e0e0e0;
+        }
+        
+        .panel-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #667eea;
+            color: #333;
+        }
+        
+        .keyboardWrap { overflow-x: auto; border: 1px solid #ddd; padding: 15px; background: #fff; border-radius: 8px; margin: 15px 0; }
+        #keyboard { position: relative; height: 160px; white-space: nowrap; }
+        .white { width: 30px; height: 150px; background: white; border: 1px solid #999; display: inline-block; position: relative; cursor: pointer; border-radius: 0 0 4px 4px; vertical-align: top; transition: background 0.2s; }
+        .black { width: 20px; height: 90px; background: #222; position: absolute; top: 0; left: 20px; z-index: 3; cursor: pointer; border-radius: 0 0 3px 3px; transition: background 0.2s; }
+        .activeWhite { background: #3a86ff !important; border-color: #1e3799; }
+        .activeBlack { background: #ff4757 !important; }
+        .noteLabel { position: absolute; bottom: 5px; font-size: 9px; width: 100%; text-align: center; color: #888; pointer-events: none; }
+        
+        .form-group { margin-bottom: 15px; }
+        label { font-weight: bold; display: block; margin-bottom: 5px; font-size: 13px; color: #555; }
+        input, textarea { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        input:focus, textarea:focus { outline: none; border-color: #667eea; }
+        
+        .row-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        
+        .btn-group { display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap; }
+        button { padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; transition: all 0.3s; flex: 1; min-width: 100px; font-size: 14px; }
+        .btn-primary { background: #3a86ff; color: white; }
+        .btn-primary:hover { background: #2666cc; transform: translateY(-2px); }
+        .btn-success { background: #2ed573; color: white; }
+        .btn-success:hover { background: #26af5f; transform: translateY(-2px); }
+        .btn-danger { background: #ff4757; color: white; }
+        .btn-danger:hover { background: #ee3a4a; transform: translateY(-2px); }
+        .btn-warning { background: #f39c12; color: white; }
+        .btn-warning:hover { background: #e67e22; transform: translateY(-2px); }
+        .btn-purple { background: #9b59b6; color: white; }
+        .btn-purple:hover { background: #8e44ad; transform: translateY(-2px); }
+        .btn-secondary { background: #6c757d; color: white; }
+        .btn-secondary:hover { background: #545b62; transform: translateY(-2px); }
+        
+        .a4-config-section {
+            background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+            border: 2px solid #667eea;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+        
+        .a4-config-section h4 {
+            color: #667eea;
+            margin: 0 0 15px 0;
+            font-size: 18px;
+        }
+        
+        .config-grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .config-card {
+            background: white;
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .config-card label { font-size: 12px; color: #666; margin-bottom: 5px; }
+        .config-card input { text-align: center; font-size: 18px; font-weight: bold; padding: 8px; }
+        
+        .diagrams-list {
+            max-height: 350px;
+            overflow-y: auto;
+            margin-top: 15px;
+        }
+        
+        .diagram-item {
+            background: #f8f9fa;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            padding: 12px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .diagram-item:hover { border-color: #667eea; transform: translateX(5px); }
+        .diagram-item.selected { border-color: #667eea; background: #e3f2fd; }
+        
+        .diagram-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .diagram-name { font-weight: bold; font-size: 16px; color: #667eea; }
+        .diagram-info { font-size: 12px; color: #666; display: flex; gap: 10px; flex-wrap: wrap; }
+        .diagram-actions { display: flex; gap: 5px; }
+        .diagram-actions button { padding: 4px 10px; font-size: 11px; flex: none; }
+        
+        .search-box {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            margin-bottom: 15px;
+        }
+        
+        .badge-count {
+            background: #667eea;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 8px;
+        }
+        
+        /* Estilos do diagrama - VERSÃO OTIMIZADA */
+        .diag-white { 
+            display: inline-block; 
+            position: relative; 
+            border: 1px solid #000; 
+            background: #fff; 
+            vertical-align: top; 
+            border-radius: 0 0 3px 3px; 
+        }
+        .diag-black { 
+            position: absolute; 
+            background: #222; 
+            z-index: 2; 
+            border-radius: 0 0 2px 2px; 
+        }
+        
+        /* Preview A4 - OTIMIZADO */
+        .a4-preview {
+            margin-top: 30px;
+            padding: 0;
+            background: #e9ecef;
+            border-radius: 8px;
+        }
+        
+        .a4-container {
+            background: white;
+            min-height: 800px;
+            padding: 20px;
+        }
+        
+        /* Card do diagrama - MAIS COMPACTO */
+        .diagram-card {
+            background: white;
+            border: 1px solid #dee2e6;
+            border-radius: 6px;
+            padding: 8px 6px;
+            page-break-inside: avoid;
+            break-inside: avoid;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        .diagram-title { 
+            font-size: 12px; 
+            font-weight: bold; 
+            text-align: center; 
+            margin-bottom: 5px; 
+            color: #667eea;
+            padding: 2px;
+            background: #f8f9fa;
+            border-radius: 4px;
+        }
+        
+        .diagram-content { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center;
+            gap: 3px;
+            flex: 1;
+        }
+        
+        .diagram-content > div:first-child {
+            margin: 0;
+            padding: 0;
+            line-height: 0;
+        }
+        
+        .score-wrapper {
+            margin-top: 3px;
+            display: flex;
+            justify-content: center;
+            width: 100%;
+        }
+        
+        .score-wrapper svg {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 90%;
+            max-height: 90%;
+        }
+        .modal-image { max-width: 100%; max-height: 70vh; }
+        .modal-close { float: right; font-size: 28px; cursor: pointer; }
+        
+        @media (max-width: 768px) {
+            .main-layout { grid-template-columns: 1fr; }
+            .config-grid-3 { grid-template-columns: 1fr; }
+        }
+        
+        @media print {
+            .main-layout, .a4-config-section, .btn-group, .search-box, .header { display: none; }
+            .a4-preview { margin: 0; padding: 0; background: white; }
+            .a4-container { border: none; padding: 10px; }
+            .diagram-card { break-inside: avoid; page-break-inside: avoid; border: 1px solid #ddd; }
+        }
+        
+        @keyframes fadeOut {
+            0% { opacity: 1; transform: translateX(0); }
+            70% { opacity: 1; transform: translateX(0); }
+            100% { opacity: 0; transform: translateX(100px); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header">
+        <h2>🎹 Editor de Acordes Pro</h2>
+        <p>Crie seu livro de acordes em formato A4 | Múltiplos diagramas por página</p>
+    </div>
+    
+    <div class="main-layout">
+        <!-- COLUNA ESQUERDA - EDITOR -->
+        <div class="editor-panel">
+            <div class="panel-title">✏️ Criar Novo Acorde</div>
+            
+            <div class="keyboardWrap">
+                <div id="keyboard"></div>
+                <div style="text-align: center; margin-top: 8px; font-size: 12px; color: #666;">👆 Clique nas teclas para selecionar as notas</div>
+            </div>
+            
+            <div class="form-group">
+                <label>🎸 Dedilhado (separado por espaço):</label>
+                <input id="fingers" placeholder="Ex: 1 3 5" value="1 3 5" oninput="atualizarEditor()">
+            </div>
+            
+            <div class="row-2">
+                <div class="form-group">
+                    <label>🎵 Início:</label>
+                    <input id="start" value="C4" onchange="atualizarEditor()">
+                </div>
+                <div class="form-group">
+                    <label>🎵 Fim:</label>
+                    <input id="end" value="C5" onchange="atualizarEditor()">
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label>🔍 Tamanho das Teclas: <span id="zoomVal">30</span>px</label>
+                <input type="range" id="zoom" min="20" max="60" value="30" oninput="ajustarZoom(this.value)">
+            </div>
+            
+            <div class="form-group">
+                <label>📝 Nome do Acorde:</label>
+                <input id="diagramName" placeholder="Ex: C Maior, Am, G7" value="C Maior">
+            </div>
+            
+            <div class="form-group">
+                <label>🎼 Notação ABC:</label>
+                <textarea id="abcText" rows="2" oninput="sincronizarDoABC()"></textarea>
+            </div>
+            
+            <div class="btn-group">
+                <button class="btn-primary" onclick="adicionarDiagrama()">➕ Adicionar à Lista</button>
+                <button class="btn-danger" onclick="limparEditor()">🗑️ Limpar</button>
+            </div>
+            
+            <div style="margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                <div style="font-size: 12px; color: #666; margin-bottom: 8px;">👁️ Pré-visualização:</div>
+                <div id="preview-diagram" style="display: flex; justify-content: center;"></div>
+                <div id="preview-score" style="display: flex; justify-content: center; margin-top: 5px;"></div>
+            </div>
+        </div>
+        
+        <!-- COLUNA DIREITA - LISTA E CONFIG A4 -->
+        <div class="diagrams-panel">
+            <div class="panel-title">
+                📚 Meus Diagramas 
+                <span id="diagramCount" class="badge-count">0</span>
+            </div>
+            
+            <div class="a4-config-section">
+                <h4>📄 CONFIGURAÇÃO DA PÁGINA A4</h4>
+                <div class="config-grid-3">
+                    <div class="config-card">
+                        <label>📊 COLUNAS</label>
+                        <input type="number" id="columns" min="1" max="5" value="3" onchange="atualizarGradeA4()">
+                        <small>diagramas por linha</small>
+                    </div>
+                    <div class="config-card">
+                        <label>📏 LINHAS POR PÁGINA</label>
+                        <input type="number" id="rows" min="1" max="6" value="4" onchange="atualizarGradeA4()">
+                        <small>linhas por página</small>
+                    </div>
+                    <div class="config-card">
+                        <label>📐 ESPAÇAMENTO</label>
+                        <input type="number" id="gap" min="8" max="30" value="12" onchange="atualizarGradeA4()">
+                        <small>entre diagramas (px)</small>
+                    </div>
+                </div>
+                <div class="btn-group" style="margin-top: 15px;">
+                    <button class="btn-success" onclick="gerarLayoutA4()">📄 GERAR LAYOUT A4</button>
+                    <button class="btn-purple" onclick="exportarComoImagem()">🖼️ EXPORTAR COMO IMAGEM</button>
+                    <button class="btn-warning" onclick="exportarComoHTML()">📑 EXPORTAR COMO HTML</button>
+                </div>
+                <div class="btn-group" style="margin-top: 8px;">
+                    <button class="btn-secondary" onclick="imprimirLayout()">🖨️ IMPRIMIR / SALVAR PDF</button>
+                </div>
+            </div>
+            
+            <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <button class="btn-secondary" style="flex: 1;" onclick="moverParaCima()">⬆️ Mover Acima</button>
+                <button class="btn-secondary" style="flex: 1;" onclick="moverParaBaixo()">⬇️ Mover Abaixo</button>
+                <button class="btn-danger" style="flex: 1;" onclick="limparTodosDiagramas()">🗑️ Limpar Todos</button>
+            </div>
+            
+            <input type="text" id="searchDiagrams" class="search-box" placeholder="🔍 Buscar diagrama por nome..." oninput="filtrarDiagramas()">
+            
+            <div class="diagrams-list" id="diagramsList"></div>
+            <div style="font-size: 11px; color: #999; margin-top: 10px; text-align: center;">
+                💡 Dica: Clique em um diagrama para selecioná-lo
+            </div>
+        </div>
+    </div>
+    
+    <div class="a4-preview" id="a4Preview" style="display: none;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; padding: 0 10px;">
+            <h3 style="margin: 0;">📄 Layout A4</h3>
+            <button class="btn-success" onclick="imprimirLayout()" style="padding: 8px 20px;">🖨️ Imprimir / PDF</button>
+        </div>
+        <div class="a4-container" id="a4Container"></div>
+    </div>
+</div>
+
+<div class="modal" id="imageModal" onclick="if(event.target===this) fecharModal()">
+    <div class="modal-content">
+        <span class="modal-close" onclick="fecharModal()">&times;</span>
+        <img id="modalImage" class="modal-image" src="" alt="Preview">
+        <div class="btn-group" style="margin-top: 15px;">
+            <button class="btn-success" onclick="baixarImagemModal()">💾 Salvar Imagem</button>
+            <button class="btn-danger" onclick="fecharModal()">❌ Fechar</button>
+        </div>
+    </div>
+</div>
+
+<script>
+const escalaPadrao = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+let notasSelec = [];
+let diagramas = [];
+let ultimaImagem = null;
+let diagramaSelecionado = null;
+let filtroBusca = "";
+
+function notaParaNum(letra, acidental, oitava) {
+    let base = escalaPadrao.indexOf(letra);
+    let offset = acidental === "^" ? 1 : acidental === "_" ? -1 : 0;
+    return (parseInt(oitava) + 1) * 12 + base + offset;
+}
+
+function numParaNota(num) {
+    return escalaPadrao[num % 12] + (Math.floor(num / 12) - 1);
+}
+
+function formatarCifra(acc, char) {
+    if (acc === "^") return char + "#";
+    if (acc === "_") return char + "b";
+    return char;
+}
+
+function ajustarZoom(v) {
+    document.getElementById("zoomVal").innerText = v;
+    atualizarEditor();
+}
+
+function criarTeclado() {
+    const kb = document.getElementById("keyboard");
+    kb.innerHTML = "";
+    let whites = {};
+    for (let i = 21; i <= 108; i++) {
+        let n = numParaNota(i);
+        if (!n.includes("#")) {
+            let k = document.createElement("div");
+            k.className = "white";
+            k.dataset.nota = i;
+            k.onclick = () => toggleNota(i);
+            k.innerHTML = `<div class="noteLabel">${n}</div>`;
+            kb.appendChild(k);
+            whites[i] = k;
+        }
+    }
+    for (let i = 21; i <= 108; i++) {
+        let n = numParaNota(i);
+        if (n.includes("#")) {
+            let p = whites[i-1];
+            if (p) {
+                let b = document.createElement("div");
+                b.className = "black";
+                b.dataset.nota = i;
+                b.onclick = (e) => { e.stopPropagation(); toggleNota(i); };
+                p.appendChild(b);
+            }
+        }
+    }
+}
+
+function toggleNota(num) {
+    let existente = notasSelec.find(n => n.num === num);
+    if (existente) {
+        notasSelec = notasSelec.filter(n => n.num !== num);
+    } else {
+        let notaBase = escalaPadrao[num % 12];
+        let oitava = Math.floor(num / 12) - 1;
+        let char = notaBase[0];
+        let acc = notaBase.includes("#") ? "^" : "";
+        notasSelec.push({num, char, acc, oitava});
+    }
+    notasSelec.sort((a, b) => a.num - b.num);
+    atualizarCoresTeclado();
+    gerarABC();
+}
+
+function atualizarCoresTeclado() {
+    document.querySelectorAll("#keyboard .white, #keyboard .black").forEach(el => {
+        el.classList.remove("activeWhite", "activeBlack");
+    });
+    notasSelec.forEach(nota => {
+        let tecla = document.querySelector(`#keyboard [data-nota="${nota.num}"]`);
+        if (tecla) {
+            tecla.classList.add(tecla.classList.contains("white") ? "activeWhite" : "activeBlack");
+        }
+    });
+}
+
+function gerarABC() {
+    if (notasSelec.length === 0) {
+        document.getElementById("abcText").value = "";
+        atualizarEditor();
+        return;
+    }
+    let abcString = notasSelec.map(n => {
+        let notaStr = n.char;
+        if (n.oitava > 4) notaStr = n.char.toLowerCase() + "'".repeat(n.oitava - 5);
+        else if (n.oitava < 4) notaStr = n.char + ",".repeat(4 - n.oitava);
+        return n.acc + notaStr;
+    }).join("");
+    document.getElementById("abcText").value = `X:1\nM:4/4\nL:1/4\nK:C\n[${abcString}]`;
+    atualizarEditor();
+}
+
+function sincronizarDoABC() {
+    let texto = document.getElementById("abcText").value;
+    let match = texto.match(/\[(.*?)\]/);
+    if (!match) return;
+    let notasRaw = match[1];
+    let regex = /([\^_]*)([A-Ga-g])([,']*)/g;
+    let m;
+    notasSelec = [];
+    while ((m = regex.exec(notasRaw)) !== null) {
+        let acc = m[1];
+        let letra = m[2].toUpperCase();
+        let oitava = 4;
+        if (m[2] === m[2].toLowerCase()) oitava = 5;
+        for(let c of m[3]) {
+            if (c === "'") oitava++;
+            if (c === ",") oitava--;
+        }
+        let num = notaParaNum(letra, acc, oitava);
+        notasSelec.push({num, char: letra, acc, oitava});
+    }
+    atualizarCoresTeclado();
+    atualizarEditor();
+}
+
+function desenharDiagrama(container, notas, start, end, zoom, fingers) {
+    if (!container) return;
+    container.innerHTML = "";
+    let startMatch = start.match(/^([A-G])(\d+)$/);
+    let endMatch = end.match(/^([A-G])(\d+)$/);
+    if (!startMatch || !endMatch) return;
+    
+    const startNum = notaParaNum(startMatch[1], "", startMatch[2]);
+    const endNum = notaParaNum(endMatch[1], "", endMatch[2]);
+    const w = zoom;
+    const h = w * 4.5;
+    const dedos = fingers.trim().split(/\s+/).filter(d => d !== '');
+    
+    let wrap = document.createElement("div");
+    wrap.style.position = "relative";
+    wrap.style.display = "inline-block";
+    wrap.style.height = (h + 8) + "px";
+
+    let whites = {};
+    for (let i = startNum; i <= endNum; i++) {
+        let notaPura = numParaNota(i);
+        if (!notaPura.includes("#")) {
+            let k = document.createElement("div");
+            k.className = "diag-white";
+            k.style.width = w + "px";
+            k.style.height = h + "px";
+            k.style.backgroundColor = "#fff";
+            
+            let nSel = notas.find(ns => ns.num === i);
+            if (nSel) {
+                k.style.background = "#d0e7ff";
+                let index = notas.indexOf(nSel);
+                let cifra = formatarCifra(nSel.acc, nSel.char);
+                let dedoNum = dedos[index] || "";
+                let circuloSiz = Math.max(16, w * 0.38);
+                let fontSize = Math.max(10, w * 0.32);
+                
+                k.innerHTML = `<div style="position:absolute; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; bottom:10px; left:0;">
+                    <div style="display:flex; flex-direction:column; align-items:center; gap:2px;">
+                        ${dedoNum ? `<div style="width:${circuloSiz}px; height:${circuloSiz}px; font-size:${fontSize}px; background:#ff4757; color:white; border-radius:50%; display:flex; align-items:center; justify-content:center; font-weight:bold;">${dedoNum}</div>` : ''}
+                        <div style="font-weight:bold; font-size:${fontSize}px; background:rgba(255,255,255,0.9); padding:1px 4px; border-radius:3px;">${cifra}</div>
+                    </div>
+                </div>`;
+            }
+            wrap.appendChild(k);
+            whites[i] = k;
+        }
+    }
+
+    for (let i = startNum; i <= endNum; i++) {
+        let notaPura = numParaNota(i);
+        if (notaPura.includes("#")) {
+            let p = whites[i-1];
+            if (p) {
+                let b = document.createElement("div");
+                b.className = "diag-black";
+                b.style.width = (w * 0.65) + "px";
+                b.style.height = (h * 0.6) + "px";
+                b.style.left = (w * 0.68) + "px";
+                b.style.top = "0";
+                b.style.backgroundColor = "#222";
+
+                let nSel = notas.find(ns => ns.num === i);
+                if (nSel) {
+                    b.style.background = "#3a86ff";
+                    let index = notas.indexOf(nSel);
+                    let cifra = formatarCifra(nSel.acc, nSel.char);
+                    let dedoNum = dedos[index] || "";
+                    let circuloSiz = Math.max(14, w * 0.33);
+                    let fontSize = Math.max(9, w * 0.28);
+                    
+                    b.innerHTML = `<div style="position:absolute; width:100%; height:100%; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; bottom:4px; left:0;">
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:1px;">
+                            ${dedoNum ? `<div style="width:${circuloSiz}px; height:${circuloSiz}px; font-size:${fontSize}px; background:#ff4757; color:white; border-radius:50%; display:flex; align-items:center; justify-content:center;">${dedoNum}</div>` : ''}
+                            <div style="font-weight:bold; font-size:${fontSize}px; color:white; text-shadow:0 1px 1px black;">${cifra}</div>
+                        </div>
+                    </div>`;
+                }
+                p.appendChild(b);
+            }
+        }
+    }
+    container.appendChild(wrap);
+}
+
+function atualizarEditor() {
+    let start = document.getElementById("start").value;
+    let end = document.getElementById("end").value;
+    let zoom = parseInt(document.getElementById("zoom").value);
+    let fingers = document.getElementById("fingers").value;
+    desenharDiagrama(document.getElementById("preview-diagram"), notasSelec, start, end, zoom, fingers);
+    
+    if (notasSelec.length && document.getElementById("abcText").value) {
+        try {
+            document.getElementById("preview-score").innerHTML = "";
+            ABCJS.renderAbc("preview-score", document.getElementById("abcText").value, { 
+                staffwidth: 280, 
+                scale: 1.3,
+                paddingtop: 0,
+                paddingbottom: 0
+            });
+        } catch(e) {}
+    }
+}
+
+function adicionarDiagrama() {
+    let nome = document.getElementById("diagramName").value.trim() || "Sem nome";
+    if (notasSelec.length === 0) { alert("Selecione pelo menos uma nota!"); return; }
+    diagramas.push({
+        id: Date.now(), nome: nome,
+        start: document.getElementById("start").value,
+        end: document.getElementById("end").value,
+        zoom: parseInt(document.getElementById("zoom").value),
+        fingers: document.getElementById("fingers").value,
+        abc: document.getElementById("abcText").value,
+        notas: JSON.parse(JSON.stringify(notasSelec))
+    });
+    salvarDados();
+    renderizarLista();
+    toast("✅ Diagrama adicionado!", "success");
+}
+
+function renderizarLista() {
+    let list = document.getElementById("diagramsList");
+    let filtrados = filtroBusca ? diagramas.filter(d => d.nome.toLowerCase().includes(filtroBusca)) : diagramas;
+    document.getElementById("diagramCount").innerHTML = filtrados.length;
+    list.innerHTML = "";
+    if (filtrados.length === 0) {
+        list.innerHTML = '<div style="text-align:center; padding:30px; color:#999;">📭 Nenhum diagrama. Crie seu primeiro acorde!</div>';
+        return;
+    }
+    filtrados.forEach(diag => {
+        let div = document.createElement("div");
+        div.className = `diagram-item ${diagramaSelecionado === diag.id ? 'selected' : ''}`;
+        div.onclick = () => { diagramaSelecionado = diag.id; renderizarLista(); toast(`📌 ${diag.nome} selecionado`, "info"); };
+        div.innerHTML = `
+            <div class="diagram-header">
+                <span class="diagram-name">🎵 ${escapeHtml(diag.nome)}</span>
+                <div class="diagram-actions">
+                    <button onclick="event.stopPropagation();editarDiagrama(${diag.id})">✏️</button>
+                    <button onclick="event.stopPropagation();removerDiagrama(${diag.id})">🗑️</button>
+                </div>
+            </div>
+            <div class="diagram-info">
+                <span>${diag.notas.length} notas</span>
+                <span>${diag.start} - ${diag.end}</span>
+                <span>zoom ${diag.zoom}px</span>
+            </div>
+        `;
+        list.appendChild(div);
+    });
+}
+
+function editarDiagrama(id) {
+    let diag = diagramas.find(d => d.id === id);
+    if (diag) {
+        document.getElementById("diagramName").value = diag.nome;
+        document.getElementById("start").value = diag.start;
+        document.getElementById("end").value = diag.end;
+        document.getElementById("zoom").value = diag.zoom;
+        document.getElementById("zoomVal").innerText = diag.zoom;
+        document.getElementById("fingers").value = diag.fingers;
+        document.getElementById("abcText").value = diag.abc;
+        notasSelec = JSON.parse(JSON.stringify(diag.notas));
+        atualizarCoresTeclado();
+        atualizarEditor();
+        toast(`✏️ Editando: ${diag.nome}`, "info");
+    }
+}
+
+function removerDiagrama(id) {
+    diagramas = diagramas.filter(d => d.id !== id);
+    if (diagramaSelecionado === id) diagramaSelecionado = null;
+    salvarDados();
+    renderizarLista();
+    atualizarGradeA4();
+    toast("🗑️ Diagrama removido", "success");
+}
+
+function moverParaCima() {
+    if (!diagramaSelecionado) { alert("Clique em um diagrama para selecionar!"); return; }
+    let idx = diagramas.findIndex(d => d.id === diagramaSelecionado);
+    if (idx > 0) {
+        [diagramas[idx], diagramas[idx-1]] = [diagramas[idx-1], diagramas[idx]];
+        salvarDados();
+        renderizarLista();
+        atualizarGradeA4();
+        toast("⬆️ Movido para cima", "success");
+    }
+}
+
+function moverParaBaixo() {
+    if (!diagramaSelecionado) { alert("Clique em um diagrama para selecionar!"); return; }
+    let idx = diagramas.findIndex(d => d.id === diagramaSelecionado);
+    if (idx < diagramas.length - 1) {
+        [diagramas[idx], diagramas[idx+1]] = [diagramas[idx+1], diagramas[idx]];
+        salvarDados();
+        renderizarLista();
+        atualizarGradeA4();
+        toast("⬇️ Movido para baixo", "success");
+    }
+}
+
+function limparEditor() {
+    notasSelec = [];
+    document.getElementById("diagramName").value = "Novo Acorde";
+    document.getElementById("fingers").value = "1 3 5";
+    document.getElementById("abcText").value = "";
+    atualizarCoresTeclado();
+    atualizarEditor();
+}
+
+function limparTodosDiagramas() {
+    if (confirm("⚠️ Remover TODOS os diagramas?")) {
+        diagramas = [];
+        diagramaSelecionado = null;
+        salvarDados();
+        renderizarLista();
+        atualizarGradeA4();
+        toast("🗑️ Todos removidos", "success");
+    }
+}
+
+function filtrarDiagramas() {
+    filtroBusca = document.getElementById("searchDiagrams").value.toLowerCase();
+    renderizarLista();
+}
+
+function atualizarGradeA4() {
+    let cols = parseInt(document.getElementById("columns").value);
+    let rows = parseInt(document.getElementById("rows").value);
+    let gap = parseInt(document.getElementById("gap").value);
+    let porPagina = cols * rows;
+    let container = document.getElementById("a4Container");
+    container.innerHTML = "";
+    if (diagramas.length === 0) {
+        document.getElementById("a4Preview").style.display = "none";
+        return;
+    }
+    document.getElementById("a4Preview").style.display = "block";
+    let paginas = Math.ceil(diagramas.length / porPagina);
+    
+    for (let p = 0; p < paginas; p++) {
+        let page = document.createElement("div");
+        page.style.cssText = `page-break-after: always; break-after: page; margin: 0; padding: 10px 0 20px 0;`;
+        
+        let titulo = document.createElement("div");
+        titulo.style.cssText = "text-align:center; margin-bottom:15px; padding:5px; background:#f8f9fa; border-radius:6px;";
+        titulo.innerHTML = `<span style="font-weight:bold; color:#667eea;">Página ${p + 1}</span> <span style="color:#666; font-size:12px;">(${Math.min(porPagina, diagramas.length - (p * porPagina))} diagramas)</span>`;
+        page.appendChild(titulo);
+        
+        let grid = document.createElement("div");
+        grid.style.cssText = `display: grid; grid-template-columns: repeat(${cols}, 1fr); gap: ${gap}px; align-items: stretch;`;
+        
+        let inicio = p * porPagina;
+        let fim = Math.min(inicio + porPagina, diagramas.length);
+        
+        for (let i = inicio; i < fim; i++) {
+            let diag = diagramas[i];
+            let card = document.createElement("div");
+            card.className = "diagram-card";
+            
+            let titleDiv = document.createElement("div");
+            titleDiv.className = "diagram-title";
+            titleDiv.textContent = diag.nome;
+            
+            let contentDiv = document.createElement("div");
+            contentDiv.className = "diagram-content";
+            
+            let diagramDiv = document.createElement("div");
+            let scoreDiv = document.createElement("div");
+            scoreDiv.className = "score-wrapper";
+            
+            desenharDiagrama(diagramDiv, diag.notas, diag.start, diag.end, diag.zoom, diag.fingers);
+            contentDiv.appendChild(diagramDiv);
+            
+            if (diag.abc && diag.abc.trim()) {
+                try {
+                    let staffW = Math.min(200, (parseInt(diag.end.match(/\d+/)[0]) - parseInt(diag.start.match(/\d+/)[0])) * diag.zoom + 20);
+                    ABCJS.renderAbc(scoreDiv, diag.abc, { 
+                        staffwidth: staffW,
+                        scale: 1.0,
+                        paddingtop: 0,
+                        paddingbottom: 0,
+                        add_classes: true
+                    });
+                    contentDiv.appendChild(scoreDiv);
+                } catch(e) {
+                    console.log("Erro ABC:", e);
+                }
+            }
+            
+            card.appendChild(titleDiv);
+            card.appendChild(contentDiv);
+            grid.appendChild(card);
+        }
+        
+        page.appendChild(grid);
+        container.appendChild(page);
+    }
+}
+
+function gerarLayoutA4() {
+    atualizarGradeA4();
+    document.getElementById("a4Preview").scrollIntoView({ behavior: "smooth" });
+    toast("📄 Layout gerado!", "success");
+}
+
+function imprimirLayout() {
+    window.print();
+}
+
+function exportarComoImagem() {
+    if (diagramas.length === 0) { alert("Adicione diagramas primeiro!"); return; }
+    atualizarGradeA4();
+    setTimeout(() => {
+        html2canvas(document.getElementById("a4Container"), { scale: 2, backgroundColor: "#fff" }).then(canvas => {
+            ultimaImagem = canvas.toDataURL("image/png");
+            document.getElementById("modalImage").src = ultimaImagem;
+            document.getElementById("imageModal").classList.add("active");
+            toast("🖼️ Imagem pronta!", "success");
+        });
+    }, 500);
+}
+
+function exportarComoHTML() {
+    if (diagramas.length === 0) { alert("Adicione diagramas primeiro!"); return; }
+    atualizarGradeA4();
+    setTimeout(() => {
+        let conteudo = document.getElementById("a4Container").innerHTML;
+        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Diagramas Musicais</title>
+        <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"><\/script>
+        <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: 'Segoe UI', sans-serif; padding: 20px; background: #f0f2f5; }
+            .page { margin-bottom: 30px; }
+            .diagram-card { border: 1px solid #ddd; border-radius: 6px; padding: 6px; page-break-inside: avoid; break-inside: avoid; background: white; }
+            .diagram-title { font-size: 11px; font-weight: bold; text-align: center; margin-bottom: 4px; color: #667eea; background: #f8f9fa; padding: 2px; border-radius: 4px; }
+            .diagram-content { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+            .diag-white, .diag-black { display: inline-block; position: relative; }
+            .diag-white { border: 1px solid #000; background: #fff; vertical-align: top; }
+            .diag-black { position: absolute; background: #000; z-index: 2; }
+            .score-wrapper { margin-top: 2px; display: flex; justify-content: center; width: 100%; }
+            @media print {
+                body { padding: 0; background: white; }
+                .diagram-card { break-inside: avoid; }
+            }
+        </style>
+        </head><body>${conteudo}</body></html>`;
+        let blob = new Blob([html], {type: "text/html"});
+        let a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `diagramas_${new Date().toISOString().slice(0,19)}.html`;
+        a.click();
+        toast("📑 HTML exportado!", "success");
+    }, 500);
+}
+
+function baixarImagemModal() {
+    if (ultimaImagem) {
+        let a = document.createElement("a");
+        a.download = `diagramas_${new Date().toISOString().slice(0,19)}.png`;
+        a.href = ultimaImagem;
+        a.click();
+    }
+}
+
+function fecharModal() {
+    document.getElementById("imageModal").classList.remove("active");
+}
+
+function salvarDados() {
+    localStorage.setItem("diagramas_acordes", JSON.stringify(diagramas));
+}
+
+function carregarDados() {
+    let salvos = localStorage.getItem("diagramas_acordes");
+    if (salvos) {
+        diagramas = JSON.parse(salvos);
+        renderizarLista();
+    }
+}
+
+function escapeHtml(text) {
+    return text.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+function toast(msg, tipo) {
+    let t = document.createElement("div");
+    t.textContent = msg;
+    t.style.cssText = `position:fixed; bottom:20px; right:20px; background:${tipo==='success'?'#2ed573':'#3a86ff'}; color:white; padding:12px 20px; border-radius:8px; z-index:9999; animation:fadeOut 3s forwards; font-weight:bold;`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+
+criarTeclado();
+carregarDados();
+setTimeout(() => {
+    toggleNota(60);
+    toggleNota(64);
+    toggleNota(67);
+}, 100);
+</script>
+</body>
+</html>
