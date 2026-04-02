@@ -3,196 +3,153 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>Trello Offline Musical - Sincronização em Nuvem</title>
+    <title>WikiNBM - Custom View</title>
 
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
-
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
     <style>
+        :root { --primary: #667eea; --secondary: #764ba2; --success: #48bb78; --danger: #e53e3e; }
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
-        }
-
-        .header {
-            background: white;
-            border-radius: 12px;
-            padding: 15px 25px;
-            margin-bottom: 20px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .header h1 { color: #667eea; font-size: 1.5rem; }
-        .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; padding: 20px; }
         
-        .sync-status {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            padding: 5px 10px;
-            background: #f0f0f0;
-            border-radius: 20px;
-            font-size: 12px;
-        }
-        .sync-status.online { background: #c6f6d5; color: #22543d; }
-        .sync-status.offline { background: #fed7d7; color: #742a2a; }
-        .sync-status.syncing { background: #feebc8; color: #744210; }
-
-        .sync-indicator { width: 10px; height: 10px; border-radius: 50%; }
-        .sync-indicator.online { background: #48bb78; }
-        .sync-indicator.offline { background: #f56565; }
-        .sync-indicator.syncing { background: #ed8936; animation: pulse 0.5s infinite; }
-
-        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
-
-        .btn-principal, .btn-sync, .btn-login, .btn {
-            border: none;
-            padding: 10px 20px;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: bold;
-            transition: all 0.2s;
-        }
-
-        .btn-principal { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
-        .btn-sync { background: #48bb78; color: white; }
-        .btn-login { background: #4299e1; color: white; }
-        .btn-primary { background: #667eea; color: white; }
-        .btn-danger { background: #e53e3e; color: white; }
-        .btn-secondary { background: #e2e8f0; color: #4a5568; }
-
+        /* Board Layout */
+        .header { background: white; border-radius: 12px; padding: 15px; margin-bottom: 20px; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
         #board { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
-        .lista {
-            background: #f4f5f7;
-            border-radius: 12px;
-            padding: 12px;
-            min-width: 280px;
-            width: 280px;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
+        .lista { background: #f4f5f7; border-radius: 12px; padding: 12px; width: 280px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+        .lista-header { display: flex; justify-content: space-between; margin-bottom: 10px; align-items: center; }
+        .cartao { background: white; padding: 12px; margin: 8px 0; border-radius: 8px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
 
-        .cartao {
-            background: white;
-            padding: 12px;
-            margin: 8px 0;
-            border-radius: 8px;
-            cursor: pointer;
-            border: 1px solid transparent;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }
-
-        .cartao:hover { border-color: #667eea; }
-
-        /* Modais */
-        .login-modal, #modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; right: 0; bottom: 0;
-            background: rgba(0,0,0,0.5);
-            z-index: 2000;
-            justify-content: center;
-            align-items: center;
-        }
-
-        #modal { background: white; display: none; overflow-y: auto; }
-
-        .modal-content { max-width: 800px; margin: 0 auto; padding: 20px; width: 100%; }
-        .modal-section { background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+        /* Modal e Menu de Seleção Multipla */
+        #modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; justify-content: center; align-items: center; }
+        .modal-content { background: white; width: 95%; max-width: 850px; height: 90vh; border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; }
         
-        textarea, input[type="text"], input[type="url"], select {
-            width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #dfe1e6; margin-bottom: 10px;
-        }
+        .modal-header { padding: 15px 20px; background: #fff; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        
+        /* Novo Menu com Botão Excluir */
+        .tab-menu { display: flex; background: #f1f3f5; padding: 5px; border-bottom: 1px solid #ddd; flex-wrap: wrap; gap: 5px; }
+        .view-btn { padding: 10px 15px; border: 1px solid #ccc; background: white; cursor: pointer; font-weight: 600; border-radius: 6px; font-size: 13px; transition: 0.2s; }
+        .view-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+        .btn-excluir-menu { margin-left: auto; background: var(--danger); color: white; border: none; }
 
-        .toast {
-            position: fixed; bottom: 20px; right: 20px;
-            background: #333; color: white; padding: 12px 20px;
-            border-radius: 8px; z-index: 3000;
-        }
+        .content-scroll { flex: 1; padding: 20px; overflow-y: auto; background: #fff; }
+        .section-view { display: none; margin-bottom: 30px; border-top: 2px solid #eee; padding-top: 20px; }
+        .section-view.show { display: block; }
+
+        /* Checklist Alinhado à Esquerda */
+        .progress-container { margin-bottom: 20px; }
+        .progress-bar-bg { background: #eee; height: 10px; border-radius: 10px; overflow: hidden; }
+        .progress-bar-fill { background: var(--success); height: 100%; width: 0%; transition: 0.4s; }
+        
+        .item-row { display: flex; align-items: center; background: #f8f9fa; padding: 10px; border-radius: 6px; margin-bottom: 5px; gap: 12px; }
+        .item-content { display: flex; align-items: center; gap: 10px; flex: 1; justify-content: flex-start; text-align: left; }
+        .item-row input[type="checkbox"] { width: 18px; height: 18px; cursor: pointer; }
+        
+        .btn-del-small { background: none; border: none; color: #999; cursor: pointer; font-size: 18px; }
+        .btn-del-small:hover { color: var(--danger); }
+
+        textarea, input, select { width: 100%; padding: 10px; margin: 8px 0; border-radius: 8px; border: 1px solid #ddd; }
+        .btn { padding: 10px 18px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-audio { background: var(--success); color: white; }
+        
+        .img-preview { max-width: 100%; border-radius: 8px; margin-bottom: 15px; }
+        .login-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; }
     </style>
 </head>
 <body>
 
 <div class="header">
-    <h1>🎵 Trello Musical</h1>
-    <div class="header-controls">
-        <div class="sync-status" id="syncStatus">
-            <div class="sync-indicator" id="syncIndicator"></div>
-            <span id="syncText">Aguardando...</span>
-        </div>
-        <button class="btn-login" onclick="mostrarLogin()" id="loginBtn">🔐 Login</button>
-        <button class="btn-sync" onclick="sincronizarAgora()" id="syncBtn" style="display:none;">🔄 Sincronizar</button>
-        <button class="btn-principal" onclick="novaLista()" id="novaListaBtn" style="display:none;">+ Nova Lista</button>
+    <h1>🎵 WikiNBM</h1>
+    <div>
+        <button class="btn btn-primary" onclick="mostrarLogin()" id="loginBtn">🔐 Login</button>
+        <button class="btn btn-primary" onclick="novaLista()" id="novaListaBtn" style="display:none;">+ Lista</button>
     </div>
 </div>
 
 <div id="board"></div>
 
-<div id="loginModal" class="login-modal">
-    <div style="background: white; padding: 30px; border-radius: 16px; width: 90%; max-width: 400px;">
-        <h2>🔐 Acesso</h2>
-        <input type="email" id="loginEmail" placeholder="Email">
-        <input type="password" id="loginPassword" placeholder="Senha">
-        <button class="btn btn-primary" onclick="fazerLogin()" style="width:100%">Entrar</button>
-        <button class="btn btn-secondary" onclick="criarConta()" style="width:100%; margin-top:10px;">Criar Conta</button>
-        <button class="btn btn-secondary" onclick="fecharLogin()" style="width:100%; margin-top:10px;">Cancelar</button>
+<div id="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="tituloCartao" onclick="renomearCartao()" style="cursor:pointer">Título</h2>
+            <button class="btn" onclick="fechar()">✖</button>
+        </div>
+
+        <div class="tab-menu">
+            <button id="btn-geral" class="view-btn active" onclick="toggleSection('sec-geral', 'btn-geral')">🏠 Geral</button>
+            <button id="btn-musica" class="view-btn" onclick="toggleSection('sec-musica', 'btn-musica')">🎼 Música</button>
+            <button id="btn-check" class="view-btn" onclick="toggleSection('sec-check', 'btn-check')">📋 Checklist</button>
+            <button id="btn-links" class="view-btn" onclick="toggleSection('sec-links', 'btn-links')">🔗 Conexões</button>
+            <button class="view-btn btn-excluir-menu" onclick="excluirCartao()">🗑️ Excluir Cartão</button>
+        </div>
+
+        <div class="content-scroll">
+            <div id="sec-geral" class="section-view show">
+                <img id="imgPreview" class="img-preview" style="display:none;">
+                <input type="text" id="imgUrl" placeholder="URL da Imagem..." onchange="salvarImagem()">
+                <h4>📝 Descrição</h4>
+                <textarea id="descricaoTexto" rows="4"></textarea>
+                <button class="btn btn-primary" onclick="salvarDescricao()">Salvar Descrição</button>
+            </div>
+
+            <div id="sec-musica" class="section-view">
+                <h3>🎼 Notação Musical ABC</h3>
+                <textarea id="abcInput" rows="5" placeholder="Código ABC aqui..."></textarea>
+                <div style="display:flex; gap:10px; margin-bottom:15px;">
+                    <button class="btn btn-primary" onclick="renderABC()">Renderizar</button>
+                    <button class="btn btn-audio" onclick="playABC()">▶ Play</button>
+                    <button class="btn btn-danger" onclick="stopABC()">■ Stop</button>
+                </div>
+                <div id="abcRender" style="background:white; padding:10px; border-radius:8px;"></div>
+            </div>
+
+            <div id="sec-check" class="section-view">
+                <h3>📋 Checklist de Progresso</h3>
+                <div class="progress-container">
+                    <div class="progress-bar-bg"><div id="progressBar" class="progress-bar-fill"></div></div>
+                    <small id="progPercent">0% concluído</small>
+                </div>
+                <div style="display:flex; gap:5px; margin-bottom:15px;">
+                    <input type="text" id="checkItem" placeholder="Novo item...">
+                    <button class="btn btn-primary" onclick="addCheck()">+</button>
+                </div>
+                <div id="checkContainer"></div>
+            </div>
+
+            <div id="sec-links" class="section-view">
+                <h3>🔗 Conexões Internas e Externas</h3>
+                <div style="background:#f1f3f5; padding:15px; border-radius:10px; margin-bottom:15px;">
+                    <h4>Vincular Cartão</h4>
+                    <select id="selListaInt" onchange="atualizarSelCartao()"></select>
+                    <select id="selCardInt"></select>
+                    <button class="btn btn-primary" onclick="addLinkInt()">Ligar</button>
+                    <div id="linksIntContainer"></div>
+                </div>
+                <div style="background:#f1f3f5; padding:15px; border-radius:10px;">
+                    <h4>Links Externos</h4>
+                    <input type="text" id="linkExtTit" placeholder="Nome">
+                    <input type="text" id="linkExtUrl" placeholder="URL">
+                    <button class="btn btn-primary" onclick="addLinkExt()">Adicionar Link</button>
+                    <div id="linksExtContainer"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<div id="modal">
-    <div class="modal-content">
-        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h3 id="tituloCartao">Título</h3>
-            <button class="btn-secondary" onclick="fechar()">Sair</button>
-        </div>
-        
-        <div class="modal-section">
-            <h4>📝 Descrição</h4>
-            <textarea id="descricaoTexto" rows="3"></textarea>
-            <button class="btn btn-primary" onclick="salvarDescricao()">Salvar</button>
-        </div>
-
-        <div class="modal-section">
-            <h4>🎼 Partitura ABC</h4>
-            <textarea id="abcInput" rows="4" placeholder="Ex: X:1\nK:C\nC D E F | G A B c|"></textarea>
-            <button class="btn btn-primary" onclick="renderABC()">Gerar Partitura</button>
-            <div id="abcRender" style="background: white; margin-top: 10px; border-radius: 8px;"></div>
-        </div>
-
-        <div class="modal-section">
-            <h4>📋 Checklist</h4>
-            <div style="display:flex; gap:5px;">
-                <input type="text" id="itemChecklist" placeholder="Novo item">
-                <button class="btn btn-primary" onclick="addChecklist()">+</button>
-            </div>
-            <div id="checklist"></div>
-        </div>
-
-        <div class="modal-section">
-            <h4>🖼️ Imagem</h4>
-            <input type="file" accept="image/*" onchange="uploadImagem(event)">
-            <div id="imagem" style="margin-top:10px;"></div>
-        </div>
-
-        <div style="display:flex; gap:10px; margin-top:20px;">
-            <button class="btn btn-danger" onclick="excluirCartao()">Excluir Cartão</button>
-        </div>
+<div id="loginModal" class="login-modal">
+    <div class="modal-content" style="max-width:300px; height:auto; padding:20px;">
+        <h2>🔐 Login WikiNBM</h2>
+        <input type="email" id="loginEmail" placeholder="Email">
+        <input type="password" id="loginPassword" placeholder="Senha">
+        <button class="btn btn-primary" onclick="fazerLogin()" style="width:100%">Entrar</button>
     </div>
 </div>
 
 <script>
-// ==================== CONFIGURAÇÃO DO FIREBASE ====================
 const firebaseConfig = {
     apiKey: "AIzaSyBlComr12haNZMGjbmv2CDv2bKMPL6slPc",
     authDomain: "trello-musical.firebaseapp.com",
@@ -203,240 +160,192 @@ const firebaseConfig = {
     appId: "1:492377323837:web:e0cafde63e9970013cad54"
 };
 
-// Inicialização
 firebase.initializeApp(firebaseConfig);
-const database = firebase.database();
+const db = firebase.database();
 const auth = firebase.auth();
+let dados = [], user = null, curL = null, curC = null;
 
-let usuarioAtual = null;
-let dados = [];
-let cartaoAtual = null;
-let listaAtualIndex = null;
-let cardIndexAtual = null;
-
-// ==================== LÓGICA DE AUTH ====================
-auth.onAuthStateChanged(user => {
-    if (user) {
-        usuarioAtual = user;
-        document.getElementById("loginBtn").style.display = "none";
-        document.getElementById("syncBtn").style.display = "inline-block";
-        document.getElementById("novaListaBtn").style.display = "inline-block";
-        carregarDadosDoFirebase();
+// FUNÇÃO DE EXIBIÇÃO MÚLTIPLA (FIXA OU REMOVE)
+function toggleSection(secId, btnId) {
+    const sec = document.getElementById(secId);
+    const btn = document.getElementById(btnId);
+    if(sec.classList.contains('show')) {
+        sec.classList.remove('show');
+        btn.classList.remove('active');
     } else {
-        atualizarStatusSync("offline", "Modo Offline");
+        sec.classList.add('show');
+        btn.classList.add('active');
+    }
+}
+
+auth.onAuthStateChanged(u => {
+    if(u) {
+        user = u;
+        document.getElementById("loginBtn").style.display="none";
+        document.getElementById("novaListaBtn").style.display="inline-block";
+        db.ref(`usuarios/${user.uid}/dados`).on('value', s => { dados = s.val() || []; render(); });
     }
 });
 
 async function fazerLogin() {
-    const email = document.getElementById("loginEmail").value;
-    const password = document.getElementById("loginPassword").value;
-    try {
-        await auth.signInWithEmailAndPassword(email, password);
-        fecharLogin();
-    } catch (e) { alert(e.message); }
+    try { await auth.signInWithEmailAndPassword(document.getElementById("loginEmail").value, document.getElementById("loginPassword").value); document.getElementById("loginModal").style.display="none"; } catch(e) { alert("Erro"); }
 }
 
-async function criarConta() {
-    const email = document.getElementById("loginEmail").value;
-    const password = document.getElementById("loginPassword").value;
-    try {
-        await auth.createUserWithEmailAndPassword(email, password);
-        fecharLogin();
-    } catch (e) { alert(e.message); }
+function salvar() { if(user) db.ref(`usuarios/${user.uid}/dados`).set(dados); }
+
+function abrirCartao(l, c) {
+    curL = l; curC = c;
+    const card = dados[l].cards[c];
+    document.getElementById("modal").style.display = "flex";
+    document.getElementById("tituloCartao").innerText = card.texto;
+    document.getElementById("abcInput").value = card.abc || "";
+    document.getElementById("descricaoTexto").value = card.descricao || "";
+    document.getElementById("imgUrl").value = card.img || "";
+    
+    // Reset visual (Só Geral ativo por padrão)
+    document.querySelectorAll('.section-view').forEach(s => s.classList.remove('show'));
+    document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+    document.getElementById('sec-geral').classList.add('show');
+    document.getElementById('btn-geral').classList.add('active');
+
+    salvarImagem(false);
+    renderABC();
+    renderCheck();
+    renderLinksExt();
+    renderLinksInt();
+    popularSelListas();
 }
 
-function mostrarLogin() { document.getElementById("loginModal").style.display = "flex"; }
-function fecharLogin() { document.getElementById("loginModal").style.display = "none"; }
-
-// ==================== SINCRONIZAÇÃO ====================
-async function carregarDadosDoFirebase() {
-    if (!usuarioAtual) return;
-    atualizarStatusSync("syncing", "Baixando...");
-    database.ref(`usuarios/${usuarioAtual.uid}/dados`).on('value', snapshot => {
-        const val = snapshot.val();
-        if (val) {
-            dados = val;
-            salvarLocalmente();
-            render();
-            atualizarStatusSync("online", "Sincronizado");
-        }
-    });
-}
-
-async function salvar() {
-    salvarLocalmente();
-    if (usuarioAtual) {
-        atualizarStatusSync("syncing", "Salvando...");
-        await database.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
-        atualizarStatusSync("online", "Sincronizado");
+// CHECKLIST ALINHADO À ESQUERDA
+function addCheck() {
+    const val = document.getElementById("checkItem").value;
+    if(val) {
+        if(!dados[curL].cards[curC].checklist) dados[curL].cards[curC].checklist = [];
+        dados[curL].cards[curC].checklist.push({t: val, d: false});
+        document.getElementById("checkItem").value = "";
+        renderCheck(); salvar();
     }
 }
-
-function salvarLocalmente() { localStorage.setItem('trello_musical_local', JSON.stringify(dados)); }
-function carregarDadosLocais() {
-    const local = localStorage.getItem('trello_musical_local');
-    if (local) { dados = JSON.parse(local); render(); }
+function renderCheck() {
+    const cont = document.getElementById("checkContainer");
+    cont.innerHTML = "";
+    const list = dados[curL].cards[curC].checklist || [];
+    let marcados = 0;
+    list.forEach((c, i) => {
+        if(c.d) marcados++;
+        cont.innerHTML += `
+            <div class="item-row">
+                <div class="item-content">
+                    <input type="checkbox" ${c.d?'checked':''} onchange="toggleCheck(${i})">
+                    <span style="${c.d?'text-decoration:line-through; color:gray;':''}">${c.t}</span>
+                </div>
+                <button class="btn-del-small" onclick="removerCheck(${i})">×</button>
+            </div>`;
+    });
+    const perc = list.length > 0 ? Math.round((marcados / list.length) * 100) : 0;
+    document.getElementById("progressBar").style.width = perc + "%";
+    document.getElementById("progPercent").innerText = perc + "% concluído";
 }
+function toggleCheck(i) { dados[curL].cards[curC].checklist[i].d = !dados[curL].cards[curC].checklist[i].d; renderCheck(); salvar(); }
+function removerCheck(i) { dados[curL].cards[curC].checklist.splice(i, 1); renderCheck(); salvar(); }
 
-function atualizarStatusSync(status, texto) {
-    const indicator = document.getElementById("syncIndicator");
-    const text = document.getElementById("syncText");
-    const container = document.getElementById("syncStatus");
-    container.className = `sync-status ${status}`;
-    indicator.className = `sync-indicator ${status}`;
-    text.innerText = texto;
-}
-
-// ==================== FUNÇÕES DO QUADRO ====================
-function novaLista() {
-    let nome = prompt("Nome da lista:");
-    if (!nome) return;
-    dados.push({ nome, oculto: false, cards: [] });
-    salvar();
-    render();
-}
-
-function novoCartao(i) {
-    let texto = prompt("Nome do cartão:");
-    if (!texto) return;
-    if(!dados[i].cards) dados[i].cards = [];
-    dados[i].cards.push({ texto, descricao: "", checklist: [], abc: "", linksExternos: [], linksInternos: [] });
-    salvar();
-    render();
-}
-
-function abrirCartao(i, j) {
-    listaAtualIndex = i;
-    cardIndexAtual = j;
-    cartaoAtual = dados[i].cards[j];
-
-    document.getElementById("modal").style.display = "block";
-    document.getElementById("tituloCartao").innerText = cartaoAtual.texto;
-    document.getElementById("descricaoTexto").value = cartaoAtual.descricao || "";
-    document.getElementById("abcInput").value = cartaoAtual.abc || "";
-    
-    renderChecklist();
-    mostrarImagem();
-    if(cartaoAtual.abc) renderizarPartitura(cartaoAtual.abc);
-    else document.getElementById("abcRender").innerHTML = "";
-}
-
-function salvarDescricao() {
-    cartaoAtual.descricao = document.getElementById("descricaoTexto").value;
-    salvar();
-    mostrarToast("Salvo!");
-}
-
+// FUNÇÕES MUSICAIS E IMAGEM
 function renderABC() {
     const abc = document.getElementById("abcInput").value;
-    cartaoAtual.abc = abc;
-    renderizarPartitura(abc);
+    dados[curL].cards[curC].abc = abc;
+    if(abc) ABCJS.renderAbc("abcRender", abc, { responsive: 'resize' });
     salvar();
 }
+async function playABC() {
+    const visualObj = ABCJS.renderAbc("*", document.getElementById("abcInput").value)[0];
+    const midisynth = new ABCJS.synth.CreateSynth();
+    await midisynth.init({ visualObj }); await midisynth.prime(); midisynth.start();
+    window.currentSynth = midisynth;
+}
+function stopABC() { if(window.currentSynth) window.currentSynth.stop(); }
 
-function renderizarPartitura(abc) {
-    ABCJS.renderAbc("abcRender", abc, { responsive: "resize" });
+function salvarImagem(deveSalvar=true) {
+    const url = document.getElementById("imgUrl").value;
+    const img = document.getElementById("imgPreview");
+    if(url) { img.src = url; img.style.display = "block"; } else { img.style.display = "none"; }
+    if(deveSalvar) { dados[curL].cards[curC].img = url; salvar(); }
 }
 
-function addChecklist() {
-    const item = document.getElementById("itemChecklist").value;
-    if(!item) return;
-    if(!cartaoAtual.checklist) cartaoAtual.checklist = [];
-    cartaoAtual.checklist.push({ texto: item, ok: false });
-    document.getElementById("itemChecklist").value = "";
-    renderChecklist();
-    salvar();
+// LINKS INTERNOS
+function popularSelListas() {
+    const sel = document.getElementById("selListaInt");
+    sel.innerHTML = `<option value="">Lista...</option>`;
+    dados.forEach((l, i) => sel.innerHTML += `<option value="${i}">${l.nome}</option>`);
 }
-
-function renderChecklist() {
-    const container = document.getElementById("checklist");
-    container.innerHTML = "";
-    (cartaoAtual.checklist || []).forEach((item, idx) => {
-        const div = document.createElement("div");
-        div.innerHTML = `<input type="checkbox" ${item.ok ? 'checked' : ''} onchange="toggleCheck(${idx})"> ${item.texto}`;
-        container.appendChild(div);
+function atualizarSelCartao() {
+    const lIdx = document.getElementById("selListaInt").value;
+    const selC = document.getElementById("selCardInt");
+    selC.innerHTML = "";
+    if(lIdx !== "" && dados[lIdx].cards) {
+        dados[lIdx].cards.forEach((c, i) => selC.innerHTML += `<option value="${i}">${c.texto}</option>`);
+    }
+}
+function addLinkInt() {
+    const lIdx = document.getElementById("selListaInt").value;
+    const cIdx = document.getElementById("selCardInt").value;
+    if(lIdx !== "" && cIdx !== "") {
+        if(!dados[curL].cards[curC].linksInt) dados[curL].cards[curC].linksInt = [];
+        dados[curL].cards[curC].linksInt.push({ l: parseInt(lIdx), c: parseInt(cIdx), nome: dados[lIdx].cards[cIdx].texto });
+        renderLinksInt(); salvar();
+    }
+}
+function renderLinksInt() {
+    const cont = document.getElementById("linksIntContainer");
+    cont.innerHTML = "";
+    (dados[curL].cards[curC].linksInt || []).forEach((link, i) => {
+        cont.innerHTML += `<div class="item-row"><span style="color:var(--primary); cursor:pointer;" onclick="abrirCartao(${link.l}, ${link.c})">➡️ ${link.nome}</span><button class="btn-del-small" onclick="removerLinkInt(${i})">×</button></div>`;
     });
 }
+function removerLinkInt(i) { dados[curL].cards[curC].linksInt.splice(i, 1); renderLinksInt(); salvar(); }
 
-function toggleCheck(idx) {
-    cartaoAtual.checklist[idx].ok = !cartaoAtual.checklist[idx].ok;
-    salvar();
-}
-
-function uploadImagem(e) {
-    const file = e.target.files[0];
-    const reader = new FileReader();
-    reader.onload = () => {
-        cartaoAtual.imagem = reader.result;
-        mostrarImagem();
-        salvar();
-    };
-    reader.readAsDataURL(file);
-}
-
-function mostrarImagem() {
-    const div = document.getElementById("imagem");
-    div.innerHTML = cartaoAtual.imagem ? `<img src="${cartaoAtual.imagem}" style="max-width:100%; border-radius:8px;">` : "";
-}
-
-function excluirCartao() {
-    if(confirm("Excluir?")) {
-        dados[listaAtualIndex].cards.splice(cardIndexAtual, 1);
-        salvar();
-        fechar();
-        render();
+function addLinkExt() {
+    const t = document.getElementById("linkExtTit").value;
+    const u = document.getElementById("linkExtUrl").value;
+    if(t && u) {
+        if(!dados[curL].cards[curC].linksExt) dados[curL].cards[curC].linksExt = [];
+        dados[curL].cards[curC].linksExt.push({t, u});
+        renderLinksExt(); salvar();
     }
 }
-
-function excluirLista(i) {
-    if(confirm("Excluir lista inteira?")) {
-        dados.splice(i, 1);
-        salvar();
-        render();
-    }
+function renderLinksExt() {
+    const cont = document.getElementById("linksExtContainer");
+    cont.innerHTML = "";
+    (dados[curL].cards[curC].linksExt || []).forEach((l, i) => {
+        cont.innerHTML += `<div class="item-row"><a href="${l.u}" target="_blank">🌐 ${l.t}</a> <button class="btn-del-small" onclick="removerLinkExt(${i})">×</button></div>`;
+    });
 }
+function removerLinkExt(i) { dados[curL].cards[curC].linksExt.splice(i, 1); renderLinksExt(); salvar(); }
 
-function fechar() { document.getElementById("modal").style.display = "none"; }
-
+// QUADRO
 function render() {
-    const board = document.getElementById("board");
-    board.innerHTML = "";
-    dados.forEach((lista, i) => {
-        const div = document.createElement("div");
-        div.className = "lista";
-        div.innerHTML = `
-            <div style="display:flex; justify-content:space-between;">
-                <strong>${lista.nome}</strong>
-                <button onclick="excluirLista(${i})" style="border:none; cursor:pointer; background:none;">🗑️</button>
-            </div>
-            <button class="btn btn-secondary" onclick="novoCartao(${i})" style="width:100%; margin: 10px 0;">+ Card</button>
-            <div id="lista-${i}"></div>
-        `;
-        const cardContainer = div.querySelector(`#lista-${i}`);
-        (lista.cards || []).forEach((card, j) => {
-            const cardDiv = document.createElement("div");
-            cardDiv.className = "cartao";
-            cardDiv.innerText = card.texto;
-            cardDiv.onclick = () => abrirCartao(i, j);
-            cardContainer.appendChild(cardDiv);
-        });
-        board.appendChild(div);
+    const b = document.getElementById("board"); b.innerHTML = "";
+    dados.forEach((l, i) => {
+        const div = document.createElement("div"); div.className = "lista";
+        div.innerHTML = `<div class="lista-header"><span onclick="renomearLista(${i})" style="cursor:pointer"><strong>${l.nome}</strong></span><div><button class="btn" onclick="toggleOcultar(${i})">${l.oculto?'👁️':'🙈'}</button> <button class="btn" onclick="novoCartao(${i})">+</button></div></div><div id="c-${i}"></div>`;
+        if(!l.oculto) {
+            const cCont = div.querySelector(`#c-${i}`);
+            (l.cards || []).forEach((c, j) => {
+                const cd = document.createElement("div"); cd.className = "cartao"; cd.innerText = c.texto; cd.onclick = () => abrirCartao(i, j); cCont.appendChild(cd);
+            });
+        }
+        b.appendChild(div);
     });
 }
 
-function mostrarToast(msg) {
-    const t = document.createElement("div");
-    t.className = "toast";
-    t.innerText = msg;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 2000);
-}
-
-function sincronizarAgora() { carregarDadosDoFirebase(); }
-
-// Init
-carregarDadosLocais();
+function novaLista() { const n = prompt("Nome da Lista:"); if(n) { dados.push({nome: n, oculto: false, cards: []}); salvar(); } }
+function renomearLista(i) { const n = prompt("Novo nome:", dados[i].nome); if(n) { dados[i].nome = n; salvar(); } }
+function toggleOcultar(i) { dados[i].oculto = !dados[i].oculto; render(); }
+function novoCartao(i) { const n = prompt("Nome do Cartão:"); if(n) { if(!dados[i].cards) dados[i].cards = []; dados[i].cards.push({texto: n, abc: "", descricao: "", img: "", linksExt: [], linksInt: [], checklist: []}); salvar(); } }
+function renomearCartao() { const n = prompt("Novo nome:", dados[curL].cards[curC].texto); if(n) { dados[curL].cards[curC].texto = n; document.getElementById("tituloCartao").innerText = n; salvar(); render(); } }
+function salvarDescricao() { dados[curL].cards[curC].descricao = document.getElementById("descricaoTexto").value; salvar(); alert("Salvo!"); }
+function excluirCartao() { if(confirm("Excluir definitivamente?")) { dados[curL].cards.splice(curC, 1); salvar(); fechar(); render(); } }
+function fechar() { document.getElementById("modal").style.display = "none"; stopABC(); }
+function mostrarLogin() { document.getElementById("loginModal").style.display = "flex"; }
 </script>
-
 </body>
 </html>
