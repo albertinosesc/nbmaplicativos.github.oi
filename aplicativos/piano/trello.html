@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>Trello Offline Musical - Sincronização em Nuvem</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
+
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 15px 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .header h1 { color: #667eea; font-size: 1.5rem; }
+        .header-controls { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 10px;
+            background: #f0f0f0;
+            border-radius: 20px;
+            font-size: 12px;
+        }
+        .sync-status.online { background: #c6f6d5; color: #22543d; }
+        .sync-status.offline { background: #fed7d7; color: #742a2a; }
+        .sync-status.syncing { background: #feebc8; color: #744210; }
+
+        .sync-indicator { width: 10px; height: 10px; border-radius: 50%; }
+        .sync-indicator.online { background: #48bb78; }
+        .sync-indicator.offline { background: #f56565; }
+        .sync-indicator.syncing { background: #ed8936; animation: pulse 0.5s infinite; }
+
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+
+        .btn-principal, .btn-sync, .btn-login, .btn {
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+
+        .btn-principal { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-sync { background: #48bb78; color: white; }
+        .btn-login { background: #4299e1; color: white; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-danger { background: #e53e3e; color: white; }
+        .btn-secondary { background: #e2e8f0; color: #4a5568; }
+
+        #board { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
+        .lista {
+            background: #f4f5f7;
+            border-radius: 12px;
+            padding: 12px;
+            min-width: 280px;
+            width: 280px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .cartao {
+            background: white;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .cartao:hover { border-color: #667eea; }
+
+        /* Modais */
+        .login-modal, #modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        #modal { background: white; display: none; overflow-y: auto; }
+
+        .modal-content { max-width: 800px; margin: 0 auto; padding: 20px; width: 100%; }
+        .modal-section { background: #f8f9fa; padding: 15px; border-radius: 12px; margin-bottom: 15px; }
+        
+        textarea, input[type="text"], input[type="url"], select {
+            width: 100%; padding: 10px; border-radius: 8px; border: 1px solid #dfe1e6; margin-bottom: 10px;
+        }
+
+        .toast {
+            position: fixed; bottom: 20px; right: 20px;
+            background: #333; color: white; padding: 12px 20px;
+            border-radius: 8px; z-index: 3000;
+        }
+    </style>
+</head>
+<body>
+
+<div class="header">
+    <h1>🎵 Trello Musical</h1>
+    <div class="header-controls">
+        <div class="sync-status" id="syncStatus">
+            <div class="sync-indicator" id="syncIndicator"></div>
+            <span id="syncText">Aguardando...</span>
+        </div>
+        <button class="btn-login" onclick="mostrarLogin()" id="loginBtn">🔐 Login</button>
+        <button class="btn-sync" onclick="sincronizarAgora()" id="syncBtn" style="display:none;">🔄 Sincronizar</button>
+        <button class="btn-principal" onclick="novaLista()" id="novaListaBtn" style="display:none;">+ Nova Lista</button>
+    </div>
+</div>
+
+<div id="board"></div>
+
+<div id="loginModal" class="login-modal">
+    <div style="background: white; padding: 30px; border-radius: 16px; width: 90%; max-width: 400px;">
+        <h2>🔐 Acesso</h2>
+        <input type="email" id="loginEmail" placeholder="Email">
+        <input type="password" id="loginPassword" placeholder="Senha">
+        <button class="btn btn-primary" onclick="fazerLogin()" style="width:100%">Entrar</button>
+        <button class="btn btn-secondary" onclick="criarConta()" style="width:100%; margin-top:10px;">Criar Conta</button>
+        <button class="btn btn-secondary" onclick="fecharLogin()" style="width:100%; margin-top:10px;">Cancelar</button>
+    </div>
+</div>
+
+<div id="modal">
+    <div class="modal-content">
+        <div style="display:flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h3 id="tituloCartao">Título</h3>
+            <button class="btn-secondary" onclick="fechar()">Sair</button>
+        </div>
+        
+        <div class="modal-section">
+            <h4>📝 Descrição</h4>
+            <textarea id="descricaoTexto" rows="3"></textarea>
+            <button class="btn btn-primary" onclick="salvarDescricao()">Salvar</button>
+        </div>
+
+        <div class="modal-section">
+            <h4>🎼 Partitura ABC</h4>
+            <textarea id="abcInput" rows="4" placeholder="Ex: X:1\nK:C\nC D E F | G A B c|"></textarea>
+            <button class="btn btn-primary" onclick="renderABC()">Gerar Partitura</button>
+            <div id="abcRender" style="background: white; margin-top: 10px; border-radius: 8px;"></div>
+        </div>
+
+        <div class="modal-section">
+            <h4>📋 Checklist</h4>
+            <div style="display:flex; gap:5px;">
+                <input type="text" id="itemChecklist" placeholder="Novo item">
+                <button class="btn btn-primary" onclick="addChecklist()">+</button>
+            </div>
+            <div id="checklist"></div>
+        </div>
+
+        <div class="modal-section">
+            <h4>🖼️ Imagem</h4>
+            <input type="file" accept="image/*" onchange="uploadImagem(event)">
+            <div id="imagem" style="margin-top:10px;"></div>
+        </div>
+
+        <div style="display:flex; gap:10px; margin-top:20px;">
+            <button class="btn btn-danger" onclick="excluirCartao()">Excluir Cartão</button>
+        </div>
+    </div>
+</div>
+
+<script>
+// ==================== CONFIGURAÇÃO DO FIREBASE ====================
+const firebaseConfig = {
+    apiKey: "AIzaSyBlComr12haNZMGjbmv2CDv2bKMPL6slPc",
+    authDomain: "trello-musical.firebaseapp.com",
+    databaseURL: "https://trello-musical-default-rtdb.firebaseio.com",
+    projectId: "trello-musical",
+    storageBucket: "trello-musical.firebasestorage.app",
+    messagingSenderId: "492377323837",
+    appId: "1:492377323837:web:e0cafde63e9970013cad54"
+};
+
+// Inicialização
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
+const auth = firebase.auth();
+
+let usuarioAtual = null;
+let dados = [];
+let cartaoAtual = null;
+let listaAtualIndex = null;
+let cardIndexAtual = null;
+
+// ==================== LÓGICA DE AUTH ====================
+auth.onAuthStateChanged(user => {
+    if (user) {
+        usuarioAtual = user;
+        document.getElementById("loginBtn").style.display = "none";
+        document.getElementById("syncBtn").style.display = "inline-block";
+        document.getElementById("novaListaBtn").style.display = "inline-block";
+        carregarDadosDoFirebase();
+    } else {
+        atualizarStatusSync("offline", "Modo Offline");
+    }
+});
+
+async function fazerLogin() {
+    const email = document.getElementById("loginEmail").value;
+    const password = document.getElementById("loginPassword").value;
+    try {
+        await auth.signInWithEmailAndPassword(email, password);
+        fecharLogin();
+    } catch (e) { alert(e.message); }
+}
+
+async function criarConta() {
+    const email = document.getElementById("loginEmail").value;
+    const password = document.getElementById("loginPassword").value;
+    try {
+        await auth.createUserWithEmailAndPassword(email, password);
+        fecharLogin();
+    } catch (e) { alert(e.message); }
+}
+
+function mostrarLogin() { document.getElementById("loginModal").style.display = "flex"; }
+function fecharLogin() { document.getElementById("loginModal").style.display = "none"; }
+
+// ==================== SINCRONIZAÇÃO ====================
+async function carregarDadosDoFirebase() {
+    if (!usuarioAtual) return;
+    atualizarStatusSync("syncing", "Baixando...");
+    database.ref(`usuarios/${usuarioAtual.uid}/dados`).on('value', snapshot => {
+        const val = snapshot.val();
+        if (val) {
+            dados = val;
+            salvarLocalmente();
+            render();
+            atualizarStatusSync("online", "Sincronizado");
+        }
+    });
+}
+
+async function salvar() {
+    salvarLocalmente();
+    if (usuarioAtual) {
+        atualizarStatusSync("syncing", "Salvando...");
+        await database.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
+        atualizarStatusSync("online", "Sincronizado");
+    }
+}
+
+function salvarLocalmente() { localStorage.setItem('trello_musical_local', JSON.stringify(dados)); }
+function carregarDadosLocais() {
+    const local = localStorage.getItem('trello_musical_local');
+    if (local) { dados = JSON.parse(local); render(); }
+}
+
+function atualizarStatusSync(status, texto) {
+    const indicator = document.getElementById("syncIndicator");
+    const text = document.getElementById("syncText");
+    const container = document.getElementById("syncStatus");
+    container.className = `sync-status ${status}`;
+    indicator.className = `sync-indicator ${status}`;
+    text.innerText = texto;
+}
+
+// ==================== FUNÇÕES DO QUADRO ====================
+function novaLista() {
+    let nome = prompt("Nome da lista:");
+    if (!nome) return;
+    dados.push({ nome, oculto: false, cards: [] });
+    salvar();
+    render();
+}
+
+function novoCartao(i) {
+    let texto = prompt("Nome do cartão:");
+    if (!texto) return;
+    if(!dados[i].cards) dados[i].cards = [];
+    dados[i].cards.push({ texto, descricao: "", checklist: [], abc: "", linksExternos: [], linksInternos: [] });
+    salvar();
+    render();
+}
+
+function abrirCartao(i, j) {
+    listaAtualIndex = i;
+    cardIndexAtual = j;
+    cartaoAtual = dados[i].cards[j];
+
+    document.getElementById("modal").style.display = "block";
+    document.getElementById("tituloCartao").innerText = cartaoAtual.texto;
+    document.getElementById("descricaoTexto").value = cartaoAtual.descricao || "";
+    document.getElementById("abcInput").value = cartaoAtual.abc || "";
+    
+    renderChecklist();
+    mostrarImagem();
+    if(cartaoAtual.abc) renderizarPartitura(cartaoAtual.abc);
+    else document.getElementById("abcRender").innerHTML = "";
+}
+
+function salvarDescricao() {
+    cartaoAtual.descricao = document.getElementById("descricaoTexto").value;
+    salvar();
+    mostrarToast("Salvo!");
+}
+
+function renderABC() {
+    const abc = document.getElementById("abcInput").value;
+    cartaoAtual.abc = abc;
+    renderizarPartitura(abc);
+    salvar();
+}
+
+function renderizarPartitura(abc) {
+    ABCJS.renderAbc("abcRender", abc, { responsive: "resize" });
+}
+
+function addChecklist() {
+    const item = document.getElementById("itemChecklist").value;
+    if(!item) return;
+    if(!cartaoAtual.checklist) cartaoAtual.checklist = [];
+    cartaoAtual.checklist.push({ texto: item, ok: false });
+    document.getElementById("itemChecklist").value = "";
+    renderChecklist();
+    salvar();
+}
+
+function renderChecklist() {
+    const container = document.getElementById("checklist");
+    container.innerHTML = "";
+    (cartaoAtual.checklist || []).forEach((item, idx) => {
+        const div = document.createElement("div");
+        div.innerHTML = `<input type="checkbox" ${item.ok ? 'checked' : ''} onchange="toggleCheck(${idx})"> ${item.texto}`;
+        container.appendChild(div);
+    });
+}
+
+function toggleCheck(idx) {
+    cartaoAtual.checklist[idx].ok = !cartaoAtual.checklist[idx].ok;
+    salvar();
+}
+
+function uploadImagem(e) {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = () => {
+        cartaoAtual.imagem = reader.result;
+        mostrarImagem();
+        salvar();
+    };
+    reader.readAsDataURL(file);
+}
+
+function mostrarImagem() {
+    const div = document.getElementById("imagem");
+    div.innerHTML = cartaoAtual.imagem ? `<img src="${cartaoAtual.imagem}" style="max-width:100%; border-radius:8px;">` : "";
+}
+
+function excluirCartao() {
+    if(confirm("Excluir?")) {
+        dados[listaAtualIndex].cards.splice(cardIndexAtual, 1);
+        salvar();
+        fechar();
+        render();
+    }
+}
+
+function excluirLista(i) {
+    if(confirm("Excluir lista inteira?")) {
+        dados.splice(i, 1);
+        salvar();
+        render();
+    }
+}
+
+function fechar() { document.getElementById("modal").style.display = "none"; }
+
+function render() {
+    const board = document.getElementById("board");
+    board.innerHTML = "";
+    dados.forEach((lista, i) => {
+        const div = document.createElement("div");
+        div.className = "lista";
+        div.innerHTML = `
+            <div style="display:flex; justify-content:space-between;">
+                <strong>${lista.nome}</strong>
+                <button onclick="excluirLista(${i})" style="border:none; cursor:pointer; background:none;">🗑️</button>
+            </div>
+            <button class="btn btn-secondary" onclick="novoCartao(${i})" style="width:100%; margin: 10px 0;">+ Card</button>
+            <div id="lista-${i}"></div>
+        `;
+        const cardContainer = div.querySelector(`#lista-${i}`);
+        (lista.cards || []).forEach((card, j) => {
+            const cardDiv = document.createElement("div");
+            cardDiv.className = "cartao";
+            cardDiv.innerText = card.texto;
+            cardDiv.onclick = () => abrirCartao(i, j);
+            cardContainer.appendChild(cardDiv);
+        });
+        board.appendChild(div);
+    });
+}
+
+function mostrarToast(msg) {
+    const t = document.createElement("div");
+    t.className = "toast";
+    t.innerText = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 2000);
+}
+
+function sincronizarAgora() { carregarDadosDoFirebase(); }
+
+// Init
+carregarDadosLocais();
+</script>
+
+</body>
+</html>
