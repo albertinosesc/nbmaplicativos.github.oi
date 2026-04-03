@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Treino Musical Arco-íris Pro</title>
+<style>
+    :root { --primary: #4f46e5; --success: #22c55e; --danger: #ef4444; }
+    body { font-family: 'Segoe UI', sans-serif; background: #f3f4f6; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+    
+    .container { max-width: 950px; width: 100%; background: white; padding: 25px; border-radius: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); text-align: center; }
+    
+    .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; background: #f8fafc; padding: 15px; border-radius: 15px; border: 1px solid #e5e7eb; margin-bottom: 20px; }
+
+    .note-picker { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 5px; }
+    .note-picker label { cursor: pointer; background: white; padding: 5px 10px; border: 2px solid #cbd5e1; border-radius: 8px; font-size: 14px; font-weight: bold; display: flex; align-items: center; gap: 4px; transition: 0.2s; }
+
+    button { padding: 10px; border: none; border-radius: 8px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+    .btn-toggle { background: #d1d5db; color: #374151; flex: 1; font-size: 11px; }
+    .btn-toggle.active { background: var(--primary); color: white; }
+    .main-btn { background: var(--primary); color: white; width: 100%; font-size: 1.1em; margin-bottom: 15px; }
+
+    #staffCanvas { background: white; border: 1px solid #eee; border-radius: 10px; margin: 15px 0; max-width: 100%; }
+    #displayText { font-size: 120px; font-weight: 900; height: 220px; line-height: 220px; display: none; }
+
+    /* Piano */
+    #keyboard { position: relative; width: 420px; height: 180px; margin: 10px auto; background: #ddd; border-radius: 5px; padding: 5px; box-sizing: content-box;}
+    .white { position: absolute; width: 58px; height: 175px; background: white; border: 1px solid #999; border-radius: 0 0 5px 5px; z-index: 1; cursor: pointer; transition: background 0.2s, transform 0.1s; }
+    .white:active { transform: translateY(2px); }
+    .black { position: absolute; width: 32px; height: 100px; background: #222; border-radius: 0 0 3px 3px; z-index: 2; pointer-events: none; }
+    
+    .wrong { background: #555 !important; }
+
+    select { padding: 8px; border-radius: 5px; border: 1px solid #ccc; width: 100%; cursor: pointer; font-size: 13px; }
+    b { font-size: 13px; display: block; margin-bottom: 5px; }
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🌈 Treino Musical Personalizado</h2>
+
+    <div class="controls-grid">
+        <div>
+            <b>Exibição:</b>
+            <select id="mode" onchange="updateView()">
+                <option value="staff">🎼 Pentagrama</option>
+                <option value="note">📝 Nome (C, D...)</option>
+                <option value="degree">🔢 Graus (1, 2...)</option>
+            </select>
+        </div>
+
+        <div>
+            <b>Esquema das Notas:</b>
+            <select id="colorMode" onchange="updateView()">
+                <option value="chroma">🌈 Colorido</option>
+                <option value="normal">⚫ Normal</option>
+            </select>
+        </div>
+
+        <div>
+            <b>Estilo Piano:</b>
+            <button id="btnKeysColor" class="btn-toggle" onclick="toggleKeysColor()" style="width: 100%;">🎹 Teclado Colorido: OFF</button>
+        </div>
+
+        <div>
+            <b>Sons:</b>
+            <div style="display: flex; gap: 3px;">
+                <button id="btnNoteSound" class="btn-toggle active" onclick="toggleSound('note')">🔈 Sorteio</button>
+                <button id="btnPianoSound" class="btn-toggle active" onclick="toggleSound('piano')">🎹 Piano</button>
+                <button id="btnErrorSound" class="btn-toggle active" onclick="toggleSound('error')">🔈 Erro</button>
+            </div>
+        </div>
+
+        <div>
+            <b>Notas Ativas:</b>
+            <div id="picker" class="note-picker"></div>
+        </div>
+    </div>
+
+    <div style="margin-bottom: 15px;">
+        <span>Velocidade: <b id="speedTxt" style="display:inline">2.0</b>s</span>
+        <input type="range" id="speed" min="500" max="4000" value="2000" oninput="changeSpeed()" style="width: 200px; vertical-align: middle; margin-left: 10px;">
+    </div>
+
+    <button class="main-btn" id="startBtn" onclick="toggleAuto()">▶ INICIAR AUTOMÁTICO</button>
+
+    <canvas id="staffCanvas" width="600" height="220"></canvas>
+    <div id="displayText"></div>
+
+    <div id="keyboard"></div>
+</div>
+
+<script>
+const data = [
+    {n: "C", d: "1", y: 180, f: 261.63, color: "#FF0000"}, 
+    {n: "D", d: "2", y: 170, f: 293.66, color: "#FF7F00"}, 
+    {n: "E", d: "3", y: 160, f: 329.63, color: "#FFD700"}, 
+    {n: "F", d: "4", y: 150, f: 349.23, color: "#00FF00"}, 
+    {n: "G", d: "5", y: 140, f: 392.00, color: "#0000FF"}, 
+    {n: "A", d: "6", y: 130, f: 440.00, color: "#4B0082"}, 
+    {n: "B", d: "7", y: 120, f: 493.88, color: "#9400D3"}  
+];
+
+let current = null;
+let autoTimer = null;
+let sounds = { note: true, piano: true, error: true };
+let keysColorida = false;
+let pool = [...data];
+let audioCtx = null;
+
+function initAudio() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+window.onload = () => {
+    renderPicker();
+    renderPiano();
+    newNote();
+};
+
+function renderPicker() {
+    const div = document.getElementById("picker");
+    data.forEach((item) => {
+        const lb = document.createElement("label");
+        lb.style.color = item.color;
+        lb.style.borderColor = item.color;
+        lb.innerHTML = `<input type="checkbox" checked value="${item.n}" onchange="updatePool()"> ${item.n}`;
+        div.appendChild(lb);
+    });
+}
+
+function updatePool() {
+    const checks = document.querySelectorAll("#picker input");
+    pool = data.filter((_, i) => checks[i].checked);
+    if(pool.length === 0) { checks[0].checked = true; updatePool(); }
+    updateKeysVisual();
+}
+
+function renderPiano() {
+    const kb = document.getElementById("keyboard");
+    kb.innerHTML = "";
+    const posBlack = [0.7, 1.7, 3.7, 4.7, 5.7];
+    
+    data.forEach((item, i) => {
+        const key = document.createElement("div");
+        key.className = "white";
+        key.id = `key-${item.n}`;
+        key.style.left = (i * 60) + "px";
+        key.onclick = () => { initAudio(); checkNote(item, key); };
+        kb.appendChild(key);
+    });
+
+    posBlack.forEach(p => {
+        const b = document.createElement("div");
+        b.className = "black";
+        b.style.left = (p * 60) + "px";
+        kb.appendChild(b);
+    });
+    updateKeysVisual();
+}
+
+function toggleKeysColor() {
+    keysColorida = !keysColorida;
+    const btn = document.getElementById("btnKeysColor");
+    btn.innerText = `🎹 Teclado Colorido: ${keysColorida ? 'ON' : 'OFF'}`;
+    btn.classList.toggle('active', keysColorida);
+    updateKeysVisual();
+}
+
+function updateKeysVisual() {
+    data.forEach(item => {
+        const el = document.getElementById(`key-${item.n}`);
+        if(el) {
+            const estaAtiva = pool.some(p => p.n === item.n);
+            if (keysColorida && estaAtiva) {
+                el.style.backgroundColor = item.color;
+            } else {
+                el.style.backgroundColor = "white";
+            }
+        }
+    });
+}
+
+function play(freq) {
+    initAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'triangle';
+    o.frequency.value = freq;
+    g.gain.setValueAtTime(0.2, audioCtx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.8);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.8);
+}
+
+function playErrorSound() {
+    initAudio();
+    const o = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(110, audioCtx.currentTime);
+    o.frequency.exponentialRampToValueAtTime(50, audioCtx.currentTime + 0.2);
+    g.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.2);
+    o.connect(g); g.connect(audioCtx.destination);
+    o.start(); o.stop(audioCtx.currentTime + 0.2);
+}
+
+function toggleSound(t) {
+    sounds[t] = !sounds[t];
+    const btnMap = { note: 'btnNoteSound', piano: 'btnPianoSound', error: 'btnErrorSound' };
+    document.getElementById(btnMap[t]).classList.toggle('active');
+}
+
+function draw(note) {
+    const cv = document.getElementById("staffCanvas");
+    const ctx = cv.getContext("2d");
+    const isColor = document.getElementById("colorMode").value === "chroma";
+    
+    ctx.clearRect(0,0,600,220);
+    ctx.strokeStyle = "#999";
+    for(let i=0; i<5; i++) {
+        let y = 160 - (i*20);
+        ctx.beginPath(); ctx.moveTo(50, y); ctx.lineTo(550, y); ctx.stroke();
+    }
+    ctx.font = "70px Arial"; ctx.fillStyle = "#222"; ctx.fillText("𝄞", 60, 165);
+    
+    if(!note) return;
+    ctx.beginPath(); 
+    ctx.fillStyle = isColor ? note.color : "#000";
+    ctx.ellipse(300, note.y, 11, 8, -0.3, 0, Math.PI*2); ctx.fill();
+    if(note.n === "C") { ctx.beginPath(); ctx.moveTo(280, 180); ctx.lineTo(320, 180); ctx.stroke(); }
+}
+
+function updateView() {
+    const m = document.getElementById("mode").value;
+    const cMode = document.getElementById("colorMode").value;
+    const cv = document.getElementById("staffCanvas");
+    const tx = document.getElementById("displayText");
+    
+    if(m === "staff") { 
+        cv.style.display="block"; tx.style.display="none"; draw(current); 
+    } else {
+        cv.style.display="none"; tx.style.display="block";
+        tx.innerText = (m === "degree") ? current.d : current.n;
+        tx.style.color = (cMode === "chroma") ? current.color : "#333";
+    }
+}
+
+function newNote() {
+    let next;
+    do { next = pool[Math.floor(Math.random()*pool.length)]; } while(next === current && pool.length > 1);
+    current = next;
+    updateView();
+    if(sounds.note) play(current.f);
+}
+
+function checkNote(item, el) {
+    el.classList.remove("wrong");
+    void el.offsetWidth;
+    
+    if(item.n === current.n) {
+        if(sounds.piano) play(item.f);
+        const originalColor = el.style.backgroundColor;
+        el.style.backgroundColor = keysColorida ? "#fff" : item.color;
+        setTimeout(() => { 
+            el.style.backgroundColor = originalColor; 
+            if(!autoTimer) newNote(); 
+        }, 200);
+    } else {
+        if(sounds.error) playErrorSound(); // Agora usa a flag independente 'error'
+        el.classList.add("wrong");
+        setTimeout(() => el.classList.remove("wrong"), 200);
+    }
+}
+
+function toggleAuto() {
+    initAudio();
+    const btn = document.getElementById("startBtn");
+    if(autoTimer) {
+        clearInterval(autoTimer); autoTimer = null;
+        btn.innerText = "▶ INICIAR AUTOMÁTICO"; btn.style.background = "var(--primary)";
+    } else {
+        newNote();
+        autoTimer = setInterval(newNote, document.getElementById("speed").value);
+        btn.innerText = "⏹ PARAR"; btn.style.background = "var(--danger)";
+    }
+}
+
+function changeSpeed() {
+    const v = document.getElementById("speed").value;
+    document.getElementById("speedTxt").innerText = (v/1000).toFixed(1);
+    if(autoTimer) { toggleAuto(); toggleAuto(); }
+}
+</script>
+</body>
+</html>
