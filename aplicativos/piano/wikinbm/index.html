@@ -1,0 +1,1487 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#667eea">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="WikiNBM">
+    <link rel="manifest" href="manifest.json">
+    <link rel="apple-touch-icon" href="icon-192.png">
+    <title>WikiNBM Pro - Múltiplas Imagens</title>
+
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        :root {
+            --primary: #667eea;
+            --secondary: #764ba2;
+            --success: #48bb78;
+            --danger: #e53e3e;
+            --warning: #ed8936;
+            --dark: #2d3748;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+            min-height: 100vh;
+            padding: 20px;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .header {
+            background: white;
+            border-radius: 12px;
+            padding: 15px 25px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+
+        .header h1 {
+            color: var(--primary);
+            font-size: 1.5rem;
+        }
+
+        .header-controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            background: #f0f0f0;
+        }
+
+        .sync-status.online {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+
+        .sync-status.offline {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+
+        .sync-status.syncing {
+            background: #feebc8;
+            color: #744210;
+        }
+
+        .sync-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        .sync-indicator.online { background: var(--success); }
+        .sync-indicator.offline { background: var(--danger); }
+        .sync-indicator.syncing { background: var(--warning); animation: pulse 0.5s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .btn {
+            padding: 10px 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+        }
+
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: #e2e8f0;
+            color: #4a5568;
+        }
+
+        .install-btn {
+            background: var(--warning);
+            color: white;
+            border: none;
+            padding: 10px 18px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            animation: pulse 1s infinite;
+        }
+
+        #board {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            align-items: flex-start;
+        }
+
+        .lista {
+            background: #f4f5f7;
+            border-radius: 12px;
+            padding: 12px;
+            min-width: 280px;
+            width: 280px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: all 0.3s ease;
+        }
+
+        .lista-header {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .lista-titulo {
+            font-weight: bold;
+            font-size: 1.1rem;
+            cursor: pointer;
+            color: var(--dark);
+            padding: 5px;
+            border-radius: 6px;
+        }
+
+        .lista-titulo:hover {
+            background: #e2e8f0;
+        }
+
+        .lista-controles {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .lista button {
+            background: white;
+            border: 1px solid #cbd5e0;
+            padding: 5px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.2s;
+        }
+
+        .cartao {
+            background: white;
+            padding: 12px;
+            margin: 8px 0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+
+        .cartao:hover {
+            background: #f8f9fa;
+            border-color: var(--primary);
+            transform: translateX(3px);
+        }
+
+        .cartao-titulo {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .cartao-indicadores {
+            display: flex;
+            gap: 8px;
+            margin-top: 6px;
+            font-size: 11px;
+            color: #6b778c;
+            flex-wrap: wrap;
+        }
+
+        #modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal-content {
+            background: white;
+            width: 95%;
+            max-width: 900px;
+            height: 90vh;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .modal-header {
+            padding: 15px 20px;
+            background: white;
+            border-bottom: 1px solid #e2e8f0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            cursor: pointer;
+            color: var(--dark);
+        }
+
+        .tab-menu {
+            display: flex;
+            background: #f1f3f5;
+            padding: 8px;
+            gap: 8px;
+            flex-wrap: wrap;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .view-btn {
+            padding: 8px 16px;
+            border: none;
+            background: white;
+            cursor: pointer;
+            font-weight: 600;
+            border-radius: 8px;
+            transition: all 0.2s;
+        }
+
+        .view-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-excluir-menu {
+            margin-left: auto;
+            background: var(--danger);
+            color: white;
+        }
+
+        .content-scroll {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+
+        .section-view {
+            display: none;
+        }
+
+        .section-view.show {
+            display: block;
+        }
+
+        input, textarea, select {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+
+        .progress-container {
+            margin-bottom: 15px;
+        }
+
+        .progress-bar-bg {
+            background: #e2e8f0;
+            height: 10px;
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .progress-bar-fill {
+            background: var(--success);
+            height: 100%;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .item-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+
+        .item-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+
+        /* Checklist específico - checkbox no início */
+        .checklist-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+        }
+
+        .checklist-content {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex: 1;
+        }
+
+        .checklist-content input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            margin: 0;
+            cursor: pointer;
+        }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .btn-icon:hover {
+            background: #e2e8f0;
+        }
+
+        .btn-danger-text {
+            color: var(--danger);
+        }
+
+        /* Imagem específica */
+        .img-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 8px;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+
+        .img-preview {
+            max-width: 60px;
+            max-height: 60px;
+            border-radius: 8px;
+            object-fit: cover;
+            cursor: pointer;
+        }
+
+        .img-content {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .audio-controls {
+            display: flex;
+            gap: 10px;
+            margin: 10px 0;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: var(--dark);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            z-index: 3000;
+            animation: slideInRight 0.3s ease;
+        }
+
+        .login-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-content {
+            background: white;
+            max-width: 350px;
+            width: 90%;
+            padding: 25px;
+            border-radius: 16px;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body { padding: 10px; }
+            .lista { width: 100%; }
+            .tab-menu { overflow-x: auto; flex-wrap: nowrap; }
+            .view-btn { white-space: nowrap; }
+            .img-preview { max-width: 50px; max-height: 50px; }
+        }
+    </style>
+</head>
+
+<body>
+
+<div class="header">
+    <h1>🎵 WikiNBM Pro</h1>
+    <div class="header-controls">
+        <div class="sync-status offline" id="syncStatus">
+            <div class="sync-indicator offline" id="syncIndicator"></div>
+            <span id="syncText">Carregando...</span>
+        </div>
+        <button class="install-btn" id="installBtn" style="display:none;">📱 Instalar</button>
+        <button class="btn btn-primary" onclick="mostrarLogin()" id="loginBtn">🔐 Login</button>
+        <button class="btn btn-success" onclick="exportarBackup()" id="exportBtn" style="display:none;">📤 Backup</button>
+        <button class="btn btn-secondary" onclick="forcarSincronizacao()" id="syncBtn" style="display:none;">🔄 Sincronizar</button>
+        <button class="btn btn-primary" onclick="novaLista()" id="novaListaBtn" style="display:none;">+ Nova Lista</button>
+    </div>
+</div>
+
+<div id="board"></div>
+
+<div id="modal">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h2 id="tituloCartao" onclick="renomearCartao()">📝 Título do Cartão</h2>
+            <button class="btn btn-secondary" onclick="fecharModal()">✖ Fechar</button>
+        </div>
+
+        <div class="tab-menu">
+            <button class="view-btn active" onclick="mudarAba('geral')">📋 Geral</button>
+            <button class="view-btn" onclick="mudarAba('imagens')">🖼️ Imagens</button>
+            <button class="view-btn" onclick="mudarAba('musica')">🎼 Música</button>
+            <button class="view-btn" onclick="mudarAba('checklist')">✅ Checklist</button>
+            <button class="view-btn" onclick="mudarAba('conexoes')">🔗 Conexões</button>
+            <button class="view-btn btn-excluir-menu" onclick="excluirCartao()">🗑️ Excluir</button>
+        </div>
+
+        <div class="content-scroll">
+            <!-- Aba Geral -->
+            <div id="aba-geral" class="section-view show">
+                <h3>📝 Descrição</h3>
+                <textarea id="descricaoTexto" rows="5" placeholder="Digite uma descrição detalhada..."></textarea>
+                <button class="btn btn-primary" onclick="salvarDescricao()">💾 Salvar Descrição</button>
+            </div>
+
+            <!-- Aba Imagens (múltiplas) -->
+            <div id="aba-imagens" class="section-view">
+                <h3>🖼️ Galeria de Imagens</h3>
+                <div style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
+                    <input type="text" id="imgUrl" placeholder="URL da imagem..." style="flex: 2;">
+                    <input type="text" id="imgTitulo" placeholder="Título (opcional)" style="flex: 1;">
+                    <button class="btn btn-primary" onclick="adicionarImagem()">+ Adicionar</button>
+                </div>
+                <div id="imagensContainer"></div>
+            </div>
+
+            <!-- Aba Música -->
+            <div id="aba-musica" class="section-view">
+                <h3>🎼 Notação Musical ABC</h3>
+                <textarea id="abcInput" rows="6" placeholder="X:1&#10;M:4/4&#10;L:1/8&#10;K:C&#10;CDEF GABc|"></textarea>
+                <div class="audio-controls">
+                    <button class="btn btn-primary" onclick="renderizarABC()">🎵 Renderizar</button>
+                    <button class="btn btn-success" onclick="playABC()">▶ Play</button>
+                    <button class="btn btn-danger" onclick="stopABC()">⏹️ Stop</button>
+                </div>
+                <div id="abcRender" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px;"></div>
+            </div>
+
+            <!-- Aba Checklist -->
+            <div id="aba-checklist" class="section-view">
+                <h3>📋 Checklist</h3>
+                <div class="progress-container">
+                    <div class="progress-bar-bg">
+                        <div id="progressBar" class="progress-bar-fill"></div>
+                    </div>
+                    <small id="progPercent">0% concluído</small>
+                </div>
+                <div style="display: flex; gap: 8px; margin: 15px 0;">
+                    <input type="text" id="checkItem" placeholder="Novo item...">
+                    <button class="btn btn-primary" onclick="adicionarCheck()">+ Adicionar</button>
+                </div>
+                <div id="checkContainer"></div>
+            </div>
+
+            <!-- Aba Conexões -->
+            <div id="aba-conexoes" class="section-view">
+                <h3>🔗 Links Internos</h3>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+                    <select id="selListaInt" onchange="atualizarSelectCartao()"></select>
+                    <select id="selCardInt"></select>
+                    <button class="btn btn-primary" onclick="adicionarLinkInterno()" style="margin-top: 8px;">🔗 Vincular Cartão</button>
+                    <div id="linksIntContainer" style="margin-top: 10px;"></div>
+                </div>
+
+                <h3>🌐 Links Externos</h3>
+                <div style="background: #f8f9fa; padding: 15px; border-radius: 8px;">
+                    <input type="text" id="linkExtTit" placeholder="Nome do link">
+                    <input type="text" id="linkExtUrl" placeholder="URL">
+                    <button class="btn btn-primary" onclick="adicionarLinkExterno()">+ Adicionar Link</button>
+                    <div id="linksExtContainer" style="margin-top: 10px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="loginModal" class="login-modal">
+    <div class="login-content">
+        <h2>🔐 Login WikiNBM</h2>
+        <input type="email" id="loginEmail" placeholder="Email">
+        <input type="password" id="loginPassword" placeholder="Senha (mínimo 6 caracteres)">
+        <button class="btn btn-primary" onclick="fazerLogin()" style="width:100%; margin-bottom:8px;">Entrar</button>
+        <button class="btn btn-secondary" onclick="criarConta()" style="width:100%;">Criar Nova Conta</button>
+        <button class="btn btn-secondary" onclick="fecharLogin()" style="width:100%; margin-top:8px;">Cancelar</button>
+    </div>
+</div>
+
+<script>
+// ==================== CONFIGURAÇÃO DO FIREBASE ====================
+const firebaseConfig = {
+    apiKey: "AIzaSyBlComr12haNZMGjbmv2CDv2bKMPL6slPc",
+    authDomain: "trello-musical.firebaseapp.com",
+    databaseURL: "https://trello-musical-default-rtdb.firebaseio.com",
+    projectId: "trello-musical",
+    storageBucket: "trello-musical.firebasestorage.app",
+    messagingSenderId: "492377323837",
+    appId: "1:492377323837:web:e0cafde63e9970013cad54"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+
+// ==================== VARIÁVEIS GLOBAIS ====================
+let dados = [];
+let usuarioAtual = null;
+let listaAtual = null;
+let cartaoAtual = null;
+let sintetizadorAtual = null;
+let abaAtual = 'geral';
+let sincronizando = false;
+let ultimaVersao = null;
+let timeoutSincronizacao = null;
+let mensagemSincronizacaoExibida = false; // Controla se a mensagem já foi exibida
+
+const STORAGE_KEY = 'wikinbm_hibrido';
+const DEVICE_ID = localStorage.getItem('device_id') || 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+localStorage.setItem('device_id', DEVICE_ID);
+
+// ==================== PWA ====================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => console.log('ServiceWorker erro:', err));
+    });
+}
+
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+    e.preventDefault();
+    deferredPrompt = e;
+    document.getElementById('installBtn').style.display = 'block';
+});
+
+document.getElementById('installBtn')?.addEventListener('click', async () => {
+    if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            document.getElementById('installBtn').style.display = 'none';
+            mostrarToast('✅ App instalado na tela inicial!');
+        }
+        deferredPrompt = null;
+    }
+});
+
+// ==================== GERENCIAMENTO DE DADOS ====================
+function carregarDados() {
+    const localData = localStorage.getItem(STORAGE_KEY);
+    if (localData) {
+        dados = JSON.parse(localData);
+        ultimaVersao = dados._versao || null;
+        console.log("📁 Dados carregados do localStorage");
+    } else {
+        dados = {
+            _versao: Date.now(),
+            _ultimoDispositivo: DEVICE_ID,
+            listas: [
+                {
+                    nome: "Minhas Composições",
+                    oculto: false,
+                    ultimaModificacao: Date.now(),
+                    cards: [
+                        {
+                            texto: "Canção em Dó Maior",
+                            descricao: "Uma bela melodia em Dó maior",
+                            abc: "X:1\nM:4/4\nL:1/8\nK:C\nCDEF GABc|",
+                            imagens: [],
+                            checklist: [
+                                { texto: "Criar melodia", ok: true },
+                                { texto: "Escrever letra", ok: false }
+                            ],
+                            linksExt: [],
+                            linksInt: [],
+                            ultimaModificacao: Date.now()
+                        }
+                    ]
+                }
+            ]
+        };
+        salvarLocalmente();
+    }
+    
+    renderizar();
+    
+    if (navigator.onLine) {
+        atualizarStatusSync("online", "Online");
+    } else {
+        atualizarStatusSync("offline", "Offline - 100% funcional");
+    }
+}
+
+function salvarLocalmente() {
+    dados._versao = Date.now();
+    dados._ultimoDispositivo = DEVICE_ID;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+    console.log("💾 Dados salvos localmente - Versão:", dados._versao);
+    
+    if (timeoutSincronizacao) clearTimeout(timeoutSincronizacao);
+    timeoutSincronizacao = setTimeout(() => {
+        if (usuarioAtual && navigator.onLine && !sincronizando) {
+            sincronizarComFirebase();
+        }
+    }, 1000);
+}
+
+function salvarDados() {
+    salvarLocalmente();
+}
+
+async function sincronizarComFirebase() {
+    if (!usuarioAtual || !navigator.onLine || sincronizando) return;
+    
+    sincronizando = true;
+    atualizarStatusSync("syncing", "Sincronizando...");
+    
+    try {
+        const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
+        const dadosFirebase = snapshot.val();
+        
+        const versaoLocal = dados._versao || 0;
+        const versaoFirebase = dadosFirebase?._versao || 0;
+        const ultimoDispositivo = dadosFirebase?._ultimoDispositivo;
+        
+        if (dadosFirebase && versaoFirebase > versaoLocal && ultimoDispositivo !== DEVICE_ID) {
+            dados = dadosFirebase;
+            salvarLocalmente();
+            renderizar();
+            // Mensagem aparece apenas uma vez
+            if (!mensagemSincronizacaoExibida) {
+                mostrarToast("🔄 Dados atualizados de outro dispositivo!");
+                mensagemSincronizacaoExibida = true;
+                setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
+            }
+            atualizarStatusSync("online", "Sincronizado");
+            sincronizando = false;
+            return;
+        }
+        
+        if (versaoLocal >= versaoFirebase || ultimoDispositivo === DEVICE_ID) {
+            await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
+            console.log("📤 Dados enviados para Firebase - Versão:", dados._versao);
+            if (!mensagemSincronizacaoExibida) {
+                mostrarToast("✅ Dados sincronizados com a nuvem!");
+                mensagemSincronizacaoExibida = true;
+                setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
+            }
+        }
+        
+        atualizarStatusSync("online", "Sincronizado");
+    } catch (error) {
+        console.error("Erro na sincronização:", error);
+        atualizarStatusSync("offline", "Erro na sincronização");
+    } finally {
+        sincronizando = false;
+    }
+}
+
+async function forcarSincronizacao() {
+    if (!usuarioAtual) {
+        mostrarToast("🔐 Faça login para sincronizar");
+        mostrarLogin();
+        return;
+    }
+    if (!navigator.onLine) {
+        mostrarToast("🌐 Sem conexão com internet");
+        return;
+    }
+    mostrarToast("🔄 Sincronizando...");
+    mensagemSincronizacaoExibida = false;
+    await sincronizarComFirebase();
+}
+
+// ==================== AUTENTICAÇÃO ====================
+auth.onAuthStateChanged(async (user) => {
+    if (user) {
+        usuarioAtual = user;
+        document.getElementById("loginBtn").style.display = "none";
+        document.getElementById("exportBtn").style.display = "inline-block";
+        document.getElementById("syncBtn").style.display = "inline-block";
+        document.getElementById("novaListaBtn").style.display = "inline-block";
+        
+        mostrarToast(`✅ Bem-vindo, ${user.email}!`);
+        
+        const dadosRef = db.ref(`usuarios/${user.uid}/dados`);
+        
+        if (window.syncListener) {
+            dadosRef.off('value', window.syncListener);
+        }
+        
+        window.syncListener = dadosRef.on('value', (snapshot) => {
+            if (!sincronizando && snapshot.exists()) {
+                const novosDados = snapshot.val();
+                const versaoLocal = dados._versao || 0;
+                const versaoNova = novosDados._versao || 0;
+                const ultimoDispositivo = novosDados._ultimoDispositivo;
+                
+                if (ultimoDispositivo !== DEVICE_ID && versaoNova > versaoLocal) {
+                    console.log("📥 Recebendo atualização de outro dispositivo");
+                    dados = novosDados;
+                    salvarLocalmente();
+                    renderizar();
+                    if (!mensagemSincronizacaoExibida) {
+                        mostrarToast("🔄 Atualização recebida de outro dispositivo!");
+                        mensagemSincronizacaoExibida = true;
+                        setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
+                    }
+                }
+            }
+        });
+        
+        await sincronizarComFirebase();
+    } else {
+        usuarioAtual = null;
+        document.getElementById("loginBtn").style.display = "inline-block";
+        document.getElementById("exportBtn").style.display = "none";
+        document.getElementById("syncBtn").style.display = "none";
+        document.getElementById("novaListaBtn").style.display = "none";
+        atualizarStatusSync("offline", "Offline - Faça login para sincronizar");
+        
+        if (window.syncListener) {
+            db.ref(`usuarios/${usuarioAtual?.uid}/dados`).off('value', window.syncListener);
+            window.syncListener = null;
+        }
+    }
+});
+
+async function fazerLogin() {
+    const email = document.getElementById("loginEmail").value;
+    const senha = document.getElementById("loginPassword").value;
+    if (!email || !senha) {
+        mostrarToast("❌ Preencha email e senha");
+        return;
+    }
+    try {
+        await auth.signInWithEmailAndPassword(email, senha);
+        fecharLogin();
+        mostrarToast("✅ Login realizado!");
+    } catch (error) {
+        mostrarToast("❌ Erro: " + error.message);
+    }
+}
+
+async function criarConta() {
+    const email = document.getElementById("loginEmail").value;
+    const senha = document.getElementById("loginPassword").value;
+    if (!email || !senha || senha.length < 6) {
+        mostrarToast("❌ Email e senha (mínimo 6 caracteres)");
+        return;
+    }
+    try {
+        await auth.createUserWithEmailAndPassword(email, senha);
+        fecharLogin();
+        mostrarToast("✅ Conta criada!");
+    } catch (error) {
+        mostrarToast("❌ Erro: " + error.message);
+    }
+}
+
+function mostrarLogin() {
+    document.getElementById("loginModal").style.display = "flex";
+}
+
+function fecharLogin() {
+    document.getElementById("loginModal").style.display = "none";
+    document.getElementById("loginEmail").value = "";
+    document.getElementById("loginPassword").value = "";
+}
+
+function exportarBackup() {
+    const dataStr = JSON.stringify(dados, null, 2);
+    const blob = new Blob([dataStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `wikinbm_backup_${new Date().toISOString().slice(0,19)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    mostrarToast("📁 Backup exportado!");
+}
+
+function atualizarStatusSync(status, texto) {
+    const statusDiv = document.getElementById("syncStatus");
+    const indicator = document.getElementById("syncIndicator");
+    const textSpan = document.getElementById("syncText");
+    
+    statusDiv.className = `sync-status ${status}`;
+    indicator.className = `sync-indicator ${status}`;
+    textSpan.innerText = texto;
+}
+
+function mostrarToast(mensagem) {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerText = mensagem;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// ==================== FUNÇÕES DO BOARD ====================
+function renderizar() {
+    const board = document.getElementById("board");
+    board.innerHTML = "";
+    
+    const listas = dados.listas || [];
+    
+    if (listas.length === 0) {
+        board.innerHTML = '<div style="text-align:center; color:white; padding:40px;">🎯 Clique em "+ Nova Lista" para começar</div>';
+        return;
+    }
+    
+    listas.forEach((lista, idx) => {
+        const divLista = document.createElement("div");
+        divLista.className = "lista";
+        
+        divLista.innerHTML = `
+            <div class="lista-header">
+                <div class="lista-titulo" onclick="renomearLista(${idx})">📌 ${escapeHtml(lista.nome)}</div>
+                <div class="lista-controles">
+                    <button onclick="alternarOcultar(${idx})">${lista.oculto ? "👁️ Mostrar" : "🙈 Ocultar"}</button>
+                    <button onclick="novoCartao(${idx})">+ Cartão</button>
+                    <button onclick="excluirLista(${idx})" style="color: var(--danger);">🗑️ Excluir</button>
+                </div>
+            </div>
+            <div id="cards-${idx}"></div>
+        `;
+        
+        if (!lista.oculto && lista.cards) {
+            const cardsContainer = divLista.querySelector(`#cards-${idx}`);
+            lista.cards.forEach((card, cardIdx) => {
+                const totalCheck = (card.checklist || []).length;
+                const completos = (card.checklist || []).filter(c => c.ok).length;
+                const temImagens = (card.imagens && card.imagens.length > 0) ? "🖼️" : "";
+                const temMusica = card.abc && card.abc.trim() ? "🎵" : "";
+                const temLinks = (card.linksExt && card.linksExt.length > 0) || (card.linksInt && card.linksInt.length > 0);
+                const temDesc = card.descricao && card.descricao.trim() ? "📝" : "";
+                
+                const cardDiv = document.createElement("div");
+                cardDiv.className = "cartao";
+                cardDiv.innerHTML = `
+                    <div class="cartao-titulo">${escapeHtml(card.texto)}</div>
+                    <div class="cartao-indicadores">
+                        ${temDesc ? '<span>📝</span>' : ''}
+                        ${temImagens ? '<span>🖼️</span>' : ''}
+                        ${temMusica ? '<span>🎵</span>' : ''}
+                        ${temLinks ? '<span>🔗</span>' : ''}
+                        ${totalCheck > 0 ? `<span>✓ ${completos}/${totalCheck}</span>` : ''}
+                    </div>
+                `;
+                cardDiv.onclick = () => abrirCartao(idx, cardIdx);
+                cardsContainer.appendChild(cardDiv);
+            });
+        }
+        
+        board.appendChild(divLista);
+    });
+}
+
+function novaLista() {
+    const nome = prompt("Nome da nova lista:");
+    if (nome && nome.trim()) {
+        if (!dados.listas) dados.listas = [];
+        dados.listas.push({
+            nome: nome.trim(),
+            oculto: false,
+            ultimaModificacao: Date.now(),
+            cards: []
+        });
+        salvarDados();
+        renderizar();
+        mostrarToast("✅ Lista criada!");
+    }
+}
+
+function renomearLista(idx) {
+    const novoNome = prompt("Novo nome da lista:", dados.listas[idx].nome);
+    if (novoNome && novoNome.trim()) {
+        dados.listas[idx].nome = novoNome.trim();
+        dados.listas[idx].ultimaModificacao = Date.now();
+        salvarDados();
+        renderizar();
+    }
+}
+
+function alternarOcultar(idx) {
+    dados.listas[idx].oculto = !dados.listas[idx].oculto;
+    dados.listas[idx].ultimaModificacao = Date.now();
+    salvarDados();
+    renderizar();
+}
+
+function excluirLista(idx) {
+    if (confirm(`Excluir a lista "${dados.listas[idx].nome}" e todos os seus cartões?`)) {
+        dados.listas.splice(idx, 1);
+        salvarDados();
+        renderizar();
+        mostrarToast("✅ Lista excluída!");
+    }
+}
+
+function novoCartao(idxLista) {
+    const nome = prompt("Nome do novo cartão:");
+    if (nome && nome.trim()) {
+        if (!dados.listas[idxLista].cards) dados.listas[idxLista].cards = [];
+        dados.listas[idxLista].cards.push({
+            texto: nome.trim(),
+            descricao: "",
+            abc: "",
+            imagens: [],
+            checklist: [],
+            linksExt: [],
+            linksInt: [],
+            ultimaModificacao: Date.now()
+        });
+        dados.listas[idxLista].ultimaModificacao = Date.now();
+        salvarDados();
+        renderizar();
+        mostrarToast("✅ Cartão criado!");
+    }
+}
+
+// ==================== FUNÇÕES DO CARTÃO ====================
+function abrirCartao(idxLista, idxCartao) {
+    listaAtual = idxLista;
+    cartaoAtual = idxCartao;
+    const card = dados.listas[idxLista].cards[idxCartao];
+    
+    document.getElementById("modal").style.display = "flex";
+    document.getElementById("tituloCartao").innerText = card.texto;
+    document.getElementById("descricaoTexto").value = card.descricao || "";
+    document.getElementById("abcInput").value = card.abc || "";
+    
+    mudarAba('geral');
+    renderizarImagens();
+    renderizarChecklist();
+    renderizarLinksInternos();
+    renderizarLinksExternos();
+    popularSelectListas();
+    
+    if (card.abc && card.abc.trim()) {
+        renderizarABCVisual(card.abc);
+    }
+}
+
+function renomearCartao() {
+    const novoNome = prompt("Novo nome do cartão:", dados.listas[listaAtual].cards[cartaoAtual].texto);
+    if (novoNome && novoNome.trim()) {
+        dados.listas[listaAtual].cards[cartaoAtual].texto = novoNome.trim();
+        dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+        document.getElementById("tituloCartao").innerText = novoNome.trim();
+        salvarDados();
+        renderizar();
+        mostrarToast("✅ Nome atualizado!");
+    }
+}
+
+function excluirCartao() {
+    if (confirm("Excluir este cartão permanentemente?")) {
+        dados.listas[listaAtual].cards.splice(cartaoAtual, 1);
+        dados.listas[listaAtual].ultimaModificacao = Date.now();
+        salvarDados();
+        fecharModal();
+        renderizar();
+        mostrarToast("✅ Cartão excluído!");
+    }
+}
+
+function salvarDescricao() {
+    dados.listas[listaAtual].cards[cartaoAtual].descricao = document.getElementById("descricaoTexto").value;
+    dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+    salvarDados();
+    mostrarToast("✅ Descrição salva!");
+}
+
+// ==================== MÚLTIPLAS IMAGENS ====================
+function adicionarImagem() {
+    const url = document.getElementById("imgUrl").value;
+    const titulo = document.getElementById("imgTitulo").value;
+    
+    if (!url || url.trim() === "") {
+        mostrarToast("❌ Digite a URL da imagem");
+        return;
+    }
+    
+    if (!dados.listas[listaAtual].cards[cartaoAtual].imagens) {
+        dados.listas[listaAtual].cards[cartaoAtual].imagens = [];
+    }
+    
+    dados.listas[listaAtual].cards[cartaoAtual].imagens.push({
+        url: url.trim(),
+        titulo: titulo.trim() || "Imagem " + (dados.listas[listaAtual].cards[cartaoAtual].imagens.length + 1)
+    });
+    
+    dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+    
+    document.getElementById("imgUrl").value = "";
+    document.getElementById("imgTitulo").value = "";
+    
+    renderizarImagens();
+    salvarDados();
+    mostrarToast("✅ Imagem adicionada!");
+}
+
+function renderizarImagens() {
+    const container = document.getElementById("imagensContainer");
+    const imagens = dados.listas[listaAtual].cards[cartaoAtual].imagens || [];
+    
+    if (imagens.length === 0) {
+        container.innerHTML = '<p style="color: #6b778c;">🖼️ Nenhuma imagem adicionada</p>';
+        return;
+    }
+    
+    container.innerHTML = "";
+    imagens.forEach((img, idx) => {
+        container.innerHTML += `
+            <div class="img-item">
+                <div class="img-content">
+                    <img src="${escapeHtml(img.url)}" class="img-preview" onclick="abrirImagemGrande('${escapeHtml(img.url)}')" onerror="this.src='data:image/svg+xml,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%2260%22 height=%2260%22%3E%3Crect width=%2260%22 height=%2260%22 fill=%22%23ddd%22/%3E%3Ctext x=%2250%25%22 y=%2250%25%22 text-anchor=%22middle%22 dy=%22.3em%22 fill=%22%23999%22%3E❌%3C/text%3E%3C/svg%3E'">
+                    <span style="flex:1;">📷 ${escapeHtml(img.titulo)}</span>
+                </div>
+                <button class="btn-icon btn-danger-text" onclick="removerImagem(${idx})">🗑️</button>
+            </div>
+        `;
+    });
+}
+
+function removerImagem(idx) {
+    if (confirm("Remover esta imagem?")) {
+        dados.listas[listaAtual].cards[cartaoAtual].imagens.splice(idx, 1);
+        dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+        renderizarImagens();
+        salvarDados();
+        mostrarToast("✅ Imagem removida!");
+    }
+}
+
+function abrirImagemGrande(url) {
+    const win = window.open();
+    win.document.write(`
+        <html>
+            <head><title>Imagem</title></head>
+            <body style="margin:0; display:flex; justify-content:center; align-items:center; min-height:100vh; background:#000;">
+                <img src="${url}" style="max-width:90%; max-height:90vh; object-fit:contain;">
+                <button onclick="window.close()" style="position:fixed; top:20px; right:20px; padding:10px 20px; cursor:pointer;">Fechar</button>
+            </body>
+        </html>
+    `);
+}
+
+// ==================== CHECKLIST ====================
+function adicionarCheck() {
+    const item = document.getElementById("checkItem").value;
+    if (item && item.trim()) {
+        if (!dados.listas[listaAtual].cards[cartaoAtual].checklist) {
+            dados.listas[listaAtual].cards[cartaoAtual].checklist = [];
+        }
+        dados.listas[listaAtual].cards[cartaoAtual].checklist.push({
+            texto: item.trim(),
+            ok: false
+        });
+        dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+        document.getElementById("checkItem").value = "";
+        renderizarChecklist();
+        salvarDados();
+        mostrarToast("✅ Item adicionado!");
+    }
+}
+
+function renderizarChecklist() {
+    const container = document.getElementById("checkContainer");
+    const checklist = dados.listas[listaAtual].cards[cartaoAtual].checklist || [];
+    
+    if (checklist.length === 0) {
+        container.innerHTML = '<p style="color: #6b778c;">📝 Nenhum item na checklist</p>';
+        document.getElementById("progressBar").style.width = "0%";
+        document.getElementById("progPercent").innerText = "0% concluído";
+        return;
+    }
+    
+    let completos = 0;
+    container.innerHTML = "";
+    
+    checklist.forEach((item, idx) => {
+        if (item.ok) completos++;
+        container.innerHTML += `
+            <div class="checklist-row">
+                <div class="checklist-content">
+                    <input type="checkbox" ${item.ok ? "checked" : ""} onchange="alternarCheck(${idx})">
+                    <span style="${item.ok ? 'text-decoration: line-through; color: #6b778c;' : ''}">${escapeHtml(item.texto)}</span>
+                </div>
+                <button class="btn-icon btn-danger-text" onclick="removerCheck(${idx})">🗑️</button>
+            </div>
+        `;
+    });
+    
+    const percentual = Math.round((completos / checklist.length) * 100);
+    document.getElementById("progressBar").style.width = percentual + "%";
+    document.getElementById("progPercent").innerText = `${percentual}% concluído`;
+}
+
+function alternarCheck(idx) {
+    dados.listas[listaAtual].cards[cartaoAtual].checklist[idx].ok = !dados.listas[listaAtual].cards[cartaoAtual].checklist[idx].ok;
+    dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+    renderizarChecklist();
+    salvarDados();
+}
+
+function removerCheck(idx) {
+    dados.listas[listaAtual].cards[cartaoAtual].checklist.splice(idx, 1);
+    dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+    renderizarChecklist();
+    salvarDados();
+    mostrarToast("✅ Item removido!");
+}
+
+// ==================== MÚSICA ABC ====================
+function renderizarABC() {
+    const abc = document.getElementById("abcInput").value;
+    dados.listas[listaAtual].cards[cartaoAtual].abc = abc;
+    dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+    renderizarABCVisual(abc);
+    salvarDados();
+    mostrarToast("🎵 Partitura renderizada!");
+}
+
+function renderizarABCVisual(abc) {
+    const container = document.getElementById("abcRender");
+    if (!abc || !abc.trim()) {
+        container.innerHTML = '<p style="color: #6b778c;">🎼 Digite uma partitura ABC e clique em Renderizar</p>';
+        return;
+    }
+    
+    try {
+        container.innerHTML = "";
+        ABCJS.renderAbc("abcRender", abc, {
+            responsive: "resize",
+            staffwidth: Math.min(window.innerWidth - 100, 700),
+            scale: 1.2
+        });
+    } catch (error) {
+        container.innerHTML = '<p style="color: var(--danger);">❌ Erro na partitura. Verifique a sintaxe ABC.</p>';
+    }
+}
+
+async function playABC() {
+    const abc = document.getElementById("abcInput").value;
+    if (!abc || !abc.trim()) {
+        mostrarToast("❌ Digite uma partitura ABC primeiro");
+        return;
+    }
+    
+    try {
+        const visualObj = ABCJS.renderAbc("*", abc)[0];
+        const synth = new ABCJS.synth.CreateSynth();
+        await synth.init({ visualObj });
+        await synth.prime();
+        synth.start();
+        sintetizadorAtual = synth;
+        mostrarToast("🎵 Tocando partitura...");
+    } catch (error) {
+        mostrarToast("❌ Erro ao reproduzir");
+    }
+}
+
+function stopABC() {
+    if (sintetizadorAtual) {
+        sintetizadorAtual.stop();
+        sintetizadorAtual = null;
+        mostrarToast("⏹️ Reprodução parada");
+    }
+}
+
+// ==================== LINKS ====================
+function popularSelectListas() {
+    const select = document.getElementById("selListaInt");
+    select.innerHTML = '<option value="">Selecione uma lista</option>';
+    const listas = dados.listas || [];
+    listas.forEach((lista, idx) => {
+        select.innerHTML += `<option value="${idx}">${escapeHtml(lista.nome)}</option>`;
+    });
+}
+
+function atualizarSelectCartao() {
+    const listaIdx = document.getElementById("selListaInt").value;
+    const selectCard = document.getElementById("selCardInt");
+    if (listaIdx === "") {
+        selectCard.innerHTML = '<option value="">Selecione um cartão</option>';
+        return;
+    }
+    const lista = dados.listas[parseInt(listaIdx)];
+    selectCard.innerHTML = '<option value="">Selecione um cartão</option>';
+    if (lista && lista.cards) {
+        lista.cards.forEach((card, idx) => {
+            selectCard.innerHTML += `<option value="${idx}">${escapeHtml(card.texto)}</option>`;
+        });
+    }
+}
+
+function adicionarLinkInterno() {
+    const listaIdx = document.getElementById("selListaInt").value;
+    const cartaoIdx = document.getElementById("selCardInt").value;
+    if (listaIdx === "" || cartaoIdx === "") {
+        mostrarToast("❌ Selecione uma lista e um cartão");
+        return;
+    }
+    
+    const listaDestino = dados.listas[parseInt(listaIdx)];
+    const cartaoDestino = listaDestino.cards[parseInt(cartaoIdx)];
+    
+    if (!dados.listas[listaAtual].cards[cartaoAtual].linksInt) {
+        dados.listas[listaAtual].cards[cartaoAtual].linksInt = [];
+    }
+    
+    dados.listas[listaAtual].cards[cartaoAtual].linksInt.push({
+        lista: parseInt(listaIdx),
+        cartao: parseInt(cartaoIdx),
+        nome: cartaoDestino.texto
+    });
+    dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+    renderizarLinksInternos();
+    salvarDados();
+    mostrarToast("✅ Link interno adicionado!");
+}
+
+function renderizarLinksInternos() {
+    const container = document.getElementById("linksIntContainer");
+    const links = dados.listas[listaAtual].cards[cartaoAtual].linksInt || [];
+    
+    if (links.length === 0) {
+        container.innerHTML = '<p style="color: #6b778c;">📎 Nenhum link interno</p>';
+        return;
+    }
+    
+    container.innerHTML = "";
+    links.forEach((link, idx) => {
+        container.innerHTML += `
+            <div class="item-row">
+                <span style="color: var(--primary); cursor: pointer;" onclick="navegarParaCartao(${link.lista}, ${link.cartao})">
+                    ➡️ ${escapeHtml(link.nome)}
+                </span>
+                <button class="btn-icon btn-danger-text" onclick="removerLinkInterno(${idx})">🗑️</button>
+            </div>
+        `;
+    });
+}
+
+function removerLinkInterno(idx) {
+    dados.listas[listaAtual].cards[cartaoAtual].linksInt.splice(idx, 1);
+    dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+    renderizarLinksInternos();
+    salvarDados();
+    mostrarToast("✅ Link interno removido!");
+}
+
+function navegarParaCartao(lista, cartao) {
+    fecharModal();
+    setTimeout(() => abrirCartao(lista, cartao), 100);
+}
+
+function adicionarLinkExterno() {
+    const titulo = document.getElementById("linkExtTit").value;
+    const url = document.getElementById("linkExtUrl").value;
+    if (!titulo || !url) {
+        mostrarToast("❌ Preencha título e URL");
+        return;
+    }
+    
+    let urlFormatada = url;
+    if (!urlFormatada.startsWith("http")) {
+        urlFormatada = "https://" + urlFormatada;
+    }
+    
+    if (!dados.listas[listaAtual].cards[cartaoAtual].linksExt) {
+        dados.listas[listaAtual].cards[cartaoAtual].linksExt = [];
+    }
+    
+    dados.listas[listaAtual].cards[cartaoAtual].linksExt.push({
+        titulo: titulo.trim(),
+        url: urlFormatada
+    });
+    dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+    
+    document.getElementById("linkExtTit").value = "";
+    document.getElementById("linkExtUrl").value = "";
+    renderizarLinksExternos();
+    salvarDados();
+    mostrarToast("✅ Link externo adicionado!");
+}
+
+function renderizarLinksExternos() {
+    const container = document.getElementById("linksExtContainer");
+    const links = dados.listas[listaAtual].cards[cartaoAtual].linksExt || [];
+    
+    if (links.length === 0) {
+        container.innerHTML = '<p style="color: #6b778c;">🔗 Nenhum link externo</p>';
+        return;
+    }
+    
+    container.innerHTML = "";
+    links.forEach((link, idx) => {
+        container.innerHTML += `
+            <div class="item-row">
+                <a href="${link.url}" target="_blank" style="color: var(--primary); text-decoration: none; flex: 1;">
+                    🌐 ${escapeHtml(link.titulo)}
+                </a>
+                <button class="btn-icon btn-danger-text" onclick="removerLinkExterno(${idx})">🗑️</button>
+            </div>
+        `;
+    });
+}
+
+function removerLinkExterno(idx) {
+    dados.listas[listaAtual].cards[cartaoAtual].linksExt.splice(idx, 1);
+    dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+    renderizarLinksExternos();
+    salvarDados();
+    mostrarToast("✅ Link externo removido!");
+}
+
+// ==================== UTILITÁRIOS ====================
+function mudarAba(aba) {
+    abaAtual = aba;
+    
+    document.querySelectorAll('.section-view').forEach(section => {
+        section.classList.remove('show');
+    });
+    
+    document.getElementById(`aba-${aba}`).classList.add('show');
+    
+    document.querySelectorAll('.view-btn').forEach(btn => {
+        btn.classList.remove('active');
+    });
+    
+    const botoes = document.querySelectorAll('.view-btn');
+    const indices = { 'geral': 0, 'imagens': 1, 'musica': 2, 'checklist': 3, 'conexoes': 4 };
+    if (botoes[indices[aba]]) {
+        botoes[indices[aba]].classList.add('active');
+    }
+}
+
+function fecharModal() {
+    document.getElementById("modal").style.display = "none";
+    stopABC();
+}
+
+function escapeHtml(texto) {
+    if (!texto) return '';
+    const div = document.createElement('div');
+    div.textContent = texto;
+    return div.innerHTML;
+}
+
+// ==================== EVENTOS DE REDE ====================
+window.addEventListener('online', async () => {
+    atualizarStatusSync("online", "Online");
+    mostrarToast("🌐 Conexão restaurada!");
+    if (usuarioAtual) await sincronizarComFirebase();
+});
+
+window.addEventListener('offline', () => {
+    atualizarStatusSync("offline", "Offline - 100% funcional");
+    mostrarToast("⚠️ Offline, mas tudo funciona!");
+});
+
+// ==================== INICIALIZAR ====================
+carregarDados();
+</script>
+
+</body>
+</html>
