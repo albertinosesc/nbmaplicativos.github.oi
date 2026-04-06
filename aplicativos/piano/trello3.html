@@ -3,9 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-    <title>WikiNBM Pro - Offline First</title>
+    <title>WikiNBM Pro - Híbrido (Offline + Sincronização)</title>
 
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
     <style>
         * {
@@ -30,7 +33,6 @@
             padding: 20px;
         }
 
-        /* Header */
         .header {
             background: white;
             border-radius: 12px;
@@ -136,7 +138,11 @@
             color: #4a5568;
         }
 
-        /* Board */
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+
         #board {
             display: flex;
             flex-wrap: wrap;
@@ -144,7 +150,6 @@
             align-items: flex-start;
         }
 
-        /* Lista */
         .lista {
             background: #f4f5f7;
             border-radius: 12px;
@@ -197,7 +202,6 @@
             background: #e2e8f0;
         }
 
-        /* Cartão */
         .cartao {
             background: white;
             padding: 12px;
@@ -229,7 +233,6 @@
             flex-wrap: wrap;
         }
 
-        /* Modal */
         #modal {
             display: none;
             position: fixed;
@@ -269,7 +272,6 @@
             color: var(--primary);
         }
 
-        /* Tabs */
         .tab-menu {
             display: flex;
             background: #f1f3f5;
@@ -300,7 +302,6 @@
             color: white;
         }
 
-        /* Content */
         .content-scroll {
             flex: 1;
             padding: 20px;
@@ -420,6 +421,24 @@
             }
         }
 
+        .login-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.8);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .login-content {
+            background: white;
+            max-width: 350px;
+            width: 90%;
+            padding: 25px;
+            border-radius: 16px;
+        }
+
         @media (max-width: 768px) {
             body { padding: 10px; }
             .lista { width: 100%; }
@@ -432,22 +451,21 @@
 <body>
 
 <div class="header">
-    <h1>🎵 WikiNBM Pro - Offline</h1>
+    <h1>🎵 WikiNBM Pro - Híbrido</h1>
     <div class="header-controls">
         <div class="sync-status offline" id="syncStatus">
             <div class="sync-indicator offline" id="syncIndicator"></div>
             <span id="syncText">Carregando...</span>
         </div>
-        <button class="btn btn-success" onclick="exportarBackup()">📤 Backup</button>
-        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importarBackup(event)">
-        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()">📥 Importar</button>
-        <button class="btn btn-primary" onclick="novaLista()">+ Nova Lista</button>
+        <button class="btn btn-primary" onclick="mostrarLogin()" id="loginBtn">🔐 Login</button>
+        <button class="btn btn-success" onclick="exportarBackup()" id="exportBtn" style="display:none;">📤 Backup</button>
+        <button class="btn btn-secondary" onclick="forcarSincronizacao()" id="syncBtn" style="display:none;">🔄 Sincronizar</button>
+        <button class="btn btn-primary" onclick="novaLista()" id="novaListaBtn" style="display:none;">+ Nova Lista</button>
     </div>
 </div>
 
 <div id="board"></div>
 
-<!-- Modal do Cartão -->
 <div id="modal">
     <div class="modal-content">
         <div class="modal-header">
@@ -464,7 +482,6 @@
         </div>
 
         <div class="content-scroll">
-            <!-- Aba Geral -->
             <div id="aba-geral" class="section-view show">
                 <h3>🖼️ Imagem</h3>
                 <img id="imgPreview" class="img-preview" style="display:none;">
@@ -475,7 +492,6 @@
                 <button class="btn btn-primary" onclick="salvarDescricao()">💾 Salvar Descrição</button>
             </div>
 
-            <!-- Aba Música -->
             <div id="aba-musica" class="section-view">
                 <h3>🎼 Notação Musical ABC</h3>
                 <textarea id="abcInput" rows="6" placeholder="X:1&#10;M:4/4&#10;L:1/8&#10;K:C&#10;CDEF GABc|"></textarea>
@@ -487,7 +503,6 @@
                 <div id="abcRender" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px;"></div>
             </div>
 
-            <!-- Aba Checklist -->
             <div id="aba-checklist" class="section-view">
                 <h3>📋 Checklist</h3>
                 <div class="progress-container">
@@ -503,7 +518,6 @@
                 <div id="checkContainer"></div>
             </div>
 
-            <!-- Aba Conexões -->
             <div id="aba-conexoes" class="section-view">
                 <h3>🔗 Links Internos</h3>
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
@@ -525,26 +539,62 @@
     </div>
 </div>
 
+<div id="loginModal" class="login-modal">
+    <div class="login-content">
+        <h2>🔐 Login WikiNBM</h2>
+        <input type="email" id="loginEmail" placeholder="Email">
+        <input type="password" id="loginPassword" placeholder="Senha (mínimo 6 caracteres)">
+        <button class="btn btn-primary" onclick="fazerLogin()" style="width:100%; margin-bottom:8px;">Entrar</button>
+        <button class="btn btn-secondary" onclick="criarConta()" style="width:100%;">Criar Nova Conta</button>
+        <button class="btn btn-secondary" onclick="fecharLogin()" style="width:100%; margin-top:8px;">Cancelar</button>
+    </div>
+</div>
+
 <script>
-// ==================== ARMAZENAMENTO LOCAL (OFFLINE FIRST) ====================
-let dados = [];
-let listaAtual = null;
-let cartaoAtual = null;
+// ==================== CONFIGURAÇÃO DO FIREBASE ====================
+const firebaseConfig = {
+    apiKey: "AIzaSyBlComr12haNZMGjbmv2CDv2bKMPL6slPc",
+    authDomain: "trello-musical.firebaseapp.com",
+    databaseURL: "https://trello-musical-default-rtdb.firebaseio.com",
+    projectId: "trello-musical",
+    storageBucket: "trello-musical.firebasestorage.app",
+    messagingSenderId: "492377323837",
+    appId: "1:492377323837:web:e0cafde63e9970013cad54"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.database();
+const auth = firebase.auth();
+
+// ==================== VARIÁVEIS GLOBAIS ====================
+let dados = [];              // Dados principais
+let usuarioAtual = null;    // Usuário logado
+let listaAtual = null;      // Índice da lista atual
+let cartaoAtual = null;     // Índice do cartão atual
 let sintetizadorAtual = null;
 let abaAtual = 'geral';
+let sincronizando = false;
+let alteracoesPendentes = false;
 
-// Carregar dados do localStorage ao iniciar
+// Chave do localStorage
+const STORAGE_KEY = 'wikinbm_hibrido';
+
+// ==================== GERENCIAMENTO DE DADOS HÍBRIDO ====================
+// Carregar dados (sempre do localStorage primeiro)
 function carregarDados() {
-    const saved = localStorage.getItem('wikinbm_offline');
-    if (saved) {
-        dados = JSON.parse(saved);
-        mostrarToast("📁 Dados carregados do dispositivo");
+    // 1. Carregar do localStorage (sempre disponível)
+    const localData = localStorage.getItem(STORAGE_KEY);
+    if (localData) {
+        dados = JSON.parse(localData);
+        console.log("📁 Dados carregados do localStorage");
     } else {
         // Dados de exemplo
         dados = [
             {
                 nome: "Minhas Composições",
                 oculto: false,
+                ultimaModificacao: Date.now(),
                 cards: [
                     {
                         texto: "Canção em Dó Maior",
@@ -553,58 +603,231 @@ function carregarDados() {
                         img: "",
                         checklist: [
                             { texto: "Criar melodia", ok: true },
-                            { texto: "Escrever letra", ok: false },
-                            { texto: "Gravar demo", ok: false }
+                            { texto: "Escrever letra", ok: false }
                         ],
                         linksExt: [],
-                        linksInt: []
-                    },
-                    {
-                        texto: "Exercício de Ritmo",
-                        descricao: "Prática de ritmos variados",
-                        abc: "X:2\nM:3/4\nL:1/4\nK:G\nGAB|cdc|BAG|",
-                        img: "",
-                        checklist: [
-                            { texto: "Praticar com metrônomo", ok: false }
-                        ],
-                        linksExt: [],
-                        linksInt: []
-                    }
-                ]
-            },
-            {
-                nome: "Referências",
-                oculto: false,
-                cards: [
-                    {
-                        texto: "Teoria Musical",
-                        descricao: "Conceitos importantes de teoria",
-                        abc: "",
-                        img: "",
-                        checklist: [
-                            { texto: "Estudar escalas", ok: false },
-                            { texto: "Praticar intervalos", ok: false }
-                        ],
-                        linksExt: [
-                            { titulo: "Teoria Musical Online", url: "https://teoriadamusica.com.br" }
-                        ],
-                        linksInt: []
+                        linksInt: [],
+                        ultimaModificacao: Date.now()
                     }
                 ]
             }
         ];
-        salvarDados();
+        salvarLocalmente();
     }
-    atualizarStatusSync("offline", "Modo Offline - Dados locais");
+    
     renderizar();
+    
+    // 2. Se estiver logado, tentar sincronizar com Firebase
+    if (usuarioAtual) {
+        sincronizarComFirebase();
+    } else {
+        atualizarStatusSync("offline", "Offline - Faça login para sincronizar");
+    }
 }
 
-// Salvar dados no localStorage
+// Salvar apenas localmente (rápido)
+function salvarLocalmente() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+    alteracoesPendentes = true;
+    console.log("💾 Dados salvos localmente");
+    
+    // Se estiver online, tentar sincronizar
+    if (usuarioAtual && navigator.onLine) {
+        sincronizarComFirebase();
+    }
+}
+
+// Salvar dados (local + tentar sincronizar)
 function salvarDados() {
-    localStorage.setItem('wikinbm_offline', JSON.stringify(dados));
-    mostrarToast("💾 Dados salvos localmente");
+    salvarLocalmente();
 }
 
+// Sincronizar com Firebase (enviar e receber)
+async function sincronizarComFirebase() {
+    if (!usuarioAtual || !navigator.onLine || sincronizando) {
+        return;
+    }
+    
+    sincronizando = true;
+    atualizarStatusSync("syncing", "Sincronizando...");
+    
+    try {
+        // 1. Enviar dados locais para o Firebase
+        await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
+        console.log("📤 Dados enviados para o Firebase");
+        
+        // 2. Buscar dados do Firebase
+        const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
+        const dadosFirebase = snapshot.val();
+        
+        // 3. Fazer merge (compara timestamps)
+        if (dadosFirebase && JSON.stringify(dadosFirebase) !== JSON.stringify(dados)) {
+            const dadosMerged = fazerMerge(dados, dadosFirebase);
+            if (JSON.stringify(dadosMerged) !== JSON.stringify(dados)) {
+                dados = dadosMerged;
+                salvarLocalmente();
+                renderizar();
+                mostrarToast("🔄 Dados sincronizados com a nuvem!");
+            }
+        }
+        
+        alteracoesPendentes = false;
+        atualizarStatusSync("online", "Sincronizado");
+        
+    } catch (error) {
+        console.error("Erro na sincronização:", error);
+        atualizarStatusSync("offline", "Erro na sincronização");
+        mostrarToast("⚠️ Erro ao sincronizar. Tentando novamente...");
+    } finally {
+        sincronizando = false;
+    }
+}
+
+// Fazer merge entre dados locais e da nuvem (resolver conflitos)
+function fazerMerge(local, nuvem) {
+    // Se um dos dois estiver vazio, retorna o outro
+    if (!local || local.length === 0) return nuvem;
+    if (!nuvem || nuvem.length === 0) return local;
+    
+    // Clonar dados locais
+    const merged = JSON.parse(JSON.stringify(local));
+    
+    // Para cada lista na nuvem
+    nuvem.forEach((listaNuvem, idxNuvem) => {
+        const listaLocal = merged.find(l => l.nome === listaNuvem.nome);
+        
+        if (!listaLocal) {
+            // Lista não existe localmente, adicionar
+            merged.push(listaNuvem);
+        } else {
+            // Lista existe, fazer merge dos cards
+            listaNuvem.cards.forEach((cardNuvem) => {
+                const cardLocal = listaLocal.cards.find(c => c.texto === cardNuvem.texto);
+                
+                if (!cardLocal) {
+                    // Card não existe localmente, adicionar
+                    listaLocal.cards.push(cardNuvem);
+                } else {
+                    // Card existe, comparar timestamps
+                    const timestampLocal = cardLocal.ultimaModificacao || 0;
+                    const timestampNuvem = cardNuvem.ultimaModificacao || 0;
+                    
+                    if (timestampNuvem > timestampLocal) {
+                        // Versão da nuvem é mais nova
+                        Object.assign(cardLocal, cardNuvem);
+                    }
+                }
+            });
+        }
+    });
+    
+    return merged;
+}
+
+// Forçar sincronização manual
+async function forcarSincronizacao() {
+    if (!usuarioAtual) {
+        mostrarToast("🔐 Faça login para sincronizar");
+        mostrarLogin();
+        return;
+    }
+    
+    if (!navigator.onLine) {
+        mostrarToast("🌐 Sem conexão com internet");
+        return;
+    }
+    
+    mostrarToast("🔄 Sincronizando manualmente...");
+    await sincronizarComFirebase();
+}
+
+// ==================== AUTENTICAÇÃO ====================
+auth.onAuthStateChanged(async (user) => {
+    if (user) {
+        usuarioAtual = user;
+        document.getElementById("loginBtn").style.display = "none";
+        document.getElementById("exportBtn").style.display = "inline-block";
+        document.getElementById("syncBtn").style.display = "inline-block";
+        document.getElementById("novaListaBtn").style.display = "inline-block";
+        
+        mostrarToast(`✅ Bem-vindo, ${user.email}!`);
+        
+        // Configurar listener para mudanças em tempo real
+        db.ref(`usuarios/${user.uid}/dados`).on('value', (snapshot) => {
+            if (!sincronizando && snapshot.exists()) {
+                const novosDados = snapshot.val();
+                if (novosDados && JSON.stringify(novosDados) !== JSON.stringify(dados)) {
+                    const merged = fazerMerge(dados, novosDados);
+                    if (JSON.stringify(merged) !== JSON.stringify(dados)) {
+                        dados = merged;
+                        salvarLocalmente();
+                        renderizar();
+                        mostrarToast("🔄 Atualização automática recebida!");
+                    }
+                }
+            }
+        });
+        
+        // Sincronizar ao conectar
+        await sincronizarComFirebase();
+        
+    } else {
+        usuarioAtual = null;
+        document.getElementById("loginBtn").style.display = "inline-block";
+        document.getElementById("exportBtn").style.display = "none";
+        document.getElementById("syncBtn").style.display = "none";
+        document.getElementById("novaListaBtn").style.display = "none";
+        atualizarStatusSync("offline", "Offline - Faça login");
+    }
+});
+
+async function fazerLogin() {
+    const email = document.getElementById("loginEmail").value;
+    const senha = document.getElementById("loginPassword").value;
+    
+    if (!email || !senha) {
+        mostrarToast("❌ Preencha email e senha");
+        return;
+    }
+    
+    try {
+        await auth.signInWithEmailAndPassword(email, senha);
+        fecharLogin();
+        mostrarToast("✅ Login realizado!");
+    } catch (error) {
+        mostrarToast("❌ Erro: " + error.message);
+    }
+}
+
+async function criarConta() {
+    const email = document.getElementById("loginEmail").value;
+    const senha = document.getElementById("loginPassword").value;
+    
+    if (!email || !senha || senha.length < 6) {
+        mostrarToast("❌ Email e senha (mínimo 6 caracteres)");
+        return;
+    }
+    
+    try {
+        await auth.createUserWithEmailAndPassword(email, senha);
+        fecharLogin();
+        mostrarToast("✅ Conta criada!");
+    } catch (error) {
+        mostrarToast("❌ Erro: " + error.message);
+    }
+}
+
+function mostrarLogin() {
+    document.getElementById("loginModal").style.display = "flex";
+}
+
+function fecharLogin() {
+    document.getElementById("loginModal").style.display = "none";
+    document.getElementById("loginEmail").value = "";
+    document.getElementById("loginPassword").value = "";
+}
+
+// ==================== BACKUP ====================
 function exportarBackup() {
     const dataStr = JSON.stringify(dados, null, 2);
     const blob = new Blob([dataStr], {type: "application/json"});
@@ -615,30 +838,6 @@ function exportarBackup() {
     link.click();
     URL.revokeObjectURL(url);
     mostrarToast("📁 Backup exportado!");
-}
-
-function importarBackup(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const imported = JSON.parse(e.target.result);
-            if (Array.isArray(imported)) {
-                dados = imported;
-                salvarDados();
-                renderizar();
-                mostrarToast("✅ Backup importado com sucesso!");
-            } else {
-                alert("Arquivo inválido");
-            }
-        } catch (error) {
-            alert("Erro ao importar arquivo");
-        }
-    };
-    reader.readAsText(file);
-    event.target.value = "";
 }
 
 function atualizarStatusSync(status, texto) {
@@ -722,6 +921,7 @@ function novaLista() {
         dados.push({
             nome: nome.trim(),
             oculto: false,
+            ultimaModificacao: Date.now(),
             cards: []
         });
         salvarDados();
@@ -734,6 +934,7 @@ function renomearLista(idx) {
     const novoNome = prompt("Novo nome da lista:", dados[idx].nome);
     if (novoNome && novoNome.trim()) {
         dados[idx].nome = novoNome.trim();
+        dados[idx].ultimaModificacao = Date.now();
         salvarDados();
         renderizar();
     }
@@ -741,6 +942,7 @@ function renomearLista(idx) {
 
 function alternarOcultar(idx) {
     dados[idx].oculto = !dados[idx].oculto;
+    dados[idx].ultimaModificacao = Date.now();
     salvarDados();
     renderizar();
 }
@@ -765,8 +967,10 @@ function novoCartao(idxLista) {
             img: "",
             checklist: [],
             linksExt: [],
-            linksInt: []
+            linksInt: [],
+            ultimaModificacao: Date.now()
         });
+        dados[idxLista].ultimaModificacao = Date.now();
         salvarDados();
         renderizar();
         mostrarToast("✅ Cartão criado!");
@@ -785,10 +989,7 @@ function abrirCartao(idxLista, idxCartao) {
     document.getElementById("abcInput").value = card.abc || "";
     document.getElementById("imgUrl").value = card.img || "";
     
-    // Reset para aba geral
     mudarAba('geral');
-    
-    // Renderizar tudo
     exibirImagem();
     renderizarChecklist();
     renderizarLinksInternos();
@@ -798,14 +999,13 @@ function abrirCartao(idxLista, idxCartao) {
     if (card.abc && card.abc.trim()) {
         renderizarABCVisual(card.abc);
     }
-    
-    mostrarToast(`📂 Cartão "${card.texto}" aberto`);
 }
 
 function renomearCartao() {
     const novoNome = prompt("Novo nome do cartão:", dados[listaAtual].cards[cartaoAtual].texto);
     if (novoNome && novoNome.trim()) {
         dados[listaAtual].cards[cartaoAtual].texto = novoNome.trim();
+        dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
         document.getElementById("tituloCartao").innerText = novoNome.trim();
         salvarDados();
         renderizar();
@@ -816,6 +1016,7 @@ function renomearCartao() {
 function excluirCartao() {
     if (confirm("Excluir este cartão permanentemente?")) {
         dados[listaAtual].cards.splice(cartaoAtual, 1);
+        dados[listaAtual].ultimaModificacao = Date.now();
         salvarDados();
         fecharModal();
         renderizar();
@@ -825,6 +1026,7 @@ function excluirCartao() {
 
 function salvarDescricao() {
     dados[listaAtual].cards[cartaoAtual].descricao = document.getElementById("descricaoTexto").value;
+    dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
     salvarDados();
     mostrarToast("✅ Descrição salva!");
 }
@@ -832,6 +1034,7 @@ function salvarDescricao() {
 function salvarImagem() {
     const url = document.getElementById("imgUrl").value;
     dados[listaAtual].cards[cartaoAtual].img = url;
+    dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
     exibirImagem();
     salvarDados();
     mostrarToast("✅ Imagem salva!");
@@ -859,6 +1062,7 @@ function adicionarCheck() {
             texto: item.trim(),
             ok: false
         });
+        dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
         document.getElementById("checkItem").value = "";
         renderizarChecklist();
         salvarDados();
@@ -901,12 +1105,14 @@ function renderizarChecklist() {
 function alternarCheck(idx) {
     dados[listaAtual].cards[cartaoAtual].checklist[idx].ok = 
         !dados[listaAtual].cards[cartaoAtual].checklist[idx].ok;
+    dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
     renderizarChecklist();
     salvarDados();
 }
 
 function removerCheck(idx) {
     dados[listaAtual].cards[cartaoAtual].checklist.splice(idx, 1);
+    dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
     renderizarChecklist();
     salvarDados();
     mostrarToast("✅ Item removido!");
@@ -916,6 +1122,7 @@ function removerCheck(idx) {
 function renderizarABC() {
     const abc = document.getElementById("abcInput").value;
     dados[listaAtual].cards[cartaoAtual].abc = abc;
+    dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
     renderizarABCVisual(abc);
     salvarDados();
     mostrarToast("🎵 Partitura renderizada!");
@@ -1018,6 +1225,7 @@ function adicionarLinkInterno() {
         cartao: parseInt(cartaoIdx),
         nome: cartaoDestino.texto
     });
+    dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
     
     renderizarLinksInternos();
     salvarDados();
@@ -1048,6 +1256,7 @@ function renderizarLinksInternos() {
 
 function removerLinkInterno(idx) {
     dados[listaAtual].cards[cartaoAtual].linksInt.splice(idx, 1);
+    dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
     renderizarLinksInternos();
     salvarDados();
     mostrarToast("✅ Link interno removido!");
@@ -1080,6 +1289,7 @@ function adicionarLinkExterno() {
         titulo: titulo.trim(),
         url: urlFormatada
     });
+    dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
     
     document.getElementById("linkExtTit").value = "";
     document.getElementById("linkExtUrl").value = "";
@@ -1112,6 +1322,7 @@ function renderizarLinksExternos() {
 
 function removerLinkExterno(idx) {
     dados[listaAtual].cards[cartaoAtual].linksExt.splice(idx, 1);
+    dados[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
     renderizarLinksExternos();
     salvarDados();
     mostrarToast("✅ Link externo removido!");
@@ -1150,19 +1361,21 @@ function escapeHtml(texto) {
     return div.innerHTML;
 }
 
-// ==================== INICIALIZAR ====================
-carregarDados();
-
-// Detectar quando voltar online
-window.addEventListener('online', () => {
-    atualizarStatusSync("online", "Online - Dados locais");
-    mostrarToast("🌐 Conexão restaurada! Os dados continuam salvos localmente.");
+// ==================== EVENTOS DE REDE ====================
+window.addEventListener('online', async () => {
+    mostrarToast("🌐 Conexão restaurada!");
+    if (usuarioAtual) {
+        await sincronizarComFirebase();
+    }
 });
 
 window.addEventListener('offline', () => {
     atualizarStatusSync("offline", "Offline - Editando localmente");
-    mostrarToast("⚠️ Você está offline. As alterações serão salvas no dispositivo.");
+    mostrarToast("⚠️ Você está offline. As alterações serão salvas localmente.");
 });
+
+// ==================== INICIALIZAR ====================
+carregarDados();
 </script>
 
 </body>
