@@ -171,7 +171,6 @@
             transform: translateY(-1px);
         }
 
-        /* Modal de Conflito */
         .conflict-modal {
             display: none;
             position: fixed;
@@ -641,16 +640,13 @@
 
 <div id="board"></div>
 
-<!-- Modal de Resolução de Conflitos -->
 <div id="conflictModal" class="conflict-modal">
     <div class="conflict-content">
         <div class="conflict-header">
             <h2>⚠️ Conflito de Sincronização</h2>
             <p>Existem versões diferentes dos dados. Escolha qual versão manter:</p>
         </div>
-        <div class="conflict-body" id="conflictBody">
-            <!-- Conteúdo dinâmico -->
-        </div>
+        <div class="conflict-body" id="conflictBody"></div>
     </div>
 </div>
 
@@ -746,7 +742,7 @@
 </div>
 
 <script>
-// ==================== CONFIGURAÇÃO ====================
+// ==================== CONFIGURAÇÃO DO FIREBASE ====================
 const firebaseConfig = {
     apiKey: "AIzaSyBlComr12haNZMGjbmv2CDv2bKMPL6slPc",
     authDomain: "trello-musical.firebaseapp.com",
@@ -763,13 +759,13 @@ const auth = firebase.auth();
 
 // ==================== VARIÁVEIS GLOBAIS ====================
 let dados = [];
-let dadosConflito = null;
 let usuarioAtual = null;
 let listaAtual = null;
 let cartaoAtual = null;
 let sintetizadorAtual = null;
 let abaAtual = 'geral';
 let sincronizando = false;
+let resolvendoConflito = false;
 let timeoutSincronizacao = null;
 
 const STORAGE_KEY = 'wikinbm_hibrido';
@@ -802,6 +798,32 @@ document.getElementById('installBtn')?.addEventListener('click', async () => {
     }
 });
 
+// ==================== FUNÇÕES DE UTILIDADE ====================
+function escapeHtml(texto) {
+    if (!texto) return '';
+    const div = document.createElement('div');
+    div.textContent = texto;
+    return div.innerHTML;
+}
+
+function mostrarToast(mensagem) {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    toast.innerText = mensagem;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+function atualizarStatusSync(status, texto) {
+    const statusDiv = document.getElementById("syncStatus");
+    const indicator = document.getElementById("syncIndicator");
+    const textSpan = document.getElementById("syncText");
+    
+    statusDiv.className = `sync-status ${status}`;
+    indicator.className = `sync-indicator ${status}`;
+    textSpan.innerText = texto;
+}
+
 // ==================== GERENCIAMENTO DE DADOS ====================
 function carregarDados() {
     const localData = localStorage.getItem(STORAGE_KEY);
@@ -812,7 +834,6 @@ function carregarDados() {
         dados = {
             _versao: Date.now(),
             _ultimoDispositivo: DEVICE_ID,
-            _historico: [],
             listas: [
                 {
                     nome: "Minhas Composições",
@@ -856,7 +877,7 @@ function salvarLocalmente() {
     
     if (timeoutSincronizacao) clearTimeout(timeoutSincronizacao);
     timeoutSincronizacao = setTimeout(() => {
-        if (usuarioAtual && navigator.onLine && !sincronizando) {
+        if (usuarioAtual && navigator.onLine && !sincronizando && !resolvendoConflito) {
             verificarConflitos();
         }
     }, 1000);
@@ -868,7 +889,7 @@ function salvarDados() {
 
 // ==================== VERIFICAÇÃO DE CONFLITOS ====================
 async function verificarConflitos() {
-    if (!usuarioAtual || !navigator.onLine || sincronizando) return;
+    if (!usuarioAtual || !navigator.onLine || sincronizando || resolvendoConflito) return;
     
     sincronizando = true;
     atualizarStatusSync("syncing", "Verificando conflitos...");
@@ -878,7 +899,6 @@ async function verificarConflitos() {
         const dadosFirebase = snapshot.val();
         
         if (!dadosFirebase) {
-            // Primeira sincronização
             await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
             mostrarToast("✅ Dados enviados para a nuvem!");
             atualizarStatusSync("online", "Sincronizado");
@@ -891,11 +911,9 @@ async function verificarConflitos() {
         const dispositivoLocal = dados._ultimoDispositivo;
         const dispositivoFirebase = dadosFirebase._ultimoDispositivo;
         
-        // Se são do mesmo dispositivo ou versão igual, não há conflito
         if (dispositivoLocal === dispositivoFirebase || versaoLocal === versaoFirebase) {
             await sincronizarSemConflito(dadosFirebase);
         } else {
-            // CONFLITO DETECTADO!
             atualizarStatusSync("conflict", "CONFLITO! Escolha a versão");
             mostrarConflito(dados, dadosFirebase);
         }
@@ -973,32 +991,69 @@ function mostrarConflito(dadosLocal, dadosCloud) {
             <button class="btn btn-warning" onclick="resolverConflito('cloud')">☁️ Usar Dados da Nuvem</button>
         </div>
         <p style="text-align: center; margin-top: 15px; color: #666; font-size: 12px;">
-            ⚠️ Atenção: A opção não selecionada será PERDIDA permanentemente!
+            ⚠️ Clique em uma opção e depois confirme sua escolha
         </p>
     `;
     
     modal.style.display = "flex";
 }
 
-async function resolverConflito(escolha) {
+function resolverConflito(escolha) {
+    resolvendoConflito = true;
+    
     const modal = document.getElementById("conflictModal");
-    const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
-    const dadosCloud = snapshot.val();
+    const body = document.getElementById("conflictBody");
     
-    if (escolha === 'local') {
-        // Manter dados locais
-        await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
-        mostrarToast("✅ Mantidos seus dados locais! Enviado para nuvem.");
-    } else {
-        // Usar dados da nuvem
-        dados = JSON.parse(JSON.stringify(dadosCloud));
-        salvarLocalmente();
-        renderizar();
-        mostrarToast("✅ Dados da nuvem restaurados!");
-    }
-    
-    modal.style.display = "none";
+    body.innerHTML = `
+        <div style="text-align: center; padding: 20px;">
+            <h3>⚠️ Confirmar escolha</h3>
+            <p>Você escolheu <strong>${escolha === 'local' ? 'MANTER MEUS DADOS LOCAIS' : 'USAR DADOS DA NUVEM'}</strong></p>
+            <p style="color: red; margin: 15px 0;">
+                ⚠️ ATENÇÃO: Esta ação é irreversível! 
+                Os dados da outra versão serão PERDIDOS permanentemente.
+            </p>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-top: 20px;">
+                <button class="btn btn-secondary" onclick="fecharModalConflito()">❌ Cancelar</button>
+                <button class="btn btn-danger" onclick="confirmarResolucao('${escolha}')">✅ Confirmar e Continuar</button>
+            </div>
+        </div>
+    `;
+}
+
+function fecharModalConflito() {
+    resolvendoConflito = false;
+    document.getElementById("conflictModal").style.display = "none";
     atualizarStatusSync("online", "Sincronizado");
+    mostrarToast("❌ Resolução cancelada");
+}
+
+async function confirmarResolucao(escolha) {
+    try {
+        const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
+        const dadosCloud = snapshot.val();
+        
+        if (escolha === 'local') {
+            await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
+            mostrarToast("✅ Mantidos seus dados locais! Enviado para nuvem.");
+        } else {
+            dados = JSON.parse(JSON.stringify(dadosCloud));
+            salvarLocalmente();
+            renderizar();
+            mostrarToast("✅ Dados da nuvem restaurados!");
+        }
+        
+        document.getElementById("conflictModal").style.display = "none";
+        atualizarStatusSync("online", "Sincronizado");
+        
+        setTimeout(() => {
+            resolvendoConflito = false;
+        }, 2000);
+        
+    } catch (error) {
+        console.error("Erro ao resolver conflito:", error);
+        mostrarToast("❌ Erro ao resolver conflito");
+        resolvendoConflito = false;
+    }
 }
 
 async function forcarSincronizacao() {
@@ -1131,25 +1186,7 @@ function importarBackup(event) {
     event.target.value = "";
 }
 
-function atualizarStatusSync(status, texto) {
-    const statusDiv = document.getElementById("syncStatus");
-    const indicator = document.getElementById("syncIndicator");
-    const textSpan = document.getElementById("syncText");
-    
-    statusDiv.className = `sync-status ${status}`;
-    indicator.className = `sync-indicator ${status}`;
-    textSpan.innerText = texto;
-}
-
-function mostrarToast(mensagem) {
-    const toast = document.createElement("div");
-    toast.className = "toast";
-    toast.innerText = mensagem;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}
-
-// ==================== FUNÇÕES DO BOARD COM DRAG & DROP ====================
+// ==================== FUNÇÕES DO BOARD ====================
 function renderizar() {
     const board = document.getElementById("board");
     board.innerHTML = "";
@@ -1190,7 +1227,6 @@ function renderizar() {
                 
                 const cardDiv = document.createElement("div");
                 cardDiv.className = "cartao";
-                cardDiv.setAttribute("data-card-idx", cardIdx);
                 cardDiv.innerHTML = `
                     <div class="cartao-titulo">${escapeHtml(card.texto)}</div>
                     <div class="cartao-indicadores">
@@ -1208,14 +1244,8 @@ function renderizar() {
                 cardsContainer.appendChild(cardDiv);
             });
             
-            // Configurar Sortable para cartões
             new Sortable(cardsContainer, {
-                group: {
-                    name: 'cards',
-                    pull: true,
-                    revertClone: false,
-                    put: true
-                },
+                group: { name: 'cards', pull: true, revertClone: false, put: true },
                 animation: 200,
                 ghostClass: 'sortable-ghost',
                 dragClass: 'sortable-drag',
@@ -1249,7 +1279,6 @@ function renderizar() {
         board.appendChild(divLista);
     });
     
-    // Configurar Sortable para listas
     new Sortable(board, {
         animation: 200,
         ghostClass: 'sortable-ghost',
@@ -1257,7 +1286,6 @@ function renderizar() {
         onEnd: function(evt) {
             const oldIndex = evt.oldIndex;
             const newIndex = evt.newIndex;
-            
             if (oldIndex !== newIndex) {
                 const lista = dados.listas.splice(oldIndex, 1)[0];
                 dados.listas.splice(newIndex, 0, lista);
@@ -1269,7 +1297,6 @@ function renderizar() {
     });
 }
 
-// ==================== FUNÇÕES DO BOARD ====================
 function novaLista() {
     const nome = prompt("Nome da nova lista:");
     if (nome && nome.trim()) {
@@ -1755,13 +1782,6 @@ function mudarAba(aba) {
 function fecharModal() {
     document.getElementById("modal").style.display = "none";
     stopABC();
-}
-
-function escapeHtml(texto) {
-    if (!texto) return '';
-    const div = document.createElement('div');
-    div.textContent = texto;
-    return div.innerHTML;
 }
 
 // ==================== EVENTOS DE REDE ====================
