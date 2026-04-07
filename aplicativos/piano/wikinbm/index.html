@@ -9,7 +9,7 @@
     <meta name="apple-mobile-web-app-title" content="WikiNBM">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <title>WikiNBM Pro - Múltiplas Imagens</title>
+    <title>WikiNBM Pro - Sincronização Corrigida</title>
 
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -361,7 +361,6 @@
             flex: 1;
         }
 
-        /* Checklist específico - checkbox no início */
         .checklist-row {
             display: flex;
             align-items: center;
@@ -403,7 +402,6 @@
             color: var(--danger);
         }
 
-        /* Imagem específica */
         .img-item {
             display: flex;
             align-items: center;
@@ -523,14 +521,12 @@
         </div>
 
         <div class="content-scroll">
-            <!-- Aba Geral -->
             <div id="aba-geral" class="section-view show">
                 <h3>📝 Descrição</h3>
                 <textarea id="descricaoTexto" rows="5" placeholder="Digite uma descrição detalhada..."></textarea>
                 <button class="btn btn-primary" onclick="salvarDescricao()">💾 Salvar Descrição</button>
             </div>
 
-            <!-- Aba Imagens (múltiplas) -->
             <div id="aba-imagens" class="section-view">
                 <h3>🖼️ Galeria de Imagens</h3>
                 <div style="display: flex; gap: 8px; margin-bottom: 15px; flex-wrap: wrap;">
@@ -541,7 +537,6 @@
                 <div id="imagensContainer"></div>
             </div>
 
-            <!-- Aba Música -->
             <div id="aba-musica" class="section-view">
                 <h3>🎼 Notação Musical ABC</h3>
                 <textarea id="abcInput" rows="6" placeholder="X:1&#10;M:4/4&#10;L:1/8&#10;K:C&#10;CDEF GABc|"></textarea>
@@ -553,7 +548,6 @@
                 <div id="abcRender" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px;"></div>
             </div>
 
-            <!-- Aba Checklist -->
             <div id="aba-checklist" class="section-view">
                 <h3>📋 Checklist</h3>
                 <div class="progress-container">
@@ -569,7 +563,6 @@
                 <div id="checkContainer"></div>
             </div>
 
-            <!-- Aba Conexões -->
             <div id="aba-conexoes" class="section-view">
                 <h3>🔗 Links Internos</h3>
                 <div style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
@@ -603,7 +596,7 @@
 </div>
 
 <script>
-// ==================== CONFIGURAÇÃO DO FIREBASE ====================
+// ==================== CONFIGURAÇÃO ====================
 const firebaseConfig = {
     apiKey: "AIzaSyBlComr12haNZMGjbmv2CDv2bKMPL6slPc",
     authDomain: "trello-musical.firebaseapp.com",
@@ -614,7 +607,6 @@ const firebaseConfig = {
     appId: "1:492377323837:web:e0cafde63e9970013cad54"
 };
 
-// Inicializar Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
@@ -627,9 +619,8 @@ let cartaoAtual = null;
 let sintetizadorAtual = null;
 let abaAtual = 'geral';
 let sincronizando = false;
-let ultimaVersao = null;
 let timeoutSincronizacao = null;
-let mensagemSincronizacaoExibida = false; // Controla se a mensagem já foi exibida
+let mensagemSincronizacaoExibida = false;
 
 const STORAGE_KEY = 'wikinbm_hibrido';
 const DEVICE_ID = localStorage.getItem('device_id') || 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -666,7 +657,6 @@ function carregarDados() {
     const localData = localStorage.getItem(STORAGE_KEY);
     if (localData) {
         dados = JSON.parse(localData);
-        ultimaVersao = dados._versao || null;
         console.log("📁 Dados carregados do localStorage");
     } else {
         dados = {
@@ -725,6 +715,7 @@ function salvarDados() {
     salvarLocalmente();
 }
 
+// ==================== SINCRONIZAÇÃO (ÚNICA FUNÇÃO) ====================
 async function sincronizarComFirebase() {
     if (!usuarioAtual || !navigator.onLine || sincronizando) return;
     
@@ -735,17 +726,11 @@ async function sincronizarComFirebase() {
         const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
         const dadosFirebase = snapshot.val();
         
-        const versaoLocal = dados._versao || 0;
-        const versaoFirebase = dadosFirebase?._versao || 0;
-        const ultimoDispositivo = dadosFirebase?._ultimoDispositivo;
-        
-        if (dadosFirebase && versaoFirebase > versaoLocal && ultimoDispositivo !== DEVICE_ID) {
-            dados = dadosFirebase;
-            salvarLocalmente();
-            renderizar();
-            // Mensagem aparece apenas uma vez
+        if (!dadosFirebase) {
+            await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
+            console.log("📤 Dados iniciais enviados para Firebase");
             if (!mensagemSincronizacaoExibida) {
-                mostrarToast("🔄 Dados atualizados de outro dispositivo!");
+                mostrarToast("✅ Dados enviados para a nuvem!");
                 mensagemSincronizacaoExibida = true;
                 setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
             }
@@ -754,13 +739,39 @@ async function sincronizarComFirebase() {
             return;
         }
         
-        if (versaoLocal >= versaoFirebase || ultimoDispositivo === DEVICE_ID) {
+        const timestampLocal = dados._versao || 0;
+        const timestampFirebase = dadosFirebase._versao || 0;
+        
+        if (timestampLocal > timestampFirebase) {
             await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
-            console.log("📤 Dados enviados para Firebase - Versão:", dados._versao);
+            console.log("📤 Dados locais mais recentes enviados");
             if (!mensagemSincronizacaoExibida) {
-                mostrarToast("✅ Dados sincronizados com a nuvem!");
+                mostrarToast("✅ Dados locais sincronizados (mais recentes)!");
                 mensagemSincronizacaoExibida = true;
                 setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
+            }
+        } else if (timestampFirebase > timestampLocal) {
+            dados = JSON.parse(JSON.stringify(dadosFirebase));
+            salvarLocalmente();
+            renderizar();
+            console.log("📥 Dados do Firebase mais recentes baixados");
+            if (!mensagemSincronizacaoExibida) {
+                mostrarToast("🔄 Dados atualizados da nuvem (versão mais recente)!");
+                mensagemSincronizacaoExibida = true;
+                setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
+            }
+        } else {
+            const merged = fazerMergeProfundo(dados, dadosFirebase);
+            if (JSON.stringify(merged) !== JSON.stringify(dados)) {
+                dados = merged;
+                salvarLocalmente();
+                renderizar();
+                console.log("🔀 Merge realizado entre dispositivos");
+                if (!mensagemSincronizacaoExibida) {
+                    mostrarToast("🔄 Dados mesclados entre dispositivos!");
+                    mensagemSincronizacaoExibida = true;
+                    setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
+                }
             }
         }
         
@@ -771,6 +782,47 @@ async function sincronizarComFirebase() {
     } finally {
         sincronizando = false;
     }
+}
+
+function fazerMergeProfundo(local, nuvem) {
+    if (!local || !nuvem) return local || nuvem;
+    
+    const merged = JSON.parse(JSON.stringify(local));
+    merged._versao = Math.max(local._versao || 0, nuvem._versao || 0);
+    merged._ultimoDispositivo = (local._versao || 0) > (nuvem._versao || 0) ? local._ultimoDispositivo : nuvem._ultimoDispositivo;
+    
+    const listasLocal = local.listas || [];
+    const listasNuvem = nuvem.listas || [];
+    const mapaListas = {};
+    listasLocal.forEach(lista => { mapaListas[lista.nome] = lista; });
+    
+    listasNuvem.forEach(listaNuvem => {
+        const listaLocal = mapaListas[listaNuvem.nome];
+        if (!listaLocal) {
+            merged.listas.push(JSON.parse(JSON.stringify(listaNuvem)));
+        } else {
+            const cardsLocal = listaLocal.cards || [];
+            const cardsNuvem = listaNuvem.cards || [];
+            const mapaCards = {};
+            cardsLocal.forEach(card => { mapaCards[card.texto] = card; });
+            
+            cardsNuvem.forEach(cardNuvem => {
+                const cardLocal = mapaCards[cardNuvem.texto];
+                if (!cardLocal) {
+                    listaLocal.cards.push(JSON.parse(JSON.stringify(cardNuvem)));
+                } else {
+                    const timestampLocal = cardLocal.ultimaModificacao || 0;
+                    const timestampNuvem = cardNuvem.ultimaModificacao || 0;
+                    if (timestampNuvem > timestampLocal) {
+                        Object.assign(cardLocal, cardNuvem);
+                    }
+                }
+            });
+            listaLocal.ultimaModificacao = Math.max(listaLocal.ultimaModificacao || 0, listaNuvem.ultimaModificacao || 0);
+        }
+    });
+    
+    return merged;
 }
 
 async function forcarSincronizacao() {
@@ -788,7 +840,7 @@ async function forcarSincronizacao() {
     await sincronizarComFirebase();
 }
 
-// ==================== AUTENTICAÇÃO ====================
+// ==================== AUTENTICAÇÃO (SEM LISTER DUPLICADO) ====================
 auth.onAuthStateChanged(async (user) => {
     if (user) {
         usuarioAtual = user;
@@ -799,6 +851,7 @@ auth.onAuthStateChanged(async (user) => {
         
         mostrarToast(`✅ Bem-vindo, ${user.email}!`);
         
+        // ÚNICO LISTENER - apenas para receber atualizações de OUTROS dispositivos
         const dadosRef = db.ref(`usuarios/${user.uid}/dados`);
         
         if (window.syncListener) {
@@ -812,9 +865,10 @@ auth.onAuthStateChanged(async (user) => {
                 const versaoNova = novosDados._versao || 0;
                 const ultimoDispositivo = novosDados._ultimoDispositivo;
                 
+                // Só atualiza se veio de OUTRO dispositivo e versão é MAIS NOVA
                 if (ultimoDispositivo !== DEVICE_ID && versaoNova > versaoLocal) {
                     console.log("📥 Recebendo atualização de outro dispositivo");
-                    dados = novosDados;
+                    dados = JSON.parse(JSON.stringify(novosDados));
                     salvarLocalmente();
                     renderizar();
                     if (!mensagemSincronizacaoExibida) {
@@ -826,6 +880,7 @@ auth.onAuthStateChanged(async (user) => {
             }
         });
         
+        // Sincronizar uma vez ao logar
         await sincronizarComFirebase();
     } else {
         usuarioAtual = null;
@@ -842,6 +897,7 @@ auth.onAuthStateChanged(async (user) => {
     }
 });
 
+// ==================== FUNÇÕES DE AUTENTICAÇÃO ====================
 async function fazerLogin() {
     const email = document.getElementById("loginEmail").value;
     const senha = document.getElementById("loginPassword").value;
@@ -1089,7 +1145,7 @@ function salvarDescricao() {
     mostrarToast("✅ Descrição salva!");
 }
 
-// ==================== MÚLTIPLAS IMAGENS ====================
+// ==================== IMAGENS ====================
 function adicionarImagem() {
     const url = document.getElementById("imgUrl").value;
     const titulo = document.getElementById("imgTitulo").value;
