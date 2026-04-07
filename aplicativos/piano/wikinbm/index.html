@@ -9,12 +9,15 @@
     <meta name="apple-mobile-web-app-title" content="WikiNBM">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <title>WikiNBM Pro - Sincronização Corrigida</title>
+    <title>WikiNBM Pro - Com Drag & Drop</title>
 
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+    <!-- SortableJS para Drag & Drop -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
     <style>
         * {
@@ -137,6 +140,21 @@
             color: #4a5568;
         }
 
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+
+        .btn-warning:hover {
+            background: #dd6b20;
+            transform: translateY(-1px);
+        }
+
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+
         .install-btn {
             background: var(--warning);
             color: white;
@@ -146,7 +164,11 @@
             cursor: pointer;
             font-weight: bold;
             font-size: 14px;
-            animation: pulse 1s infinite;
+        }
+
+        .install-btn:hover {
+            background: #dd6b20;
+            transform: translateY(-1px);
         }
 
         #board {
@@ -233,6 +255,21 @@
             font-size: 11px;
             color: #6b778c;
             flex-wrap: wrap;
+        }
+
+        /* Estilos para Drag & Drop */
+        .sortable-drag {
+            opacity: 0.5;
+            background: #e2e8f0;
+        }
+
+        .sortable-ghost {
+            opacity: 0.3;
+            background: #cbd5e0;
+        }
+
+        .cards-container {
+            min-height: 50px;
         }
 
         #modal {
@@ -464,6 +501,20 @@
             border-radius: 16px;
         }
 
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            background: #f0f0f0;
+            padding: 5px 12px;
+            border-radius: 20px;
+        }
+
+        .user-email {
+            font-size: 12px;
+            color: var(--dark);
+        }
+
         @keyframes slideInRight {
             from {
                 transform: translateX(100%);
@@ -496,7 +547,13 @@
         </div>
         <button class="install-btn" id="installBtn" style="display:none;">📱 Instalar</button>
         <button class="btn btn-primary" onclick="mostrarLogin()" id="loginBtn">🔐 Login</button>
+        <div id="userInfo" style="display:none;" class="user-info">
+            <span class="user-email" id="userEmail"></span>
+            <button class="btn-icon" onclick="fazerLogout()" title="Sair">🚪</button>
+        </div>
         <button class="btn btn-success" onclick="exportarBackup()" id="exportBtn" style="display:none;">📤 Backup</button>
+        <input type="file" id="importFile" accept=".json" style="display:none" onchange="importarBackup(event)">
+        <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" id="importBtn" style="display:none;">📥 Importar</button>
         <button class="btn btn-secondary" onclick="forcarSincronizacao()" id="syncBtn" style="display:none;">🔄 Sincronizar</button>
         <button class="btn btn-primary" onclick="novaLista()" id="novaListaBtn" style="display:none;">+ Nova Lista</button>
     </div>
@@ -543,7 +600,7 @@
                 <div class="audio-controls">
                     <button class="btn btn-primary" onclick="renderizarABC()">🎵 Renderizar</button>
                     <button class="btn btn-success" onclick="playABC()">▶ Play</button>
-                    <button class="btn btn-danger" onclick="stopABC()">⏹️ Stop</button>
+                    <button class="btn btn-warning" onclick="stopABC()">⏹️ Stop</button>
                 </div>
                 <div id="abcRender" style="background: #f8f9fa; padding: 15px; border-radius: 8px; margin-top: 10px;"></div>
             </div>
@@ -621,6 +678,7 @@ let abaAtual = 'geral';
 let sincronizando = false;
 let timeoutSincronizacao = null;
 let mensagemSincronizacaoExibida = false;
+let sortableLists = [];
 
 const STORAGE_KEY = 'wikinbm_hibrido';
 const DEVICE_ID = localStorage.getItem('device_id') || 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -715,7 +773,56 @@ function salvarDados() {
     salvarLocalmente();
 }
 
-// ==================== SINCRONIZAÇÃO (ÚNICA FUNÇÃO) ====================
+// ==================== IMPORTAÇÃO E EXPORTAÇÃO ====================
+function importarBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (imported && (imported.listas || Array.isArray(imported))) {
+                if (imported.listas) {
+                    dados = imported;
+                } else if (Array.isArray(imported)) {
+                    dados = { listas: imported, _versao: Date.now(), _ultimoDispositivo: DEVICE_ID };
+                }
+                salvarLocalmente();
+                renderizar();
+                mostrarToast("✅ Backup importado com sucesso!");
+            } else {
+                mostrarToast("❌ Arquivo inválido");
+            }
+        } catch (error) {
+            mostrarToast("❌ Erro ao importar arquivo");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+}
+
+function exportarBackup() {
+    const dataStr = JSON.stringify(dados, null, 2);
+    const blob = new Blob([dataStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `wikinbm_backup_${new Date().toISOString().slice(0,19)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    mostrarToast("📁 Backup exportado!");
+}
+
+// ==================== FUNÇÃO DE LOGOUT ====================
+async function fazerLogout() {
+    if (confirm("Deseja realmente sair da sua conta?")) {
+        await auth.signOut();
+        mostrarToast("✅ Você saiu da sua conta!");
+    }
+}
+
+// ==================== SINCRONIZAÇÃO ====================
 async function sincronizarComFirebase() {
     if (!usuarioAtual || !navigator.onLine || sincronizando) return;
     
@@ -840,18 +947,20 @@ async function forcarSincronizacao() {
     await sincronizarComFirebase();
 }
 
-// ==================== AUTENTICAÇÃO (SEM LISTER DUPLICADO) ====================
+// ==================== AUTENTICAÇÃO ====================
 auth.onAuthStateChanged(async (user) => {
     if (user) {
         usuarioAtual = user;
         document.getElementById("loginBtn").style.display = "none";
+        document.getElementById("userInfo").style.display = "flex";
+        document.getElementById("userEmail").innerText = user.email.split('@')[0];
         document.getElementById("exportBtn").style.display = "inline-block";
+        document.getElementById("importBtn").style.display = "inline-block";
         document.getElementById("syncBtn").style.display = "inline-block";
         document.getElementById("novaListaBtn").style.display = "inline-block";
         
         mostrarToast(`✅ Bem-vindo, ${user.email}!`);
         
-        // ÚNICO LISTENER - apenas para receber atualizações de OUTROS dispositivos
         const dadosRef = db.ref(`usuarios/${user.uid}/dados`);
         
         if (window.syncListener) {
@@ -865,7 +974,6 @@ auth.onAuthStateChanged(async (user) => {
                 const versaoNova = novosDados._versao || 0;
                 const ultimoDispositivo = novosDados._ultimoDispositivo;
                 
-                // Só atualiza se veio de OUTRO dispositivo e versão é MAIS NOVA
                 if (ultimoDispositivo !== DEVICE_ID && versaoNova > versaoLocal) {
                     console.log("📥 Recebendo atualização de outro dispositivo");
                     dados = JSON.parse(JSON.stringify(novosDados));
@@ -880,12 +988,13 @@ auth.onAuthStateChanged(async (user) => {
             }
         });
         
-        // Sincronizar uma vez ao logar
         await sincronizarComFirebase();
     } else {
         usuarioAtual = null;
         document.getElementById("loginBtn").style.display = "inline-block";
+        document.getElementById("userInfo").style.display = "none";
         document.getElementById("exportBtn").style.display = "none";
+        document.getElementById("importBtn").style.display = "none";
         document.getElementById("syncBtn").style.display = "none";
         document.getElementById("novaListaBtn").style.display = "none";
         atualizarStatusSync("offline", "Offline - Faça login para sincronizar");
@@ -897,7 +1006,6 @@ auth.onAuthStateChanged(async (user) => {
     }
 });
 
-// ==================== FUNÇÕES DE AUTENTICAÇÃO ====================
 async function fazerLogin() {
     const email = document.getElementById("loginEmail").value;
     const senha = document.getElementById("loginPassword").value;
@@ -940,18 +1048,6 @@ function fecharLogin() {
     document.getElementById("loginPassword").value = "";
 }
 
-function exportarBackup() {
-    const dataStr = JSON.stringify(dados, null, 2);
-    const blob = new Blob([dataStr], {type: "application/json"});
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `wikinbm_backup_${new Date().toISOString().slice(0,19)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    mostrarToast("📁 Backup exportado!");
-}
-
 function atualizarStatusSync(status, texto) {
     const statusDiv = document.getElementById("syncStatus");
     const indicator = document.getElementById("syncIndicator");
@@ -970,7 +1066,7 @@ function mostrarToast(mensagem) {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// ==================== FUNÇÕES DO BOARD ====================
+// ==================== FUNÇÕES DO BOARD COM DRAG & DROP ====================
 function renderizar() {
     const board = document.getElementById("board");
     board.innerHTML = "";
@@ -985,6 +1081,7 @@ function renderizar() {
     listas.forEach((lista, idx) => {
         const divLista = document.createElement("div");
         divLista.className = "lista";
+        divLista.setAttribute("data-lista-idx", idx);
         
         divLista.innerHTML = `
             <div class="lista-header">
@@ -995,11 +1092,11 @@ function renderizar() {
                     <button onclick="excluirLista(${idx})" style="color: var(--danger);">🗑️ Excluir</button>
                 </div>
             </div>
-            <div id="cards-${idx}"></div>
+            <div class="cards-container" id="cards-${idx}"></div>
         `;
         
         if (!lista.oculto && lista.cards) {
-            const cardsContainer = divLista.querySelector(`#cards-${idx}`);
+            const cardsContainer = divLista.querySelector(`.cards-container`);
             lista.cards.forEach((card, cardIdx) => {
                 const totalCheck = (card.checklist || []).length;
                 const completos = (card.checklist || []).filter(c => c.ok).length;
@@ -1010,6 +1107,7 @@ function renderizar() {
                 
                 const cardDiv = document.createElement("div");
                 cardDiv.className = "cartao";
+                cardDiv.setAttribute("data-card-idx", cardIdx);
                 cardDiv.innerHTML = `
                     <div class="cartao-titulo">${escapeHtml(card.texto)}</div>
                     <div class="cartao-indicadores">
@@ -1020,12 +1118,54 @@ function renderizar() {
                         ${totalCheck > 0 ? `<span>✓ ${completos}/${totalCheck}</span>` : ''}
                     </div>
                 `;
-                cardDiv.onclick = () => abrirCartao(idx, cardIdx);
+                cardDiv.onclick = (e) => {
+                    e.stopPropagation();
+                    abrirCartao(idx, cardIdx);
+                };
                 cardsContainer.appendChild(cardDiv);
+            });
+            
+            // Configurar Sortable para os cartões
+            new Sortable(cardsContainer, {
+                group: 'cards',
+                animation: 200,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: function(evt) {
+                    const listaIdx = parseInt(evt.from.parentElement.getAttribute("data-lista-idx"));
+                    const oldIndex = evt.oldIndex;
+                    const newIndex = evt.newIndex;
+                    
+                    if (oldIndex !== newIndex) {
+                        const card = dados.listas[listaIdx].cards.splice(oldIndex, 1)[0];
+                        dados.listas[listaIdx].cards.splice(newIndex, 0, card);
+                        dados.listas[listaIdx].ultimaModificacao = Date.now();
+                        salvarDados();
+                        renderizar();
+                    }
+                }
             });
         }
         
         board.appendChild(divLista);
+    });
+    
+    // Configurar Sortable para as listas
+    new Sortable(board, {
+        animation: 200,
+        ghostClass: 'sortable-ghost',
+        dragClass: 'sortable-drag',
+        onEnd: function(evt) {
+            const oldIndex = evt.oldIndex;
+            const newIndex = evt.newIndex;
+            
+            if (oldIndex !== newIndex) {
+                const lista = dados.listas.splice(oldIndex, 1)[0];
+                dados.listas.splice(newIndex, 0, lista);
+                salvarDados();
+                renderizar();
+            }
+        }
     });
 }
 
