@@ -9,14 +9,12 @@
     <meta name="apple-mobile-web-app-title" content="WikiNBM">
     <link rel="manifest" href="manifest.json">
     <link rel="apple-touch-icon" href="icon-192.png">
-    <title>WikiNBM Pro - Com Drag & Drop</title>
+    <title>WikiNBM Pro - Sincronização com Resolução de Conflitos</title>
 
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-
-    <!-- SortableJS para Drag & Drop -->
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script>
 
     <style>
@@ -94,6 +92,12 @@
             color: #744210;
         }
 
+        .sync-status.conflict {
+            background: #fed7d7;
+            color: #742a2a;
+            animation: pulse 0.5s infinite;
+        }
+
         .sync-indicator {
             width: 10px;
             height: 10px;
@@ -104,6 +108,7 @@
         .sync-indicator.online { background: var(--success); }
         .sync-indicator.offline { background: var(--danger); }
         .sync-indicator.syncing { background: var(--warning); animation: pulse 0.5s infinite; }
+        .sync-indicator.conflict { background: var(--danger); animation: pulse 0.3s infinite; }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -145,11 +150,6 @@
             color: white;
         }
 
-        .btn-warning:hover {
-            background: #dd6b20;
-            transform: translateY(-1px);
-        }
-
         .btn-danger {
             background: var(--danger);
             color: white;
@@ -169,6 +169,87 @@
         .install-btn:hover {
             background: #dd6b20;
             transform: translateY(-1px);
+        }
+
+        /* Modal de Conflito */
+        .conflict-modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.9);
+            z-index: 2000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .conflict-content {
+            background: white;
+            max-width: 800px;
+            width: 90%;
+            max-height: 85vh;
+            border-radius: 16px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .conflict-header {
+            padding: 20px;
+            background: linear-gradient(135deg, var(--danger), var(--warning));
+            color: white;
+        }
+
+        .conflict-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+        }
+
+        .version-compare {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+
+        .version-card {
+            flex: 1;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 15px;
+            background: #f8f9fa;
+        }
+
+        .version-card h4 {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid var(--primary);
+        }
+
+        .device-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        .device-local {
+            background: var(--primary);
+            color: white;
+        }
+
+        .device-cloud {
+            background: var(--success);
+            color: white;
+        }
+
+        .conflict-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+            justify-content: center;
         }
 
         #board {
@@ -257,10 +338,8 @@
             flex-wrap: wrap;
         }
 
-        /* Estilos para Drag & Drop */
-        .sortable-drag {
-            opacity: 0.5;
-            background: #e2e8f0;
+        .cards-container {
+            min-height: 50px;
         }
 
         .sortable-ghost {
@@ -268,8 +347,8 @@
             background: #cbd5e0;
         }
 
-        .cards-container {
-            min-height: 50px;
+        .sortable-drag {
+            opacity: 0.5;
         }
 
         #modal {
@@ -532,6 +611,7 @@
             .tab-menu { overflow-x: auto; flex-wrap: nowrap; }
             .view-btn { white-space: nowrap; }
             .img-preview { max-width: 50px; max-height: 50px; }
+            .version-compare { flex-direction: column; }
         }
     </style>
 </head>
@@ -560,6 +640,19 @@
 </div>
 
 <div id="board"></div>
+
+<!-- Modal de Resolução de Conflitos -->
+<div id="conflictModal" class="conflict-modal">
+    <div class="conflict-content">
+        <div class="conflict-header">
+            <h2>⚠️ Conflito de Sincronização</h2>
+            <p>Existem versões diferentes dos dados. Escolha qual versão manter:</p>
+        </div>
+        <div class="conflict-body" id="conflictBody">
+            <!-- Conteúdo dinâmico -->
+        </div>
+    </div>
+</div>
 
 <div id="modal">
     <div class="modal-content">
@@ -670,6 +763,7 @@ const auth = firebase.auth();
 
 // ==================== VARIÁVEIS GLOBAIS ====================
 let dados = [];
+let dadosConflito = null;
 let usuarioAtual = null;
 let listaAtual = null;
 let cartaoAtual = null;
@@ -677,8 +771,6 @@ let sintetizadorAtual = null;
 let abaAtual = 'geral';
 let sincronizando = false;
 let timeoutSincronizacao = null;
-let mensagemSincronizacaoExibida = false;
-let sortableLists = [];
 
 const STORAGE_KEY = 'wikinbm_hibrido';
 const DEVICE_ID = localStorage.getItem('device_id') || 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
@@ -715,11 +807,12 @@ function carregarDados() {
     const localData = localStorage.getItem(STORAGE_KEY);
     if (localData) {
         dados = JSON.parse(localData);
-        console.log("📁 Dados carregados do localStorage");
+        console.log("📁 Dados carregados do localStorage", dados._versao);
     } else {
         dados = {
             _versao: Date.now(),
             _ultimoDispositivo: DEVICE_ID,
+            _historico: [],
             listas: [
                 {
                     nome: "Minhas Composições",
@@ -764,7 +857,7 @@ function salvarLocalmente() {
     if (timeoutSincronizacao) clearTimeout(timeoutSincronizacao);
     timeoutSincronizacao = setTimeout(() => {
         if (usuarioAtual && navigator.onLine && !sincronizando) {
-            sincronizarComFirebase();
+            verificarConflitos();
         }
     }, 1000);
 }
@@ -773,163 +866,139 @@ function salvarDados() {
     salvarLocalmente();
 }
 
-// ==================== IMPORTAÇÃO E EXPORTAÇÃO ====================
-function importarBackup(event) {
-    const file = event.target.files[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = function(e) {
-        try {
-            const imported = JSON.parse(e.target.result);
-            if (imported && (imported.listas || Array.isArray(imported))) {
-                if (imported.listas) {
-                    dados = imported;
-                } else if (Array.isArray(imported)) {
-                    dados = { listas: imported, _versao: Date.now(), _ultimoDispositivo: DEVICE_ID };
-                }
-                salvarLocalmente();
-                renderizar();
-                mostrarToast("✅ Backup importado com sucesso!");
-            } else {
-                mostrarToast("❌ Arquivo inválido");
-            }
-        } catch (error) {
-            mostrarToast("❌ Erro ao importar arquivo");
-        }
-    };
-    reader.readAsText(file);
-    event.target.value = "";
-}
-
-function exportarBackup() {
-    const dataStr = JSON.stringify(dados, null, 2);
-    const blob = new Blob([dataStr], {type: "application/json"});
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `wikinbm_backup_${new Date().toISOString().slice(0,19)}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-    mostrarToast("📁 Backup exportado!");
-}
-
-// ==================== FUNÇÃO DE LOGOUT ====================
-async function fazerLogout() {
-    if (confirm("Deseja realmente sair da sua conta?")) {
-        await auth.signOut();
-        mostrarToast("✅ Você saiu da sua conta!");
-    }
-}
-
-// ==================== SINCRONIZAÇÃO ====================
-async function sincronizarComFirebase() {
+// ==================== VERIFICAÇÃO DE CONFLITOS ====================
+async function verificarConflitos() {
     if (!usuarioAtual || !navigator.onLine || sincronizando) return;
     
     sincronizando = true;
-    atualizarStatusSync("syncing", "Sincronizando...");
+    atualizarStatusSync("syncing", "Verificando conflitos...");
     
     try {
         const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
         const dadosFirebase = snapshot.val();
         
         if (!dadosFirebase) {
+            // Primeira sincronização
             await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
-            console.log("📤 Dados iniciais enviados para Firebase");
-            if (!mensagemSincronizacaoExibida) {
-                mostrarToast("✅ Dados enviados para a nuvem!");
-                mensagemSincronizacaoExibida = true;
-                setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
-            }
+            mostrarToast("✅ Dados enviados para a nuvem!");
             atualizarStatusSync("online", "Sincronizado");
             sincronizando = false;
             return;
         }
         
-        const timestampLocal = dados._versao || 0;
-        const timestampFirebase = dadosFirebase._versao || 0;
+        const versaoLocal = dados._versao || 0;
+        const versaoFirebase = dadosFirebase._versao || 0;
+        const dispositivoLocal = dados._ultimoDispositivo;
+        const dispositivoFirebase = dadosFirebase._ultimoDispositivo;
         
-        if (timestampLocal > timestampFirebase) {
-            await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
-            console.log("📤 Dados locais mais recentes enviados");
-            if (!mensagemSincronizacaoExibida) {
-                mostrarToast("✅ Dados locais sincronizados (mais recentes)!");
-                mensagemSincronizacaoExibida = true;
-                setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
-            }
-        } else if (timestampFirebase > timestampLocal) {
-            dados = JSON.parse(JSON.stringify(dadosFirebase));
-            salvarLocalmente();
-            renderizar();
-            console.log("📥 Dados do Firebase mais recentes baixados");
-            if (!mensagemSincronizacaoExibida) {
-                mostrarToast("🔄 Dados atualizados da nuvem (versão mais recente)!");
-                mensagemSincronizacaoExibida = true;
-                setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
-            }
+        // Se são do mesmo dispositivo ou versão igual, não há conflito
+        if (dispositivoLocal === dispositivoFirebase || versaoLocal === versaoFirebase) {
+            await sincronizarSemConflito(dadosFirebase);
         } else {
-            const merged = fazerMergeProfundo(dados, dadosFirebase);
-            if (JSON.stringify(merged) !== JSON.stringify(dados)) {
-                dados = merged;
-                salvarLocalmente();
-                renderizar();
-                console.log("🔀 Merge realizado entre dispositivos");
-                if (!mensagemSincronizacaoExibida) {
-                    mostrarToast("🔄 Dados mesclados entre dispositivos!");
-                    mensagemSincronizacaoExibida = true;
-                    setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
-                }
-            }
+            // CONFLITO DETECTADO!
+            atualizarStatusSync("conflict", "CONFLITO! Escolha a versão");
+            mostrarConflito(dados, dadosFirebase);
         }
-        
-        atualizarStatusSync("online", "Sincronizado");
     } catch (error) {
-        console.error("Erro na sincronização:", error);
-        atualizarStatusSync("offline", "Erro na sincronização");
+        console.error("Erro na verificação:", error);
+        atualizarStatusSync("offline", "Erro na verificação");
     } finally {
         sincronizando = false;
     }
 }
 
-function fazerMergeProfundo(local, nuvem) {
-    if (!local || !nuvem) return local || nuvem;
+async function sincronizarSemConflito(dadosFirebase) {
+    const versaoLocal = dados._versao || 0;
+    const versaoFirebase = dadosFirebase._versao || 0;
     
-    const merged = JSON.parse(JSON.stringify(local));
-    merged._versao = Math.max(local._versao || 0, nuvem._versao || 0);
-    merged._ultimoDispositivo = (local._versao || 0) > (nuvem._versao || 0) ? local._ultimoDispositivo : nuvem._ultimoDispositivo;
+    if (versaoLocal > versaoFirebase) {
+        await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
+        mostrarToast("✅ Dados locais enviados (mais recentes)!");
+    } else if (versaoFirebase > versaoLocal) {
+        dados = JSON.parse(JSON.stringify(dadosFirebase));
+        salvarLocalmente();
+        renderizar();
+        mostrarToast("🔄 Dados da nuvem baixados (mais recentes)!");
+    }
+    atualizarStatusSync("online", "Sincronizado");
+}
+
+function mostrarConflito(dadosLocal, dadosCloud) {
+    const dataHoraLocal = new Date(dadosLocal._versao).toLocaleString();
+    const dataHoraCloud = new Date(dadosCloud._versao).toLocaleString();
+    const dispositivoLocal = dadosLocal._ultimoDispositivo?.substr(0, 15) || 'Desconhecido';
+    const dispositivoCloud = dadosCloud._ultimoDispositivo?.substr(0, 15) || 'Desconhecido';
     
-    const listasLocal = local.listas || [];
-    const listasNuvem = nuvem.listas || [];
-    const mapaListas = {};
-    listasLocal.forEach(lista => { mapaListas[lista.nome] = lista; });
+    const numListasLocal = dadosLocal.listas?.length || 0;
+    const numListasCloud = dadosCloud.listas?.length || 0;
+    const numCardsLocal = dadosLocal.listas?.reduce((acc, l) => acc + (l.cards?.length || 0), 0) || 0;
+    const numCardsCloud = dadosCloud.listas?.reduce((acc, l) => acc + (l.cards?.length || 0), 0) || 0;
     
-    listasNuvem.forEach(listaNuvem => {
-        const listaLocal = mapaListas[listaNuvem.nome];
-        if (!listaLocal) {
-            merged.listas.push(JSON.parse(JSON.stringify(listaNuvem)));
-        } else {
-            const cardsLocal = listaLocal.cards || [];
-            const cardsNuvem = listaNuvem.cards || [];
-            const mapaCards = {};
-            cardsLocal.forEach(card => { mapaCards[card.texto] = card; });
-            
-            cardsNuvem.forEach(cardNuvem => {
-                const cardLocal = mapaCards[cardNuvem.texto];
-                if (!cardLocal) {
-                    listaLocal.cards.push(JSON.parse(JSON.stringify(cardNuvem)));
-                } else {
-                    const timestampLocal = cardLocal.ultimaModificacao || 0;
-                    const timestampNuvem = cardNuvem.ultimaModificacao || 0;
-                    if (timestampNuvem > timestampLocal) {
-                        Object.assign(cardLocal, cardNuvem);
-                    }
-                }
-            });
-            listaLocal.ultimaModificacao = Math.max(listaLocal.ultimaModificacao || 0, listaNuvem.ultimaModificacao || 0);
-        }
-    });
+    const modal = document.getElementById("conflictModal");
+    const body = document.getElementById("conflictBody");
     
-    return merged;
+    body.innerHTML = `
+        <div class="version-compare">
+            <div class="version-card">
+                <span class="device-badge device-local">📱 DISPOSITIVO ATUAL</span>
+                <h4>Versão Local</h4>
+                <p><strong>🕐 Última modificação:</strong> ${dataHoraLocal}</p>
+                <p><strong>🆔 Dispositivo:</strong> ${dispositivoLocal}</p>
+                <p><strong>📋 Listas:</strong> ${numListasLocal}</p>
+                <p><strong>📌 Cartões:</strong> ${numCardsLocal}</p>
+                <hr>
+                <h5>Pré-visualização:</h5>
+                <ul style="margin-left: 20px;">
+                    ${dadosLocal.listas?.slice(0, 3).map(l => `<li>📁 ${l.nome} (${l.cards?.length || 0} cartões)</li>`).join('') || '<li>Nenhuma lista</li>'}
+                    ${numListasLocal > 3 ? `<li>... e mais ${numListasLocal - 3} listas</li>` : ''}
+                </ul>
+            </div>
+            <div class="version-card">
+                <span class="device-badge device-cloud">☁️ NUVEM (OUTRO DISPOSITIVO)</span>
+                <h4>Versão na Nuvem</h4>
+                <p><strong>🕐 Última modificação:</strong> ${dataHoraCloud}</p>
+                <p><strong>🆔 Dispositivo:</strong> ${dispositivoCloud}</p>
+                <p><strong>📋 Listas:</strong> ${numListasCloud}</p>
+                <p><strong>📌 Cartões:</strong> ${numCardsCloud}</p>
+                <hr>
+                <h5>Pré-visualização:</h5>
+                <ul style="margin-left: 20px;">
+                    ${dadosCloud.listas?.slice(0, 3).map(l => `<li>📁 ${l.nome} (${l.cards?.length || 0} cartões)</li>`).join('') || '<li>Nenhuma lista</li>'}
+                    ${numListasCloud > 3 ? `<li>... e mais ${numListasCloud - 3} listas</li>` : ''}
+                </ul>
+            </div>
+        </div>
+        <div class="conflict-actions">
+            <button class="btn btn-primary" onclick="resolverConflito('local')">✅ Manter Meus Dados (Local)</button>
+            <button class="btn btn-warning" onclick="resolverConflito('cloud')">☁️ Usar Dados da Nuvem</button>
+        </div>
+        <p style="text-align: center; margin-top: 15px; color: #666; font-size: 12px;">
+            ⚠️ Atenção: A opção não selecionada será PERDIDA permanentemente!
+        </p>
+    `;
+    
+    modal.style.display = "flex";
+}
+
+async function resolverConflito(escolha) {
+    const modal = document.getElementById("conflictModal");
+    const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
+    const dadosCloud = snapshot.val();
+    
+    if (escolha === 'local') {
+        // Manter dados locais
+        await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
+        mostrarToast("✅ Mantidos seus dados locais! Enviado para nuvem.");
+    } else {
+        // Usar dados da nuvem
+        dados = JSON.parse(JSON.stringify(dadosCloud));
+        salvarLocalmente();
+        renderizar();
+        mostrarToast("✅ Dados da nuvem restaurados!");
+    }
+    
+    modal.style.display = "none";
+    atualizarStatusSync("online", "Sincronizado");
 }
 
 async function forcarSincronizacao() {
@@ -942,9 +1011,8 @@ async function forcarSincronizacao() {
         mostrarToast("🌐 Sem conexão com internet");
         return;
     }
-    mostrarToast("🔄 Sincronizando...");
-    mensagemSincronizacaoExibida = false;
-    await sincronizarComFirebase();
+    mostrarToast("🔄 Verificando conflitos...");
+    await verificarConflitos();
 }
 
 // ==================== AUTENTICAÇÃO ====================
@@ -960,35 +1028,7 @@ auth.onAuthStateChanged(async (user) => {
         document.getElementById("novaListaBtn").style.display = "inline-block";
         
         mostrarToast(`✅ Bem-vindo, ${user.email}!`);
-        
-        const dadosRef = db.ref(`usuarios/${user.uid}/dados`);
-        
-        if (window.syncListener) {
-            dadosRef.off('value', window.syncListener);
-        }
-        
-        window.syncListener = dadosRef.on('value', (snapshot) => {
-            if (!sincronizando && snapshot.exists()) {
-                const novosDados = snapshot.val();
-                const versaoLocal = dados._versao || 0;
-                const versaoNova = novosDados._versao || 0;
-                const ultimoDispositivo = novosDados._ultimoDispositivo;
-                
-                if (ultimoDispositivo !== DEVICE_ID && versaoNova > versaoLocal) {
-                    console.log("📥 Recebendo atualização de outro dispositivo");
-                    dados = JSON.parse(JSON.stringify(novosDados));
-                    salvarLocalmente();
-                    renderizar();
-                    if (!mensagemSincronizacaoExibida) {
-                        mostrarToast("🔄 Atualização recebida de outro dispositivo!");
-                        mensagemSincronizacaoExibida = true;
-                        setTimeout(() => { mensagemSincronizacaoExibida = false; }, 5000);
-                    }
-                }
-            }
-        });
-        
-        await sincronizarComFirebase();
+        await verificarConflitos();
     } else {
         usuarioAtual = null;
         document.getElementById("loginBtn").style.display = "inline-block";
@@ -998,11 +1038,6 @@ auth.onAuthStateChanged(async (user) => {
         document.getElementById("syncBtn").style.display = "none";
         document.getElementById("novaListaBtn").style.display = "none";
         atualizarStatusSync("offline", "Offline - Faça login para sincronizar");
-        
-        if (window.syncListener) {
-            db.ref(`usuarios/${usuarioAtual?.uid}/dados`).off('value', window.syncListener);
-            window.syncListener = null;
-        }
     }
 });
 
@@ -1048,6 +1083,54 @@ function fecharLogin() {
     document.getElementById("loginPassword").value = "";
 }
 
+async function fazerLogout() {
+    if (confirm("Deseja realmente sair da sua conta?")) {
+        await auth.signOut();
+        mostrarToast("✅ Você saiu da sua conta!");
+    }
+}
+
+function exportarBackup() {
+    const dataStr = JSON.stringify(dados, null, 2);
+    const blob = new Blob([dataStr], {type: "application/json"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `wikinbm_backup_${new Date().toISOString().slice(0,19)}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+    mostrarToast("📁 Backup exportado!");
+}
+
+function importarBackup(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = function(e) {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (imported && (imported.listas || Array.isArray(imported))) {
+                if (imported.listas) {
+                    dados = imported;
+                } else if (Array.isArray(imported)) {
+                    dados = { listas: imported, _versao: Date.now(), _ultimoDispositivo: DEVICE_ID };
+                }
+                dados._versao = Date.now();
+                salvarLocalmente();
+                renderizar();
+                mostrarToast("✅ Backup importado com sucesso!");
+            } else {
+                mostrarToast("❌ Arquivo inválido");
+            }
+        } catch (error) {
+            mostrarToast("❌ Erro ao importar arquivo");
+        }
+    };
+    reader.readAsText(file);
+    event.target.value = "";
+}
+
 function atualizarStatusSync(status, texto) {
     const statusDiv = document.getElementById("syncStatus");
     const indicator = document.getElementById("syncIndicator");
@@ -1066,7 +1149,7 @@ function mostrarToast(mensagem) {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// ==================== FUNÇÕES DO BOARD COM DRAG & DROP ENTRE LISTAS ====================
+// ==================== FUNÇÕES DO BOARD COM DRAG & DROP ====================
 function renderizar() {
     const board = document.getElementById("board");
     board.innerHTML = "";
@@ -1108,7 +1191,6 @@ function renderizar() {
                 const cardDiv = document.createElement("div");
                 cardDiv.className = "cartao";
                 cardDiv.setAttribute("data-card-idx", cardIdx);
-                cardDiv.setAttribute("data-lista-origem", idx);
                 cardDiv.innerHTML = `
                     <div class="cartao-titulo">${escapeHtml(card.texto)}</div>
                     <div class="cartao-indicadores">
@@ -1125,44 +1207,33 @@ function renderizar() {
                 };
                 cardsContainer.appendChild(cardDiv);
             });
-        }
-        
-        board.appendChild(divLista);
-    });
-    
-    // Configurar Sortable para permitir arrastar entre listas
-    const containers = document.querySelectorAll('.cards-container');
-    
-    containers.forEach(container => {
-        new Sortable(container, {
-            group: {
-                name: 'cards',
-                pull: true,        // Permite puxar de outras listas
-                revertClone: false,
-                put: true          // Permite receber de outras listas
-            },
-            animation: 200,
-            ghostClass: 'sortable-ghost',
-            dragClass: 'sortable-drag',
-            onEnd: function(evt) {
-                const listaOrigem = parseInt(evt.from.getAttribute("data-lista-idx"));
-                const listaDestino = parseInt(evt.to.getAttribute("data-lista-idx"));
-                const oldIndex = evt.oldIndex;
-                const newIndex = evt.newIndex;
-                
-                if (listaOrigem === listaDestino) {
-                    // Mesma lista - apenas reordenar
-                    if (oldIndex !== newIndex) {
-                        const card = dados.listas[listaOrigem].cards.splice(oldIndex, 1)[0];
-                        dados.listas[listaOrigem].cards.splice(newIndex, 0, card);
-                        dados.listas[listaOrigem].ultimaModificacao = Date.now();
-                        salvarDados();
-                        renderizar();
-                        mostrarToast("📌 Cartão reordenado!");
-                    }
-                } else {
-                    // Listas diferentes - mover cartão
-                    if (oldIndex !== undefined && newIndex !== undefined) {
+            
+            // Configurar Sortable para cartões
+            new Sortable(cardsContainer, {
+                group: {
+                    name: 'cards',
+                    pull: true,
+                    revertClone: false,
+                    put: true
+                },
+                animation: 200,
+                ghostClass: 'sortable-ghost',
+                dragClass: 'sortable-drag',
+                onEnd: function(evt) {
+                    const listaOrigem = parseInt(evt.from.getAttribute("data-lista-idx"));
+                    const listaDestino = parseInt(evt.to.getAttribute("data-lista-idx"));
+                    const oldIndex = evt.oldIndex;
+                    const newIndex = evt.newIndex;
+                    
+                    if (listaOrigem === listaDestino) {
+                        if (oldIndex !== newIndex) {
+                            const card = dados.listas[listaOrigem].cards.splice(oldIndex, 1)[0];
+                            dados.listas[listaOrigem].cards.splice(newIndex, 0, card);
+                            dados.listas[listaOrigem].ultimaModificacao = Date.now();
+                            salvarDados();
+                            renderizar();
+                        }
+                    } else {
                         const card = dados.listas[listaOrigem].cards.splice(oldIndex, 1)[0];
                         dados.listas[listaDestino].cards.splice(newIndex, 0, card);
                         dados.listas[listaOrigem].ultimaModificacao = Date.now();
@@ -1172,11 +1243,13 @@ function renderizar() {
                         mostrarToast(`✅ Cartão movido para "${dados.listas[listaDestino].nome}"!`);
                     }
                 }
-            }
-        });
+            });
+        }
+        
+        board.appendChild(divLista);
     });
     
-    // Configurar Sortable para as listas (reordenar listas)
+    // Configurar Sortable para listas
     new Sortable(board, {
         animation: 200,
         ghostClass: 'sortable-ghost',
@@ -1196,6 +1269,7 @@ function renderizar() {
     });
 }
 
+// ==================== FUNÇÕES DO BOARD ====================
 function novaLista() {
     const nome = prompt("Nome da nova lista:");
     if (nome && nome.trim()) {
@@ -1694,7 +1768,7 @@ function escapeHtml(texto) {
 window.addEventListener('online', async () => {
     atualizarStatusSync("online", "Online");
     mostrarToast("🌐 Conexão restaurada!");
-    if (usuarioAtual) await sincronizarComFirebase();
+    if (usuarioAtual) await verificarConflitos();
 });
 
 window.addEventListener('offline', () => {
