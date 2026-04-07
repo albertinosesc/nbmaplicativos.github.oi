@@ -1066,7 +1066,7 @@ function mostrarToast(mensagem) {
     setTimeout(() => toast.remove(), 3000);
 }
 
-// ==================== FUNÇÕES DO BOARD COM DRAG & DROP ====================
+// ==================== FUNÇÕES DO BOARD COM DRAG & DROP ENTRE LISTAS ====================
 function renderizar() {
     const board = document.getElementById("board");
     board.innerHTML = "";
@@ -1092,7 +1092,7 @@ function renderizar() {
                     <button onclick="excluirLista(${idx})" style="color: var(--danger);">🗑️ Excluir</button>
                 </div>
             </div>
-            <div class="cards-container" id="cards-${idx}"></div>
+            <div class="cards-container" id="cards-${idx}" data-lista-idx="${idx}"></div>
         `;
         
         if (!lista.oculto && lista.cards) {
@@ -1108,6 +1108,7 @@ function renderizar() {
                 const cardDiv = document.createElement("div");
                 cardDiv.className = "cartao";
                 cardDiv.setAttribute("data-card-idx", cardIdx);
+                cardDiv.setAttribute("data-lista-origem", idx);
                 cardDiv.innerHTML = `
                     <div class="cartao-titulo">${escapeHtml(card.texto)}</div>
                     <div class="cartao-indicadores">
@@ -1124,33 +1125,58 @@ function renderizar() {
                 };
                 cardsContainer.appendChild(cardDiv);
             });
-            
-            // Configurar Sortable para os cartões
-            new Sortable(cardsContainer, {
-                group: 'cards',
-                animation: 200,
-                ghostClass: 'sortable-ghost',
-                dragClass: 'sortable-drag',
-                onEnd: function(evt) {
-                    const listaIdx = parseInt(evt.from.parentElement.getAttribute("data-lista-idx"));
-                    const oldIndex = evt.oldIndex;
-                    const newIndex = evt.newIndex;
-                    
-                    if (oldIndex !== newIndex) {
-                        const card = dados.listas[listaIdx].cards.splice(oldIndex, 1)[0];
-                        dados.listas[listaIdx].cards.splice(newIndex, 0, card);
-                        dados.listas[listaIdx].ultimaModificacao = Date.now();
-                        salvarDados();
-                        renderizar();
-                    }
-                }
-            });
         }
         
         board.appendChild(divLista);
     });
     
-    // Configurar Sortable para as listas
+    // Configurar Sortable para permitir arrastar entre listas
+    const containers = document.querySelectorAll('.cards-container');
+    
+    containers.forEach(container => {
+        new Sortable(container, {
+            group: {
+                name: 'cards',
+                pull: true,        // Permite puxar de outras listas
+                revertClone: false,
+                put: true          // Permite receber de outras listas
+            },
+            animation: 200,
+            ghostClass: 'sortable-ghost',
+            dragClass: 'sortable-drag',
+            onEnd: function(evt) {
+                const listaOrigem = parseInt(evt.from.getAttribute("data-lista-idx"));
+                const listaDestino = parseInt(evt.to.getAttribute("data-lista-idx"));
+                const oldIndex = evt.oldIndex;
+                const newIndex = evt.newIndex;
+                
+                if (listaOrigem === listaDestino) {
+                    // Mesma lista - apenas reordenar
+                    if (oldIndex !== newIndex) {
+                        const card = dados.listas[listaOrigem].cards.splice(oldIndex, 1)[0];
+                        dados.listas[listaOrigem].cards.splice(newIndex, 0, card);
+                        dados.listas[listaOrigem].ultimaModificacao = Date.now();
+                        salvarDados();
+                        renderizar();
+                        mostrarToast("📌 Cartão reordenado!");
+                    }
+                } else {
+                    // Listas diferentes - mover cartão
+                    if (oldIndex !== undefined && newIndex !== undefined) {
+                        const card = dados.listas[listaOrigem].cards.splice(oldIndex, 1)[0];
+                        dados.listas[listaDestino].cards.splice(newIndex, 0, card);
+                        dados.listas[listaOrigem].ultimaModificacao = Date.now();
+                        dados.listas[listaDestino].ultimaModificacao = Date.now();
+                        salvarDados();
+                        renderizar();
+                        mostrarToast(`✅ Cartão movido para "${dados.listas[listaDestino].nome}"!`);
+                    }
+                }
+            }
+        });
+    });
+    
+    // Configurar Sortable para as listas (reordenar listas)
     new Sortable(board, {
         animation: 200,
         ghostClass: 'sortable-ghost',
@@ -1164,6 +1190,7 @@ function renderizar() {
                 dados.listas.splice(newIndex, 0, lista);
                 salvarDados();
                 renderizar();
+                mostrarToast("📋 Lista reorganizada!");
             }
         }
     });
