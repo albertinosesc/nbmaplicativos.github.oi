@@ -1,0 +1,888 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cartões com Google Sheets</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 20px;
+        }
+
+        .config-section {
+            background: #f8f9fa;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .config-section h3 {
+            margin-bottom: 15px;
+            color: #495057;
+        }
+
+        .config-input {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+
+        .config-input button {
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .config-input button:hover {
+            background: #218838;
+        }
+
+        .selector-section {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .selector-section h3 {
+            margin-bottom: 15px;
+            color: #495057;
+        }
+
+        .selector-control {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .selector-control select {
+            flex: 2;
+            padding: 12px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+            font-size: 14px;
+            font-family: monospace;
+        }
+
+        .selector-control button {
+            padding: 12px 24px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .selector-control button:hover {
+            background: #0056b3;
+        }
+
+        .nova-linha-area {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .nova-linha-area label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .nova-linha-input-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .nova-linha-input-group input {
+            flex: 1;
+            padding: 10px;
+            border: 2px solid #dee2e6;
+            border-radius: 8px;
+        }
+
+        .nova-linha-input-group button {
+            padding: 10px 20px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+        }
+
+        .info-bar {
+            background: #e7f3ff;
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 13px;
+        }
+
+        .cards-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            position: relative;
+        }
+
+        .card.minimizado .checklist,
+        .card.minimizado .card-actions {
+            display: none;
+        }
+
+        .card.minimizado .card-header {
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .card-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .card-badge {
+            padding: 4px 8px;
+            border-radius: 5px;
+            font-size: 11px;
+            font-weight: bold;
+            background: #28a745;
+            color: white;
+        }
+
+        .card-badge.nova {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .card-badge.fechado {
+            background: #6c757d;
+        }
+
+        .card-actions-buttons {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-minimize {
+            background: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 5px 10px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .btn-minimize:hover {
+            background: #5a6268;
+        }
+
+        .checklist {
+            list-style: none;
+            margin: 15px 0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .checklist-item {
+            padding: 10px;
+            margin: 5px 0;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 3px solid #007bff;
+        }
+
+        .checklist-item.no-checkbox {
+            border-left-color: #28a745;
+            background: #f0fdf4;
+        }
+
+        .checklist-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .checklist-checkbox {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+
+        .checklist-label {
+            font-weight: bold;
+            color: #495057;
+            font-size: 13px;
+            min-width: 80px;
+        }
+
+        .checklist-text {
+            font-size: 14px;
+            color: #333;
+            word-break: break-word;
+            flex: 1;
+        }
+
+        .card-actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+            padding-top: 10px;
+            border-top: 1px solid #f0f0f0;
+        }
+
+        .card-actions button {
+            flex: 1;
+            padding: 8px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 12px;
+        }
+
+        .btn-save {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-save:hover {
+            background: #218838;
+        }
+
+        .btn-sync {
+            background: #17a2b8;
+            color: white;
+        }
+
+        .btn-sync:hover {
+            background: #138496;
+        }
+
+        .btn-close {
+            background: #ffc107;
+            color: #333;
+        }
+
+        .btn-close:hover {
+            background: #e0a800;
+        }
+
+        .btn-remove {
+            background: #fd7e14;
+            color: white;
+        }
+
+        .btn-remove:hover {
+            background: #e67e22;
+        }
+
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-delete:hover {
+            background: #c82333;
+        }
+
+        .loading {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            z-index: 1001;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px;
+            background: white;
+            border-radius: 15px;
+            color: #999;
+        }
+
+        .modified-badge {
+            background: #ffc107;
+            color: #333;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+        }
+
+        .stats-bar {
+            background: white;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 20px;
+            display: flex;
+            gap: 20px;
+            justify-content: space-around;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 24px;
+            font-weight: bold;
+            color: #007bff;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+
+        .google-sync {
+            background: #e8f5e9;
+            border: 2px solid #4caf50;
+            margin-bottom: 20px;
+        }
+        .sync-status {
+            font-size: 12px;
+            margin-top: 5px;
+            color: #2e7d32;
+        }
+        .btn-google {
+            background: #4caf50;
+            color: white;
+        }
+        .btn-google:hover {
+            background: #388e3c;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📋 Cartões com Google Sheets</h1>
+            
+        </div>
+
+        <!-- Seção Google Sheets -->
+        <div class="config-section google-sync">
+            <h3>🔗 Sincronizar com Google Sheets</h3>
+            <div class="config-input">
+                <button onclick="conectarGoogleSheets()" class="btn-google">🔗 Importar da Planilha</button>
+                <button onclick="exportarParaGoogleSheets()" class="btn-google">💾 Exportar para Planilha</button>
+            </div>
+            <div id="googleStatus" class="sync-status"></div>
+            <div class="info-bar">
+                💡 <strong>Google Sheets:</strong> Conectado diretamente à sua planilha. Importe os dados ou exporte as alterações.
+            </div>
+        </div>
+
+        <!-- Importar CSV (alternativa) -->
+        <div class="config-section">
+            <h3>📁 Importar Planilha (CSV) - Alternativa</h3>
+            <div class="config-input">
+                <input type="file" id="csvFile" accept=".csv">
+                <button onclick="importarCSV()">📁 Importar CSV</button>
+            </div>
+            <div id="infoPlanilha" class="info-bar" style="display:none;"></div>
+        </div>
+
+        <!-- Estatísticas -->
+        <div id="statsBar" class="stats-bar" style="display:none;">
+            <div class="stat-item">
+                <div class="stat-number" id="totalCartoes">0</div>
+                <div class="stat-label">Total</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="abertosCount">0</div>
+                <div class="stat-label">Abertos</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="fechadosCount">0</div>
+                <div class="stat-label">Fechados</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number" id="removidosCount">0</div>
+                <div class="stat-label">Removidos</div>
+            </div>
+        </div>
+
+        <!-- Seletor de Linhas -->
+        <div class="selector-section" id="selectorSection" style="display:none;">
+            <h3>📌 Adicionar / Restaurar Cartão</h3>
+            
+            <div class="selector-control">
+                <select id="linhaSelector">
+                    <option value="">Selecionar linha...</option>
+                </select>
+                <button onclick="carregarOuRestaurarCartao()">➕ Carregar / Restaurar Cartão</button>
+            </div>
+            
+            <div class="nova-linha-area">
+                <label>✨ OU criar nova linha:</label>
+                <div class="nova-linha-input-group">
+                    <input type="text" id="novaLinhaNome" placeholder="Digite o nome da nova música/linha">
+                    <button onclick="criarNovaLinha()">➕ Criar Nova Linha e Cartão</button>
+                </div>
+            </div>
+            
+            
+        </div>
+
+        <!-- Lista de Cartões -->
+        <div id="cardsContainer" class="cards-container"></div>
+    </div>
+
+    <div id="loading" class="loading">
+        <div>🔄 Processando...</div>
+    </div>
+
+    <script>
+        // ==================== CONFIGURAÇÕES ====================
+        // URL FIXA DO GOOGLE SHEETS (não precisa mais de caixa de texto)
+        const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbxlTm75lHxsrbrJI-0-zVhRuI-KPPlyicMT93xSk6ooDGVc6KL_4auU9sAaFLi_dCQO/exec';
+        
+        let planilhaOriginal = [];
+        let cabecalhos = [];
+        let cartoes = [];
+        let linhasExcluidas = [];
+
+        // ==================== GOOGLE SHEETS ====================
+        async function conectarGoogleSheets() {
+            mostrarLoading(true);
+            document.getElementById('googleStatus').innerHTML = '🔄 Importando do Google Sheets...';
+            
+            try {
+                const response = await fetch(GOOGLE_SHEETS_URL);
+                const data = await response.json();
+                
+                if (data && data.length > 0) {
+                    cabecalhos = data[0];
+                    planilhaOriginal = data.slice(1).map(row => 
+                        row.map(cell => {
+                            if (cell?.startsWith('✅')) return cell.substring(1).trim();
+                            if (cell?.startsWith('❌')) return cell.substring(1).trim();
+                            return cell || '';
+                        })
+                    );
+                    
+                    localStorage.setItem('planilha_dados_google', JSON.stringify({
+                        dados: planilhaOriginal,
+                        cabecalhos: cabecalhos
+                    }));
+                    
+                    document.getElementById('infoPlanilha').style.display = 'block';
+                    document.getElementById('infoPlanilha').innerHTML = `✅ Google Sheets conectado! ${planilhaOriginal.length} linhas, ${cabecalhos.length} colunas`;
+                    document.getElementById('googleStatus').innerHTML = '✅ Importado com sucesso!';
+                    document.getElementById('selectorSection').style.display = 'block';
+                    document.getElementById('statsBar').style.display = 'flex';
+                    
+                    atualizarSelector();
+                    alert(`✅ Importado! ${planilhaOriginal.length} linhas encontradas.`);
+                } else {
+                    throw new Error('Dados vazios');
+                }
+            } catch (error) {
+                console.error('Erro:', error);
+                document.getElementById('googleStatus').innerHTML = '❌ Erro na importação';
+                alert('❌ Erro ao importar. Verifique se o Web App está correto.');
+            }
+            mostrarLoading(false);
+        }
+        
+        async function exportarParaGoogleSheets() {
+            if (cabecalhos.length === 0) {
+                alert('Nenhuma planilha carregada! Importe primeiro.');
+                return;
+            }
+            
+            mostrarLoading(true);
+            document.getElementById('googleStatus').innerHTML = '🔄 Exportando para Google Sheets...';
+            
+            try {
+                const dadosExportacao = JSON.parse(JSON.stringify(planilhaOriginal));
+                
+                for (const card of cartoes) {
+                    for (let i = 1; i < card.checklist.length; i++) {
+                        const item = card.checklist[i];
+                        if (dadosExportacao[card.linha] && dadosExportacao[card.linha][i] !== undefined) {
+                            const simbolo = item.checked ? '✅' : '❌';
+                            let valorFinal = item.valor || '';
+                            dadosExportacao[card.linha][i] = valorFinal ? `${simbolo} ${valorFinal}` : simbolo;
+                        }
+                    }
+                }
+                
+                const dadosComCabecalho = [cabecalhos, ...dadosExportacao];
+                
+                await fetch(GOOGLE_SHEETS_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(dadosComCabecalho)
+                });
+                
+                document.getElementById('googleStatus').innerHTML = '✅ Exportado com sucesso!';
+                alert('✅ Dados exportados para o Google Sheets!');
+            } catch (error) {
+                console.error('Erro:', error);
+                document.getElementById('googleStatus').innerHTML = '❌ Erro na exportação';
+                alert('❌ Erro ao exportar.');
+            }
+            mostrarLoading(false);
+        }
+
+        // ==================== EXCLUIR (NÃO volta ao selector) ====================
+        function excluirCartao(cardId) {
+            const card = cartoes.find(c => c.id === cardId);
+            if (!card) return;
+            
+            if (confirm(`⚠️ EXCLUIR PERMANENTEMENTE o cartão "${card.titulo}"?\n\nEsta ação NÃO pode ser desfeita! O cartão será apagado completamente do sistema.`)) {
+                cartoes = cartoes.filter(c => c.id !== cardId);
+                
+                if (!linhasExcluidas.includes(card.linha)) {
+                    linhasExcluidas.push(card.linha);
+                    localStorage.setItem('linhas_excluidas', JSON.stringify(linhasExcluidas));
+                }
+                
+                salvarCartoes();
+                atualizarSelector();
+                atualizarEstatisticas();
+                renderizarCartoes();
+                alert('⚠️ Cartão excluído permanentemente!');
+            }
+        }
+
+        // ==================== ATUALIZAR SELECTOR ====================
+        function atualizarSelector() {
+            const selector = document.getElementById('linhaSelector');
+            if (!selector) return;
+            
+            selector.innerHTML = '<option value="">Selecionar linha...</option>';
+            
+            const savedExcluidas = localStorage.getItem('linhas_excluidas');
+            if (savedExcluidas) linhasExcluidas = JSON.parse(savedExcluidas);
+            
+            const linhasAtivas = cartoes.filter(c => c.status === 'ativo' || c.status === 'minimizado').map(c => c.linha);
+            
+            const linhasDisponiveis = [];
+            
+            for (let i = 0; i < planilhaOriginal.length; i++) {
+                if (linhasExcluidas.includes(i)) continue;
+                if (linhasAtivas.includes(i)) continue;
+                
+                const linha = planilhaOriginal[i];
+                const nome = linha[0] || `Linha ${i + 1}`;
+                const cartaoExistente = cartoes.find(c => c.linha === i);
+                const statusText = cartaoExistente?.status === 'removido' ? '🔄 (Restaurar)' : '';
+                
+                linhasDisponiveis.push({ index: i, nome, statusText });
+            }
+            
+            linhasDisponiveis.sort((a, b) => a.nome.localeCompare(b.nome));
+            
+            for (const item of linhasDisponiveis) {
+                const option = document.createElement('option');
+                option.value = item.index;
+                option.textContent = `${item.index + 1} - ${item.nome.substring(0, 50)} ${item.statusText}`;
+                selector.appendChild(option);
+            }
+        }
+
+        // ==================== FUNÇÕES PRINCIPAIS ====================
+        function importarCSV() {
+            const fileInput = document.getElementById('csvFile');
+            const file = fileInput.files[0];
+            if (!file) { alert('Selecione um arquivo CSV!'); return; }
+            
+            mostrarLoading(true);
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const text = e.target.result;
+                const linhas = text.split('\n');
+                planilhaOriginal = [];
+                cabecalhos = [];
+                
+                for (let i = 0; i < linhas.length; i++) {
+                    if (linhas[i].trim() === '') continue;
+                    const colunas = [];
+                    let dentroAspas = false, valorAtual = '';
+                    const linha = linhas[i];
+                    
+                    for (let j = 0; j < linha.length; j++) {
+                        const char = linha[j];
+                        if (char === '"') dentroAspas = !dentroAspas;
+                        else if (char === ',' && !dentroAspas) {
+                            colunas.push(valorAtual.trim());
+                            valorAtual = '';
+                        } else valorAtual += char;
+                    }
+                    colunas.push(valorAtual.trim());
+                    
+                    if (i === 0) cabecalhos = colunas;
+                    else {
+                        const linhaLimpa = colunas.map(cell => {
+                            if (cell.startsWith('✅')) return cell.substring(1).trim();
+                            if (cell.startsWith('❌')) return cell.substring(1).trim();
+                            return cell;
+                        });
+                        planilhaOriginal.push(linhaLimpa);
+                    }
+                }
+                
+                localStorage.setItem('planilha_dados_google', JSON.stringify({ dados: planilhaOriginal, cabecalhos }));
+                document.getElementById('infoPlanilha').style.display = 'block';
+                document.getElementById('infoPlanilha').innerHTML = `✅ CSV importado! ${planilhaOriginal.length} linhas, ${cabecalhos.length} colunas`;
+                document.getElementById('selectorSection').style.display = 'block';
+                document.getElementById('statsBar').style.display = 'flex';
+                atualizarSelector();
+                alert(`✅ Importado! ${planilhaOriginal.length} linhas.`);
+                mostrarLoading(false);
+            };
+            reader.onerror = () => { mostrarLoading(false); alert('Erro ao ler o arquivo'); };
+            reader.readAsText(file, 'UTF-8');
+        }
+
+        function criarNovaLinha() {
+            const novaLinhaNome = document.getElementById('novaLinhaNome').value.trim();
+            if (!novaLinhaNome) { alert('Digite o nome da nova linha!'); return; }
+            
+            const novaLinha = new Array(cabecalhos.length).fill('');
+            novaLinha[0] = novaLinhaNome;
+            planilhaOriginal.push(novaLinha);
+            const novaLinhaIndex = planilhaOriginal.length - 1;
+            
+            localStorage.setItem('planilha_dados_google', JSON.stringify({ dados: planilhaOriginal, cabecalhos }));
+            
+            const checklist = cabecalhos.map((col, i) => ({ coluna: col, valor: novaLinha[i] || '', checked: false }));
+            const novoCartao = { id: Date.now(), titulo: novaLinhaNome, linha: novaLinhaIndex, checklist, modificado: false, status: 'ativo', isNova: true };
+            cartoes.push(novoCartao);
+            
+            salvarCartoes();
+            atualizarSelector();
+            atualizarEstatisticas();
+            renderizarCartoes();
+            document.getElementById('novaLinhaNome').value = '';
+            alert(`✅ Nova linha "${novaLinhaNome}" criada!`);
+        }
+
+        function carregarOuRestaurarCartao() {
+            const linhaIndex = parseInt(document.getElementById('linhaSelector').value);
+            if (isNaN(linhaIndex)) { alert('Selecione uma linha!'); return; }
+            
+            const cartaoRemovido = cartoes.find(c => c.linha === linhaIndex && c.status === 'removido');
+            if (cartaoRemovido) {
+                cartaoRemovido.status = 'ativo';
+                salvarCartoes();
+                atualizarSelector();
+                atualizarEstatisticas();
+                renderizarCartoes();
+                alert(`✅ Cartão "${cartaoRemovido.titulo}" restaurado!`);
+                return;
+            }
+            
+            const linhaDados = planilhaOriginal[linhaIndex];
+            const checklist = cabecalhos.map((col, i) => ({ coluna: col, valor: linhaDados[i] || '', checked: false }));
+            const novoCartao = { id: Date.now(), titulo: linhaDados[0] || `Linha ${linhaIndex + 1}`, linha: linhaIndex, checklist, modificado: false, status: 'ativo', isNova: false };
+            cartoes.push(novoCartao);
+            salvarCartoes();
+            atualizarSelector();
+            atualizarEstatisticas();
+            renderizarCartoes();
+            alert(`✅ Cartão carregado!`);
+        }
+
+        function renderizarCartoes() {
+            const container = document.getElementById('cardsContainer');
+            const cartoesVisiveis = cartoes.filter(c => c.status !== 'removido');
+            if (cartoesVisiveis.length === 0) {
+                container.innerHTML = '<div class="empty-state">📭 Nenhum cartão visível.<br>Carregue um cartão do selector ou crie uma nova linha.</div>';
+                return;
+            }
+            
+            container.innerHTML = cartoesVisiveis.map(card => `
+                <div class="card ${card.status === 'minimizado' ? 'minimizado' : ''}">
+                    <div class="card-header">
+                        <div class="card-title">
+                            📌 ${escapeHtml(card.titulo)}
+                            ${card.modificado ? '<span class="modified-badge">Editado</span>' : ''}
+                            <span class="card-badge ${card.isNova ? 'nova' : ''} ${card.status === 'minimizado' ? 'fechado' : ''}">
+                                ${card.status === 'minimizado' ? '📁 Fechado' : (card.isNova ? '✨ Nova' : `Linha ${card.linha + 1}`)}
+                            </span>
+                        </div>
+                        <div class="card-actions-buttons">
+                            <button class="btn-minimize" onclick="toggleMinimizar(${card.id})">${card.status === 'minimizado' ? '📂 Abrir' : '📁 Fechar'}</button>
+                        </div>
+                    </div>
+                    <ul class="checklist">
+                        ${card.checklist.map((item, idx) => `
+                            <li class="checklist-item ${idx === 0 ? 'no-checkbox' : ''}">
+                                <div class="checklist-header">
+                                    ${idx !== 0 ? `<input type="checkbox" class="checklist-checkbox" ${item.checked ? 'checked' : ''} onchange="atualizarCheckbox(${card.id}, ${idx}, this.checked)">` : ''}
+                                    <span class="checklist-label">${escapeHtml(item.coluna)}:</span>
+                                    <span class="checklist-text">${escapeHtml(item.valor)}</span>
+                                </div>
+                            </li>
+                        `).join('')}
+                    </ul>
+                    <div class="card-actions">
+                        <button class="btn-save" onclick="salvarAlteracoes(${card.id})">💾 Salvar</button>
+                        <button class="btn-sync" onclick="sincronizarCartao(${card.id})">🔄 Restaurar</button>
+                        <button class="btn-close" onclick="fecharCartao(${card.id})">📁 Fechar</button>
+                        <button class="btn-remove" onclick="removerCartao(${card.id})">🗑️ Remover</button>
+                        <button class="btn-delete" onclick="excluirCartao(${card.id})">⚠️ Excluir</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function fecharCartao(cardId) {
+            const card = cartoes.find(c => c.id === cardId);
+            if (card && card.status === 'ativo') { card.status = 'minimizado'; salvarCartoes(); atualizarEstatisticas(); renderizarCartoes(); }
+        }
+
+        function toggleMinimizar(cardId) {
+            const card = cartoes.find(c => c.id === cardId);
+            if (card) { card.status = card.status === 'minimizado' ? 'ativo' : 'minimizado'; salvarCartoes(); atualizarEstatisticas(); renderizarCartoes(); }
+        }
+
+        function removerCartao(cardId) {
+            const card = cartoes.find(c => c.id === cardId);
+            if (card && confirm('🗑️ Remover cartão da tela?\n\nPoderá restaurá-lo pelo selector.')) {
+                card.status = 'removido';
+                salvarCartoes();
+                atualizarSelector();
+                atualizarEstatisticas();
+                renderizarCartoes();
+            }
+        }
+
+        function atualizarCheckbox(cardId, idx, checked) {
+            const card = cartoes.find(c => c.id === cardId);
+            if (card) { card.checklist[idx].checked = checked; card.modificado = true; salvarCartoes(); renderizarCartoes(); }
+        }
+
+        function salvarAlteracoes(cardId) {
+            const card = cartoes.find(c => c.id === cardId);
+            if (card) { card.modificado = false; salvarCartoes(); alert('✅ Alterações salvas!'); renderizarCartoes(); }
+        }
+
+        function sincronizarCartao(cardId) {
+            const card = cartoes.find(c => c.id === cardId);
+            if (card) {
+                const linhaDados = planilhaOriginal[card.linha];
+                if (linhaDados) {
+                    card.checklist.forEach((item, i) => { item.valor = linhaDados[i] || ''; item.checked = false; });
+                    card.modificado = false;
+                    salvarCartoes();
+                    renderizarCartoes();
+                    alert('✅ Cartão restaurado!');
+                }
+            }
+        }
+
+        function atualizarEstatisticas() {
+            document.getElementById('totalCartoes').innerText = cartoes.length;
+            document.getElementById('abertosCount').innerText = cartoes.filter(c => c.status === 'ativo').length;
+            document.getElementById('fechadosCount').innerText = cartoes.filter(c => c.status === 'minimizado').length;
+            document.getElementById('removidosCount').innerText = cartoes.filter(c => c.status === 'removido').length;
+        }
+
+        function ordenarCartoes() { cartoes.sort((a, b) => a.titulo.localeCompare(b.titulo)); }
+        function salvarCartoes() { localStorage.setItem('cartoes_app_v15', JSON.stringify(cartoes)); }
+        function mostrarLoading(show) { document.getElementById('loading').style.display = show ? 'flex' : 'none'; }
+        function escapeHtml(text) { if (!text) return ''; const div = document.createElement('div'); div.textContent = text; return div.innerHTML; }
+
+        window.onload = () => {
+            const saved = localStorage.getItem('cartoes_app_v15');
+            if (saved) cartoes = JSON.parse(saved);
+            
+            const savedExcluidas = localStorage.getItem('linhas_excluidas');
+            if (savedExcluidas) linhasExcluidas = JSON.parse(savedExcluidas);
+            
+            const savedGoogle = localStorage.getItem('planilha_dados_google');
+            if (savedGoogle) {
+                const data = JSON.parse(savedGoogle);
+                planilhaOriginal = data.dados;
+                cabecalhos = data.cabecalhos;
+                if (cabecalhos?.length) {
+                    document.getElementById('infoPlanilha').style.display = 'block';
+                    document.getElementById('infoPlanilha').innerHTML = `✅ Planilha carregada: ${planilhaOriginal.length} linhas`;
+                    document.getElementById('selectorSection').style.display = 'block';
+                    document.getElementById('statsBar').style.display = 'flex';
+                    atualizarSelector();
+                }
+            }
+            ordenarCartoes();
+            atualizarEstatisticas();
+            renderizarCartoes();
+        };
+    </script>
+</body>
+</html>
