@@ -222,31 +222,6 @@
     padding: 20px;
   }
   
-  .config-panel {
-    background: #fff3cd;
-    border: 1px solid #ffc107;
-    padding: 10px;
-    border-radius: 10px;
-    margin-bottom: 15px;
-  }
-  
-  .config-panel label {
-    font-size: 12px;
-    margin-bottom: 3px;
-  }
-  
-  .config-panel input {
-    font-size: 12px;
-    padding: 8px;
-  }
-  
-  .small-btn {
-    background: #6c757d;
-    font-size: 12px;
-    padding: 8px;
-    margin-top: 5px;
-  }
-  
   .status-msg {
     position: fixed;
     bottom: 20px;
@@ -267,10 +242,10 @@
   }
   
   @keyframes fadeInOut {
-    0% { opacity: 0; }
-    15% { opacity: 1; }
-    85% { opacity: 1; }
-    100% { opacity: 0; }
+    0% { opacity: 0; transform: translateX(-50%) translateY(20px); }
+    15% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    85% { opacity: 1; transform: translateX(-50%) translateY(0); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(20px); }
   }
   
   @media (max-width: 480px) {
@@ -291,16 +266,6 @@
 <body>
 <div class="container">
   <h2>💰 Controle de Gastos</h2>
-  
-  <!-- Configuração da URL do Web App -->
-  <div class="config-panel" id="configPanel">
-    <label>🔗 URL do Web App (Google Apps Script)</label>
-    <input type="url" id="webAppUrl" value="https://script.google.com/macros/s/AKfycbwsRtTehpn6wyarbkdld5XyJCEklMEw3Q9Zd0R7cDdXTtmZZOKDGYDzNxoEaa-_ZF90/exec">
-    <button class="small-btn" onclick="salvarUrl()">💾 Salvar URL</button>
-    <div style="font-size: 11px; color: #666; margin-top: 5px;">
-      ⚠️ URL já pré-configurada. Clique em Salvar URL para ativar.
-    </div>
-  </div>
   
   <div class="form-group">
     <label>💳 Cartão</label>
@@ -380,7 +345,7 @@
     <h3>📋 Últimos Registros</h3>
     <button class="btn-atualizar" onclick="carregarLista()">🔄 Atualizar</button>
     <div id="listaRegistros" class="lista-registros">
-      <div class="empty">Clique em "Salvar URL" para começar</div>
+      <div class="empty">Carregando registros...</div>
     </div>
   </div>
 </div>
@@ -388,26 +353,10 @@
 <div id="statusMsg" class="status-msg"></div>
 
 <script>
-  let isLoading = false;
-  let webAppUrl = '';
+  // SUA URL DO WEB APP - COLOQUE AQUI!
+  const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwsRtTehpn6wyarbkdld5XyJCEklMEw3Q9Zd0R7cDdXTtmZZOKDGYDzNxoEaa-_ZF90/exec';
   
-  // Carregar URL salva ou usar a padrão
-  function init() {
-    const savedUrl = localStorage.getItem('webAppUrl');
-    if (savedUrl) {
-      webAppUrl = savedUrl;
-      document.getElementById('webAppUrl').value = webAppUrl;
-      mostrarStatus('✅ URL carregada! Testando conexão...');
-      testarConexao();
-    } else {
-      // URL padrão já está no input
-      const defaultUrl = document.getElementById('webAppUrl').value;
-      if (defaultUrl) {
-        webAppUrl = defaultUrl;
-        mostrarStatus('⚠️ Clique em "Salvar URL" para ativar');
-      }
-    }
-  }
+  let isLoading = false;
   
   function mostrarStatus(msg, isErro = false) {
     const statusDiv = document.getElementById('statusMsg');
@@ -417,40 +366,6 @@
     setTimeout(() => {
       statusDiv.classList.remove('show');
     }, 3000);
-  }
-  
-  function salvarUrl() {
-    const url = document.getElementById('webAppUrl').value;
-    if (url && url.includes('script.google.com')) {
-      webAppUrl = url;
-      localStorage.setItem('webAppUrl', url);
-      mostrarStatus('✅ URL salva com sucesso!');
-      testarConexao();
-      carregarLista();
-      carregarTotais();
-    } else {
-      mostrarStatus('❌ Digite uma URL válida do Google Apps Script', true);
-    }
-  }
-  
-  async function testarConexao() {
-    if (!webAppUrl) return;
-    
-    try {
-      const response = await fetch(`${webAppUrl}?acao=teste`, {
-        method: 'GET',
-        mode: 'cors'
-      });
-      
-      if (response.ok) {
-        mostrarStatus('✅ Conexão estabelecida com sucesso!');
-      } else {
-        mostrarStatus('⚠️ Conexão OK, mas resposta inesperada', true);
-      }
-    } catch (error) {
-      console.error('Erro no teste:', error);
-      mostrarStatus('⚠️ Servidor conectado, aguarde o carregamento', true);
-    }
   }
   
   // Alternar campos
@@ -498,17 +413,14 @@
   }
   
   async function carregarLista() {
-    if (isLoading || !webAppUrl) {
-      if (!webAppUrl) mostrarStatus('⚠️ Salve a URL primeiro', true);
-      return;
-    }
+    if (isLoading) return;
     isLoading = true;
     
     const listaDiv = document.getElementById('listaRegistros');
     listaDiv.innerHTML = '<div class="empty">Carregando registros...</div>';
     
     try {
-      const response = await fetch(`${webAppUrl}?acao=listar`, {
+      const response = await fetch(`${WEB_APP_URL}?acao=listar`, {
         method: 'GET',
         mode: 'cors'
       });
@@ -552,17 +464,15 @@
       }
     } catch (error) {
       console.error('Erro:', error);
-      listaDiv.innerHTML = '<div class="empty">Erro ao carregar registros. Verifique a URL.</div>';
-      mostrarStatus('❌ Erro ao carregar lista: ' + error.message, true);
+      listaDiv.innerHTML = '<div class="empty">Erro ao carregar registros. Verifique sua conexão.</div>';
+      mostrarStatus('❌ Erro ao carregar lista', true);
     }
     isLoading = false;
   }
   
   async function carregarTotais() {
-    if (!webAppUrl) return;
-    
     try {
-      const response = await fetch(`${webAppUrl}?acao=totais`, {
+      const response = await fetch(`${WEB_APP_URL}?acao=totais`, {
         method: 'GET',
         mode: 'cors'
       });
@@ -579,11 +489,6 @@
   }
   
   async function salvar() {
-    if (!webAppUrl) {
-      mostrarStatus('⚠️ Salve a URL do Web App primeiro', true);
-      return;
-    }
-    
     const cartao = document.getElementById('cartao').value;
     if (!cartao) {
       mostrarStatus('⚠️ Selecione um cartão', true);
@@ -619,7 +524,7 @@
     button.disabled = true;
     
     try {
-      const response = await fetch(webAppUrl, {
+      const response = await fetch(WEB_APP_URL, {
         method: 'POST',
         mode: 'cors',
         headers: {
@@ -672,9 +577,13 @@
   document.getElementById('outros').addEventListener('input', atualizarResumo);
   document.getElementById('pagamento').addEventListener('input', atualizarResumo);
   
-  // Inicializar
-  init();
-  atualizarResumo();
+  // Carregar dados ao iniciar
+  window.addEventListener('load', function() {
+    mostrarStatus('🔄 Carregando dados...');
+    carregarLista();
+    carregarTotais();
+    atualizarResumo();
+  });
 </script>
 </body>
 </html>
