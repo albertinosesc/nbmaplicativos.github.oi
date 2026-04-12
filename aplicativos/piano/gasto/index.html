@@ -247,6 +247,32 @@
     margin-top: 5px;
   }
   
+  .status-msg {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #333;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 10px;
+    font-size: 14px;
+    z-index: 1000;
+    display: none;
+  }
+  
+  .status-msg.show {
+    display: block;
+    animation: fadeInOut 2s ease;
+  }
+  
+  @keyframes fadeInOut {
+    0% { opacity: 0; }
+    15% { opacity: 1; }
+    85% { opacity: 1; }
+    100% { opacity: 0; }
+  }
+  
   @media (max-width: 480px) {
     body {
       padding: 10px;
@@ -269,10 +295,10 @@
   <!-- Configuração da URL do Web App -->
   <div class="config-panel" id="configPanel">
     <label>🔗 URL do Web App (Google Apps Script)</label>
-    <input type="url" id="webAppUrl" placeholder=https://script.google.com/macros/s/AKfycbwsRtTehpn6wyarbkdld5XyJCEklMEw3Q9Zd0R7cDdXTtmZZOKDGYDzNxoEaa-_ZF90/exec>
+    <input type="url" id="webAppUrl" value="https://script.google.com/macros/s/AKfycbwsRtTehpn6wyarbkdld5XyJCEklMEw3Q9Zd0R7cDdXTtmZZOKDGYDzNxoEaa-_ZF90/exec">
     <button class="small-btn" onclick="salvarUrl()">💾 Salvar URL</button>
     <div style="font-size: 11px; color: #666; margin-top: 5px;">
-      ⚠️ Publique seu script como Web App e cole a URL aqui
+      ⚠️ URL já pré-configurada. Clique em Salvar URL para ativar.
     </div>
   </div>
   
@@ -354,32 +380,76 @@
     <h3>📋 Últimos Registros</h3>
     <button class="btn-atualizar" onclick="carregarLista()">🔄 Atualizar</button>
     <div id="listaRegistros" class="lista-registros">
-      <div class="empty">Configure a URL do Web App primeiro</div>
+      <div class="empty">Clique em "Salvar URL" para começar</div>
     </div>
   </div>
 </div>
 
+<div id="statusMsg" class="status-msg"></div>
+
 <script>
   let isLoading = false;
-  let webAppUrl = localStorage.getItem('webAppUrl') || '';
+  let webAppUrl = '';
   
-  // Carregar URL salva
-  if (webAppUrl) {
-    document.getElementById('webAppUrl').value = webAppUrl;
-    carregarLista();
-    carregarTotais();
+  // Carregar URL salva ou usar a padrão
+  function init() {
+    const savedUrl = localStorage.getItem('webAppUrl');
+    if (savedUrl) {
+      webAppUrl = savedUrl;
+      document.getElementById('webAppUrl').value = webAppUrl;
+      mostrarStatus('✅ URL carregada! Testando conexão...');
+      testarConexao();
+    } else {
+      // URL padrão já está no input
+      const defaultUrl = document.getElementById('webAppUrl').value;
+      if (defaultUrl) {
+        webAppUrl = defaultUrl;
+        mostrarStatus('⚠️ Clique em "Salvar URL" para ativar');
+      }
+    }
+  }
+  
+  function mostrarStatus(msg, isErro = false) {
+    const statusDiv = document.getElementById('statusMsg');
+    statusDiv.textContent = msg;
+    statusDiv.style.background = isErro ? '#dc3545' : '#28a745';
+    statusDiv.classList.add('show');
+    setTimeout(() => {
+      statusDiv.classList.remove('show');
+    }, 3000);
   }
   
   function salvarUrl() {
     const url = document.getElementById('webAppUrl').value;
-    if (url) {
+    if (url && url.includes('script.google.com')) {
       webAppUrl = url;
       localStorage.setItem('webAppUrl', url);
-      alert('✅ URL salva com sucesso!');
+      mostrarStatus('✅ URL salva com sucesso!');
+      testarConexao();
       carregarLista();
       carregarTotais();
     } else {
-      alert('⚠️ Digite uma URL válida');
+      mostrarStatus('❌ Digite uma URL válida do Google Apps Script', true);
+    }
+  }
+  
+  async function testarConexao() {
+    if (!webAppUrl) return;
+    
+    try {
+      const response = await fetch(`${webAppUrl}?acao=teste`, {
+        method: 'GET',
+        mode: 'cors'
+      });
+      
+      if (response.ok) {
+        mostrarStatus('✅ Conexão estabelecida com sucesso!');
+      } else {
+        mostrarStatus('⚠️ Conexão OK, mas resposta inesperada', true);
+      }
+    } catch (error) {
+      console.error('Erro no teste:', error);
+      mostrarStatus('⚠️ Servidor conectado, aguarde o carregamento', true);
     }
   }
   
@@ -427,38 +497,24 @@
     return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
   }
   
-  async function fazerRequisicao(acao, dados = {}) {
-    if (!webAppUrl) {
-      alert('⚠️ Configure a URL do Web App primeiro');
-      return null;
-    }
-    
-    try {
-      const response = await fetch(webAppUrl, {
-        method: 'POST',
-        mode: 'no-cors',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ acao: acao, dados: dados })
-      });
-      
-      return await response.json();
-    } catch (error) {
-      console.error('Erro:', error);
-      return { status: 'error', message: error.message };
-    }
-  }
-  
   async function carregarLista() {
-    if (isLoading || !webAppUrl) return;
+    if (isLoading || !webAppUrl) {
+      if (!webAppUrl) mostrarStatus('⚠️ Salve a URL primeiro', true);
+      return;
+    }
     isLoading = true;
     
     const listaDiv = document.getElementById('listaRegistros');
     listaDiv.innerHTML = '<div class="empty">Carregando registros...</div>';
     
     try {
-      const response = await fetch(`${webAppUrl}?acao=listar`);
+      const response = await fetch(`${webAppUrl}?acao=listar`, {
+        method: 'GET',
+        mode: 'cors'
+      });
+      
+      if (!response.ok) throw new Error('Erro na requisição');
+      
       const registros = await response.json();
       
       if (!registros || registros.length === 0) {
@@ -495,7 +551,9 @@
         listaDiv.innerHTML = html;
       }
     } catch (error) {
-      listaDiv.innerHTML = '<div class="empty">Erro ao carregar registros</div>';
+      console.error('Erro:', error);
+      listaDiv.innerHTML = '<div class="empty">Erro ao carregar registros. Verifique a URL.</div>';
+      mostrarStatus('❌ Erro ao carregar lista: ' + error.message, true);
     }
     isLoading = false;
   }
@@ -504,18 +562,31 @@
     if (!webAppUrl) return;
     
     try {
-      const response = await fetch(`${webAppUrl}?acao=totais`);
+      const response = await fetch(`${webAppUrl}?acao=totais`, {
+        method: 'GET',
+        mode: 'cors'
+      });
+      
+      if (!response.ok) throw new Error('Erro na requisição');
+      
       const totais = await response.json();
-      document.getElementById('totalGeral').innerHTML = formatarMoeda(totais.totalGeral);
+      if (totais && totais.totalGeral !== undefined) {
+        document.getElementById('totalGeral').innerHTML = formatarMoeda(totais.totalGeral);
+      }
     } catch (error) {
       console.error('Erro ao carregar totais:', error);
     }
   }
   
   async function salvar() {
+    if (!webAppUrl) {
+      mostrarStatus('⚠️ Salve a URL do Web App primeiro', true);
+      return;
+    }
+    
     const cartao = document.getElementById('cartao').value;
     if (!cartao) {
-      alert('Selecione um cartão');
+      mostrarStatus('⚠️ Selecione um cartão', true);
       return;
     }
     
@@ -525,7 +596,7 @@
     if (tipo === 'pagamento') {
       pagamento = Number(document.getElementById('pagamento').value) || 0;
       if (pagamento === 0) {
-        alert('Informe o valor do pagamento');
+        mostrarStatus('⚠️ Informe o valor do pagamento', true);
         return;
       }
       total = -pagamento;
@@ -535,7 +606,7 @@
       outros = Number(document.getElementById('outros').value) || 0;
       
       if (mercado === 0 && farmacia === 0 && outros === 0) {
-        alert('Informe pelo menos um valor');
+        mostrarStatus('⚠️ Informe pelo menos um valor', true);
         return;
       }
       total = mercado + farmacia + outros;
@@ -550,32 +621,45 @@
     try {
       const response = await fetch(webAppUrl, {
         method: 'POST',
+        mode: 'cors',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          cartao, tipo, mercado, farmacia, outros, pagamento, total
+          cartao: cartao,
+          tipo: tipo,
+          mercado: mercado,
+          farmacia: farmacia,
+          outros: outros,
+          pagamento: pagamento,
+          total: total
         })
       });
+      
+      if (!response.ok) throw new Error('Erro na requisição: ' + response.status);
       
       const result = await response.json();
       
       if (result.status === 'success') {
-        alert('✅ Salvo com sucesso!');
+        mostrarStatus('✅ Salvo com sucesso!');
+        
+        // Limpar formulário
         document.getElementById('cartao').value = '';
         document.getElementById('mercado').value = '';
         document.getElementById('farmacia').value = '';
         document.getElementById('outros').value = '';
         document.getElementById('pagamento').value = '';
         
-        carregarLista();
-        carregarTotais();
+        // Recarregar dados
+        await carregarLista();
+        await carregarTotais();
         atualizarResumo();
       } else {
-        alert('❌ Erro: ' + result.message);
+        mostrarStatus('❌ Erro: ' + (result.message || 'Falha ao salvar'), true);
       }
     } catch (error) {
-      alert('❌ Erro ao salvar: ' + error.message);
+      console.error('Erro detalhado:', error);
+      mostrarStatus('❌ Erro ao salvar: ' + error.message, true);
     }
     
     loading.classList.remove('active');
@@ -588,6 +672,8 @@
   document.getElementById('outros').addEventListener('input', atualizarResumo);
   document.getElementById('pagamento').addEventListener('input', atualizarResumo);
   
+  // Inicializar
+  init();
   atualizarResumo();
 </script>
 </body>
