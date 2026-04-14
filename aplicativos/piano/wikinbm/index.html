@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="WikiNBM">
-    <title>WikiNBM Pro - Sincronização Corrigida</title>
+    <title>WikiNBM Pro - Com Numeração Automática</title>
 
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -30,6 +30,7 @@
             --danger: #e53e3e;
             --warning: #ed8936;
             --dark: #2d3748;
+            --copy: #319795;
         }
 
         body {
@@ -113,6 +114,8 @@
         .btn-secondary { background: #e2e8f0; color: #4a5568; }
         .btn-warning { background: var(--warning); color: white; }
         .btn-danger { background: var(--danger); color: white; }
+        .btn-copy { background: var(--copy); color: white; }
+        .btn-copy:hover { background: #2c7a7b; transform: translateY(-1px); }
         .install-btn { background: var(--warning); color: white; border: none; padding: 10px 18px; border-radius: 8px; cursor: pointer; font-weight: bold; font-size: 14px; }
         .install-btn:hover { background: #dd6b20; transform: translateY(-1px); }
 
@@ -239,6 +242,7 @@
             transition: all 0.2s;
             border: 1px solid transparent;
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            position: relative;
         }
 
         .cartao:hover { background: #f8f9fa; border-color: var(--primary); transform: translateX(3px); }
@@ -272,6 +276,27 @@
         .cards-container { min-height: 50px; }
         .sortable-ghost { opacity: 0.3; background: #cbd5e0; }
         .sortable-drag { opacity: 0.5; }
+
+        .cartao-copy-btn {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: var(--copy);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 2px 6px;
+            font-size: 10px;
+            cursor: pointer;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        .cartao:hover .cartao-copy-btn {
+            opacity: 1;
+        }
+        .cartao-copy-btn:hover {
+            background: #2c7a7b;
+        }
 
         #modal {
             display: none;
@@ -486,6 +511,7 @@
             .view-btn { white-space: nowrap; }
             .matriz-table { font-size: 9px; }
             .checkbox-cell { width: 24px; }
+            .cartao-copy-btn { opacity: 1; }
         }
     </style>
 </head>
@@ -512,7 +538,7 @@
         <button class="btn btn-primary" onclick="novaLista()" id="novaListaBtn">+ Nova Lista</button>
         <button class="btn btn-warning" onclick="verDadosFirebase()" id="verDadosBtn" style="display:none;">📊 Ver Dados</button>
         <button class="btn btn-danger" onclick="resetarDados()" id="resetBtn" style="display:none;">🔄 Resetar</button>
-        <button class="btn btn-danger" onclick="enviarDadosParaNuvem()" id="enviarBtn" style="display:none;">☁️ Enviar para Nuvem</button>
+        <button class="btn btn-copy" onclick="enviarDadosParaNuvem()" id="enviarBtn" style="display:none;">☁️ Enviar</button>
     </div>
 </div>
 
@@ -539,7 +565,10 @@
     <div class="modal-content">
         <div class="modal-header">
             <h2 id="tituloCartao" onclick="renomearCartao()">📝 Título do Cartão</h2>
-            <button class="btn btn-secondary" onclick="fecharModal()">✖ Fechar</button>
+            <div>
+                <button class="btn btn-copy" onclick="copiarCartaoAtual()" style="margin-right: 8px;">📋 Copiar Cartão</button>
+                <button class="btn btn-secondary" onclick="fecharModal()">✖ Fechar</button>
+            </div>
         </div>
         <div class="tab-menu">
             <button class="view-btn active" onclick="mudarAba('geral')">📋 Geral</button>
@@ -647,7 +676,6 @@ let cartaoAtual = null;
 let sintetizadorAtual = null;
 let abaAtual = 'geral';
 let sincronizando = false;
-let primeiroLogin = true;
 let timersRender = {};
 
 const STORAGE_KEY = 'wikinbm_hibrido';
@@ -655,6 +683,128 @@ const DEVICE_ID = localStorage.getItem('device_id') || 'dev_' + Date.now() + '_'
 localStorage.setItem('device_id', DEVICE_ID);
 
 let templates = [];
+
+// ==================== FUNÇÃO INTELIGENTE PARA SUGERIR PRÓXIMO NOME ====================
+function sugerirProximoNomeLinha(linhasExistentes) {
+    if (!linhasExistentes || linhasExistentes.length === 0) {
+        return "Nova Linha 1";
+    }
+    
+    // Extrair todos os números dos nomes das linhas
+    const numerosEncontrados = [];
+    const prefixos = {};
+    
+    linhasExistentes.forEach(linha => {
+        const nome = linha.nome || "";
+        // Buscar padrões como "texto número" (ex: "Lição 5", "Exercício 12", "Estudo 3")
+        const match = nome.match(/^([A-Za-zÀ-ÖØ-öø-ÿ\s]+?)\s*(\d+)$/i);
+        if (match) {
+            const prefixo = match[1].trim();
+            const numero = parseInt(match[2], 10);
+            numerosEncontrados.push(numero);
+            if (!prefixos[prefixo]) {
+                prefixos[prefixo] = [];
+            }
+            prefixos[prefixo].push(numero);
+        }
+    });
+    
+    // Se encontrou números no padrão
+    if (numerosEncontrados.length > 0) {
+        // Encontrar o prefixo mais comum
+        let prefixoMaisComum = "";
+        let maiorContagem = 0;
+        
+        for (const [prefixo, nums] of Object.entries(prefixos)) {
+            if (nums.length > maiorContagem) {
+                maiorContagem = nums.length;
+                prefixoMaisComum = prefixo;
+            }
+        }
+        
+        // Se tem um prefixo comum, usar ele
+        if (prefixoMaisComum) {
+            const numerosDestePrefixo = prefixos[prefixoMaisComum];
+            const maiorNumero = Math.max(...numerosDestePrefixo);
+            return `${prefixoMaisComum} ${maiorNumero + 1}`;
+        }
+        
+        // Fallback: usar o maior número encontrado
+        const maiorNumero = Math.max(...numerosEncontrados);
+        return `Item ${maiorNumero + 1}`;
+    }
+    
+    // Se não encontrou padrão numérico, contar quantas linhas existem
+    return `Nova Linha ${linhasExistentes.length + 1}`;
+}
+
+// ==================== FUNÇÕES DE COPIAR ====================
+function copiarLista(listaIdx) {
+    const listaOriginal = dados.listas[listaIdx];
+    if (!listaOriginal) {
+        mostrarToast("❌ Lista não encontrada!");
+        return;
+    }
+    
+    const novoNome = prompt("Nome da lista copiada:", listaOriginal.nome + " (cópia)");
+    if (!novoNome || !novoNome.trim()) return;
+    
+    const listaCopia = JSON.parse(JSON.stringify(listaOriginal));
+    listaCopia.nome = novoNome.trim();
+    listaCopia.ultimaModificacao = Date.now();
+    
+    if (listaCopia.cards) {
+        listaCopia.cards.forEach(card => {
+            card.ultimaModificacao = Date.now();
+            if (card.checklistGroups) {
+                card.checklistGroups.forEach(group => {
+                    group.id = Date.now() + Math.random();
+                });
+            }
+        });
+    }
+    
+    dados.listas.push(listaCopia);
+    salvarDados();
+    renderizar();
+    mostrarToast(`✅ Lista "${listaOriginal.nome}" copiada como "${listaCopia.nome}"!`);
+}
+
+function copiarCartao(listaIdx, cartaoIdx) {
+    const listaOriginal = dados.listas[listaIdx];
+    const cartaoOriginal = listaOriginal.cards[cartaoIdx];
+    if (!cartaoOriginal) {
+        mostrarToast("❌ Cartão não encontrado!");
+        return;
+    }
+    
+    const novoNome = prompt("Nome do cartão copiado:", cartaoOriginal.texto + " (cópia)");
+    if (!novoNome || !novoNome.trim()) return;
+    
+    const cartaoCopia = JSON.parse(JSON.stringify(cartaoOriginal));
+    cartaoCopia.texto = novoNome.trim();
+    cartaoCopia.ultimaModificacao = Date.now();
+    
+    if (cartaoCopia.checklistGroups) {
+        cartaoCopia.checklistGroups.forEach(group => {
+            group.id = Date.now() + Math.random();
+        });
+    }
+    
+    listaOriginal.cards.push(cartaoCopia);
+    salvarDados();
+    renderizar();
+    mostrarToast(`✅ Cartão "${cartaoOriginal.texto}" copiado como "${cartaoCopia.texto}"!`);
+}
+
+function copiarCartaoAtual() {
+    if (listaAtual !== null && cartaoAtual !== null) {
+        copiarCartao(listaAtual, cartaoAtual);
+        fecharModal();
+    } else {
+        mostrarToast("❌ Nenhum cartão aberto!");
+    }
+}
 
 // ==================== DADOS PADRÃO ====================
 function getDadosPadrao() {
@@ -815,6 +965,7 @@ function adicionarColunaAoGrupo() {
     mostrarToast(`✅ Coluna "${nomeColuna}" adicionada!`);
 }
 
+// ==================== FUNÇÃO MODIFICADA COM SUGESTÃO INTELIGENTE ====================
 function adicionarLinhaAoGrupo() {
     if (listaAtual === null || cartaoAtual === null) {
         mostrarToast("❌ Abra um cartão primeiro!");
@@ -833,10 +984,13 @@ function adicionarLinhaAoGrupo() {
         mostrarToast("❌ Número inválido!");
         return;
     }
-    const nomeLinha = prompt("Nome da nova linha:", "Nova Linha");
-    if (!nomeLinha || !nomeLinha.trim()) return;
     
     const group = groups[groupIdx];
+    // Sugerir próximo nome baseado nas linhas existentes
+    const sugestao = sugerirProximoNomeLinha(group.linhas);
+    const nomeLinha = prompt("Nome da nova linha:", sugestao);
+    if (!nomeLinha || !nomeLinha.trim()) return;
+    
     const novosValores = new Array(group.colunas.length).fill(false);
     group.linhas.push({ nome: nomeLinha.trim(), valores: novosValores });
     dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
@@ -1044,12 +1198,19 @@ function renderizarChecklists() {
                                 </div>
                             </div>
                         </div>
-                    </td>`;
+
+
+
+
+
+
+                        </div>
+                     </td>`;
                 if (linha.valores) {
                     linha.valores.forEach((valor, colIdx) => {
                         tbody += `<td class="checkbox-cell" onclick="alternarCheckMatriz(${groupIdx}, ${linhaIdx}, ${colIdx})">
                             <input type="checkbox" ${valor ? "checked" : ""} onclick="event.stopPropagation(); alternarCheckMatriz(${groupIdx}, ${linhaIdx}, ${colIdx})">
-                        </td>`;
+                         </td>`;
                     });
                 } else {
                     group.colunas.forEach(() => {
@@ -1085,7 +1246,8 @@ function adicionarColunaAoGrupoEspecifico(groupIdx) {
 
 function adicionarLinhaAoGrupoEspecifico(groupIdx) {
     const group = dados.listas[listaAtual].cards[cartaoAtual].checklistGroups[groupIdx];
-    const nomeLinha = prompt("Nome da nova linha:", "Nova Linha");
+    const sugestao = sugerirProximoNomeLinha(group.linhas);
+    const nomeLinha = prompt("Nome da nova linha:", sugestao);
     if (!nomeLinha || !nomeLinha.trim()) return;
     
     const novosValores = new Array(group.colunas.length).fill(false);
@@ -1507,7 +1669,7 @@ function baixarDadosFirebase() {
 }
 function fecharDataModal() { document.getElementById("firebaseDataModal").style.display = "none"; }
 
-// ==================== FUNÇÕES DE SINCRONIZAÇÃO CORRIGIDAS ====================
+// ==================== FUNÇÕES DE SINCRONIZAÇÃO ====================
 async function baixarDadosDaNuvem() {
     if (!usuarioAtual) return false;
     try {
@@ -1563,12 +1725,10 @@ async function forcarSincronizacao() {
     
     mostrarToast("🔄 Sincronizando...");
     
-    // Primeiro, verificar se há dados na nuvem
     const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
     const dadosFirebase = snapshot.val();
     
     if (dadosFirebase && dadosFirebase.listas && dadosFirebase.listas.length > 0) {
-        // Se há dados na nuvem, perguntar o que fazer
         const escolha = confirm(`Dados na nuvem: ${dadosFirebase.listas.length} listas\nDados locais: ${dados.listas.length} listas\n\nDeseja baixar os dados da nuvem? (Clique em OK para baixar da nuvem, Cancelar para enviar seus dados locais)`);
         
         if (escolha) {
@@ -1577,7 +1737,6 @@ async function forcarSincronizacao() {
             await enviarDadosParaNuvem();
         }
     } else {
-        // Se não há dados na nuvem, enviar os locais
         await enviarDadosParaNuvem();
     }
 }
@@ -1657,7 +1816,6 @@ function salvarLocalmente() {
 
 function salvarDados() { 
     salvarLocalmente(); 
-    // Auto-save para nuvem após 3 segundos de inatividade
     if (usuarioAtual && navigator.onLine && !sincronizando) {
         if (window.autoSaveTimeout) clearTimeout(window.autoSaveTimeout);
         window.autoSaveTimeout = setTimeout(() => {
@@ -1683,12 +1841,10 @@ auth.onAuthStateChanged(async (user) => {
         
         mostrarToast(`✅ Conectado como ${user.email}`);
         
-        // Verificar se há dados na nuvem
         const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
         const dadosFirebase = snapshot.val();
         
         if (dadosFirebase && dadosFirebase.listas && dadosFirebase.listas.length > 0) {
-            // Se há dados na nuvem e os dados locais estão vazios ou são diferentes
             if (!dados.listas || dados.listas.length === 0) {
                 mostrarToast("☁️ Carregando dados da nuvem...");
                 await baixarDadosDaNuvem();
@@ -1699,7 +1855,6 @@ auth.onAuthStateChanged(async (user) => {
                 }
             }
         } else if (dados.listas && dados.listas.length > 0) {
-            // Se não há dados na nuvem mas há dados locais, enviar
             mostrarToast("☁️ Enviando dados locais para a nuvem...");
             await enviarDadosParaNuvem();
         }
@@ -1742,7 +1897,6 @@ async function criarConta() {
     try { 
         await auth.createUserWithEmailAndPassword(email, senha); 
         fecharLogin(); 
-        // Criar dados iniciais para nova conta
         dados = getDadosPadrao();
         salvarLocalmente();
         renderizar();
@@ -1816,6 +1970,7 @@ function renderizar() {
                 <div class="lista-titulo" onclick="renomearLista(${idx})">📌 ${escapeHtml(lista.nome)}</div>
                 <div class="lista-controles">
                     <button onclick="alternarOcultar(${idx})">${lista.oculto ? "👁️ Mostrar" : "🙈 Ocultar"}</button>
+                    <button onclick="copiarLista(${idx})" style="background: var(--copy); color: white;">📋 Copiar Lista</button>
                     <button onclick="novoCartao(${idx})">+ Cartão</button>
                     <button onclick="excluirLista(${idx})" style="color: var(--danger);">🗑️ Excluir</button>
                 </div>
@@ -1861,8 +2016,13 @@ function renderizar() {
                         <span>${percentual}% concluído</span>
                     </div>
                     ` : ''}
+                    <button class="cartao-copy-btn" onclick="event.stopPropagation(); copiarCartao(${idx}, ${cardIdx})">📋 Copiar</button>
                 `;
-                cardDiv.onclick = (e) => { e.stopPropagation(); abrirCartao(idx, cardIdx); };
+                cardDiv.onclick = (e) => { 
+                    if (e.target.classList && e.target.classList.contains('cartao-copy-btn')) return;
+                    e.stopPropagation(); 
+                    abrirCartao(idx, cardIdx); 
+                };
                 cardsContainer.appendChild(cardDiv);
             });
             new Sortable(cardsContainer, {
@@ -2075,3 +2235,4 @@ carregarDados();
 </script>
 </body>
 </html>
+                    
