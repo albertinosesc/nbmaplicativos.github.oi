@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="WikiNBM">
-    <title>WikiNBM Pro - Visualização Lista Expansível</title>
+    <title>WikiNBM Pro - Sincronização Manual</title>
 
     <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -79,19 +79,16 @@
         .sync-status.online { background: #c6f6d5; color: #22543d; }
         .sync-status.offline { background: #fed7d7; color: #742a2a; }
         .sync-status.syncing { background: #feebc8; color: #744210; }
-        .sync-status.conflict { background: #fed7d7; color: #742a2a; animation: pulse 0.5s infinite; }
 
         .sync-indicator {
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            animation: pulse 2s infinite;
         }
 
         .sync-indicator.online { background: var(--success); }
         .sync-indicator.offline { background: var(--danger); }
         .sync-indicator.syncing { background: var(--warning); animation: pulse 0.5s infinite; }
-        .sync-indicator.conflict { background: var(--danger); animation: pulse 0.3s infinite; }
 
         @keyframes pulse {
             0%, 100% { opacity: 1; }
@@ -200,7 +197,6 @@
             word-break: break-word;
         }
 
-        /* Modo GALERIA (padrão) - listas lado a lado */
         #board.galeria {
             display: flex;
             flex-wrap: wrap;
@@ -208,7 +204,6 @@
             align-items: flex-start;
         }
 
-        /* Modo LISTA - listas empilhadas verticalmente */
         #board.lista {
             display: flex;
             flex-direction: column;
@@ -658,7 +653,7 @@
     <div class="header-controls">
         <div class="sync-status offline" id="syncStatus">
             <div class="sync-indicator offline" id="syncIndicator"></div>
-            <span id="syncText">Carregando...</span>
+            <span id="syncText">Offline - Dados locais</span>
         </div>
         <button class="install-btn" id="installBtn" style="display:none;">📱 Instalar</button>
         <button class="btn btn-primary" onclick="mostrarLogin()" id="loginBtn">🔐 Login</button>
@@ -669,11 +664,11 @@
         <button class="btn btn-success" onclick="exportarBackup()" id="exportBtn" style="display:none;">📤 Backup</button>
         <input type="file" id="importFile" accept=".json" style="display:none" onchange="importarBackup(event)">
         <button class="btn btn-secondary" onclick="document.getElementById('importFile').click()" id="importBtn" style="display:none;">📥 Importar</button>
-        <button class="btn btn-secondary" onclick="forcarSincronizacao()" id="syncBtn" style="display:none;">🔄 Sincronizar</button>
+        <button class="btn btn-warning" onclick="enviarDadosParaNuvem()" id="enviarBtn" style="display:none;">☁️ Enviar</button>
+        <button class="btn btn-primary" onclick="baixarDadosDaNuvem()" id="baixarBtn" style="display:none;">🔄 Sincronizar</button>
         <button class="btn btn-primary" onclick="novaLista()" id="novaListaBtn">+ Nova Lista</button>
         <button class="btn btn-warning" onclick="verDadosFirebase()" id="verDadosBtn" style="display:none;">📊 Ver Dados</button>
         <button class="btn btn-danger" onclick="resetarDados()" id="resetBtn" style="display:none;">🔄 Resetar</button>
-        <button class="btn btn-copy" onclick="enviarDadosParaNuvem()" id="enviarBtn" style="display:none;">☁️ Enviar</button>
         
         <div class="view-mode-toggle">
             <button class="view-mode-btn" id="btnModoGaleria" onclick="setModoVisualizacao('galeria')">🖼️ Galeria</button>
@@ -815,29 +810,24 @@ let listaAtual = null;
 let cartaoAtual = null;
 let sintetizadorAtual = null;
 let abaAtual = 'geral';
-let sincronizando = false;
 let timersRender = {};
 
-// Modo de visualização (galeria ou lista)
+// Modo de visualização
 let modoVisualizacao = localStorage.getItem('wikinbm_modo_visualizacao') || 'galeria';
 
 // Estado de expansão das listas no modo lista
 let listasExpandidas = JSON.parse(localStorage.getItem('wikinbm_listas_expandidas') || '{}');
 
-function toggleListaExpandida(listaIdx) {
-    if (listasExpandidas[listaIdx]) {
-        delete listasExpandidas[listaIdx];
-    } else {
-        listasExpandidas[listaIdx] = true;
-    }
-    localStorage.setItem('wikinbm_listas_expandidas', JSON.stringify(listasExpandidas));
-    renderizar();
-}
+// Estado dos checklists minimizados
+let checklistsMinimizados = JSON.parse(localStorage.getItem('wikinbm_checklists_minimizados') || '{}');
 
-function isListaExpandida(listaIdx) {
-    return listasExpandidas[listaIdx] === true;
-}
+const STORAGE_KEY = 'wikinbm_hibrido';
+const DEVICE_ID = localStorage.getItem('device_id') || 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+localStorage.setItem('device_id', DEVICE_ID);
 
+let templates = [];
+
+// ==================== FUNÇÕES DE VISUALIZAÇÃO ====================
 function setModoVisualizacao(modo) {
     modoVisualizacao = modo;
     localStorage.setItem('wikinbm_modo_visualizacao', modo);
@@ -861,11 +851,18 @@ function setModoVisualizacao(modo) {
     renderizar();
 }
 
-// Estado dos checklists minimizados
-let checklistsMinimizados = JSON.parse(localStorage.getItem('wikinbm_checklists_minimizados') || '{}');
+function toggleListaExpandida(listaIdx) {
+    if (listasExpandidas[listaIdx]) {
+        delete listasExpandidas[listaIdx];
+    } else {
+        listasExpandidas[listaIdx] = true;
+    }
+    localStorage.setItem('wikinbm_listas_expandidas', JSON.stringify(listasExpandidas));
+    renderizar();
+}
 
-function salvarEstadoMinimizado() {
-    localStorage.setItem('wikinbm_checklists_minimizados', JSON.stringify(checklistsMinimizados));
+function isListaExpandida(listaIdx) {
+    return listasExpandidas[listaIdx] === true;
 }
 
 function toggleChecklist(groupId) {
@@ -875,7 +872,7 @@ function toggleChecklist(groupId) {
     } else {
         checklistsMinimizados[key] = true;
     }
-    salvarEstadoMinimizado();
+    localStorage.setItem('wikinbm_checklists_minimizados', JSON.stringify(checklistsMinimizados));
     renderizarChecklists();
 }
 
@@ -883,12 +880,6 @@ function isChecklistMinimizado(groupId) {
     const key = `${listaAtual}_${cartaoAtual}_${groupId}`;
     return checklistsMinimizados[key] === true;
 }
-
-const STORAGE_KEY = 'wikinbm_hibrido';
-const DEVICE_ID = localStorage.getItem('device_id') || 'dev_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
-localStorage.setItem('device_id', DEVICE_ID);
-
-let templates = [];
 
 // ==================== FUNÇÃO INTELIGENTE PARA SUGERIR PRÓXIMO NOME ====================
 function sugerirProximoNomeLinha(linhasExistentes) {
@@ -1005,7 +996,7 @@ function copiarCartaoAtual() {
     }
 }
 
-// ==================== DADOS PADRÃO COM EXEMPLOS ====================
+// ==================== DADOS PADRÃO ====================
 function getDadosPadrao() {
     return {
         _versao: Date.now(),
@@ -1405,7 +1396,6 @@ function moverColuna(groupIdx, colIdx, direcao) {
     salvarDados();
 }
 
-// ==================== RENDERIZAÇÃO DO CHECKLIST COM MINIMIZAÇÃO ====================
 function renderizarChecklists() {
     const container = document.getElementById("checklistsContainer");
     if (!container) return;
@@ -1476,7 +1466,7 @@ function renderizarChecklists() {
                         </div>
                     </th>`;
                 });
-                thead += `<tr></thead>`;
+                thead += `</table></thead>`;
                 
                 let tbody = `<tbody>`;
                 group.linhas.forEach((linha, linhaIdx) => {
@@ -1510,7 +1500,7 @@ function renderizarChecklists() {
                             tbody += `<td class="checkbox-cell"></td>`;
                         });
                     }
-                    tbody += `</td>`;
+                    tbody += `</tr>`;
                 });
                 tbody += `</tbody>`;
                 
@@ -1965,29 +1955,10 @@ function baixarDadosFirebase() {
 }
 function fecharDataModal() { document.getElementById("firebaseDataModal").style.display = "none"; }
 
-// ==================== FUNÇÕES DE SINCRONIZAÇÃO ====================
+// ==================== FUNÇÕES DE SINCRONIZAÇÃO MANUAL ====================
 async function baixarDadosDaNuvem() {
-    if (!usuarioAtual) return false;
-    try {
-        const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
-        const dadosFirebase = snapshot.val();
-        if (dadosFirebase && dadosFirebase.listas) {
-            dados = dadosFirebase;
-            salvarLocalmente();
-            renderizar();
-            mostrarToast(`✅ Dados baixados da nuvem! ${dados.listas.length} listas carregadas.`);
-            return true;
-        }
-        return false;
-    } catch (error) {
-        console.error("Erro ao baixar dados:", error);
-        return false;
-    }
-}
-
-async function enviarDadosParaNuvem() {
     if (!usuarioAtual) {
-        mostrarToast("🔐 Faça login para enviar dados!");
+        mostrarToast("🔐 Faça login para baixar dados da nuvem!");
         mostrarLogin();
         return;
     }
@@ -1995,6 +1966,69 @@ async function enviarDadosParaNuvem() {
         mostrarToast("🌐 Sem conexão com internet!");
         return;
     }
+    
+    const statusDiv = document.getElementById("syncStatus");
+    const indicator = document.getElementById("syncIndicator");
+    const textSpan = document.getElementById("syncText");
+    
+    statusDiv.className = "sync-status syncing";
+    indicator.className = "sync-indicator syncing";
+    textSpan.innerText = "Baixando...";
+    
+    try {
+        const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
+        const dadosFirebase = snapshot.val();
+        
+        if (dadosFirebase && dadosFirebase.listas) {
+            if (dados.listas && dados.listas.length > 0) {
+                const confirmar = confirm(`Você tem ${dados.listas.length} listas localmente.\nDeseja substituir pelos dados da nuvem (${dadosFirebase.listas.length} listas)?\n\nOs dados locais serão perdidos!`);
+                if (!confirmar) {
+                    statusDiv.className = "sync-status online";
+                    indicator.className = "sync-indicator online";
+                    textSpan.innerText = "Online";
+                    return;
+                }
+            }
+            dados = dadosFirebase;
+            salvarLocalmente();
+            renderizar();
+            mostrarToast(`✅ Dados baixados da nuvem! ${dados.listas.length} listas carregadas.`);
+            statusDiv.className = "sync-status online";
+            indicator.className = "sync-indicator online";
+            textSpan.innerText = "Online";
+        } else {
+            mostrarToast("⚠️ Nenhum dado encontrado na nuvem!");
+            statusDiv.className = "sync-status online";
+            indicator.className = "sync-indicator online";
+            textSpan.innerText = "Online";
+        }
+    } catch (error) {
+        console.error("Erro ao baixar dados:", error);
+        mostrarToast("❌ Erro ao baixar dados: " + error.message);
+        statusDiv.className = "sync-status offline";
+        indicator.className = "sync-indicator offline";
+        textSpan.innerText = "Offline";
+    }
+}
+
+async function enviarDadosParaNuvem() {
+    if (!usuarioAtual) {
+        mostrarToast("🔐 Faça login para enviar dados para a nuvem!");
+        mostrarLogin();
+        return;
+    }
+    if (!navigator.onLine) {
+        mostrarToast("🌐 Sem conexão com internet!");
+        return;
+    }
+    
+    const statusDiv = document.getElementById("syncStatus");
+    const indicator = document.getElementById("syncIndicator");
+    const textSpan = document.getElementById("syncText");
+    
+    statusDiv.className = "sync-status syncing";
+    indicator.className = "sync-indicator syncing";
+    textSpan.innerText = "Enviando...";
     
     mostrarToast("☁️ Enviando dados para a nuvem...");
     try {
@@ -2002,38 +2036,14 @@ async function enviarDadosParaNuvem() {
         dados._ultimoDispositivo = DEVICE_ID;
         await db.ref(`usuarios/${usuarioAtual.uid}/dados`).set(dados);
         mostrarToast(`✅ Dados enviados! ${dados.listas.length} listas salvas na nuvem.`);
-        atualizarStatusSync("online", "Sincronizado");
+        statusDiv.className = "sync-status online";
+        indicator.className = "sync-indicator online";
+        textSpan.innerText = "Online";
     } catch (error) {
         mostrarToast("❌ Erro ao enviar: " + error.message);
-    }
-}
-
-async function forcarSincronizacao() {
-    if (!usuarioAtual) {
-        mostrarToast("🔐 Faça login para sincronizar");
-        mostrarLogin();
-        return;
-    }
-    if (!navigator.onLine) {
-        mostrarToast("🌐 Sem conexão com internet!");
-        return;
-    }
-    
-    mostrarToast("🔄 Sincronizando...");
-    
-    const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
-    const dadosFirebase = snapshot.val();
-    
-    if (dadosFirebase && dadosFirebase.listas && dadosFirebase.listas.length > 0) {
-        const escolha = confirm(`Dados na nuvem: ${dadosFirebase.listas.length} listas\nDados locais: ${dados.listas.length} listas\n\nDeseja baixar os dados da nuvem? (Clique em OK para baixar da nuvem, Cancelar para enviar seus dados locais)`);
-        
-        if (escolha) {
-            await baixarDadosDaNuvem();
-        } else {
-            await enviarDadosParaNuvem();
-        }
-    } else {
-        await enviarDadosParaNuvem();
+        statusDiv.className = "sync-status offline";
+        indicator.className = "sync-indicator offline";
+        textSpan.innerText = "Offline";
     }
 }
 
@@ -2112,12 +2122,6 @@ function salvarLocalmente() {
 
 function salvarDados() { 
     salvarLocalmente(); 
-    if (usuarioAtual && navigator.onLine && !sincronizando) {
-        if (window.autoSaveTimeout) clearTimeout(window.autoSaveTimeout);
-        window.autoSaveTimeout = setTimeout(() => {
-            enviarDadosParaNuvem();
-        }, 5000);
-    }
 }
 
 // ==================== AUTENTICAÇÃO ====================
@@ -2129,43 +2133,24 @@ auth.onAuthStateChanged(async (user) => {
         document.getElementById("userEmail").innerText = user.email.split('@')[0];
         document.getElementById("exportBtn").style.display = "inline-block";
         document.getElementById("importBtn").style.display = "inline-block";
-        document.getElementById("syncBtn").style.display = "inline-block";
+        document.getElementById("enviarBtn").style.display = "inline-block";
+        document.getElementById("baixarBtn").style.display = "inline-block";
         document.getElementById("verDadosBtn").style.display = "inline-block";
         document.getElementById("resetBtn").style.display = "inline-block";
-        document.getElementById("enviarBtn").style.display = "inline-block";
         document.getElementById("novaListaBtn").style.display = "inline-block";
         
         mostrarToast(`✅ Conectado como ${user.email}`);
-        
-        const snapshot = await db.ref(`usuarios/${usuarioAtual.uid}/dados`).once('value');
-        const dadosFirebase = snapshot.val();
-        
-        if (dadosFirebase && dadosFirebase.listas && dadosFirebase.listas.length > 0) {
-            if (!dados.listas || dados.listas.length === 0) {
-                mostrarToast("☁️ Carregando dados da nuvem...");
-                await baixarDadosDaNuvem();
-            } else if (dadosFirebase._versao > dados._versao) {
-                const escolha = confirm(`Versão na nuvem é mais recente (${new Date(dadosFirebase._versao).toLocaleTimeString()})\nDeseja baixar os dados da nuvem?`);
-                if (escolha) {
-                    await baixarDadosDaNuvem();
-                }
-            }
-        } else if (dados.listas && dados.listas.length > 0) {
-            mostrarToast("☁️ Enviando dados locais para a nuvem...");
-            await enviarDadosParaNuvem();
-        }
-        
-        atualizarStatusSync("online", "Sincronizado");
+        atualizarStatusSync("online", "Online");
     } else {
         usuarioAtual = null;
         document.getElementById("loginBtn").style.display = "inline-block";
         document.getElementById("userInfo").style.display = "none";
         document.getElementById("exportBtn").style.display = "none";
         document.getElementById("importBtn").style.display = "none";
-        document.getElementById("syncBtn").style.display = "none";
+        document.getElementById("enviarBtn").style.display = "none";
+        document.getElementById("baixarBtn").style.display = "none";
         document.getElementById("verDadosBtn").style.display = "none";
         document.getElementById("resetBtn").style.display = "none";
-        document.getElementById("enviarBtn").style.display = "none";
         document.getElementById("novaListaBtn").style.display = "inline-block";
         atualizarStatusSync("offline", "Offline - Faça login para sincronizar");
     }
@@ -2233,9 +2218,6 @@ function importarBackup(event) {
                 salvarLocalmente();
                 renderizar();
                 mostrarToast("✅ Backup importado!");
-                if (usuarioAtual && navigator.onLine) {
-                    enviarDadosParaNuvem();
-                }
             } else { mostrarToast("❌ Arquivo inválido"); }
         } catch (error) { mostrarToast("❌ Erro ao importar"); }
     };
@@ -2581,7 +2563,6 @@ document.getElementById('installBtn')?.addEventListener('click', async () => {
 window.addEventListener('online', async () => { 
     atualizarStatusSync("online", "Online"); 
     mostrarToast("🌐 Conexão restaurada!"); 
-    if (usuarioAtual) await forcarSincronizacao(); 
 });
 window.addEventListener('offline', () => { 
     atualizarStatusSync("offline", "Offline"); 
