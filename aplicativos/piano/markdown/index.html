@@ -350,6 +350,9 @@
     <button onclick="exportAppHTML()">🎯 Exportar App</button>
     <button onclick="resetarAcordes()">🔄 Resetar Acordes</button>
     <button onclick="abrirEditorAcordes()">🎸 Editor de Acordes</button>
+    <button onclick="window.open('https://script.google.com/macros/s/AKfycbzh_eXEwEXCgTmE8f6hHPA8g2g4TY4m8NS5QQ9x4SMGjv-3vjsiPxXrC022sfNBFesJaQ/exec', '_blank')">
+  Google Drive
+</button>
     
     <div class="menu-categoria collapsed" id="menu-estrutura">
       <h4 onclick="toggleCategoria('menu-estrutura')">📝 Estrutura ▼</h4>
@@ -478,6 +481,9 @@
     <h2>🎸 Editor de Acordes</h2>
     
     <h3>📚 Biblioteca Local</h3>
+    <div style="margin: 15px 0;">
+    <input type="text" id="pesquisaAcordes" placeholder="🔍 Pesquisar acorde..." style="width: 100%; padding: 8px; background: #0f3460; border: none; border-radius: 5px; color: #fff;">
+</div>
     <div id="bibliotecaAcordes" class="biblioteca-acordes"></div>
     
     <h3>📝 Escreva seus acordes</h3>
@@ -1059,17 +1065,163 @@ function carregarBiblioteca() {
 }
 
 
+// ============================================
+// FUNÇÕES DA BIBLIOTECA DE ACORDES (ATUALIZADAS)
+// ============================================
 
 function atualizarBibliotecaVisual() {
     const container = document.getElementById('bibliotecaAcordes');
+    const termoPesquisa = document.getElementById('pesquisaAcordes')?.value.toLowerCase() || '';
     container.innerHTML = '';
-    for (const [sigla, acorde] of Object.entries(bibliotecaAcordes)) {
-        const btn = document.createElement('button');
-        btn.textContent = `${sigla} - ${acorde.nome}`;
-        btn.onclick = () => inserirAcordeNoEditor(sigla);
-        container.appendChild(btn);
+    
+    // Filtrar acordes
+    const acordesFiltrados = Object.entries(bibliotecaAcordes).filter(([sigla, acorde]) => {
+        return sigla.toLowerCase().includes(termoPesquisa) || 
+               acorde.nome.toLowerCase().includes(termoPesquisa);
+    });
+    
+    if (acordesFiltrados.length === 0) {
+        const msgDiv = document.createElement('div');
+        msgDiv.textContent = 'Nenhum acorde encontrado.';
+        msgDiv.style.textAlign = 'center';
+        msgDiv.style.padding = '20px';
+        msgDiv.style.color = '#888';
+        container.appendChild(msgDiv);
+    } else {
+        for (const [sigla, acorde] of acordesFiltrados) {
+            const div = document.createElement('div');
+            div.style.cssText = 'display: flex; gap: 5px; margin: 5px; align-items: center; background: #0f3460; padding: 5px 10px; border-radius: 5px;';
+            
+            const btnInserir = document.createElement('button');
+            btnInserir.textContent = `${sigla} - ${acorde.nome}`;
+            btnInserir.style.flex = '1';
+            btnInserir.style.background = '#e94560';
+            btnInserir.style.textAlign = 'left';
+            btnInserir.style.padding = '8px 12px';
+            btnInserir.onclick = () => inserirAcordeNoEditor(sigla);
+            
+            const btnEditar = document.createElement('button');
+            btnEditar.textContent = '✏️';
+            btnEditar.style.background = '#FF9900';
+            btnEditar.style.width = '40px';
+            btnEditar.onclick = () => editarAcordeBiblioteca(sigla);
+            
+            const btnExcluir = document.createElement('button');
+            btnExcluir.textContent = '🗑️';
+            btnExcluir.style.background = '#CC0000';
+            btnExcluir.style.width = '40px';
+            btnExcluir.onclick = () => excluirAcordeBiblioteca(sigla);
+            
+            const btnCopiar = document.createElement('button');
+            btnCopiar.textContent = '📋';
+            btnCopiar.style.background = '#00CC00';
+            btnCopiar.style.width = '40px';
+            btnCopiar.onclick = () => copiarCodigoAcordeIndividual(sigla);
+            
+            div.appendChild(btnInserir);
+            div.appendChild(btnEditar);
+            div.appendChild(btnExcluir);
+            div.appendChild(btnCopiar);
+            container.appendChild(div);
+        }
+    }
+    
+    // Botão para copiar todos (sempre visível)
+    const btnCopiarTodos = document.createElement('button');
+    btnCopiarTodos.textContent = '📋 Copiar Todos os Acordes (JS)';
+    btnCopiarTodos.style.background = '#0066FF';
+    btnCopiarTodos.style.width = '100%';
+    btnCopiarTodos.style.marginTop = '10px';
+    btnCopiarTodos.style.padding = '10px';
+    btnCopiarTodos.onclick = () => copiarTodosAcordesBiblioteca();
+    container.appendChild(btnCopiarTodos);
+}
+function editarAcordeBiblioteca(sigla) {
+    const acorde = bibliotecaAcordes[sigla];
+    if (!acorde) return;
+    
+    // Preencher o textarea com o acorde no formato editável
+    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestana) ? JSON.stringify(acorde.pestana) : 'true') : 'false';
+    const linha = `${sigla}: ${acorde.nome} / ${acorde.cordas.join(',')} / ${acorde.dedos.join(',')} / ${pestanaStr} / ${acorde.casaInicial} / ${acorde.baixo}`;
+    
+    document.getElementById('acordeInput').value = linha;
+    
+    // Mostrar mensagem
+    alert(`✏️ Editando acorde ${sigla}\n\nEdite no campo acima e clique em "Salvar na Biblioteca" novamente.\n\nPara substituir, use a mesma sigla: ${sigla}`);
+    
+    // Remover o acorde antigo para substituir
+    delete bibliotecaAcordes[sigla];
+    delete ACORDES[sigla];
+    
+    // Atualizar visual
+    atualizarBibliotecaVisual();
+}
+
+function excluirAcordeBiblioteca(sigla) {
+    if (confirm(`Tem certeza que deseja excluir o acorde "${sigla}" da biblioteca?`)) {
+        delete bibliotecaAcordes[sigla];
+        delete ACORDES[sigla];
+        
+        localStorage.setItem('biblioteca_acordes', JSON.stringify(bibliotecaAcordes));
+        salvarAcordesPersonalizadosUsuario();
+        atualizarBibliotecaVisual();
+        
+        alert(`✅ Acorde ${sigla} excluído com sucesso!`);
     }
 }
+
+function copiarCodigoAcordeIndividual(sigla) {
+    const acorde = bibliotecaAcordes[sigla];
+    if (!acorde) return;
+    
+    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestana) ? JSON.stringify(acorde.pestana) : 'true') : 'false';
+    
+    let codigo = `'${sigla}': {\n`;
+    codigo += `    nome: '${acorde.nome}',\n`;
+    codigo += `    cordas: [${acorde.cordas.join(',')}],\n`;
+    codigo += `    dedos: ['${acorde.dedos.join("','")}'],\n`;
+    codigo += `    pestana: ${pestanaStr},\n`;
+    codigo += `    casaInicial: ${acorde.casaInicial},\n`;
+    codigo += `    baixo: '${acorde.baixo}'\n`;
+    codigo += `}`;
+    
+    navigator.clipboard.writeText(codigo);
+    alert(`✅ Código do acorde ${sigla} copiado para a área de transferência!`);
+}
+
+function copiarTodosAcordesBiblioteca() {
+    if (Object.keys(bibliotecaAcordes).length === 0) {
+        alert('Nenhum acorde na biblioteca para copiar!');
+        return;
+    }
+    
+    let codigoCompleto = `// ============================================\n`;
+    codigoCompleto += `// ACORDES DA BIBLIOTECA\n`;
+    codigoCompleto += `// Total: ${Object.keys(bibliotecaAcordes).length} acordes\n`;
+    codigoCompleto += `// ============================================\n\n`;
+    codigoCompleto += `const ACORDES_BIBLIOTECA = {\n`;
+    
+    for (const [sigla, acorde] of Object.entries(bibliotecaAcordes)) {
+        const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestana) ? JSON.stringify(acorde.pestana) : 'true') : 'false';
+        
+        codigoCompleto += `    '${sigla}': {\n`;
+        codigoCompleto += `        nome: '${acorde.nome}',\n`;
+        codigoCompleto += `        cordas: [${acorde.cordas.join(',')}],\n`;
+        codigoCompleto += `        dedos: ['${acorde.dedos.join("','")}'],\n`;
+        codigoCompleto += `        pestana: ${pestanaStr},\n`;
+        codigoCompleto += `        casaInicial: ${acorde.casaInicial},\n`;
+        codigoCompleto += `        baixo: '${acorde.baixo}'\n`;
+        codigoCompleto += `    },\n`;
+    }
+    
+    codigoCompleto += `};\n\n`;
+    codigoCompleto += `// Para usar:\n`;
+    codigoCompleto += `// Object.assign(ACORDES, ACORDES_BIBLIOTECA);`;
+    
+    navigator.clipboard.writeText(codigoCompleto);
+    alert(`✅ ${Object.keys(bibliotecaAcordes).length} acordes copiados para a área de transferência!`);
+}
+
 
 function inserirAcordeNoEditor(sigla) {
     // Tentar buscar na biblioteca primeiro
@@ -1398,6 +1550,16 @@ function copiarCodigoAcordes() {
 function abrirEditorAcordes() {
     carregarBiblioteca();
     document.getElementById('modalAcordes').style.display = 'block';
+    
+    // Limpar e focar na pesquisa
+    const campoPesquisa = document.getElementById('pesquisaAcordes');
+    if (campoPesquisa) {
+        campoPesquisa.value = '';
+        campoPesquisa.focus();
+        campoPesquisa.addEventListener('input', function() {
+            atualizarBibliotecaVisual();
+        });
+    }
 }
 
 function fecharEditorAcordes() {
