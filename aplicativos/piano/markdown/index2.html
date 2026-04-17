@@ -161,10 +161,12 @@
     display: flex;
     flex: 1;
     overflow: hidden;
+    background: #e0e0e0;
+    justify-content: center;
   }
 
   textarea {
-    width: 50%;
+    width: 45%;
     padding: 20px;
     border: none;
     outline: none;
@@ -176,29 +178,36 @@
     line-height: 1.5;
   }
 
-   #preview {
-    width: 50%;
-    padding: 20px;
+  /* Para o preview todo */
+  #preview {
+    width: 21cm;
+    min-width: 21cm;
+    max-width: 21cm;
+    padding: 1cm;
+    margin: 0 auto;
     overflow-x: auto;
     overflow-y: auto;
     background: white;
+    box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    box-sizing: border-box;
   }
   
-  /* Forçar que o conteúdo do preview respeite a largura */
+/* Forçar todos os elementos filhos a respeitar */
   #preview * {
     max-width: 100%;
+    box-sizing: border-box;
   }
   
-  /* Para as partituras SVG */
+  /* Garantir que o SVG não ultrapasse */
   #preview svg {
-    max-width: 100%;
-    height: auto;
+    max-width: 100% !important;
+    height: auto !important;
   }
+  
   .chord-diagram {
     display: inline-block;
     margin: 5px auto;
     text-align: center;   
-    
   }
   
   .chord-cifra {
@@ -209,20 +218,23 @@
     text-align: center;
   }
   
+  /* Container da partitura */
   .abc-container {
     margin: 20px 0;
     background: #fff;
     border: 1px solid #ddd;
     border-radius: 4px;
     padding: 10px;
-    overflow-x: auto;
+    overflow-x: auto;      /* ← Mantém scroll horizontal se necessário */
+    overflow-y: hidden;
     max-width: 100%;
   }
   
+  /* Forçar o SVG a respeitar o container */
   .abc-container svg {
-    min-width: 600px;
-    width: auto;
+    max-width: 100%;
     height: auto;
+    display: block;
   }
 
   .controles-sidebar {
@@ -256,8 +268,9 @@
   @media (max-width: 768px) {
     body { flex-direction: column; }
     #sidebar { width: 100%; max-height: 280px; }
-    .editor-container { flex-direction: column; }
-    textarea, #preview { width: 100%; height: 50vh; }
+    .editor-container { flex-direction: column; align-items: stretch; }
+    textarea { width: 100%; height: 40vh; }
+    #preview { width: 100%; min-width: auto; margin: 0; }
   }
 </style>
 </head>
@@ -398,23 +411,14 @@
 // DICIONÁRIO DE ACORDES (Carregado dos arquivos externos)
 // ============================================
 
-// Arquivos externos carregados no HTML:
-// acordes/01_maior_c.js
-// acordes/02_menor_c.js
-// acordes/03_dominante_c.js
-// acordes/04_diminuto_c.js
-
 // Mesclar todos os acordes
 const ACORDES_COMPLETO = {};
 
-// Função para mesclar acordes
 function mesclarAcordes() {
-    // Limpar objeto
     for (let key in ACORDES_COMPLETO) {
         delete ACORDES_COMPLETO[key];
     }
     
-    // Mesclar na ordem: maior, menor, dominante, diminuto
     if (typeof ACORDES_MAIOR_C !== 'undefined') {
         Object.assign(ACORDES_COMPLETO, ACORDES_MAIOR_C);
     }
@@ -428,27 +432,22 @@ function mesclarAcordes() {
         Object.assign(ACORDES_COMPLETO, ACORDES_DIMINUTO_C);
     }
     
-    // Carregar acordes personalizados do usuário (se houver)
     const salvos = localStorage.getItem('acordes_personalizados_usuario');
     if (salvos) {
-        const personalizadosUsuario = JSON.parse(salvos);
-        Object.assign(ACORDES_COMPLETO, personalizadosUsuario);
+        Object.assign(ACORDES_COMPLETO, JSON.parse(salvos));
     }
 }
 
 let ACORDES = {};
 
 function carregarAcordes() {
-    // Mesclar os acordes dos arquivos externos
     mesclarAcordes();
     ACORDES = ACORDES_COMPLETO;
 }
 
 function salvarAcordesPersonalizadosUsuario() {
-    // Salvar apenas os acordes que o usuário criou (não os padrão)
     const personalizados = {};
     for (const [sigla, acorde] of Object.entries(ACORDES)) {
-        // Verificar se não existe nos arquivos padrão
         const existeNoMaior = typeof ACORDES_MAIOR_C !== 'undefined' && ACORDES_MAIOR_C[sigla];
         const existeNoMenor = typeof ACORDES_MENOR_C !== 'undefined' && ACORDES_MENOR_C[sigla];
         const existeNoDominante = typeof ACORDES_DOMINANTE_C !== 'undefined' && ACORDES_DOMINANTE_C[sigla];
@@ -462,7 +461,7 @@ function salvarAcordesPersonalizadosUsuario() {
 }
 
 function resetarAcordes() {
-    if(confirm('Resetar acordes para o padrão? Isso apagará seus acordes personalizados.')) {
+    if(confirm('Resetar acordes para o padrão?')) {
         localStorage.removeItem('acordes_personalizados_usuario');
         carregarAcordes();
         renderizar();
@@ -518,12 +517,8 @@ function inserirImagem() {
     }
 }
 
-
-
-
-
 // ============================================
-// DESENHAR ACORDE (CORRIGIDO - APENAS X e 0)
+// DESENHAR ACORDE
 // ============================================
 function desenharAcorde(container, sigla) {
     const acorde = ACORDES[sigla];
@@ -600,7 +595,6 @@ function desenharAcorde(container, sigla) {
         }
     }
     
-    // Bolinhas (dedos nas casas)
     acorde.cordas.forEach((casa, i) => {
         const temPestana = acorde.pestana && Array.isArray(acorde.pestana) && acorde.pestana.includes(i);
         const casaRelativa = casa - acorde.casaInicial + 1;
@@ -623,7 +617,6 @@ function desenharAcorde(container, sigla) {
         }
     });
     
-    // CORDAS SOLTAS (círculo vazio) - CORRIGIDO
     acorde.cordas.forEach((casa, i) => {
         if (casa === 0) {
             const x = startX + i * stringSpacing;
@@ -635,21 +628,20 @@ function desenharAcorde(container, sigla) {
         }
     });
     
-    // CORDAS NÃO TOCADAS (X) - CORRIGIDO
-acorde.cordas.forEach((casa, stringIndex) => {
-    if (casa === -1) {
-        const x = startX + stringIndex * stringSpacing;
-        const y = startY - 12;
-        ctx.beginPath();
-        ctx.moveTo(x - 5, y - 5);
-        ctx.lineTo(x + 5, y + 5);
-        ctx.moveTo(x + 5, y - 5);
-        ctx.lineTo(x - 5, y + 5);
-        ctx.lineWidth = 1.5;  // ← FORÇAR LARGURA PADRÃO
-        ctx.strokeStyle = '#333';  // ← FORÇAR COR PADRÃO
-        ctx.stroke();
-    }
-});
+    acorde.cordas.forEach((casa, stringIndex) => {
+        if (casa === -1) {
+            const x = startX + stringIndex * stringSpacing;
+            const y = startY - 12;
+            ctx.beginPath();
+            ctx.moveTo(x - 5, y - 5);
+            ctx.lineTo(x + 5, y + 5);
+            ctx.moveTo(x + 5, y - 5);
+            ctx.lineTo(x - 5, y + 5);
+            ctx.lineWidth = 1.5;
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+        }
+    });
     
     wrapper.appendChild(canvas);
     container.appendChild(wrapper);
@@ -774,21 +766,18 @@ function renderizar() {
         const abcInfantis = [];
         const abcNormais = [];
         
-        // Processar ACORDES
         processado = processado.replace(/\[Acorde:([^\]]+)\]([\s\S]*?)\[\/Acorde\]/g, (match, sigla) => {
             const id = 'chord-' + Date.now() + '-' + acordes.length;
             acordes.push({ id, sigla });
             return `<div id="${id}" class="chord-diagram"></div>`;
         });
         
-        // Processar ABC INFANTIL
         processado = processado.replace(/\[ABC-INFANTIL\]([\s\S]*?)\[\/ABC-INFANTIL\]/g, (match, code) => {
             const id = 'abc-inf-' + Date.now() + '-' + abcInfantis.length;
             abcInfantis.push({ id, code: code.trim() });
             return `<div id="${id}" class="abc-container"></div>`;
         });
         
-        // Processar ABC NORMAL
         processado = processado.replace(/\[ABC\]([\s\S]*?)\[\/ABC\]/g, (match, code) => {
             const id = 'abc-' + Date.now() + '-' + abcNormais.length;
             abcNormais.push({ id, code: code.trim() });
@@ -797,46 +786,34 @@ function renderizar() {
         
         preview.innerHTML = marked.parse(processado);
         
-        // Renderizar ACORDES
         acordes.forEach(a => {
             const el = document.getElementById(a.id);
             if (el) desenharAcorde(el, a.sigla);
         });
         
-        // Renderizar ABC NORMAL
-        abcNormais.forEach(a => {
-            const el = document.getElementById(a.id);
-            if (el && typeof ABCJS !== 'undefined') {
-                try {
-                    // Calcular largura disponível
-                    const containerWidth = el.clientWidth || 600;
-                    const staffwidth = Math.min(containerWidth - 40, 800);
-                    
-                    ABCJS.renderAbc(a.id, a.code, { 
-                        scale: 1.0, 
-                        staffwidth: staffwidth
-                    });
-                } catch(e) { el.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`; }
-            }
-        });
-        
-        // Renderizar ABC INFANTIL
-        abcInfantis.forEach(a => {
-            const el = document.getElementById(a.id);
-            if (el && typeof ABCJS !== 'undefined') {
-                try {
-                    // Calcular largura disponível
-                    const containerWidth = el.clientWidth || 600;
-                    const staffwidth = Math.min(containerWidth - 40, 800);
-                    
-                    ABCJS.renderAbc(a.id, a.code, { 
-                        add_classes: true, 
-                        scale: 1.0, 
-                        staffwidth: staffwidth
-                    });
-                } catch(e) { el.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`; }
-            }
-        });
+// Renderizar ABC NORMAL
+abcNormais.forEach(a => {
+    const el = document.getElementById(a.id);
+    if (el && typeof ABCJS !== 'undefined') {
+        try {
+            const containerWidth = el.clientWidth - 20;
+            const staffwidth = Math.min(containerWidth, 500); // ← REDUZA para 500
+            ABCJS.renderAbc(a.id, a.code, { scale: 1.0, staffwidth: staffwidth });
+        } catch(e) { el.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`; }
+    }
+});
+
+// Renderizar ABC INFANTIL
+abcInfantis.forEach(a => {
+    const el = document.getElementById(a.id);
+    if (el && typeof ABCJS !== 'undefined') {
+        try {
+            const containerWidth = el.clientWidth - 20;
+            const staffwidth = Math.min(containerWidth, 500); // ← REDUZA para 500
+            ABCJS.renderAbc(a.id, a.code, { add_classes: true, scale: 1.0, staffwidth: staffwidth });
+        } catch(e) { el.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`; }
+    }
+});
         
         setTimeout(() => {
             if (coresAtivas) aplicarCoresNasNotas();
@@ -955,46 +932,8 @@ function inserirABCInfantil() {
     salvarAulaAtual();
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 // ============================================
-// EXPORTAR HTML (Aula Atual) - COM ESTILOS DE IMPRESSÃO
+// EXPORTAR HTML (Aula Atual)
 // ============================================
 async function exportHTML() {
     const conteudoAtual = editor.value;
@@ -1007,20 +946,77 @@ async function exportHTML() {
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
 <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 1000px; margin: 40px auto; padding: 20px; background: white; }
-    .chord-diagram { display: inline-block; margin: 10px; text-align: center; background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: relative; }
-    .chord-cifra { font-size: 1.4em; font-weight: bold; color: #e94560; text-align: center; margin-bottom: 5px; }
-    .abc-container { margin: 20px 0; background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 10px; overflow-x: auto; }
-    svg { width: 100% !important; height: auto !important; }
-    h1, h2, h3, h4, h5, h6 { color: #1a1a2e; }
-    .abcjs-note ellipse, .abcjs-note circle { transition: fill 0.2s; }
+    @page {
+        size: A4;
+        margin: 1cm;
+    }
     
-    /* ESTILOS PARA IMPRESSÃO (Ctrl+P) */
+    body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        width: 21cm;
+        min-width: 21cm;
+        max-width: 21cm;
+        margin: 0 auto;
+        padding: 1cm;
+        background: white;
+        box-sizing: border-box;
+    }
+    
+    .chord-diagram {
+        display: inline-block;
+        margin: 10px;
+        text-align: center;
+        background: white;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        position: relative;
+    }
+    
+    .chord-cifra {
+        font-size: 1.4em;
+        font-weight: bold;
+        color: #e94560;
+        text-align: center;
+        margin-bottom: 5px;
+    }
+    
+    .abc-container {
+        margin: 20px 0;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        overflow-x: auto;
+    }
+    
+    svg {
+        width: 100% !important;
+        height: auto !important;
+        max-width: 100%;
+    }
+    
+    h1, h2, h3, h4, h5, h6 {
+        color: #1a1a2e;
+    }
+    
+    .abcjs-note ellipse, .abcjs-note circle {
+        transition: fill 0.2s;
+    }
+    
+    * {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
     @media print {
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
         body {
             margin: 0;
             padding: 0;
-            background: white;
         }
         .chord-diagram {
             box-shadow: none;
@@ -1028,21 +1024,14 @@ async function exportHTML() {
             margin: 5px;
             padding: 5px;
             break-inside: avoid;
-            page-break-inside: avoid;
-        }
-        .chord-diagram canvas {
-            max-width: 120px !important;
-            height: auto !important;
         }
         .abc-container {
             box-shadow: none;
             border: 1px solid #ddd;
             break-inside: avoid;
-            page-break-inside: avoid;
         }
         svg {
             max-width: 100% !important;
-            height: auto !important;
         }
         .chord-cifra {
             font-size: 1.2em;
@@ -1265,7 +1254,7 @@ async function exportHTML() {
 }
 
 // ============================================
-// EXPORTAR APP (Todas as Aulas) - COM ESTILOS DE IMPRESSÃO
+// EXPORTAR APP (Todas as Aulas)
 // ============================================
 function exportAppHTML() {
     const aulasExport = aulas;
@@ -1297,26 +1286,107 @@ function exportAppHTML() {
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
 <style>
-    body { font-family: 'Segoe UI', Arial, sans-serif; max-width: 1000px; margin: 0 auto; background: #f5f5f5; padding-bottom: 50px; }
-    .indice { background: white; padding: 30px; margin: 20px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-    .indice h1 { color: #e94560; margin-top: 0; }
-    .indice ul { list-style: none; padding: 0; }
-    .indice li { margin: 10px 0; }
-    .indice a { text-decoration: none; color: #1a1a2e; font-size: 1.1em; }
-    .indice a:hover { color: #e94560; }
-    .chord-diagram { display: inline-block; margin: 10px; text-align: center; background: white; padding: 10px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); position: relative; }
-    .chord-cifra { font-size: 1.4em; font-weight: bold; color: #e94560; text-align: center; margin-bottom: 5px; }
-    .abc-container { margin: 20px 0; background: #fff; border: 1px solid #ddd; border-radius: 4px; padding: 10px; overflow-x: auto; }
-    svg { width: 100% !important; height: auto !important; }
-    h1, h2, h3 { color: #1a1a2e; }
-    .abcjs-note ellipse, .abcjs-note circle { transition: fill 0.2s; }
+    @page {
+        size: A4;
+        margin: 1cm;
+    }
     
-    /* ESTILOS PARA IMPRESSÃO (Ctrl+P) */
+    body {
+        font-family: 'Segoe UI', Arial, sans-serif;
+        width: 21cm;
+        min-width: 21cm;
+        max-width: 21cm;
+        margin: 0 auto;
+        background: white;
+        box-sizing: border-box;
+    }
+    
+    .indice {
+        background: #f0f0f0;
+        padding: 20px;
+        margin: 20px 0;
+        border-radius: 10px;
+    }
+    
+    .indice h1 {
+        color: #e94560;
+        margin-top: 0;
+    }
+    
+    .indice ul {
+        list-style: none;
+        padding: 0;
+    }
+    
+    .indice li {
+        margin: 10px 0;
+    }
+    
+    .indice a {
+        text-decoration: none;
+        color: #1a1a2e;
+        font-size: 1.1em;
+    }
+    
+    .indice a:hover {
+        color: #e94560;
+    }
+    
+    .chord-diagram {
+        display: inline-block;
+        margin: 10px;
+        text-align: center;
+        background: white;
+        padding: 10px;
+        border-radius: 10px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        position: relative;
+    }
+    
+    .chord-cifra {
+        font-size: 1.4em;
+        font-weight: bold;
+        color: #e94560;
+        text-align: center;
+        margin-bottom: 5px;
+    }
+    
+    .abc-container {
+        margin: 20px 0;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        padding: 10px;
+        overflow-x: auto;
+    }
+    
+    svg {
+        width: 100% !important;
+        height: auto !important;
+        max-width: 100%;
+    }
+    
+    h1, h2, h3 {
+        color: #1a1a2e;
+    }
+    
+    .abcjs-note ellipse, .abcjs-note circle {
+        transition: fill 0.2s;
+    }
+    
+    * {
+        max-width: 100%;
+        box-sizing: border-box;
+    }
+    
     @media print {
+        @page {
+            size: A4;
+            margin: 1cm;
+        }
         body {
             margin: 0;
             padding: 0;
-            background: white;
         }
         .indice {
             background: white;
@@ -1325,45 +1395,24 @@ function exportAppHTML() {
             padding: 20px;
             border-bottom: 1px solid #ddd;
         }
-        .indice a {
-            color: #1a1a2e;
-        }
         .chord-diagram {
             box-shadow: none;
             border: 1px solid #ddd;
             margin: 5px;
             padding: 5px;
             break-inside: avoid;
-            page-break-inside: avoid;
-        }
-        .chord-diagram canvas {
-            max-width: 120px !important;
-            height: auto !important;
         }
         .abc-container {
             box-shadow: none;
             border: 1px solid #ddd;
             break-inside: avoid;
-            page-break-inside: avoid;
-        }
-        svg {
-            max-width: 100% !important;
-            height: auto !important;
-        }
-        .aula-conteudo {
-            break-inside: avoid;
-            page-break-inside: avoid;
         }
         div[id^="aula-"] {
             break-inside: avoid;
-            page-break-inside: avoid;
             margin: 0;
             padding: 20px;
             box-shadow: none;
             border-bottom: 1px solid #ddd;
-        }
-        a {
-            text-decoration: none;
         }
         .chord-cifra {
             font-size: 1.2em;
@@ -1551,7 +1600,7 @@ ${aulasHtml}
                 var el = document.getElementById(id);
                 if (el && typeof ABCJS !== 'undefined') {
                     try {
-                        ABCJS.renderAbc(id, code.trim(), { add_classes: true, scale: 1.0, staffwidth: 650 });
+                        ABCJS.renderAbc(id, code.trim(), { add_classes: true, scale: 1.0, staffwidth: 500 });
                         setTimeout(function() { aplicarCoresNasNotas(); aplicarCoresAcordesLetras(); }, 100);
                     } catch(e) { el.innerHTML = '<p style="color:red">Erro</p>'; }
                 }
@@ -1563,7 +1612,7 @@ ${aulasHtml}
             setTimeout(function() {
                 var el = document.getElementById(id);
                 if (el && typeof ABCJS !== 'undefined') {
-                    try { ABCJS.renderAbc(id, code.trim(), { scale: 1.0, staffwidth: 650 }); }
+                    try { ABCJS.renderAbc(id, code.trim(), { scale: 1.0, staffwidth: 500 }); }
                     catch(e) { el.innerHTML = '<p style="color:red">Erro</p>'; }
                 }
             }, 50);
@@ -1620,7 +1669,6 @@ if (aulas.length === 0) {
     renderLista();
     carregarAula(0);
 }
-
 </script>
 </body>
 </html>
