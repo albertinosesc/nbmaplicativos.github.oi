@@ -1,5 +1,5 @@
 // ============================================
-// EDITOR DE ACORDES (POPUP)
+// EDITOR DE ACORDES (POPUP) - COMPLETO
 // ============================================
 
 let bibliotecaAcordes = {};
@@ -11,9 +11,14 @@ function carregarBiblioteca() {
     } else {
         bibliotecaAcordes = {
             'C': { nome: 'Dó Maior', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 1, baixo: 'C' },
-            'G': { nome: 'Sol Maior', cordas: [3,2,0,0,0,3], dedos: ['2','1','','','','3'], pestana: false, casaInicial: 1, baixo: 'G' },
-            'Am': { nome: 'Lá Menor', cordas: [0,1,2,2,0,0], dedos: ['','1','2','3','',''], pestana: false, casaInicial: 1, baixo: 'A' },
+            'D': { nome: 'Ré Maior', cordas: [-1,-1,0,2,3,2], dedos: ['','','1','2','3','4'], pestana: false, casaInicial: 1, baixo: 'D' },
+            'E': { nome: 'Mi Maior', cordas: [0,2,2,1,0,0], dedos: ['','2','3','1','',''], pestana: false, casaInicial: 1, baixo: 'E' },
             'F': { nome: 'Fá Maior', cordas: [1,3,3,2,1,1], dedos: ['1','3','4','2','1','1'], pestana: [0,1,2,3,4,5], casaInicial: 1, baixo: 'F' },
+            'G': { nome: 'Sol Maior', cordas: [3,2,0,0,0,3], dedos: ['2','1','','','','3'], pestana: false, casaInicial: 1, baixo: 'G' },
+            'A': { nome: 'Lá Maior', cordas: [0,0,2,2,2,0], dedos: ['','','2','3','4',''], pestana: false, casaInicial: 1, baixo: 'A' },
+            'Am': { nome: 'Lá Menor', cordas: [0,1,2,2,0,0], dedos: ['','1','2','3','',''], pestana: false, casaInicial: 1, baixo: 'A' },
+            'Em': { nome: 'Mi Menor', cordas: [0,2,2,0,0,0], dedos: ['','2','3','','',''], pestana: false, casaInicial: 1, baixo: 'E' },
+            'Bm': { nome: 'Si Menor', cordas: [-1,2,4,4,3,2], dedos: ['','1','3','4','2','1'], pestana: [1,2,3,4,5], casaInicial: 2, baixo: 'B' },
             'Bb': { nome: 'Si Bemol', cordas: [6,8,8,7,6,6], dedos: ['1','3','4','2','1','1'], pestana: [0,1,2,3,4,5], casaInicial: 6, baixo: 'Bb' }
         };
     }
@@ -49,7 +54,15 @@ function atualizarBibliotecaVisual() {
         btnInserir.textContent = `${sigla} - ${acorde.nome}`;
         btnInserir.style.flex = '1';
         btnInserir.style.background = '#e94560';
+        btnInserir.style.textAlign = 'left';
+        btnInserir.style.padding = '8px 12px';
         btnInserir.onclick = () => inserirAcordeNoEditor(sigla);
+        
+        const btnEditar = document.createElement('button');
+        btnEditar.textContent = '✏️';
+        btnEditar.style.background = '#FF9900';
+        btnEditar.style.width = '40px';
+        btnEditar.onclick = () => editarAcordeBiblioteca(sigla);
         
         const btnExcluir = document.createElement('button');
         btnExcluir.textContent = '🗑️';
@@ -57,10 +70,42 @@ function atualizarBibliotecaVisual() {
         btnExcluir.style.width = '40px';
         btnExcluir.onclick = () => excluirAcordeBiblioteca(sigla);
         
+        const btnCopiar = document.createElement('button');
+        btnCopiar.textContent = '📋';
+        btnCopiar.style.background = '#00CC00';
+        btnCopiar.style.width = '40px';
+        btnCopiar.onclick = () => copiarCodigoAcordeIndividual(sigla);
+        
         div.appendChild(btnInserir);
+        div.appendChild(btnEditar);
         div.appendChild(btnExcluir);
+        div.appendChild(btnCopiar);
         container.appendChild(div);
     });
+    
+    const btnCopiarTodos = document.createElement('button');
+    btnCopiarTodos.textContent = '📋 Copiar Todos os Acordes (JS)';
+    btnCopiarTodos.style.background = '#0066FF';
+    btnCopiarTodos.style.width = '100%';
+    btnCopiarTodos.style.marginTop = '10px';
+    btnCopiarTodos.style.padding = '10px';
+    btnCopiarTodos.onclick = () => copiarTodosAcordesBiblioteca();
+    container.appendChild(btnCopiarTodos);
+}
+
+function editarAcordeBiblioteca(sigla) {
+    const acorde = bibliotecaAcordes[sigla];
+    if (!acorde) return;
+    
+    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestana) ? JSON.stringify(acorde.pestana) : 'true') : 'false';
+    const linha = `${sigla}: ${acorde.nome} / ${acorde.cordas.join(',')} / ${acorde.dedos.join(',')} / ${pestanaStr} / ${acorde.casaInicial} / ${acorde.baixo}`;
+    
+    document.getElementById('acordeInput').value = linha;
+    alert(`✏️ Editando acorde ${sigla}\n\nEdite no campo acima e clique em "Salvar na Biblioteca" novamente.\n\nPara substituir, use a mesma sigla: ${sigla}`);
+    
+    delete bibliotecaAcordes[sigla];
+    if (typeof ACORDES !== 'undefined') delete ACORDES[sigla];
+    atualizarBibliotecaVisual();
 }
 
 function excluirAcordeBiblioteca(sigla) {
@@ -74,9 +119,56 @@ function excluirAcordeBiblioteca(sigla) {
     }
 }
 
+function copiarCodigoAcordeIndividual(sigla) {
+    const acorde = bibliotecaAcordes[sigla];
+    if (!acorde) return;
+    
+    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestana) ? JSON.stringify(acorde.pestana) : 'true') : 'false';
+    let codigo = `'${sigla}': {\n`;
+    codigo += `    nome: '${acorde.nome}',\n`;
+    codigo += `    cordas: [${acorde.cordas.join(',')}],\n`;
+    codigo += `    dedos: ['${acorde.dedos.join("','")}'],\n`;
+    codigo += `    pestana: ${pestanaStr},\n`;
+    codigo += `    casaInicial: ${acorde.casaInicial},\n`;
+    codigo += `    baixo: '${acorde.baixo}'\n`;
+    codigo += `}`;
+    
+    navigator.clipboard.writeText(codigo);
+    alert(`✅ Código do acorde ${sigla} copiado!`);
+}
+
+function copiarTodosAcordesBiblioteca() {
+    if (Object.keys(bibliotecaAcordes).length === 0) {
+        alert('Nenhum acorde na biblioteca!');
+        return;
+    }
+    
+    let codigoCompleto = `// ============================================\n// ACORDES DA BIBLIOTECA\n// Total: ${Object.keys(bibliotecaAcordes).length} acordes\n// ============================================\n\nconst ACORDES_BIBLIOTECA = {\n`;
+    for (const [sigla, acorde] of Object.entries(bibliotecaAcordes)) {
+        const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestana) ? JSON.stringify(acorde.pestana) : 'true') : 'false';
+        codigoCompleto += `    '${sigla}': {\n`;
+        codigoCompleto += `        nome: '${acorde.nome}',\n`;
+        codigoCompleto += `        cordas: [${acorde.cordas.join(',')}],\n`;
+        codigoCompleto += `        dedos: ['${acorde.dedos.join("','")}'],\n`;
+        codigoCompleto += `        pestana: ${pestanaStr},\n`;
+        codigoCompleto += `        casaInicial: ${acorde.casaInicial},\n`;
+        codigoCompleto += `        baixo: '${acorde.baixo}'\n`;
+        codigoCompleto += `    },\n`;
+    }
+    codigoCompleto += `};\n\n// Object.assign(ACORDES, ACORDES_BIBLIOTECA);`;
+    
+    navigator.clipboard.writeText(codigoCompleto);
+    alert(`✅ ${Object.keys(bibliotecaAcordes).length} acordes copiados!`);
+}
+
 function inserirAcordeNoEditor(sigla) {
     let acorde = bibliotecaAcordes[sigla];
     if (!acorde && typeof ACORDES !== 'undefined' && ACORDES[sigla]) acorde = ACORDES[sigla];
+    if (!acorde) {
+        const siglaUpper = sigla.toUpperCase();
+        if (bibliotecaAcordes[siglaUpper]) acorde = bibliotecaAcordes[siglaUpper];
+        else if (typeof ACORDES !== 'undefined' && ACORDES[siglaUpper]) acorde = ACORDES[siglaUpper];
+    }
     if (!acorde) {
         alert(`❌ Acorde "${sigla}" não encontrado!`);
         return;
@@ -107,6 +199,7 @@ function parseLinhaAcorde(linha) {
         
         const sigla = siglaNome.substring(0, doisPontos).trim();
         const nome = siglaNome.substring(doisPontos + 1).trim();
+        
         const cordas = partes[1].split(',').map(c => parseInt(c.trim()) || 0);
         if (cordas.length !== 6) return null;
         
@@ -314,7 +407,7 @@ function salvarAcordeNaBiblioteca() {
         localStorage.setItem('biblioteca_acordes', JSON.stringify(bibliotecaAcordes));
         if (typeof salvarAcordesPersonalizadosUsuario === 'function') salvarAcordesPersonalizadosUsuario();
         atualizarBibliotecaVisual();
-        alert(`✅ ${salvos} acorde(s) salvo(s) na biblioteca!`);
+        alert(`✅ ${salvos} acorde(s) salvo(s) na biblioteca!\n\nUse [Acorde:${Object.keys(bibliotecaAcordes).join(', ')}] no editor.`);
     } else {
         alert('Nenhum acorde válido encontrado para salvar.');
     }
