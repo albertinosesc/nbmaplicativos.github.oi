@@ -147,7 +147,7 @@ function inserirABCInfantil() {
 
 function inserirPiano() {
     const sigla = prompt('Sigla do acorde de piano (C, Dm, G7, Am, etc):', 'C');
-    const nome = prompt('Nome do acorde:', ACORDES_PIANO[sigla]?.nome || sigla);
+    const nome = prompt('Nome do acorde:', (typeof ACORDES_PIANO !== 'undefined' && ACORDES_PIANO[sigla]) ? ACORDES_PIANO[sigla].nome : sigla);
     if (sigla && nome) {
         const start = editor.selectionStart;
         editor.value = editor.value.substring(0, start) + `[PIANO:${sigla}]${nome}[/PIANO]` + editor.value.substring(start);
@@ -290,9 +290,10 @@ function desenharAcorde(container, sigla) {
 }
 
 // ============================================
-// RENDERIZAÇÃO PRINCIPAL
+// RENDERIZAÇÃO PRINCIPAL (CORRIGIDA)
 // ============================================
 function renderizar() {
+    console.log("Renderizando..."); // Debug
     let conteudo = editor.value;
     
     try {
@@ -302,44 +303,52 @@ function renderizar() {
         const abcInfantis = [];
         const abcNormais = [];
         
+        // Processar ACORDES de violão
         processado = processado.replace(/\[Acorde:([^\]]+)\]([\s\S]*?)\[\/Acorde\]/g, (match, sigla) => {
             const id = 'chord-' + Date.now() + '-' + acordes.length;
             acordes.push({ id, sigla });
             return `<div id="${id}" class="chord-diagram"></div>`;
         });
         
+        // Processar ACORDES de PIANO
         processado = processado.replace(/\[PIANO:([^\]]+)\]([\s\S]*?)\[\/PIANO\]/g, (match, sigla, nome) => {
             const id = 'piano-' + Date.now() + '-' + pianos.length;
             pianos.push({ id, sigla, nome });
             return `<div id="${id}" class="piano-diagram"></div>`;
         });
         
+        // Processar ABC INFANTIL
         processado = processado.replace(/\[ABC-INFANTIL\]([\s\S]*?)\[\/ABC-INFANTIL\]/g, (match, code) => {
             const id = 'abc-inf-' + Date.now() + '-' + abcInfantis.length;
             abcInfantis.push({ id, code: code.trim() });
             return `<div id="${id}" class="abc-container"></div>`;
         });
         
+        // Processar ABC NORMAL
         processado = processado.replace(/\[ABC\]([\s\S]*?)\[\/ABC\]/g, (match, code) => {
             const id = 'abc-' + Date.now() + '-' + abcNormais.length;
             abcNormais.push({ id, code: code.trim() });
             return `<div id="${id}" class="abc-container"></div>`;
         });
         
+        // Converter Markdown para HTML
         preview.innerHTML = marked.parse(processado);
         
+        // Renderizar ACORDES de violão
         acordes.forEach(a => {
             const el = document.getElementById(a.id);
             if (el) desenharAcorde(el, a.sigla);
         });
         
-        pianos.forEach(p => {
-            const el = document.getElementById(p.id);
-            if (el && typeof desenharAcordePiano !== 'undefined') {
-                desenharAcordePiano(el, p.sigla, p.nome);
-            }
-        });
+        // Renderizar ACORDES de PIANO
+        if (typeof desenharAcordePiano !== 'undefined') {
+            pianos.forEach(p => {
+                const el = document.getElementById(p.id);
+                if (el) desenharAcordePiano(el, p.sigla, p.nome);
+            });
+        }
         
+        // Renderizar ABC NORMAL
         abcNormais.forEach(a => {
             const el = document.getElementById(a.id);
             if (el && typeof ABCJS !== 'undefined') {
@@ -353,6 +362,7 @@ function renderizar() {
             }
         });
         
+        // Renderizar ABC INFANTIL
         abcInfantis.forEach(a => {
             const el = document.getElementById(a.id);
             if (el && typeof ABCJS !== 'undefined') {
@@ -366,6 +376,7 @@ function renderizar() {
             }
         });
         
+        // Aplicar cores e ajustes
         setTimeout(() => {
             if (coresAtivas) {
                 if (typeof aplicarCoresNasNotas === 'function') aplicarCoresNasNotas();
@@ -377,6 +388,7 @@ function renderizar() {
         }, 200);
         
     } catch (e) {
+        console.error("Erro na renderização:", e);
         preview.innerHTML = '<p style="color:red">Erro: ' + e.message + '</p>';
     }
 }
@@ -536,32 +548,33 @@ function toggleCategoria(menuId) {
 }
 
 // ============================================
-// EVENTOS E INICIALIZAÇÃO
+// INICIALIZAÇÃO
 // ============================================
-document.addEventListener('click', function (event) {
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.querySelector('.toggle-sidebar');
-    const isMobile = window.innerWidth <= 768;
-    if (isMobile && !sidebar.classList.contains('collapsed')) {
-        if (!sidebar.contains(event.target) && !toggleBtn.contains(event.target)) {
-            sidebar.classList.add('collapsed');
-        }
+function init() {
+    console.log("Inicializando sistema...");
+    carregarAcordes();
+    
+    // Carregar biblioteca de acordes se a função existir
+    if (typeof carregarBiblioteca === 'function') {
+        carregarBiblioteca();
     }
-});
+    
+    if (aulas.length === 0) {
+        novaAula();
+    } else {
+        renderLista();
+        carregarAula(0);
+    }
+    
+    // Adicionar evento de input ao editor
+    editor.addEventListener('input', () => {
+        clearTimeout(timeoutRender);
+        timeoutRender = setTimeout(() => {
+            renderizar();
+            salvarAulaAtual();
+        }, 300);
+    });
+}
 
-window.onclick = function (event) {
-    const modal = document.getElementById('modalAcordes');
-    if (event.target === modal && typeof fecharEditorAcordes === 'function') fecharEditorAcordes();
-};
-
-editor.addEventListener('input', () => {
-    clearTimeout(timeoutRender);
-    timeoutRender = setTimeout(() => {
-        renderizar();
-        salvarAulaAtual();
-    }, 300);
-});
-
-carregarAcordes();
-if (aulas.length === 0) novaAula();
-else { renderLista(); carregarAula(0); }
+// Iniciar o sistema quando a página carregar
+document.addEventListener('DOMContentLoaded', init);
