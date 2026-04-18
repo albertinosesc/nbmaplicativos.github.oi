@@ -546,6 +546,18 @@ function toggleCategoria(menuId) {
     const menu = document.getElementById(menuId);
     if (menu) menu.classList.toggle('collapsed');
 }
+function abrirModalPiano() {
+    const modal = document.getElementById('modalPiano');
+    if (modal) {
+        modal.style.display = 'block';
+        if (typeof initPiano === 'function') initPiano();
+    }
+}
+
+function fecharModalPiano() {
+    const modal = document.getElementById('modalPiano');
+    if (modal) modal.style.display = 'none';
+}
 
 // ============================================
 // INICIALIZAÇÃO
