@@ -2,6 +2,50 @@
 // EDITOR DE PIANO - FUNÇÕES COMPLETAS
 // ============================================
 
+// ============================================
+// DICIONÁRIO DE ACORDES PARA PIANO
+// ============================================
+const ACORDES_PIANO = {
+    "C": { notas: ["C", "E", "G"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "Cm": { notas: ["C", "D#", "G"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "C#": { notas: ["C#", "F", "G#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "C#m": { notas: ["C#", "E", "G#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "D": { notas: ["D", "F#", "A"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "Dm": { notas: ["D", "F", "A"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "D#": { notas: ["D#", "G", "A#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "D#m": { notas: ["D#", "F#", "A#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "E": { notas: ["E", "G#", "B"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "Em": { notas: ["E", "G", "B"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "F": { notas: ["F", "A", "C"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "Fm": { notas: ["F", "G#", "C"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "F#": { notas: ["F#", "A#", "C#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "F#m": { notas: ["F#", "A", "C#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "G": { notas: ["G", "B", "D"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "Gm": { notas: ["G", "A#", "D"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "G#": { notas: ["G#", "C", "D#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "G#m": { notas: ["G#", "B", "D#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "A": { notas: ["A", "C#", "E"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "Am": { notas: ["A", "C", "E"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "A#": { notas: ["A#", "D", "F"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "A#m": { notas: ["A#", "C#", "F"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "B": { notas: ["B", "D#", "F#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    "Bm": { notas: ["B", "D", "F#"], dedosTreble: ["1", "3", "5"], dedosBass: ["5", "3", "1"] },
+    
+    // Acordes com 7ª
+    "C7": { notas: ["C", "E", "G", "A#"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] },
+    "D7": { notas: ["D", "F#", "A", "C"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] },
+    "E7": { notas: ["E", "G#", "B", "D"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] },
+    "F7": { notas: ["F", "A", "C", "D#"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] },
+    "G7": { notas: ["G", "B", "D", "F"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] },
+    "A7": { notas: ["A", "C#", "E", "G"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] },
+    "B7": { notas: ["B", "D#", "F#", "A"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] },
+    
+    // Acordes com 7ª maior
+    "Cmaj7": { notas: ["C", "E", "G", "B"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] },
+    "Fmaj7": { notas: ["F", "A", "C", "E"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] },
+    "Gmaj7": { notas: ["G", "B", "D", "F#"], dedosTreble: ["1", "2", "3", "5"], dedosBass: ["5", "3", "2", "1"] }
+};
+
 const escalaPadrao = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
 let notasSelecPiano = [];
 let diagramasPiano = [];
@@ -108,7 +152,10 @@ function setClefModePiano(clef) {
 // ============================================
 function criarTecladoPiano() {
     const kb = document.getElementById("keyboard");
-    if (!kb) return;
+    if (!kb) {
+        console.log("Teclado não encontrado");
+        return;
+    }
     
     kb.innerHTML = "";
     let startNota = document.getElementById("startNota")?.value || "C3";
@@ -139,6 +186,9 @@ function criarTecladoPiano() {
             k.style.display = "inline-block";
             k.style.position = "relative";
             k.style.cursor = "pointer";
+            k.style.border = "1px solid #999";
+            k.style.backgroundColor = "#fff";
+            k.style.borderRadius = "0 0 4px 4px";
             kb.appendChild(k);
             whites[i] = k;
         }
@@ -158,6 +208,7 @@ function criarTecladoPiano() {
                 b.style.top = "0";
                 b.style.position = "absolute";
                 b.style.backgroundColor = "#222";
+                b.style.borderRadius = "0 0 3px 3px";
                 b.onclick = (e) => { e.stopPropagation(); toggleNotaPiano(i); };
                 p.appendChild(b);
             }
@@ -404,7 +455,10 @@ function renderizarPartituraPiano(container, abcTexto) {
 // ============================================
 function adicionarDiagramaPiano() {
     let nome = document.getElementById("diagramNamePiano")?.value.trim() || "Sem nome";
-    if (notasSelecPiano.length === 0) { alert("Selecione pelo menos uma nota!"); return; }
+    if (notasSelecPiano.length === 0) { 
+        alert("Selecione pelo menos uma nota clicando no teclado!"); 
+        return; 
+    }
     
     diagramasPiano.push({
         id: Date.now(),
@@ -513,6 +567,7 @@ function limparEditorPiano() {
     document.getElementById("abcTextPiano").value = "";
     atualizarCoresTecladoPiano();
     atualizarEditorPiano();
+    toast("🗑️ Editor limpo", "info");
 }
 
 function limparTodosDiagramasPiano() {
@@ -583,13 +638,16 @@ function gerarLayoutPiano() {
             let diag = diagramasPiano[i];
             let card = document.createElement("div");
             card.className = "diagram-card";
+            card.style.cssText = "background: white; border: 1px solid #dee2e6; border-radius: 6px; padding: 10px; break-inside: avoid;";
             
             let titleDiv = document.createElement("div");
             titleDiv.className = "diagram-title";
+            titleDiv.style.cssText = "font-size: 18px; font-weight: bold; text-align: center; color: #667eea;";
             titleDiv.textContent = diag.nome;
             
             let contentDiv = document.createElement("div");
             contentDiv.className = "diagram-content";
+            contentDiv.style.cssText = "display: flex; flex-direction: column; align-items: center; gap: 10px;";
             
             let diagramDiv = document.createElement("div");
             let scoreDiv = document.createElement("div");
@@ -683,31 +741,109 @@ function exportarPianoHTML() {
 }
 
 // ============================================
+// FUNÇÃO PARA DESENHAR ACORDE DE PIANO NO PREVIEW
+// ============================================
+function desenharAcordePianoPreviewSimples(container, sigla, nome) {
+    if (!container) return;
+    
+    // Verificar se o dicionário existe
+    if (typeof ACORDES_PIANO === 'undefined') {
+        container.innerHTML = `<div style="color:red; padding:10px; text-align:center;">
+            ⚠️ Dicionário de acordes não encontrado.<br>
+            <small>Verifique se o arquivo piano_editor.js foi carregado corretamente.</small>
+        </div>`;
+        return;
+    }
+    
+    // Buscar o acorde no dicionário (case insensitive)
+    const acordeKey = Object.keys(ACORDES_PIANO).find(key => key.toLowerCase() === sigla.toLowerCase());
+    const acorde = acordeKey ? ACORDES_PIANO[acordeKey] : null;
+    
+    if (!acorde) {
+        container.innerHTML = `<div style="color:#e67e22; padding:10px; text-align:center;">
+            🎹 Acorde "${nome}" (${sigla})<br>
+            <small>Notas: Configuração personalizada</small>
+        </div>`;
+        return;
+    }
+    
+    // Converter notas para objetos com num, char, acc, oitava
+    const notasMap = {
+        "C": { char: "C", acc: "", oitava: 4 },
+        "C#": { char: "C", acc: "^", oitava: 4 },
+        "D": { char: "D", acc: "", oitava: 4 },
+        "D#": { char: "D", acc: "^", oitava: 4 },
+        "E": { char: "E", acc: "", oitava: 4 },
+        "F": { char: "F", acc: "", oitava: 4 },
+        "F#": { char: "F", acc: "^", oitava: 4 },
+        "G": { char: "G", acc: "", oitava: 4 },
+        "G#": { char: "G", acc: "^", oitava: 4 },
+        "A": { char: "A", acc: "", oitava: 4 },
+        "A#": { char: "A", acc: "^", oitava: 4 },
+        "B": { char: "B", acc: "", oitava: 4 }
+    };
+    
+    let notasTreble = [];
+    let notasBass = [];
+    
+    acorde.notas.forEach((nota, idx) => {
+        const notaInfo = notasMap[nota];
+        if (notaInfo) {
+            const num = notaParaNum(notaInfo.char, notaInfo.acc, notaInfo.oitava);
+            const objeto = { num, char: notaInfo.char, acc: notaInfo.acc, oitava: notaInfo.oitava };
+            
+            // Distribuir notas entre as mãos (alternando para melhor visualização)
+            if (idx % 2 === 0) {
+                notasTreble.push({ ...objeto, clef: "treble" });
+            } else {
+                notasBass.push({ ...objeto, clef: "bass" });
+            }
+        }
+    });
+    
+    // Combinar todas as notas
+    const todasNotas = [...notasTreble, ...notasBass];
+    
+    // Desenhar o diagrama
+    container.innerHTML = "";
+    const diagramDiv = document.createElement("div");
+    diagramDiv.style.marginBottom = "10px";
+    
+    const dedosTreble = acorde.dedosTreble.join(" ");
+    const dedosBass = acorde.dedosBass.join(" ");
+    
+    desenharDiagramaPiano(diagramDiv, todasNotas, "C3", "C5", 28, dedosTreble, dedosBass);
+    container.appendChild(diagramDiv);
+    
+    // Adicionar nome do acorde
+    const nomeDiv = document.createElement("div");
+    nomeDiv.style.textAlign = "center";
+    nomeDiv.style.fontWeight = "bold";
+    nomeDiv.style.marginTop = "5px";
+    nomeDiv.style.fontSize = "14px";
+    nomeDiv.style.color = "#667eea";
+    nomeDiv.innerHTML = `${nome} <span style="font-size:11px; color:#999;">(${acorde.notas.join(" - ")})</span>`;
+    container.appendChild(nomeDiv);
+}
+
+// ============================================
 // INICIALIZAÇÃO
 // ============================================
-function initPiano() {
+document.addEventListener('DOMContentLoaded', () => {
+    console.log("Editor de piano inicializado");
     criarTecladoPiano();
     carregarDiagramasPiano();
+    setClefModePiano("treble");
     
-    setTimeout(() => {
-        setClefModePiano('treble');
-        toggleNotaPiano(60); toggleNotaPiano(64); toggleNotaPiano(67);
-        setClefModePiano('bass');
-        toggleNotaPiano(48); toggleNotaPiano(52); toggleNotaPiano(55);
-        setClefModePiano('treble');
-        atualizarEditorPiano();
-    }, 100);
-}
-
-function abrirModalPiano() {
-    const modal = document.getElementById('modalPiano');
-    if (modal) {
-        modal.style.display = 'block';
-        initPiano();
-    }
-}
-
-function fecharModalPiano() {
-    const modal = document.getElementById('modalPiano');
-    if (modal) modal.style.display = 'none';
-}
+    // Configurar event listeners
+    const startNota = document.getElementById("startNota");
+    const endNota = document.getElementById("endNota");
+    const zoomPiano = document.getElementById("zoomPiano");
+    
+    if (startNota) startNota.addEventListener("change", () => { criarTecladoPiano(); atualizarEditorPiano(); });
+    if (endNota) endNota.addEventListener("change", () => { criarTecladoPiano(); atualizarEditorPiano(); });
+    if (zoomPiano) zoomPiano.addEventListener("input", (e) => { ajustarZoomPiano(e.target.value); criarTecladoPiano(); });
+    
+    const abcTextPiano = document.getElementById("abcTextPiano");
+    if (abcTextPiano) abcTextPiano.addEventListener("input", sincronizarDoABCPiano);
+});
