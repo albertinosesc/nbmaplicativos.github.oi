@@ -3,13 +3,15 @@
 // ============================================
 
 const escalaPadrao = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-let notasSelec = [];
+let notasSelecPiano = [];
 let diagramasPiano = [];
 let diagramaPianoSelecionado = null;
 let filtroPiano = "";
-let clefAtual = "treble";
+let clefAtualPiano = "treble";
 
-// Funções de conversão de notas
+// ============================================
+// FUNÇÕES AUXILIARES
+// ============================================
 function notaParaNum(letra, acidental, oitava) {
     let base = escalaPadrao.indexOf(letra);
     let offset = acidental === "^" ? 1 : acidental === "_" ? -1 : 0;
@@ -41,11 +43,9 @@ function oitavaParaABCNome(notaChar, oitava) {
 function abcParaOitava(notaStr) {
     let match = notaStr.match(/^([\^_]?)([A-Ga-g])([,']*)(\d+)$/);
     if (!match) return null;
-    
     let acc = match[1];
     let letra = match[2].toUpperCase();
     let modificadores = match[3];
-    
     let oitava = 4;
     if (modificadores.includes(',')) {
         let commas = (modificadores.match(/,/g) || []).length;
@@ -56,13 +56,31 @@ function abcParaOitava(notaStr) {
     } else if (letra !== match[2]) {
         oitava = 5;
     }
-    
     return { acc, letra, oitava, num: notaParaNum(letra, acc, oitava) };
 }
 
-// Controle de clave
-function setClefMode(clef) {
-    clefAtual = clef;
+function escapeHtml(text) {
+    return text.replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+function toast(msg, tipo) {
+    let t = document.createElement("div");
+    t.textContent = msg;
+    t.style.cssText = `position:fixed; bottom:20px; right:20px; background:${tipo==='success'?'#2ed573':'#3a86ff'}; color:white; padding:12px 20px; border-radius:8px; z-index:9999; animation:fadeOut 3s forwards; font-weight:bold;`;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3000);
+}
+
+// ============================================
+// CONTROLE DE CLAVE
+// ============================================
+function setClefModePiano(clef) {
+    clefAtualPiano = clef;
     const trebleBtn = document.getElementById("clefTrebleBtn");
     const bassBtn = document.getElementById("clefBassBtn");
     const modeLabel = document.getElementById("clefModeLabel");
@@ -85,8 +103,10 @@ function setClefMode(clef) {
     }
 }
 
-// Teclado interativo
-function criarTeclado() {
+// ============================================
+// CRIAR TECLADO
+// ============================================
+function criarTecladoPiano() {
     const kb = document.getElementById("keyboard");
     if (!kb) return;
     
@@ -112,7 +132,7 @@ function criarTeclado() {
             let k = document.createElement("div");
             k.className = "white";
             k.dataset.nota = i;
-            k.onclick = () => toggleNota(i);
+            k.onclick = () => toggleNotaPiano(i);
             k.innerHTML = `<div class="noteLabel">${n}</div>`;
             k.style.width = w + "px";
             k.style.height = h + "px";
@@ -138,34 +158,34 @@ function criarTeclado() {
                 b.style.top = "0";
                 b.style.position = "absolute";
                 b.style.backgroundColor = "#222";
-                b.onclick = (e) => { e.stopPropagation(); toggleNota(i); };
+                b.onclick = (e) => { e.stopPropagation(); toggleNotaPiano(i); };
                 p.appendChild(b);
             }
         }
     }
 }
 
-function toggleNota(num) {
-    let existente = notasSelec.find(n => n.num === num && n.clef === clefAtual);
+function toggleNotaPiano(num) {
+    let existente = notasSelecPiano.find(n => n.num === num && n.clef === clefAtualPiano);
     if (existente) {
-        notasSelec = notasSelec.filter(n => !(n.num === num && n.clef === clefAtual));
+        notasSelecPiano = notasSelecPiano.filter(n => !(n.num === num && n.clef === clefAtualPiano));
     } else {
         let notaBase = escalaPadrao[num % 12];
         let oitava = Math.floor(num / 12) - 1;
         let char = notaBase[0];
         let acc = notaBase.includes("#") ? "^" : "";
-        notasSelec.push({num, char, acc, oitava, clef: clefAtual});
+        notasSelecPiano.push({num, char, acc, oitava, clef: clefAtualPiano});
     }
-    notasSelec.sort((a, b) => a.num - b.num);
-    atualizarCoresTeclado();
+    notasSelecPiano.sort((a, b) => a.num - b.num);
+    atualizarCoresTecladoPiano();
     gerarABCPiano();
 }
 
-function atualizarCoresTeclado() {
+function atualizarCoresTecladoPiano() {
     document.querySelectorAll("#keyboard .white, #keyboard .black").forEach(el => {
         el.classList.remove("activeWhiteTreble", "activeBlackTreble", "activeWhiteBass", "activeBlackBass");
     });
-    notasSelec.forEach(nota => {
+    notasSelecPiano.forEach(nota => {
         let tecla = document.querySelector(`#keyboard [data-nota="${nota.num}"]`);
         if (tecla) {
             if (nota.clef === "treble") {
@@ -178,8 +198,8 @@ function atualizarCoresTeclado() {
 }
 
 function gerarABCPiano() {
-    let notasTreble = notasSelec.filter(n => n.clef === "treble");
-    let notasBass = notasSelec.filter(n => n.clef === "bass");
+    let notasTreble = notasSelecPiano.filter(n => n.clef === "treble");
+    let notasBass = notasSelecPiano.filter(n => n.clef === "bass");
     
     let trebleNotes = notasTreble.map(n => {
         let nota = n.char;
@@ -206,7 +226,7 @@ function sincronizarDoABCPiano() {
     let trebleMatch = texto.match(/V:1[^\n]*\n\[(.*?)\]/);
     let bassMatch = texto.match(/V:2[^\n]*\n\[(.*?)\]/);
     
-    notasSelec = [];
+    notasSelecPiano = [];
     
     if (trebleMatch) {
         let notasRaw = trebleMatch[1];
@@ -218,7 +238,7 @@ function sincronizarDoABCPiano() {
             let resultado = abcParaOitava(notaCompleta);
             if (resultado) {
                 let num = notaParaNum(resultado.letra, acc || resultado.acc, resultado.oitava);
-                notasSelec.push({num, char: resultado.letra, acc: acc || resultado.acc, oitava: resultado.oitava, clef: "treble"});
+                notasSelecPiano.push({num, char: resultado.letra, acc: acc || resultado.acc, oitava: resultado.oitava, clef: "treble"});
             }
         }
     }
@@ -233,13 +253,13 @@ function sincronizarDoABCPiano() {
             let resultado = abcParaOitava(notaCompleta);
             if (resultado) {
                 let num = notaParaNum(resultado.letra, acc || resultado.acc, resultado.oitava);
-                notasSelec.push({num, char: resultado.letra, acc: acc || resultado.acc, oitava: resultado.oitava, clef: "bass"});
+                notasSelecPiano.push({num, char: resultado.letra, acc: acc || resultado.acc, oitava: resultado.oitava, clef: "bass"});
             }
         }
     }
     
-    notasSelec.sort((a, b) => a.num - b.num);
-    atualizarCoresTeclado();
+    notasSelecPiano.sort((a, b) => a.num - b.num);
+    atualizarCoresTecladoPiano();
     atualizarEditorPiano();
 }
 
@@ -250,7 +270,7 @@ function atualizarEditorPiano() {
     let fingersTreble = document.getElementById("fingersTreble")?.value || "1 3 5";
     let fingersBass = document.getElementById("fingersBass")?.value || "5 3 1";
     
-    desenharDiagramaPiano(document.getElementById("preview-diagram-piano"), notasSelec, startNota, endNota, zoom, fingersTreble, fingersBass);
+    desenharDiagramaPiano(document.getElementById("preview-diagram-piano"), notasSelecPiano, startNota, endNota, zoom, fingersTreble, fingersBass);
     renderizarPartituraPiano(document.getElementById("preview-score-piano"), document.getElementById("abcTextPiano")?.value);
 }
 
@@ -274,15 +294,11 @@ function desenharDiagramaPiano(container, notas, start, end, zoom, fingersTreble
     wrap.style.width = "100%";
     wrap.style.display = "flex";
     wrap.style.justifyContent = "center";
-    wrap.style.margin = "0";
-    wrap.style.padding = "0";
     
     let keyboardContainer = document.createElement("div");
     keyboardContainer.style.position = "relative";
     keyboardContainer.style.display = "inline-block";
     keyboardContainer.style.height = (h + 8) + "px";
-    keyboardContainer.style.margin = "0";
-    keyboardContainer.style.padding = "0";
     
     let whites = {};
     for (let i = startNum; i <= endNum; i++) {
@@ -383,9 +399,12 @@ function renderizarPartituraPiano(container, abcTexto) {
     }
 }
 
+// ============================================
+// GERENCIAMENTO DE DIAGRAMAS
+// ============================================
 function adicionarDiagramaPiano() {
     let nome = document.getElementById("diagramNamePiano")?.value.trim() || "Sem nome";
-    if (notasSelec.length === 0) { alert("Selecione pelo menos uma nota!"); return; }
+    if (notasSelecPiano.length === 0) { alert("Selecione pelo menos uma nota!"); return; }
     
     diagramasPiano.push({
         id: Date.now(),
@@ -396,7 +415,7 @@ function adicionarDiagramaPiano() {
         fingersTreble: document.getElementById("fingersTreble")?.value || "1 3 5",
         fingersBass: document.getElementById("fingersBass")?.value || "5 3 1",
         abc: document.getElementById("abcTextPiano")?.value || "",
-        notas: JSON.parse(JSON.stringify(notasSelec))
+        notas: JSON.parse(JSON.stringify(notasSelecPiano))
     });
     salvarDiagramasPiano();
     renderizarListaPiano();
@@ -408,7 +427,9 @@ function renderizarListaPiano() {
     if (!list) return;
     
     let filtrados = filtroPiano ? diagramasPiano.filter(d => d.nome.toLowerCase().includes(filtroPiano)) : diagramasPiano;
-    document.getElementById("diagramCountPiano").innerHTML = filtrados.length;
+    let countSpan = document.getElementById("diagramCountPiano");
+    if (countSpan) countSpan.innerHTML = filtrados.length;
+    
     list.innerHTML = "";
     
     if (filtrados.length === 0) {
@@ -447,8 +468,8 @@ function editarDiagramaPiano(id) {
         document.getElementById("fingersTreble").value = diag.fingersTreble;
         document.getElementById("fingersBass").value = diag.fingersBass;
         document.getElementById("abcTextPiano").value = diag.abc;
-        notasSelec = JSON.parse(JSON.stringify(diag.notas));
-        atualizarCoresTeclado();
+        notasSelecPiano = JSON.parse(JSON.stringify(diag.notas));
+        atualizarCoresTecladoPiano();
         atualizarEditorPiano();
         toast(`✏️ Editando: ${diag.nome}`, "info");
     }
@@ -485,12 +506,12 @@ function moverParaBaixoPiano() {
 }
 
 function limparEditorPiano() {
-    notasSelec = [];
+    notasSelecPiano = [];
     document.getElementById("diagramNamePiano").value = "Novo Acorde Piano";
     document.getElementById("fingersTreble").value = "1 3 5";
     document.getElementById("fingersBass").value = "5 3 1";
     document.getElementById("abcTextPiano").value = "";
-    atualizarCoresTeclado();
+    atualizarCoresTecladoPiano();
     atualizarEditorPiano();
 }
 
@@ -521,8 +542,92 @@ function carregarDiagramasPiano() {
     }
 }
 
+// ============================================
+// FUNÇÕES DE LAYOUT E EXPORTAÇÃO
+// ============================================
+function gerarLayoutPiano() {
+    let cols = parseInt(document.getElementById("columnsPiano")?.value || 2);
+    let rows = parseInt(document.getElementById("rowsPiano")?.value || 3);
+    let gap = parseInt(document.getElementById("gapPiano")?.value || 12);
+    let porPagina = cols * rows;
+    let container = document.getElementById("pianoContainer");
+    let previewDiv = document.getElementById("previewPiano");
+    
+    if (!container) return;
+    container.innerHTML = "";
+    
+    if (diagramasPiano.length === 0) {
+        if (previewDiv) previewDiv.style.display = "none";
+        return;
+    }
+    
+    if (previewDiv) previewDiv.style.display = "block";
+    let paginas = Math.ceil(diagramasPiano.length / porPagina);
+    
+    for (let p = 0; p < paginas; p++) {
+        let page = document.createElement("div");
+        page.style.cssText = `page-break-after: ${p === paginas-1 ? 'auto' : 'always'}; break-after: ${p === paginas-1 ? 'auto' : 'page'}; margin: 0; padding: 8px 0;`;
+        
+        let titulo = document.createElement("div");
+        titulo.style.cssText = "text-align:center; margin-bottom:12px; padding:6px; background:#f0f2f5; border-radius:6px; font-size:12px;";
+        titulo.innerHTML = `<span style="font-weight:bold; color:#667eea;">Página ${p + 1} de ${paginas}</span>`;
+        page.appendChild(titulo);
+        
+        let grid = document.createElement("div");
+        grid.style.cssText = `display: grid; grid-template-columns: repeat(${cols}, 1fr); gap: ${gap}px; align-items: stretch;`;
+        
+        let inicio = p * porPagina;
+        let fim = Math.min(inicio + porPagina, diagramasPiano.length);
+        
+        for (let i = inicio; i < fim; i++) {
+            let diag = diagramasPiano[i];
+            let card = document.createElement("div");
+            card.className = "diagram-card";
+            
+            let titleDiv = document.createElement("div");
+            titleDiv.className = "diagram-title";
+            titleDiv.textContent = diag.nome;
+            
+            let contentDiv = document.createElement("div");
+            contentDiv.className = "diagram-content";
+            
+            let diagramDiv = document.createElement("div");
+            let scoreDiv = document.createElement("div");
+            scoreDiv.className = "score-wrapper";
+            
+            desenharDiagramaPiano(diagramDiv, diag.notas, diag.startNota, diag.endNota, diag.zoom, diag.fingersTreble, diag.fingersBass);
+            contentDiv.appendChild(diagramDiv);
+            
+            if (diag.abc && diag.abc.trim()) {
+                try {
+                    let wrapper = document.createElement("div");
+                    wrapper.className = "dual-stave";
+                    ABCJS.renderAbc(wrapper, diag.abc, { staffwidth: 260, scale: 0.95, paddingtop: 1, paddingbottom: 28 });
+                    scoreDiv.appendChild(wrapper);
+                    contentDiv.appendChild(scoreDiv);
+                } catch(e) {}
+            }
+            
+            card.appendChild(titleDiv);
+            card.appendChild(contentDiv);
+            grid.appendChild(card);
+        }
+        
+        page.appendChild(grid);
+        container.appendChild(page);
+    }
+    toast("📄 Layout gerado!", "success");
+}
+
+function imprimirLayoutPiano() { window.print(); }
+
+function ajustarZoomPiano(v) {
+    document.getElementById("zoomPianoVal").innerText = v;
+    atualizarEditorPiano();
+}
+
 function gerarCodigoPianoParaEditor() {
-    if (notasSelec.length === 0) {
+    if (notasSelecPiano.length === 0) {
         alert("Selecione pelo menos uma nota primeiro!");
         return;
     }
@@ -540,43 +645,69 @@ function gerarCodigoPianoParaEditor() {
     if (typeof renderizar === 'function') renderizar();
     if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
     
-    alert(`✅ Código gerado: ${codigo}`);
+    toast(`✅ Código gerado: ${codigo}`, "success");
 }
 
-function ajustarZoomPiano(v) {
-    document.getElementById("zoomPianoVal").innerText = v;
-    atualizarEditorPiano();
+function exportarPianoImagem() {
+    if (diagramasPiano.length === 0) { alert("Adicione diagramas primeiro!"); return; }
+    gerarLayoutPiano();
+    setTimeout(() => {
+        const element = document.getElementById("pianoContainer");
+        html2canvas(element, { scale: 2, backgroundColor: "#ffffff", logging: false }).then(canvas => {
+            let link = document.createElement('a');
+            link.download = `piano_diagramas_${Date.now()}.png`;
+            link.href = canvas.toDataURL();
+            link.click();
+            toast("🖼️ Imagem exportada!", "success");
+        }).catch(err => { console.error(err); alert("Erro ao gerar imagem"); });
+    }, 800);
 }
 
-function escapeHtml(text) {
-    return text.replace(/[&<>]/g, function(m) {
-        if (m === '&') return '&amp;';
-        if (m === '<') return '&lt;';
-        if (m === '>') return '&gt;';
-        return m;
-    });
+function exportarPianoHTML() {
+    if (diagramasPiano.length === 0) { alert("Adicione diagramas primeiro!"); return; }
+    gerarLayoutPiano();
+    setTimeout(() => {
+        let conteudo = document.getElementById("pianoContainer").innerHTML;
+        let styles = document.querySelector("style").innerHTML;
+        let html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Diagramas de Piano</title>
+        <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.3/dist/abcjs-basic-min.js"><\/script>
+        <style>${styles} .diagram-card { break-inside: avoid; page-break-inside: avoid; }</style>
+        </head><body><div class="a4-container">${conteudo}</div></body></html>`;
+        let blob = new Blob([html], {type: "text/html"});
+        let a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `piano_diagramas_${Date.now()}.html`;
+        a.click();
+        toast("📑 HTML exportado!", "success");
+    }, 500);
 }
 
-function toast(msg, tipo) {
-    let t = document.createElement("div");
-    t.textContent = msg;
-    t.style.cssText = `position:fixed; bottom:20px; right:20px; background:${tipo==='success'?'#2ed573':'#3a86ff'}; color:white; padding:12px 20px; border-radius:8px; z-index:9999; animation:fadeOut 3s forwards; font-weight:bold;`;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
-}
-
-// Inicialização do piano
+// ============================================
+// INICIALIZAÇÃO
+// ============================================
 function initPiano() {
-    criarTeclado();
+    criarTecladoPiano();
     carregarDiagramasPiano();
     
-    // Exemplo inicial - acorde C maior
     setTimeout(() => {
-        setClefMode('treble');
-        toggleNota(60); toggleNota(64); toggleNota(67);
-        setClefMode('bass');
-        toggleNota(48); toggleNota(52); toggleNota(55);
-        setClefMode('treble');
+        setClefModePiano('treble');
+        toggleNotaPiano(60); toggleNotaPiano(64); toggleNotaPiano(67);
+        setClefModePiano('bass');
+        toggleNotaPiano(48); toggleNotaPiano(52); toggleNotaPiano(55);
+        setClefModePiano('treble');
         atualizarEditorPiano();
     }, 100);
+}
+
+function abrirModalPiano() {
+    const modal = document.getElementById('modalPiano');
+    if (modal) {
+        modal.style.display = 'block';
+        initPiano();
+    }
+}
+
+function fecharModalPiano() {
+    const modal = document.getElementById('modalPiano');
+    if (modal) modal.style.display = 'none';
 }
