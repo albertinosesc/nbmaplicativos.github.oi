@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Treino Musical - Técnica e Escalas</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      text-align: center;
+      padding: 20px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      margin: 0;
+    }
+
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 20px;
+      padding: 30px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+
+    h2 {
+      color: #667eea;
+      margin-top: 0;
+      margin-bottom: 10px;
+    }
+
+    .subtitle {
+      color: #666;
+      margin-bottom: 25px;
+      font-size: 14px;
+    }
+
+    .config-area {
+      background: #f7f9fc;
+      padding: 20px;
+      border-radius: 15px;
+      margin-bottom: 20px;
+    }
+
+    .config-row {
+      display: flex;
+      gap: 15px;
+      justify-content: center;
+      flex-wrap: wrap;
+      margin-bottom: 15px;
+    }
+
+    input, select, button {
+      padding: 12px 20px;
+      font-size: 16px;
+      margin: 5px;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      transition: all 0.3s ease;
+    }
+
+    input:focus, select:focus {
+      outline: none;
+      border-color: #667eea;
+      box-shadow: 0 0 5px rgba(102,126,234,0.3);
+    }
+
+    button {
+      background: #667eea;
+      color: white;
+      border: none;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    button:hover {
+      background: #764ba2;
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    .modo-buttons {
+      margin: 15px 0;
+    }
+
+    .modo-buttons button {
+      background: #f0f0f0;
+      color: #333;
+    }
+
+    .modo-buttons button.active {
+      background: #667eea;
+      color: white;
+    }
+
+    #modoAtual {
+      font-weight: bold;
+      margin: 10px 0;
+      padding: 8px;
+      background: #f0f0f0;
+      border-radius: 10px;
+      display: inline-block;
+    }
+
+    .resultado-area {
+      margin: 30px 0;
+    }
+
+    #resultado {
+      font-size: 42px;
+      font-weight: bold;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 40px;
+      border-radius: 15px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+      letter-spacing: 8px;
+      transition: transform 0.2s ease;
+      word-break: break-word;
+    }
+
+    .checkbox-label {
+      display: inline-flex;
+      align-items: center;
+      margin: 15px 0;
+      cursor: pointer;
+    }
+
+    .checkbox-label input {
+      width: auto;
+      margin-right: 10px;
+      transform: scale(1.2);
+      cursor: pointer;
+    }
+
+    #lista {
+      max-height: 400px;
+      overflow-y: auto;
+      border: 2px solid #ddd;
+      border-radius: 10px;
+      margin-top: 15px;
+      padding: 15px;
+      text-align: left;
+      background: #fafafa;
+    }
+
+    #lista div {
+      padding: 8px;
+      border-bottom: 1px solid #eee;
+      font-family: monospace;
+      font-size: 14px;
+    }
+
+    #lista div:hover {
+      background: #f0f0f0;
+    }
+
+    #lista div.estudado {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+
+    .info {
+      background: #e0e7ff;
+      padding: 10px;
+      border-radius: 10px;
+      margin: 10px 0;
+      font-size: 14px;
+    }
+
+    .stats {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 15px;
+      border-radius: 10px;
+      margin: 15px 0;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .stat-item {
+      background: rgba(255,255,255,0.2);
+      padding: 8px;
+      border-radius: 8px;
+    }
+
+    .stat-label {
+      font-size: 12px;
+      opacity: 0.9;
+    }
+
+    .stat-value {
+      font-size: 20px;
+      font-weight: bold;
+    }
+
+    .shortcut-hint {
+      position: fixed;
+      bottom: 10px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 12px;
+      z-index: 1000;
+    }
+
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+    }
+
+    .metronome-active {
+      animation: pulse 0.5s infinite;
+    }
+
+    @keyframes success {
+      0% { transform: scale(1); background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+      50% { transform: scale(1.05); background: linear-gradient(135deg, #48bb78 0%, #38a169 100%); }
+      100% { transform: scale(1); background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+    }
+
+    .success-animation {
+      animation: success 0.5s ease;
+    }
+
+    .auto-message {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #48bb78;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 10px;
+      animation: slideIn 0.3s ease;
+      z-index: 1000;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .badge {
+      display: inline-block;
+      padding: 3px 8px;
+      border-radius: 12px;
+      font-size: 12px;
+      font-weight: bold;
+      margin-left: 10px;
+    }
+
+    .badge-tecnica {
+      background: #fed7d7;
+      color: #742a2a;
+    }
+
+    .badge-escala {
+      background: #c6f6d5;
+      color: #22543d;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h2>🎵 Sistema de Treino Musical</h2>
+  <div class="subtitle">Técnica | Escalas | Desenvolvimento</div>
+
+  <div class="config-area">
+    <div class="config-row">
+      <select id="usuario" onchange="carregarConfiguracao()" style="min-width: 150px;"></select>
+      <input type="text" id="novoUsuario" placeholder="Novo usuário">
+      <button onclick="criarUsuario()">➕ Criar</button>
+      <button onclick="deletarUsuario()">🗑️ Deletar</button>
+    </div>
+
+    <div class="config-row">
+      <select id="instrumento" onchange="mudarInstrumento()">
+        <option value="tecnica">🎸 Técnica (Padrões)</option>
+        <option value="escala">🎹 Escalas</option>
+      </select>
+      
+      <select id="tipoTreino" onchange="mudarTipoTreino()" style="min-width: 150px;">
+        <option value="5digits">5 Dígitos (1-2-3-4-5)</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- Modo -->
+  <div class="modo-buttons">
+    <button onclick="setModo('manual')" id="btnManual">📖 Modo Manual</button>
+    <button onclick="setModo('auto')" id="btnAuto">🤖 Modo Automático</button>
+  </div>
+  <div id="modoAtual">Modo: Manual</div>
+
+  <!-- Controles principais -->
+  <div>
+    <input type="number" id="inputId" placeholder="ID" min="1">
+    <button onclick="buscar()">🔍 Buscar</button>
+    <button onclick="proximoAuto()">⏩ Próximo</button>
+    <button onclick="anterior()">⏪ Anterior</button>
+    <button onclick="sortear()">🎲 Sortear</button>
+  </div>
+
+  <!-- Buscar por sequência -->
+  <div>
+    <input type="text" id="inputSeq" placeholder="Ex: 1 2 3 4 5 ou 1-2-3-4-5">
+    <button onclick="buscarId()">🔎 Descobrir ID</button>
+  </div>
+  <div id="idEncontrado" class="info"></div>
+
+  <!-- Lista de combinações -->
+  <button onclick="toggleLista()">📋 Mostrar/Esconder Lista</button>
+  <div id="lista"></div>
+
+  <!-- Metrônomo -->
+  <div>
+    <input type="number" id="bpm" value="60" min="30" max="200">
+    <button onclick="toggleMetronomo()" id="btnMetronomo">🎵 Metrônomo</button>
+  </div>
+
+  <!-- Checkbox de estudo -->
+  <label class="checkbox-label">
+    <input type="checkbox" id="checkEstudado" onchange="marcarEstudado()">
+    ✅ Já estudei esta combinação
+  </label>
+
+  <!-- Estatísticas -->
+  <div class="stats" id="estatisticas">
+    <div>📊 Estatísticas do Treino</div>
+    <div class="stats-grid" id="statsGrid"></div>
+  </div>
+
+  <!-- Resultado -->
+  <div class="resultado-area">
+    <div id="resultado" class="box">---</div>
+  </div>
+</div>
+
+<div class="shortcut-hint">
+  💡 Dica: Espaço = próximo | Enter = buscar | ← → = navegação
+</div>
+
+<script>
+  // Configurações dos treinos
+  const tiposTreino = {
+    tecnica: {
+      '5digits': {
+        nome: 'Técnica 5 Dígitos',
+        numeros: [1, 2, 3, 4, 5],
+        minDigitos: 2,
+        maxDigitos: 5
+      }
+    },
+    escala: {
+      '4digits': {
+        nome: 'Escala 4 Dígitos',
+        numeros: [1, 2, 3, 4],
+        minDigitos: 2,
+        maxDigitos: 4
+      },
+      '5digits': {
+        nome: 'Escala 5 Dígitos',
+        numeros: [1, 2, 3, 4, 5],
+        minDigitos: 2,
+        maxDigitos: 5
+      },
+      '8digits': {
+        nome: 'Escala 8 Dígitos',
+        numeros: [1, 2, 3, 4, 5, 6, 7, 8],
+        minDigitos: 2,
+        maxDigitos: 8
+      }
+    }
+  };
+
+  let combinacoes = [];
+  let modo = 'manual';
+  let avancandoAuto = false;
+  let configAtual = {
+    instrumento: 'tecnica',
+    tipo: '5digits'
+  };
+
+  // Gerar todas combinações possíveis
+  function gerarPermutacoes(arr) {
+    if (arr.length === 1) return [arr];
+    let res = [];
+    for (let i = 0; i < arr.length; i++) {
+      let resto = arr.slice(0, i).concat(arr.slice(i + 1));
+      gerarPermutacoes(resto).forEach(p => res.push([arr[i], ...p]));
+    }
+    return res;
+  }
+
+  function gerarBases(numeros, tamanho) {
+    let bases = [];
+    const maxNumero = Math.max(...numeros);
+    
+    function combinar(start, combo) {
+      if (combo.length === tamanho) {
+        if (Math.max(...combo) === maxNumero) bases.push(combo);
+        return;
+      }
+      for (let i = start; i < numeros.length; i++) {
+        combinar(i + 1, [...combo, numeros[i]]);
+      }
+    }
+    combinar(0, []);
+    return bases;
+  }
+
+  function gerarCombinacoes(numeros, minDigitos, maxDigitos) {
+    const todas = [];
+    for (let t = minDigitos; t <= maxDigitos; t++) {
+      gerarBases(numeros, t).forEach(base => {
+        gerarPermutacoes(base).forEach(p => {
+          todas.push(p.join(' '));
+        });
+      });
+    }
+    return todas;
+  }
+
+  function atualizarCombinacoes() {
+    const tipo = tiposTreino[configAtual.instrumento][configAtual.tipo];
+    if (tipo) {
+      combinacoes = gerarCombinacoes(tipo.numeros, tipo.minDigitos, tipo.maxDigitos);
+      document.getElementById('tipoTreino').value = configAtual.tipo;
+      console.log(`${tipo.nome}: ${combinacoes.length} combinações geradas`);
+      
+      // Atualizar título
+      const instrumentoNome = configAtual.instrumento === 'tecnica' ? 'Técnica' : 'Escalas';
+      document.querySelector('.subtitle').innerHTML = `${instrumentoNome} - ${tipo.nome} (${combinacoes.length} combinações)`;
+      
+      // Recarregar estatísticas
+      if (document.getElementById('usuario').value) {
+        carregarConfiguracao();
+      }
+    }
+  }
+
+  // Inicializar combinações padrão
+  atualizarCombinacoes();
+
+  // Usuários
+  let usuarios = JSON.parse(localStorage.getItem('usuarios_v2') || '{}');
+
+  function atualizarUsuarios() {
+    const sel = document.getElementById('usuario');
+    sel.innerHTML = '';
+    if (Object.keys(usuarios).length === 0) {
+      const opt = document.createElement('option');
+      opt.textContent = 'Nenhum usuário';
+      sel.appendChild(opt);
+    } else {
+      Object.keys(usuarios).forEach(u => {
+        let opt = document.createElement('option');
+        opt.value = u;
+        const progresso = usuarios[u].progresso || {};
+        const totalFeitos = Object.values(progresso).reduce((sum, p) => sum + (p.feitos?.length || 0), 0);
+        opt.textContent = `${u} (${totalFeitos} estudos)`;
+        sel.appendChild(opt);
+      });
+    }
+    carregarConfiguracao();
+  }
+
+  function carregarConfiguracao() {
+    const user = document.getElementById('usuario').value;
+    if (user && usuarios[user]) {
+      const userConfig = usuarios[user];
+      if (userConfig.instrumento) configAtual.instrumento = userConfig.instrumento;
+      if (userConfig.tipo) configAtual.tipo = userConfig.tipo;
+      
+      document.getElementById('instrumento').value = configAtual.instrumento;
+      mudarInstrumento();
+      
+      const idAtual = userConfig[`atual_${configAtual.instrumento}_${configAtual.tipo}`] || 1;
+      if (modo === 'auto') {
+        let proximoId = encontrarProximoNaoEstudado(user, idAtual);
+        mostrar(proximoId);
+      }
+      atualizarEstatisticas();
+    }
+  }
+
+  function encontrarProximoNaoEstudado(user, startId) {
+    if (!usuarios[user]) return startId;
+    const key = `${configAtual.instrumento}_${configAtual.tipo}`;
+    const feitos = usuarios[user].progresso?.[key]?.feitos || [];
+    
+    let id = startId;
+    while (id <= combinacoes.length && feitos.includes(id)) {
+      id++;
+    }
+    if (id > combinacoes.length) {
+      id = 1;
+      while (id <= combinacoes.length && feitos.includes(id)) {
+        id++;
+      }
+    }
+    return id;
+  }
+
+  function criarUsuario() {
+    const nome = document.getElementById('novoUsuario').value.trim();
+    if (!nome) {
+      alert('Digite um nome para o usuário');
+      return;
+    }
+    if (usuarios[nome]) {
+      alert('Usuário já existe!');
+      return;
+    }
+    usuarios[nome] = {
+      progresso: {},
+      instrumento: 'tecnica',
+      tipo: '5digits'
+    };
+    localStorage.setItem('usuarios_v2', JSON.stringify(usuarios));
+    atualizarUsuarios();
+    document.getElementById('novoUsuario').value = '';
+    alert(`Usuário ${nome} criado com sucesso!`);
+  }
+
+  function deletarUsuario() {
+    const user = document.getElementById('usuario').value;
+    if (!user || !usuarios[user]) return;
+    if (confirm(`Tem certeza que deseja deletar o usuário ${user}?`)) {
+      delete usuarios[user];
+      localStorage.setItem('usuarios_v2', JSON.stringify(usuarios));
+      atualizarUsuarios();
+      document.getElementById('resultado').textContent = '---';
+    }
+  }
+
+  function mudarInstrumento() {
+    const instrumento = document.getElementById('instrumento').value;
+    configAtual.instrumento = instrumento;
+    
+    const tipoSelect = document.getElementById('tipoTreino');
+    tipoSelect.innerHTML = '';
+    
+    const opcoes = tiposTreino[instrumento];
+    for (const [key, value] of Object.entries(opcoes)) {
+      const option = document.createElement('option');
+      option.value = key;
+      option.textContent = value.nome;
+      tipoSelect.appendChild(option);
+    }
+    
+    configAtual.tipo = tipoSelect.value;
+    atualizarCombinacoes();
+    
+    // Salvar preferência do usuário
+    const user = document.getElementById('usuario').value;
+    if (user && usuarios[user]) {
+      usuarios[user].instrumento = instrumento;
+      usuarios[user].tipo = configAtual.tipo;
+      localStorage.setItem('usuarios_v2', JSON.stringify(usuarios));
+      carregarConfiguracao();
+    }
+  }
+
+  function mudarTipoTreino() {
+    configAtual.tipo = document.getElementById('tipoTreino').value;
+    atualizarCombinacoes();
+    
+    const user = document.getElementById('usuario').value;
+    if (user && usuarios[user]) {
+      usuarios[user].tipo = configAtual.tipo;
+      localStorage.setItem('usuarios_v2', JSON.stringify(usuarios));
+      carregarConfiguracao();
+    }
+  }
+
+  atualizarUsuarios();
+
+  function setModo(m) {
+    modo = m;
+    document.getElementById('modoAtual').textContent = `Modo: ${m === 'auto' ? 'Automático' : 'Manual'}`;
+    
+    document.getElementById('btnManual').classList.remove('active');
+    document.getElementById('btnAuto').classList.remove('active');
+    document.getElementById(m === 'manual' ? 'btnManual' : 'btnAuto').classList.add('active');
+    
+    if (m === 'auto') {
+      const user = document.getElementById('usuario').value;
+      if (user && usuarios[user]) {
+        const key = `${configAtual.instrumento}_${configAtual.tipo}`;
+        const startId = usuarios[user].progresso?.[key]?.atual || 1;
+        let proximoId = encontrarProximoNaoEstudado(user, startId);
+        mostrar(proximoId);
+      }
+    }
+  }
+
+  function mostrar(id) {
+    if (id >= 1 && id <= combinacoes.length) {
+      document.getElementById('resultado').textContent = combinacoes[id - 1];
+      document.getElementById('inputId').value = id;
+      verificarCheck(id);
+      
+      const resultadoDiv = document.getElementById('resultado');
+      resultadoDiv.style.transform = 'scale(1.02)';
+      setTimeout(() => {
+        resultadoDiv.style.transform = 'scale(1)';
+      }, 200);
+    } else {
+      document.getElementById('resultado').textContent = '❌ ID inválido';
+    }
+  }
+
+  function buscar() {
+    const id = parseInt(document.getElementById('inputId').value);
+    if (isNaN(id)) {
+      alert('Digite um ID válido');
+      return;
+    }
+    mostrar(id);
+  }
+
+  function buscarId() {
+    let seq = document.getElementById('inputSeq').value.trim();
+    if (!seq) {
+      alert('Digite uma sequência');
+      return;
+    }
+    seq = seq.replace(/-/g, ' ');
+    const id = combinacoes.indexOf(seq) + 1;
+    const msg = id > 0 ? `✅ ID encontrado: ${id}` : '❌ Sequência não encontrada';
+    document.getElementById('idEncontrado').textContent = msg;
+    
+    if (id > 0) {
+      document.getElementById('idEncontrado').style.background = '#c6f6d5';
+      setTimeout(() => {
+        document.getElementById('idEncontrado').style.background = '#e0e7ff';
+      }, 2000);
+    }
+  }
+
+  function toggleLista() {
+    const div = document.getElementById('lista');
+    if (div.style.display === 'none' || !div.style.display) {
+      div.style.display = 'block';
+      const user = document.getElementById('usuario').value;
+      const key = `${configAtual.instrumento}_${configAtual.tipo}`;
+      const feitos = usuarios[user]?.progresso?.[key]?.feitos || [];
+      
+      div.innerHTML = combinacoes.map((c, i) => {
+        const isStudied = feitos.includes(i + 1);
+        return `<div class="${isStudied ? 'estudado' : ''}">${String(i + 1).padStart(4, '0')} - ${c} ${isStudied ? '✓' : ''}</div>`;
+      }).join('');
+    } else {
+      div.style.display = 'none';
+    }
+  }
+
+  function mostrarMensagemAuto(mensagem) {
+    const msgDiv = document.createElement('div');
+    msgDiv.className = 'auto-message';
+    msgDiv.textContent = mensagem;
+    document.body.appendChild(msgDiv);
+    setTimeout(() => {
+      msgDiv.remove();
+    }, 2000);
+  }
+
+  function marcarEstudado() {
+    if (avancandoAuto) return;
+    
+    const user = document.getElementById('usuario').value;
+    const id = parseInt(document.getElementById('inputId').value);
+    
+    if (!user || !usuarios[user]) {
+      alert('Selecione um usuário primeiro');
+      document.getElementById('checkEstudado').checked = false;
+      return;
+    }
+    
+    if (!id || id < 1 || id > combinacoes.length) return;
+    
+    const isChecked = document.getElementById('checkEstudado').checked;
+    const key = `${configAtual.instrumento}_${configAtual.tipo}`;
+    
+    if (!usuarios[user].progresso[key]) {
+      usuarios[user].progresso[key] = { feitos: [], atual: 1 };
+    }
+    
+    const resultadoDiv = document.getElementById('resultado');
+    resultadoDiv.classList.add('success-animation');
+    setTimeout(() => {
+      resultadoDiv.classList.remove('success-animation');
+    }, 500);
+    
+    if (isChecked) {
+      if (!usuarios[user].progresso[key].feitos.includes(id)) {
+        usuarios[user].progresso[key].feitos.push(id);
+        usuarios[user].progresso[key].feitos.sort((a, b) => a - b);
+        
+        localStorage.setItem('usuarios_v2', JSON.stringify(usuarios));
+        atualizarEstatisticas();
+        atualizarUsuarios();
+        
+        if (modo === 'auto') {
+          avancandoAuto = true;
+          
+          let proximoId = id + 1;
+          while (proximoId <= combinacoes.length && usuarios[user].progresso[key].feitos.includes(proximoId)) {
+            proximoId++;
+          }
+          
+          if (proximoId > combinacoes.length) {
+            proximoId = 1;
+            while (proximoId <= combinacoes.length && usuarios[user].progresso[key].feitos.includes(proximoId)) {
+              proximoId++;
+            }
+          }
+          
+          usuarios[user].progresso[key].atual = proximoId;
+          localStorage.setItem('usuarios_v2', JSON.stringify(usuarios));
+          
+          if (proximoId <= combinacoes.length) {
+            mostrar(proximoId);
+            mostrarMensagemAuto(`✅ Estudado! Próximo: ${combinacoes[proximoId - 1]}`);
+          } else {
+            mostrarMensagemAuto(`🏆 Parabéns! Você estudou todas as ${combinacoes.length} combinações! 🏆`);
+          }
+          
+          setTimeout(() => {
+            avancandoAuto = false;
+          }, 100);
+        } else {
+          mostrarMensagemAuto(`✅ Marcado como estudado! (Modo Manual)`);
+        }
+      }
+    } else {
+      const index = usuarios[user].progresso[key].feitos.indexOf(id);
+      if (index > -1) {
+        usuarios[user].progresso[key].feitos.splice(index, 1);
+        localStorage.setItem('usuarios_v2', JSON.stringify(usuarios));
+        atualizarEstatisticas();
+        atualizarUsuarios();
+        mostrarMensagemAuto(`↩️ Desmarcado: ${combinacoes[id - 1]}`);
+      }
+    }
+  }
+
+  function verificarCheck(id) {
+    const user = document.getElementById('usuario').value;
+    if (user && usuarios[user]) {
+      const key = `${configAtual.instrumento}_${configAtual.tipo}`;
+      const feitos = usuarios[user].progresso?.[key]?.feitos || [];
+      document.getElementById('checkEstudado').checked = feitos.includes(id);
+    } else {
+      document.getElementById('checkEstudado').checked = false;
+    }
+  }
+
+  function proximoAuto() {
+    const user = document.getElementById('usuario').value;
+    if (!user || !usuarios[user]) {
+      alert('Selecione um usuário primeiro');
+      return;
+    }
+    
+    const key = `${configAtual.instrumento}_${configAtual.tipo}`;
+    
+    if (modo === 'auto') {
+      const idAtual = parseInt(document.getElementById('inputId').value);
+      let proximoId = idAtual + 1;
+      
+      while (proximoId <= combinacoes.length && usuarios[user].progresso[key]?.feitos.includes(proximoId)) {
+        proximoId++;
+      }
+      
+      if (proximoId > combinacoes.length) {
+        proximoId = 1;
+        while (proximoId <= combinacoes.length && usuarios[user].progresso[key]?.feitos.includes(proximoId)) {
+          proximoId++;
+        }
+      }
+      
+      if (proximoId <= combinacoes.length) {
+        mostrar(proximoId);
+        if (!usuarios[user].progresso[key]) {
+          usuarios[user].progresso[key] = { feitos: [], atual: 1 };
+        }
+        usuarios[user].progresso[key].atual = proximoId;
+        localStorage.setItem('usuarios_v2', JSON.stringify(usuarios));
+      } else {
+        mostrarMensagemAuto('🎉 Parabéns! Você já estudou todas as combinações! 🎉');
+      }
+    } else {
+      const idAtual = parseInt(document.getElementById('inputId').value) || 1;
+      const proximoId = idAtual + 1;
+      if (proximoId <= combinacoes.length) {
+        mostrar(proximoId);
+      } else {
+        alert('Você chegou ao final da lista!');
+      }
+    }
+  }
+
+  function anterior() {
+    const idAtual = parseInt(document.getElementById('inputId').value) || 1;
+    const anteriorId = idAtual - 1;
+    if (anteriorId >= 1) {
+      mostrar(anteriorId);
+    } else {
+      alert('Você está no início da lista!');
+    }
+  }
+
+  function sortear() {
+    const idSorteado = Math.floor(Math.random() * combinacoes.length) + 1;
+    mostrar(idSorteado);
+  }
+
+  function atualizarEstatisticas() {
+    const user = document.getElementById('usuario').value;
+    if (user && usuarios[user]) {
+      const statsHTML = [];
+      
+      for (const [inst, tipos] of Object.entries(tiposTreino)) {
+        for (const [tipoKey, tipoInfo] of Object.entries(tipos)) {
+          const key = `${inst}_${tipoKey}`;
+          const feitos = usuarios[user].progresso?.[key]?.feitos || [];
+          const total = inst === 'tecnica' && tipoKey === '5digits' ? 180 : 
+                       inst === 'escala' && tipoKey === '4digits' ? 32 :
+                       inst === 'escala' && tipoKey === '5digits' ? 180 :
+                       40320; // 8 digits
+          
+          const percentual = ((feitos.length / total) * 100).toFixed(1);
+          const badge = inst === 'tecnica' ? 'badge-tecnica' : 'badge-escala';
+          
+          statsHTML.push(`
+            <div class="stat-item">
+              <div class="stat-label">${inst === 'tecnica' ? '🎸' : '🎹'} ${tipoInfo.nome}</div>
+              <div class="stat-value">${feitos.length}/${total}</div>
+              <div class="stat-label">${percentual}%</div>
+              <span class="badge ${badge}">${inst === 'tecnica' ? 'Técnica' : 'Escala'}</span>
+            </div>
+          `);
+        }
+      }
+      
+      document.getElementById('statsGrid').innerHTML = statsHTML.join('');
+    } else {
+      document.getElementById('statsGrid').innerHTML = '<div class="stat-item">Selecione um usuário</div>';
+    }
+  }
+
+  // Metrônomo
+  let intervalo = null;
+  let audioContext = null;
+  
+  function initAudio() {
+    if (!audioContext) {
+      audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+  }
+  
+  function clickSom() {
+    initAudio();
+    const o = audioContext.createOscillator();
+    const g = audioContext.createGain();
+    o.connect(g);
+    g.connect(audioContext.destination);
+    o.frequency.value = 880;
+    o.type = 'sine';
+    g.gain.value = 0.3;
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.2);
+    o.stop(audioContext.currentTime + 0.2);
+  }
+  
+  function toggleMetronomo() {
+    const bpm = parseInt(document.getElementById('bpm').value) || 60;
+    const ms = 60000 / bpm;
+    const btn = document.getElementById('btnMetronomo');
+    
+    if (intervalo) {
+      clearInterval(intervalo);
+      intervalo = null;
+      btn.textContent = '🎵 Metrônomo';
+      btn.style.background = '#667eea';
+      document.getElementById('resultado').classList.remove('metronome-active');
+    } else {
+      if (ms < 50) {
+        alert('BPM muito alto! Máximo 200');
+        return;
+      }
+      intervalo = setInterval(clickSom, ms);
+      btn.textContent = '⏹️ Parar Metrônomo';
+      btn.style.background = '#e53e3e';
+      document.getElementById('resultado').classList.add('metronome-active');
+    }
+  }
+
+  // Teclas de atalho
+  document.addEventListener('keydown', (e) => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      proximoAuto();
+    } else if (e.code === 'Enter') {
+      e.preventDefault();
+      buscar();
+    } else if (e.code === 'ArrowLeft') {
+      e.preventDefault();
+      anterior();
+    } else if (e.code === 'ArrowRight') {
+      e.preventDefault();
+      proximoAuto();
+    }
+  });
+
+  // Inicialização
+  setModo('manual');
+</script>
+</body>
+</html>
