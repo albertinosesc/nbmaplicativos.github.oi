@@ -2,6 +2,7 @@
 // PRO MAESTRO - SISTEMA COMPLETO (CORRIGIDO)
 // ============================================
 
+
 // Variáveis globais
 let dados = {
     listas: []
@@ -1134,7 +1135,16 @@ function toast(msg, tipo) {
 // ============================================
 function init() {
     console.log("Inicializando sistema...");
+    
+    // Verifica se o módulo de acordes dinâmicos foi carregado
+    if (typeof window.processarAcordeDinamico !== 'function') {
+        console.warn('⚠️ acordes_dinamicos.js não carregado. Acordes dinâmicos não funcionarão.');
+    } else {
+        console.log('✅ Módulo de acordes dinâmicos carregado!');
+    }
+    
     carregarDados();
+    
     if (editor) {
         editor.addEventListener('input', () => {
             clearTimeout(timeoutRenderTimer);
@@ -1146,9 +1156,10 @@ function init() {
     }
 }
 
+// Inicia quando a página carregar
 document.addEventListener('DOMContentLoaded', init);
 
-// Adicionar estilo para animação do toast
+// Estilo para o toast de notificações
 const styleToast = document.createElement('style');
 styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
 document.head.appendChild(styleToast);
