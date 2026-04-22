@@ -10,7 +10,7 @@ function carregarBiblioteca() {
         bibliotecaAcordes = JSON.parse(salvos);
     } else {
         bibliotecaAcordes = {
-            'C': { nome: 'Dó Maior', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 1, baixo: 'C' },
+            'C': { nome: 'W', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 1, baixo: 'C' },
             'D': { nome: 'Ré Maior', cordas: [-1,-1,0,2,3,2], dedos: ['','','1','2','3','4'], pestana: false, casaInicial: 1, baixo: 'D' },
             'E': { nome: 'Mi Maior', cordas: [0,2,2,1,0,0], dedos: ['','2','3','1','',''], pestana: false, casaInicial: 1, baixo: 'E' },
             'F': { nome: 'Fá Maior', cordas: [1,3,3,2,1,1], dedos: ['1','3','4','2','1','1'], pestana: [0,1,2,3,4,5], casaInicial: 1, baixo: 'F' },
