@@ -409,7 +409,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.stroke();
             
             // Número da pestana
-            ctx.font = 'bold 10px Arial';
+            ctx.font = 'bold 14px Arial';
             ctx.fillStyle = '#2c3e50';
             ctx.fillText(acorde.pestanaCasa || casaInicial, startX - 12, pestanaY + 4);
         }
