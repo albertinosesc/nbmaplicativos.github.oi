@@ -30,13 +30,6 @@ const ACORDES = {
     'F': { nome: 'Fá Maior', cordas: [1,3,3,2,1,1], dedos: ['1','3','4','2','1','1'], pestana: true, casaInicial: 1 }
 };
 
-const ACORDES_PIANO = {
-    'C': { nome: 'Dó Maior', notas: ['C3', 'E3', 'G3'], startOitava: 'C3', endOitava: 'C4', dedosTreble: ['1', '3', '5'] },
-    'G': { nome: 'Sol Maior', notas: ['G3', 'B3', 'D4'], startOitava: 'G3', endOitava: 'G4', dedosTreble: ['1', '3', '5'] },
-    'Am': { nome: 'Lá Menor', notas: ['A3', 'C4', 'E4'], startOitava: 'A3', endOitava: 'A4', dedosTreble: ['1', '3', '5'] },
-    'F': { nome: 'Fá Maior', notas: ['F3', 'A3', 'C4'], startOitava: 'F3', endOitava: 'F4', dedosTreble: ['1', '3', '5'] },
-    'Dm': { nome: 'Ré Menor', notas: ['D3', 'F3', 'A3'], startOitava: 'D3', endOitava: 'D4', dedosTreble: ['1', '3', '5'] }
-};
 
 // ============================================
 // FUNÇÕES AUXILIARES
@@ -418,18 +411,18 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.lineWidth = 1.5;
     }
     
-        // Desenha notas
+       // Desenha notas
     const pestanaCasa = acorde.pestanaCasa || casaInicial;
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
         const casaRelativa = casa - pestanaCasa + 1;
         
-        // Verifica se esta corda DEVE ter pestana (baseado no array pestanaCordas)
-        const isPestanaCorda = acorde.pestanaCordas && acorde.pestanaCordas.includes(i);
+        // VERIFICA SE ESTA CORDA TEM PESTANA
+        const temPestanaNestaCorda = acorde.pestanaCordas && acorde.pestanaCordas.includes(i);
         
-        // PULA o desenho da bolinha se a corda estiver na pestana
-        if (isPestanaCorda) {
-            return; // Não desenha bolinha, a pestana já representa a nota
+        // SE TEM PESTANA, NÃO DESENHA BOLINHA (a pestana já representa)
+        if (temPestanaNestaCorda) {
+            return; // PULA o desenho da bolinha
         }
         
         if (casa === 0) {
@@ -440,7 +433,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.strokeStyle = '#333';
             ctx.stroke();
         } else if (casa === -1) {
-            // Corda não usada (X)
+            // Corda não usada
             const y = startY - 12;
             ctx.beginPath();
             ctx.moveTo(x - 5, y - 5);
@@ -450,8 +443,9 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.lineWidth = 2;
             ctx.strokeStyle = '#e94560';
             ctx.stroke();
+            ctx.lineWidth = 1.5;
         } else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
-            // Nota pressionada (que não é pestana)
+            // Nota pressionada normal (sem pestana)
             const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
             ctx.beginPath();
             ctx.arc(x, y, 8, 0, 2 * Math.PI);
