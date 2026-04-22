@@ -225,7 +225,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.stroke();
     }
     
-    // NÚMERO DA CASA (TRANSPOSIÇÃO)
+    // NÚMERO DA CASA (TRANSPOSIÇÃO) - Mostra o número ao lado esquerdo
     if (acorde.casaInicial > 1) {
         ctx.font = 'bold 12px Arial';
         ctx.fillStyle = '#333';
@@ -244,22 +244,28 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.lineWidth = 1.5;
     }
     
-    // DESENHAR BOLINHAS
+    // DESENHAR BOLINHAS - As cordas já estão ajustadas pelo processarAcordeDinamico
+    // As cordas contêm os valores absolutos (ex: 3, 5, 5, 4, 3, 3)
+    // Precisamos desenhar na posição RELATIVA à pestana (casa 1)
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
         
-        // Calcula a casa relativa para desenhar (1 a 5)
+        // Calcula a posição relativa: casa absoluta - pestanaCasa + 1
+        // Ex: casa=3, pestanaCasa=1, relativa=3
+        // Ex: casa=1, pestanaCasa=1, relativa=1 (pestana)
         const pestanaCasa = acorde.pestanaCasa || 1;
         const casaRelativa = casa - pestanaCasa + 1;
         const isPestana = (acorde.pestana && casa === pestanaCasa);
         
         if (casa === 0) {
+            // Corda solta
             const y = startY - 12;
             ctx.beginPath();
             ctx.arc(x, y, 6, 0, 2 * Math.PI);
             ctx.strokeStyle = '#333';
             ctx.stroke();
         } else if (casa === -1) {
+            // Corda não tocada
             const y = startY - 12;
             ctx.beginPath();
             ctx.moveTo(x - 5, y - 5);
@@ -268,6 +274,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.lineTo(x - 5, y + 5);
             ctx.stroke();
         } else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets && !isPestana) {
+            // Nota pressionada - desenha na posição relativa
             const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
             ctx.beginPath();
             ctx.arc(x, y, 7, 0, 2 * Math.PI);
