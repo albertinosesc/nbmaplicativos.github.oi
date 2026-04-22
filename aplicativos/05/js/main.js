@@ -95,75 +95,104 @@ function getDadosPadrao() {
 // ============================================
 // FUNÇÃO INSERIR ACORDE - 3 FORMAS INTEGRADAS
 // ============================================
-function inserirAcorde() {
-    const opcao = prompt(
-        '🎸 INSERIR ACORDE\n\n' +
-        '1 - Biblioteca Básica (C, G, Am, F...)\n' +
-        '2 - Minha Biblioteca (acordes que você salvou)\n' +
-        '3 - Acorde Dinâmico (1;3 = Sol Maior)\n' +
-        '4 - Abrir Editor de Acordes\n\n' +
-        'Digite o número da opção:'
+// ============================================
+// FUNÇÃO PARA SALVAR ACORDE DINÂMICO NA BIBLIOTECA
+// ============================================
+
+function salvarAcordeDinamicoNaBiblioteca() {
+    const formato = prompt(
+        '💾 SALVAR ACORDE DINÂMICO NA BIBLIOTECA\n\n' +
+        'Digite o formato do acorde dinâmico que você quer salvar:\n\n' +
+        'Exemplo: 1;3 (Sol Maior)\n' +
+        'Exemplo: 2;5 (Lá Menor)\n\n' +
+        'Formato:'
     );
     
-    // Opção 1: Biblioteca Básica
-    if (opcao === '1') {
-        const lista = 'C, G, D, Am, Em, F';
-        const sigla = prompt(`Acordes disponíveis:\n${lista}\n\nDigite a sigla:`, 'C');
-        if (sigla && ACORDES[sigla]) {
-            inserirCodigoAcorde(`[Acorde:${sigla}]${ACORDES[sigla].nome}[/Acorde]`);
-        } else if (sigla) {
-            alert(`❌ Acorde "${sigla}" não encontrado!`);
-        }
+    if (!formato) return;
+    
+    const convertido = converterDinamicoParaEditavel(formato);
+    if (!convertido) return;
+    
+    // Pergunta se quer personalizar o nome
+    const novoNome = prompt(`Nome do acorde na biblioteca (ou Enter para manter "${convertido.nome}"):`, convertido.nome);
+    if (novoNome && novoNome.trim()) {
+        convertido.acorde.nome = novoNome.trim();
+        convertido.linha = convertido.linha.replace(convertido.nome, novoNome.trim());
     }
     
-    // Opção 2: Minha Biblioteca
-    else if (opcao === '2') {
-        if (typeof bibliotecaAcordes !== 'undefined' && Object.keys(bibliotecaAcordes).length > 0) {
-            const lista = Object.entries(bibliotecaAcordes)
-                .map(([sigla, acorde]) => `${sigla} - ${acorde.nome}`)
-                .join('\n');
-            const sigla = prompt(`📚 SEUS ACORDES SALVOS:\n\n${lista}\n\nDigite a sigla:`, '');
-            if (sigla && bibliotecaAcordes[sigla]) {
-                inserirCodigoAcorde(`[Acorde:${sigla}]${bibliotecaAcordes[sigla].nome}[/Acorde]`);
-            } else if (sigla) {
-                alert(`❌ Acorde "${sigla}" não encontrado!`);
-            }
-        } else {
-            alert('📭 Nenhum acorde salvo! Use opção 4 para criar.');
-        }
-    }
-    
-    // Opção 3: Acorde Dinâmico
-    else if (opcao === '3') {
-        const formato = prompt(
-            '🎸 ACORDE DINÂMICO\n\n' +
-            'Formatos:\n' +
-            '• 1;3 = Sol Maior (forma maior casa 3)\n' +
-            '• 2;5 = Lá Menor (forma menor casa 5)\n' +
-            '• 1;3;5 = Dó Maior (corda base 5)\n\n' +
-            'Formas: 1=Maior, 2=Menor, 3=Sétima\n' +
-            'Cordas: 4=Ré, 5=Lá, 6=Mi\n\n' +
-            'Digite o formato:'
-        );
+    // Salva diretamente na biblioteca
+    if (typeof bibliotecaAcordes !== 'undefined') {
+        // Extrai dados da linha
+        const partes = convertido.linha.split('/').map(p => p.trim());
+        const siglaNome = partes[0];
+        const doisPontos = siglaNome.indexOf(':');
+        const sigla = siglaNome.substring(0, doisPontos).trim();
         
-        if (formato && typeof window.processarAcordeDinamico === 'function') {
-            const acordeTemp = window.processarAcordeDinamico(formato, '');
-            if (acordeTemp) {
-                inserirCodigoAcorde(`[Acorde:${formato}]${acordeTemp.nome}[/Acorde]`);
-            } else {
-                alert(`❌ Formato "${formato}" inválido!`);
-            }
-        } else if (formato) {
-            alert('❌ Módulo de acordes dinâmicos não carregado!');
+        // Salva na biblioteca
+        bibliotecaAcordes[sigla] = {
+            nome: convertido.acorde.nome,
+            cordas: convertido.acorde.cordas,
+            dedos: convertido.acorde.dedos,
+            pestana: convertido.acorde.pestanaCordas || convertido.acorde.pestana || false,
+            casaInicial: convertido.acorde.casaInicial,
+            baixo: convertido.acorde.baixo || sigla
+        };
+        
+        // Salva no localStorage
+        localStorage.setItem('biblioteca_acordes', JSON.stringify(bibliotecaAcordes));
+        
+        // Atualiza visualização
+        if (typeof atualizarBibliotecaVisual === 'function') {
+            atualizarBibliotecaVisual();
+        }
+        
+        alert(`✅ Acorde "${sigla}" salvo na biblioteca!\n\nUse [Acorde:${sigla}] no editor.`);
+    } else {
+        alert('Erro: biblioteca de acordes não disponível');
+    }
+}
+
+// Adiciona um botão na sidebar para salvar acorde dinâmico
+function adicionarBotaoSalvarDinamico() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        const btn = document.createElement('button');
+        btn.innerHTML = '🔄 Converter Dinâmico';
+        btn.style.background = '#9b59b6';
+        btn.style.marginTop = '10px';
+        btn.onclick = salvarAcordeDinamicoNaBiblioteca;
+        
+        // Insere depois do botão "Editor de Acordes"
+        const editorBtn = document.querySelector('#sidebar button[onclick="abrirEditorAcordes()"]');
+        if (editorBtn) {
+            editorBtn.insertAdjacentElement('afterend', btn);
+        } else {
+            sidebar.querySelector('.sidebar-content')?.appendChild(btn);
         }
     }
+}
+
+// Chame esta função no init()
+function init() {
+    console.log("Inicializando sistema...");
     
-    // Opção 4: Abrir Editor
-    else if (opcao === '4') {
-        abrirEditorAcordes();
+    if (typeof window.processarAcordeDinamico !== 'function') {
+        console.warn('⚠️ acordes_dinamicos.js não carregado');
+    } else {
+        console.log('✅ Módulo de acordes dinâmicos carregado!');
+        adicionarBotaoSalvarDinamico(); // Adiciona botão na sidebar
     }
-    else if (opcao !== null) {
-        alert('Opção inválida! Digite 1, 2, 3 ou 4');
+    
+    carregarDados();
+    
+    if (editor) {
+        editor.addEventListener('input', () => {
+            clearTimeout(timeoutRenderTimer);
+            timeoutRenderTimer = setTimeout(() => {
+                renderizar();
+                salvarAulaAtual();
+            }, 500);
+        });
     }
 }
 
@@ -172,6 +201,99 @@ function inserirCodigoAcorde(codigo) {
     editor.value = editor.value.substring(0, start) + codigo + editor.value.substring(start);
     renderizar();
     salvarAulaAtual();
+}
+
+// ============================================
+// CONVERTER ACORDE DINÂMICO PARA EDITÁVEL
+// ============================================
+
+// Função para converter acorde dinâmico em formato editável
+function converterDinamicoParaEditavel(formato) {
+    if (typeof window.processarAcordeDinamico !== 'function') {
+        alert('Módulo de acordes dinâmicos não carregado!');
+        return null;
+    }
+    
+    const acorde = window.processarAcordeDinamico(formato, '');
+    if (!acorde) {
+        alert(`Formato "${formato}" inválido!`);
+        return null;
+    }
+    
+    // Gera a linha no formato que o editor entende
+    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestanaCordas) && acorde.pestanaCordas.length > 0 
+        ? JSON.stringify(acorde.pestanaCordas) 
+        : 'true') : 'false';
+    
+    const cordasStr = acorde.cordas.join(',');
+    const dedosStr = acorde.dedos.join(',');
+    
+    // Formato: SIGLA: NOME / CORDAS / DEDOS / PESTANA / CASA_INICIAL / BAIXO
+    const linha = `${formato}: ${acorde.nome} / ${cordasStr} / ${dedosStr} / ${pestanaStr} / ${acorde.casaInicial} / ${acorde.baixo || ''}`;
+    
+    return {
+        linha: linha,
+        acorde: acorde,
+        formato: formato,
+        nome: acorde.nome
+    };
+}
+
+// Função para abrir editor com acorde dinâmico
+function editarAcordeDinamico() {
+    const formato = prompt(
+        '🎸 EDITAR ACORDE DINÂMICO\n\n' +
+        'Digite o formato do acorde dinâmico que você quer editar:\n\n' +
+        'Exemplos:\n' +
+        '• 1;3 = Sol Maior\n' +
+        '• 2;5 = Lá Menor\n' +
+        '• 1;3;5 = Dó Maior (corda base 5)\n\n' +
+        'Formato:'
+    );
+    
+    if (!formato) return;
+    
+    const convertido = converterDinamicoParaEditavel(formato);
+    if (!convertido) return;
+    
+    // Abre o editor com o acorde convertido
+    abrirEditorAcordesComDados(convertido.linha, convertido.nome);
+}
+
+// Função para abrir editor com dados pré-preenchidos
+function abrirEditorAcordesComDados(linha, nomeSugerido) {
+    const modal = document.getElementById('modalAcordes');
+    if (!modal) {
+        alert('Editor de acordes não encontrado!');
+        return;
+    }
+    
+    // Abre o modal
+    if (typeof carregarBiblioteca === 'function') carregarBiblioteca();
+    modal.style.display = 'block';
+    
+    // Preenche o campo de texto
+    const inputField = document.getElementById('acordeInput');
+    if (inputField) {
+        inputField.value = linha;
+    }
+    
+    // Foca no campo
+    setTimeout(() => {
+        if (inputField) {
+            inputField.focus();
+            inputField.select();
+        }
+    }, 100);
+    
+    // Gera preview automaticamente
+    setTimeout(() => {
+        if (typeof gerarPreviewAcordes === 'function') {
+            gerarPreviewAcordes();
+        }
+    }, 200);
+    
+    alert(`✅ Acorde dinâmico "${formato}" convertido!\n\nAgora você pode editar e salvar na biblioteca.`);
 }
 
 // ============================================
