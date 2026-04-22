@@ -289,27 +289,18 @@ function abrirEditorAcordesComDados(linha, nomeSugerido) {
     alert(`✅ Acorde dinâmico "${formato}" convertido!\n\nAgora você pode editar e salvar na biblioteca.`);
 }
 
-// ============================================
-// DESENHAR ACORDE DE VIOLÃO (CORRIGIDO - COM BOLINHAS MESMO COM PESTANA)
-// ============================================
 function desenharAcorde(container, sigla, nomeParam = '') {
     let acorde = null;
     let nomeExibido = nomeParam || sigla;
     
-    // 1️⃣ Tenta na biblioteca básica ACORDES
-    if (ACORDES[sigla]) {
+    // 1️⃣ Busca do acorde (Biblioteca ou Dinâmico)
+    if (typeof ACORDES !== 'undefined' && ACORDES[sigla]) {
         acorde = ACORDES[sigla];
         nomeExibido = acorde.nome;
-    }
-    
-    // 2️⃣ Tenta na biblioteca do editor
-    if (!acorde && typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[sigla]) {
+    } else if (typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[sigla]) {
         acorde = bibliotecaAcordes[sigla];
         nomeExibido = acorde.nome;
-    }
-    
-    // 3️⃣ Tenta gerar dinamicamente
-    if (!acorde && typeof window.processarAcordeDinamico === 'function') {
+    } else if (typeof window.processarAcordeDinamico === 'function') {
         const acordeDinamico = window.processarAcordeDinamico(sigla, nomeExibido);
         if (acordeDinamico) {
             acorde = acordeDinamico;
@@ -324,24 +315,11 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     
     container.innerHTML = '';
     const wrapper = document.createElement('div');
-    wrapper.style.position = 'relative';
-    wrapper.style.display = 'inline-block';
-    wrapper.style.textAlign = 'center';
-    wrapper.style.margin = '20px 10px';
+    wrapper.style.cssText = 'position:relative; display:inline-block; text-align:center; margin:20px 10px;';
     
     const cifraDiv = document.createElement('div');
     cifraDiv.textContent = nomeExibido;
-    cifraDiv.style.position = 'absolute';
-    cifraDiv.style.top = '-25px';
-    cifraDiv.style.left = '50%';
-    cifraDiv.style.transform = 'translateX(-50%)';
-    cifraDiv.style.fontSize = '1.4em';
-    cifraDiv.style.fontWeight = 'bold';
-    cifraDiv.style.color = '#e94560';
-    cifraDiv.style.backgroundColor = 'white';
-    cifraDiv.style.padding = '2px 8px';
-    cifraDiv.style.borderRadius = '20px';
-    cifraDiv.style.whiteSpace = 'nowrap';
+    cifraDiv.style.cssText = 'position:absolute; top:-25px; left:50%; transform:translateX(-50%); font-size:1.4em; font-weight:bold; color:#e94560; background:white; padding:2px 8px; border-radius:20px; white-space:nowrap;';
     wrapper.appendChild(cifraDiv);
     
     const canvas = document.createElement('canvas');
@@ -354,7 +332,8 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     
     const startX = 28, startY = 45, stringSpacing = 18, fretSpacing = 26;
     const numFrets = 5;
-    
+    const casaInicial = acorde.casaInicial || 1;
+
     // Desenha cordas
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1.5;
@@ -373,81 +352,80 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.stroke();
     }
     
-    // ========== NÚMERO LATERAL (SEMPRE aparece) ==========
-    const casaInicial = acorde.casaInicial || 1;
+    // Número lateral da casa
     ctx.font = 'bold 14px Arial';
     ctx.fillStyle = '#333';
-    ctx.fillText(casaInicial + 'ª', startX - 28, startY + fretSpacing / 2 + 2);
+    ctx.fillText(casaInicial + 'ª', startX - 28, startY + fretSpacing / 2 + 5);
     
-    // ========== PESTANA (sem número) ==========
+    // ========== PESTANA ==========
     const temPestana = acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0;
-    
+    let cordasNaPestana = [];
+
     if (temPestana) {
-        const pestanaY = startY + 12;
-        const cordasValidas = acorde.pestanaCordas.filter(idx => idx >= 0 && idx <= 5);
+        cordasNaPestana = acorde.pestanaCordas;
+        const pestanaY = startY + (fretSpacing / 2); // Centralizada na casa
+        const primeiraCorda = Math.min(...cordasNaPestana);
+        const ultimaCorda = Math.max(...cordasNaPestana);
         
-        if (cordasValidas.length > 0) {
-            const primeiraCorda = Math.min(...cordasValidas);
-            const ultimaCorda = Math.max(...cordasValidas);
-            
-            const xInicio = startX + primeiraCorda * stringSpacing - 3;
-            const xFim = startX + ultimaCorda * stringSpacing + 3;
-            
-            ctx.beginPath();
-            ctx.moveTo(xInicio, pestanaY);
-            ctx.lineTo(xFim, pestanaY);
-            ctx.lineWidth = 8;
-            ctx.strokeStyle = '#2c3e50';
-            ctx.stroke();
-            // SEM NÚMERO NA PESTANA
-        }
-        ctx.lineWidth = 1.5;
+        const xInicio = startX + primeiraCorda * stringSpacing - 2;
+        const xFim = startX + ultimaCorda * stringSpacing + 2;
+        
+        ctx.beginPath();
+        ctx.moveTo(xInicio, pestanaY);
+        ctx.lineTo(xFim, pestanaY);
+        ctx.lineWidth = 10; // Espessura da pestana
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#2c3e50';
+        ctx.stroke();
     }
     
-    // Desenha as notas e dedos
-    const pestanaCasa = acorde.pestanaCasa || casaInicial;
-    
+    // ========== DESENHAR NOTAS (BOLINHAS) ==========
+    ctx.lineWidth = 1.5;
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
-        const casaRelativa = casa - pestanaCasa + 1;
+        const casaRelativa = casa - casaInicial + 1;
         
+        // Verifica se esta corda já está ocupada pela pestana na casa inicial
+        const estaNaPestana = temPestana && cordasNaPestana.includes(i) && casa === casaInicial;
+
         if (casa === 0) {
-            // Corda solta
-            const y = startY - 12;
+            // Corda solta (O)
+            const y = startY - 10;
             ctx.beginPath();
-            ctx.arc(x, y, 6, 0, 2 * Math.PI);
+            ctx.arc(x, y, 5, 0, 2 * Math.PI);
             ctx.strokeStyle = '#333';
             ctx.stroke();
         } 
         else if (casa === -1) {
-            // Corda não usada (X)
-            const y = startY - 12;
-            ctx.beginPath();
-            ctx.moveTo(x - 5, y - 5);
-            ctx.lineTo(x + 5, y + 5);
-            ctx.moveTo(x + 5, y - 5);
-            ctx.lineTo(x - 5, y + 5);
-            ctx.lineWidth = 2;
+            // Corda não tocada (X)
+            const y = startY - 10;
             ctx.strokeStyle = '#e94560';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4);
+            ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4);
             ctx.stroke();
             ctx.lineWidth = 1.5;
         } 
         else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
-            // Nota pressionada (desenha a bolinha mesmo com pestana)
-            const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, 2 * Math.PI);
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fill();
-            
-            // Desenha o número do dedo dentro da bolinha
-            const dedo = (acorde.dedos && acorde.dedos[i]) ? acorde.dedos[i] : '';
-            if (dedo) {
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 11px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(dedo, x, y);
+            // SÓ DESENHA A BOLINHA SE NÃO FOR A PESTANA
+            if (!estaNaPestana) {
+                const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
+                
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fill();
+                
+                // Número do dedo (apenas se não for pestana)
+                const dedo = (acorde.dedos && acorde.dedos[i]) ? acorde.dedos[i] : '';
+                if (dedo) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 11px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(dedo, x, y);
+                }
             }
         }
     });
