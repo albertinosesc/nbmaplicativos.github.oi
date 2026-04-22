@@ -6,8 +6,8 @@
 const FORMAS_ACORDES = {
     // Formas com corda base 6 (Mi)
     '6_1': { 
-        cordas: [1, 3, 3, 2, 1, 1], 
-        dedos: ['1', '3', '4', '2', '1', '1'], 
+        cordas: [1, 3, 3, 1, 1, 1], 
+        dedos: ['1', '3', '4', '1', '1', '1'], 
         pestana: [1,2,3,4,5], 
         nome: 'Maior' 
     },
