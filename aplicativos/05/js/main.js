@@ -117,7 +117,12 @@ function processarAcordeDinamico(sigla, nome) {
     
     // FORMAS DE ACORDE (sempre com pestana na casa 1 do desenho)
     const formas = {
-        
+        '6_1': { cordas: [1, 3, 3, 2, 1, 1], dedos: ['1', '3', '4', '2', '1', '1'], pestana: true, nome: 'Maior' },
+        '6_2': { cordas: [1, 2, 3, 3, 1, 1], dedos: ['1', '2', '3', '4', '1', '1'], pestana: true, nome: 'Menor' },
+        '6_3': { cordas: [1, 3, 2, 2, 1, 1], dedos: ['1', '3', '2', '4', '1', '1'], pestana: true, nome: 'Sétima' },
+        '5_1': { cordas: [-1, 1, 3, 3, 3, 1], dedos: ['', '1', '3', '4', '2', '1'], pestana: true, nome: 'Maior' },
+        '5_2': { cordas: [-1, 1, 2, 2, 3, 1], dedos: ['', '1', '2', '3', '4', '1'], pestana: true, nome: 'Menor' },
+        '5_3': { cordas: [-1, 1, 3, 2, 3, 1], dedos: ['', '1', '3', '2', '4', '1'], pestana: true, nome: 'Sétima' }
     };
     
     const chave = `${cordaBase}_${forma}`;
