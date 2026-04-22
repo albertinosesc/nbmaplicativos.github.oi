@@ -245,28 +245,21 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     }
     
     // DESENHAR BOLINHAS
-    // IMPORTANTE: As bolinhas devem ser desenhadas SEMPRE nas casas 1 a 5 do diagrama
-    // Os valores em acorde.cordas são os valores ABSOLUTOS (ex: 3,5,5,4,3,3)
-    // Precisamos converter para valores relativos (1 a 5) para desenhar no diagrama
     acorde.cordas.forEach((casa, i) => {
-    const x = startX + i * stringSpacing;
-    
-    // Usa pestanaCasa (que é 1) para calcular a posição relativa
-    const pestanaCasa = acorde.pestanaCasa || 1;
-    const casaRelativa = casa - pestanaCasa + 1;
-    const isPestana = (acorde.pestana && casa === pestanaCasa);
+        const x = startX + i * stringSpacing;
         
-        const isPestana = (acorde.pestana && casa === 1);
+        // Calcula a posição relativa baseada na pestanaCasa (que é 1)
+        const pestanaCasa = acorde.pestanaCasa || 1;
+        const casaRelativa = casa - pestanaCasa + 1;
+        const isPestana = (acorde.pestana && casa === pestanaCasa);
         
         if (casa === 0) {
-            // Corda solta
             const y = startY - 12;
             ctx.beginPath();
             ctx.arc(x, y, 6, 0, 2 * Math.PI);
             ctx.strokeStyle = '#333';
             ctx.stroke();
         } else if (casa === -1) {
-            // Corda não tocada
             const y = startY - 12;
             ctx.beginPath();
             ctx.moveTo(x - 5, y - 5);
@@ -274,9 +267,8 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.moveTo(x + 5, y - 5);
             ctx.lineTo(x - 5, y + 5);
             ctx.stroke();
-        } else if (casa > 0 && casaDiagrama > 0 && casaDiagrama <= numFrets && !isPestana) {
-            // Nota pressionada - desenha na posição do diagrama
-            const y = startY + (casaDiagrama - 1) * fretSpacing + fretSpacing / 2;
+        } else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets && !isPestana) {
+            const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
             ctx.beginPath();
             ctx.arc(x, y, 7, 0, 2 * Math.PI);
             ctx.fillStyle = '#000000';
@@ -295,6 +287,49 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     wrapper.appendChild(canvas);
     container.appendChild(wrapper);
 }
+    
+    // DESENHAR BOLINHAS
+acorde.cordas.forEach((casa, i) => {
+    const x = startX + i * stringSpacing;
+    
+    // Calcula a posição relativa baseada na pestanaCasa (que é 1)
+    const pestanaCasa = acorde.pestanaCasa || 1;
+    const casaRelativa = casa - pestanaCasa + 1;
+    const isPestana = (acorde.pestana && casa === pestanaCasa);
+    
+    if (casa === 0) {
+        // Corda solta - bolinha vazia acima do braço
+        const y = startY - 12;
+        ctx.beginPath();
+        ctx.arc(x, y, 6, 0, 2 * Math.PI);
+        ctx.strokeStyle = '#333';
+        ctx.stroke();
+    } else if (casa === -1) {
+        // Corda não tocada - X acima do braço
+        const y = startY - 12;
+        ctx.beginPath();
+        ctx.moveTo(x - 5, y - 5);
+        ctx.lineTo(x + 5, y + 5);
+        ctx.moveTo(x + 5, y - 5);
+        ctx.lineTo(x - 5, y + 5);
+        ctx.stroke();
+    } else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets && !isPestana) {
+        // Nota pressionada - desenha a bolinha preenchida
+        const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
+        ctx.beginPath();
+        ctx.arc(x, y, 7, 0, 2 * Math.PI);
+        ctx.fillStyle = '#000000';
+        ctx.fill();
+        const dedo = acorde.dedos && acorde.dedos[i] ? acorde.dedos[i] : '';
+        if (dedo) {
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 10px Arial';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(dedo, x, y);
+        }
+    }
+});
 
 
 // ============================================
