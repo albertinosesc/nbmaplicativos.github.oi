@@ -1,5 +1,5 @@
 // ============================================
-// PRO MAESTRO - SISTEMA COMPLETO
+// PRO MAESTRO - SISTEMA COMPLETO (CORRIGIDO)
 // ============================================
 
 // Variáveis globais
@@ -11,6 +11,7 @@ let listaAtual = null;
 let cartaoAtual = null;
 let timeoutRenderTimer;
 let coresAtivas = true;
+let expandedPaths = new Set(); // Armazena quais caminhos estão expandidos
 
 const STORAGE_KEY = 'pro_maestro_listas';
 const editor = document.getElementById('editor');
@@ -40,6 +41,10 @@ const ACORDES_PIANO = {
 // ============================================
 // FUNÇÕES AUXILIARES
 // ============================================
+function getPathKey(path) {
+    return path.join('-');
+}
+
 function getListaByPath(path) {
     if (!path || path.length === 0) return null;
     let current = dados.listas[path[0]];
@@ -125,7 +130,6 @@ function processarAcordeDinamico(sigla, nome) {
     
     if (!formaBase) return null;
     
-    // NÃO desloca as cordas! Mantém os valores relativos (1,2,3)
     const cordasAjustadas = [...formaBase.cordas];
     
     let nomeGerado = nome;
@@ -215,14 +219,12 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.stroke();
     }
     
-    // NÚMERO DA CASA (TRANSPOSIÇÃO) - Mostra o número ao lado esquerdo
     if (acorde.casaInicial > 1) {
         ctx.font = 'bold 12px Arial';
         ctx.fillStyle = '#333';
         ctx.fillText(acorde.casaInicial + 'ª', startX - 18, startY + fretSpacing / 2 + 2);
     }
     
-    // PESTANA - SEMPRE NA CASA 1 DO DESENHO
     if (acorde.pestana) {
         const pestanaY = startY + 12;
         ctx.beginPath();
@@ -234,11 +236,8 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.lineWidth = 1.5;
     }
     
-    // DESENHAR BOLINHAS
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
-        
-        // Usa pestanaCasa (que é 1) para calcular a posição relativa
         const pestanaCasa = acorde.pestanaCasa || 1;
         const casaRelativa = casa - pestanaCasa + 1;
         const isPestana = (acorde.pestana && casa === pestanaCasa);
@@ -292,16 +291,6 @@ function adicionarAcordePersonalizado(sigla, dados) {
         return false;
     }
     
-    if (dados.pestana !== undefined && dados.pestana !== true && !Array.isArray(dados.pestana)) {
-        console.error('Pestana deve ser true ou array de índices');
-        return false;
-    }
-    
-    if (dados.dedos && (!Array.isArray(dados.dedos) || dados.dedos.length !== 6)) {
-        console.error('Dedos deve ser um array de 6 posições');
-        return false;
-    }
-    
     ACORDES[sigla] = {
         nome: dados.nome || sigla,
         cordas: dados.cordas,
@@ -345,7 +334,7 @@ function carregarDados() {
 }
 
 // ============================================
-// RENDERIZAR LISTA DE AULAS (SIDEBAR)
+// RENDERIZAR LISTA DE AULAS (SIDEBAR) - CORRIGIDO
 // ============================================
 function renderizarListaAulas() {
     if (!listaAulas) return;
@@ -397,7 +386,10 @@ function renderizarListaAulas() {
         const tituloSpan = document.createElement('span');
         tituloSpan.style.fontWeight = 'bold';
         tituloSpan.style.color = '#e94560';
-        tituloSpan.innerHTML = `📁 ${lista.nome}`;
+        
+        const pathKey = getPathKey(path);
+        const isExpanded = expandedPaths.has(pathKey);
+        tituloSpan.innerHTML = isExpanded ? `📂 ${lista.nome}` : `📁 ${lista.nome}`;
         
         const botoesDiv = document.createElement('div');
         botoesDiv.style.display = 'flex';
@@ -455,7 +447,7 @@ function renderizarListaAulas() {
         contentContainer.className = 'cards-container';
         contentContainer.style.paddingLeft = '10px';
         contentContainer.style.marginTop = '5px';
-        contentContainer.style.display = 'none';
+        contentContainer.style.display = isExpanded ? 'block' : 'none';
         contentContainer.setAttribute('data-lista-path', JSON.stringify(path));
         
         if (lista.cards && lista.cards.length > 0) {
@@ -532,12 +524,17 @@ function renderizarListaAulas() {
             contentContainer.appendChild(emptyMsg);
         }
         
-        let expandido = false;
         headerDiv.onclick = (e) => {
             if (e.target.tagName === 'BUTTON') return;
-            expandido = !expandido;
-            contentContainer.style.display = expandido ? 'block' : 'none';
-            tituloSpan.innerHTML = expandido ? `📂 ${lista.nome}` : `📁 ${lista.nome}`;
+            if (expandedPaths.has(pathKey)) {
+                expandedPaths.delete(pathKey);
+                contentContainer.style.display = 'none';
+                tituloSpan.innerHTML = `📁 ${lista.nome}`;
+            } else {
+                expandedPaths.add(pathKey);
+                contentContainer.style.display = 'block';
+                tituloSpan.innerHTML = `📂 ${lista.nome}`;
+            }
         };
         
         listaDiv.appendChild(headerDiv);
@@ -565,6 +562,9 @@ function criarLista(path) {
             if (listaPai) {
                 if (!listaPai.subListas) listaPai.subListas = [];
                 listaPai.subListas.push(novaListaObj);
+                // Auto-expandir a pasta pai ao adicionar subpasta
+                const parentKey = getPathKey(path);
+                expandedPaths.add(parentKey);
             }
         }
         salvarDados();
@@ -583,6 +583,9 @@ function criarCartao(path) {
                 conteudo: `# ${nome.trim()}\n\nDigite seu conteúdo aqui...`,
                 ultimaModificacao: Date.now()
             });
+            // Auto-expandir a pasta pai ao adicionar cartão
+            const parentKey = getPathKey(path);
+            expandedPaths.add(parentKey);
             salvarDados();
             alert(`✅ Cartão "${nome.trim()}" criado!`);
         }
@@ -604,6 +607,14 @@ function excluirLista(path) {
     const lista = getListaByPath(path);
     if (!lista) return;
     if (confirm(`Excluir a lista "${lista.nome}" e todo seu conteúdo?`)) {
+        // Remover do expandedPaths todos os caminhos que começam com este path
+        const pathStr = getPathKey(path);
+        for (let key of expandedPaths) {
+            if (key.startsWith(pathStr)) {
+                expandedPaths.delete(key);
+            }
+        }
+        
         if (path.length === 1) dados.listas.splice(path[0], 1);
         else {
             const paiPath = path.slice(0, -1);
@@ -650,9 +661,10 @@ function carregarAula(path, cardIdx) {
 
 function salvarAulaAtual() {
     if (listaAtual !== null && cartaoAtual !== null) {
-        if (dados.listas[listaAtual] && dados.listas[listaAtual].cards[cartaoAtual]) {
-            dados.listas[listaAtual].cards[cartaoAtual].conteudo = editor.value;
-            dados.listas[listaAtual].cards[cartaoAtual].ultimaModificacao = Date.now();
+        const lista = getListaByPath(listaAtual);
+        if (lista && lista.cards[cartaoAtual]) {
+            lista.cards[cartaoAtual].conteudo = editor.value;
+            lista.cards[cartaoAtual].ultimaModificacao = Date.now();
             salvarDados();
         }
     }
