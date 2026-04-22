@@ -8,7 +8,7 @@ const FORMAS_ACORDES = {
     '6_1': { 
         cordas: [1, 3, 3, 2, 1, 1], 
         dedos: ['1', '3', '4', '2', '1', '1'], 
-        pestana: true, 
+        pestana: [1,2,3,4,5], 
         nome: 'Maior' 
     },
     '6_2': { 
