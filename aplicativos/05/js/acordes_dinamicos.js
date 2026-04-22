@@ -510,4 +510,5 @@ if (typeof window !== 'undefined') {
     window.processarAcordePersonalizado = processarAcordePersonalizado;
     window.abrirEditorAcordePersonalizado = abrirEditorAcordePersonalizado;
     window.desenharAcordeComPestanaPersonalizada = desenharAcordeComPestanaPersonalizada;
+    window.processarAcordeDinamico = processarAcordeDinamico;  // LINHA ADICIONADA
 }
