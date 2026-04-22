@@ -1,5 +1,5 @@
 // ============================================
-// ACORDES DINÂMICOS - COM PESTANA PERSONALIZADA
+// ACORDES DINÂMICOS
 // ============================================
 
 // Função para processar acorde com pestana personalizada
