@@ -341,7 +341,170 @@ function desenharAcordeComPestanaPersonalizada(container, acorde) {
     wrapper.appendChild(canvas);
     container.appendChild(wrapper);
 }
+// ============================================
+// PROCESSAR ACORDE DINÂMICO (formato 1;3 ou 1;3;5)
+// ============================================
 
+function processarAcordeDinamico(sigla, nome) {
+    console.log("processarAcordeDinamico chamado com:", sigla, nome);
+    
+    // Suporta formatos: 1;3  ou  1;3;5
+    let match = sigla.match(/^(\d+);(\d+)$/);
+    let matchComCorda = sigla.match(/^(\d+);(\d+);(\d+)$/);
+    
+    if (!match && !matchComCorda) return null;
+    
+    let forma, casa, cordaBase;
+    
+    if (matchComCorda) {
+        forma = parseInt(matchComCorda[1]);
+        casa = parseInt(matchComCorda[2]);
+        cordaBase = parseInt(matchComCorda[3]);
+    } else {
+        forma = parseInt(match[1]);
+        casa = parseInt(match[2]);
+        cordaBase = 6;  // corda padrão (Mi)
+    }
+    
+    // FORMAS DE ACORDE com PESTANA CORRETA para cada corda base
+    const formas = {
+        // ===== CORDAS BASE 6 (Mi) - Pestana [0,1,2,3,4,5] =====
+        '6_1': { 
+            cordas: [1, 3, 3, 2, 1, 1], 
+            dedos: ['1', '3', '4', '2', '1', '1'], 
+            pestana: [0,1,2,3,4,5],
+            nome: 'Maior' 
+        },
+        '6_2': { 
+            cordas: [1, 2, 3, 3, 1, 1], 
+            dedos: ['1', '2', '3', '4', '1', '1'], 
+            pestana: [0,1,2,3,4,5],
+            nome: 'Menor' 
+        },
+        '6_3': { 
+            cordas: [1, 3, 2, 2, 1, 1], 
+            dedos: ['1', '3', '2', '4', '1', '1'], 
+            pestana: [0,1,2,3,4,5],
+            nome: 'Sétima' 
+        },
+        
+        // ===== CORDAS BASE 5 (Lá) - Pestana [1,2,3,4,5] =====
+        '5_1': { 
+            cordas: [-1, 1, 3, 3, 3, 1], 
+            dedos: ['', '1', '3', '4', '2', '1'], 
+            pestana: [1,2,3,4,5],
+            nome: 'Maior' 
+        },
+        '5_2': { 
+            cordas: [-1, 1, 2, 2, 3, 1], 
+            dedos: ['', '1', '2', '3', '4', '1'], 
+            pestana: [1,2,3,4,5],
+            nome: 'Menor' 
+        },
+        '5_3': { 
+            cordas: [-1, 1, 3, 2, 3, 1], 
+            dedos: ['', '1', '3', '2', '4', '1'], 
+            pestana: [1,2,3,4,5],
+            nome: 'Sétima' 
+        },
+        
+        // ===== CORDAS BASE 4 (Ré) - Pestana [2,3,4,5] =====
+        '4_1': { 
+            cordas: [-1, -1, 1, 3, 3, 1], 
+            dedos: ['', '', '1', '3', '4', '2'], 
+            pestana: [2,3,4,5],
+            nome: 'Maior' 
+        },
+        '4_2': { 
+            cordas: [-1, -1, 1, 2, 3, 1], 
+            dedos: ['', '', '1', '2', '3', '4'], 
+            pestana: [2,3,4,5],
+            nome: 'Menor' 
+        },
+        '4_3': { 
+            cordas: [-1, -1, 1, 3, 2, 1], 
+            dedos: ['', '', '1', '3', '2', '4'], 
+            pestana: [2,3,4,5],
+            nome: 'Sétima' 
+        },
+        
+        // ===== CORDAS BASE 3 (Sol) - Pestana [3,4,5] =====
+        '3_1': { 
+            cordas: [-1, -1, -1, 1, 3, 3], 
+            dedos: ['', '', '', '1', '3', '4'], 
+            pestana: [3,4,5],
+            nome: 'Maior' 
+        },
+        '3_2': { 
+            cordas: [-1, -1, -1, 1, 2, 3], 
+            dedos: ['', '', '', '1', '2', '3'], 
+            pestana: [3,4,5],
+            nome: 'Menor' 
+        },
+        '3_3': { 
+            cordas: [-1, -1, -1, 1, 3, 2], 
+            dedos: ['', '', '', '1', '3', '2'], 
+            pestana: [3,4,5],
+            nome: 'Sétima' 
+        }
+    };
+    
+    const chave = `${cordaBase}_${forma}`;
+    let formaBase = formas[chave];
+    
+    if (!formaBase) {
+        console.error(`Forma não encontrada: ${chave}`);
+        return null;
+    }
+    
+    // Copia as cordas e ajusta para a casa desejada
+    const cordasAjustadas = [...formaBase.cordas];
+    
+    // Ajusta os valores das cordas baseado na casa inicial
+    for (let i = 0; i < cordasAjustadas.length; i++) {
+        if (cordasAjustadas[i] > 0) {
+            cordasAjustadas[i] = cordasAjustadas[i] + (casa - 1);
+        }
+    }
+    
+    // Gera o nome do acorde
+    let nomeGerado = nome;
+    if (!nomeGerado || nomeGerado === sigla) {
+        const notasPorCorda = {
+            6: { 1: 'F', 2: 'F#', 3: 'G', 4: 'G#', 5: 'A', 6: 'A#', 7: 'B', 8: 'C', 9: 'C#', 10: 'D', 11: 'D#', 12: 'E' },
+            5: { 1: 'A#', 2: 'B', 3: 'C', 4: 'C#', 5: 'D', 6: 'D#', 7: 'E', 8: 'F', 9: 'F#', 10: 'G', 11: 'G#', 12: 'A' },
+            4: { 1: 'D#', 2: 'E', 3: 'F', 4: 'F#', 5: 'G', 6: 'G#', 7: 'A', 8: 'A#', 9: 'B', 10: 'C', 11: 'C#', 12: 'D' },
+            3: { 1: 'G#', 2: 'A', 3: 'A#', 4: 'B', 5: 'C', 6: 'C#', 7: 'D', 8: 'D#', 9: 'E', 10: 'F', 11: 'F#', 12: 'G' }
+        };
+        
+        let notaBase = notasPorCorda[cordaBase]?.[casa];
+        if (!notaBase) {
+            const casaMod = ((casa - 1) % 12) + 1;
+            notaBase = notasPorCorda[cordaBase]?.[casaMod];
+            if (notaBase && casa > 12) {
+                const oitavas = Math.floor((casa - 1) / 12);
+                notaBase = notaBase + (oitavas > 0 ? ` (${oitavas+1}ª oitava)` : '');
+            }
+        }
+        
+        const tipoAcorde = formaBase.nome;
+        nomeGerado = notaBase ? `${notaBase} ${tipoAcorde}` : `${casa}ª casa ${tipoAcorde}`;
+    }
+    
+    console.log(`✅ Acorde dinâmico gerado: ${nomeGerado} (corda base ${cordaBase}, pestana: ${JSON.stringify(formaBase.pestana)})`);
+    
+    return {
+        nome: nomeGerado,
+        cordas: cordasAjustadas,
+        dedos: [...formaBase.dedos],
+        pestana: true,
+        pestanaCordas: formaBase.pestana,
+        pestanaCasa: casa,
+        casaInicial: casa,
+        cordaBase: cordaBase,
+        baixo: cordaBase === 6 ? 'E' : (cordaBase === 5 ? 'A' : (cordaBase === 4 ? 'D' : 'G'))
+    };
+}
 // Exporta as funções
 if (typeof window !== 'undefined') {
     window.processarAcordePersonalizado = processarAcordePersonalizado;
