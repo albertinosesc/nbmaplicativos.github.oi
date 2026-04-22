@@ -290,7 +290,7 @@ function abrirEditorAcordesComDados(linha, nomeSugerido) {
 }
 
 // ============================================
-// DESENHAR ACORDE DE VIOLÃO (INTEGRADO)
+// DESENHAR ACORDE DE VIOLÃO (INTEGRADO - CORRIGIDO)
 // ============================================
 function desenharAcorde(container, sigla, nomeParam = '') {
     let acorde = null;
@@ -373,27 +373,27 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.stroke();
     }
     
-       // Número da casa inicial - FIXO na posição da 6ª corda (sempre no mesmo lugar)
     const casaInicial = acorde.casaInicial || 1;
-    if (casaInicial > 1) {
+    
+    // SÓ desenha o número da casa inicial se NÃO tiver pestana
+    // OU se tiver pestana mas a casa inicial for diferente da pestana
+    const temPestana = acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0;
+    
+    if (!temPestana && casaInicial > 1) {
         ctx.font = 'bold 12px Arial';
         ctx.fillStyle = '#333';
-        // Posição fixa: sempre alinhado com a 6ª corda (índice 0)
         ctx.fillText(casaInicial + 'ª', startX - 18, startY + fretSpacing / 2 + 2);
     }
     
-    // Pestana (suporta boolean e array)
-    if (acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0) {
+    // Pestana
+    if (temPestana) {
         const pestanaY = startY + 12;
-        
-        // FILTRA apenas as cordas que existem (índices 0-5)
         const cordasValidas = acorde.pestanaCordas.filter(idx => idx >= 0 && idx <= 5);
         
         if (cordasValidas.length > 0) {
             const primeiraCorda = Math.min(...cordasValidas);
             const ultimaCorda = Math.max(...cordasValidas);
             
-            // Ajusta as posições X
             const xInicio = startX + primeiraCorda * stringSpacing - 3;
             const xFim = startX + ultimaCorda * stringSpacing + 3;
             
@@ -404,7 +404,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.strokeStyle = '#2c3e50';
             ctx.stroke();
             
-            // Número da casa na pestana - FIXO na posição da 6ª corda
+            // Número da pestana (único número que aparece)
             ctx.font = 'bold 10px Arial';
             ctx.fillStyle = '#2c3e50';
             ctx.fillText(acorde.pestanaCasa || casaInicial, startX - 12, pestanaY + 4);
@@ -412,29 +412,29 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.lineWidth = 1.5;
     }
     
-    // Desenha as notas (apenas onde NÃO tem pestana)
+    // Desenha as notas
     const pestanaCasa = acorde.pestanaCasa || casaInicial;
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
         const casaRelativa = casa - pestanaCasa + 1;
         
-        // VERIFICA SE ESTA CORDA TEM PESTANA
-        const temPestanaNestaCorda = acorde.pestanaCordas && acorde.pestanaCordas.includes(i);
+        // Verifica se esta corda tem pestana
+        const temPestanaNestaCorda = temPestana && acorde.pestanaCordas.includes(i);
         
-        // PULA se tem pestana (a barra já representa a nota)
+        // PULA o desenho da bolinha se a corda está na pestana
         if (temPestanaNestaCorda) {
             return;
         }
         
         if (casa === 0) {
-            // Corda solta (círculo vazio)
+            // Corda solta
             const y = startY - 12;
             ctx.beginPath();
             ctx.arc(x, y, 6, 0, 2 * Math.PI);
             ctx.strokeStyle = '#333';
             ctx.stroke();
         } else if (casa === -1) {
-            // Corda não usada (X)
+            // Corda não usada
             const y = startY - 12;
             ctx.beginPath();
             ctx.moveTo(x - 5, y - 5);
@@ -446,7 +446,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.stroke();
             ctx.lineWidth = 1.5;
         } else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
-            // Nota pressionada normal
+            // Nota pressionada
             const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
             ctx.beginPath();
             ctx.arc(x, y, 8, 0, 2 * Math.PI);
@@ -463,6 +463,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             }
         }
     });
+    
     wrapper.appendChild(canvas);
     container.appendChild(wrapper);
 }
