@@ -345,6 +345,10 @@ function desenharAcordeComPestanaPersonalizada(container, acorde) {
 // PROCESSAR ACORDE DINÂMICO (formato 1;3 ou 1;3;5)
 // ============================================
 
+// ============================================
+// PROCESSAR ACORDE DINÂMICO (formato 1;3 ou 1;3;5)
+// ============================================
+
 function processarAcordeDinamico(sigla, nome) {
     console.log("processarAcordeDinamico chamado com:", sigla, nome);
     
@@ -363,10 +367,10 @@ function processarAcordeDinamico(sigla, nome) {
     } else {
         forma = parseInt(match[1]);
         casa = parseInt(match[2]);
-        cordaBase = 6;  // corda padrão (Mi)
+        cordaBase = 6;
     }
     
-    // FORMAS DE ACORDE com PESTANA CORRETA para cada corda base
+    // FORMAS DE ACORDE com DEDOS e PESTANA corretos
     const formas = {
         // ===== CORDAS BASE 6 (Mi) - Pestana [0,1,2,3,4,5] =====
         '6_1': { 
@@ -459,6 +463,7 @@ function processarAcordeDinamico(sigla, nome) {
     
     // Copia as cordas e ajusta para a casa desejada
     const cordasAjustadas = [...formaBase.cordas];
+    const dedosAjustados = [...formaBase.dedos];
     
     // Ajusta os valores das cordas baseado na casa inicial
     for (let i = 0; i < cordasAjustadas.length; i++) {
@@ -491,12 +496,12 @@ function processarAcordeDinamico(sigla, nome) {
         nomeGerado = notaBase ? `${notaBase} ${tipoAcorde}` : `${casa}ª casa ${tipoAcorde}`;
     }
     
-    console.log(`✅ Acorde dinâmico gerado: ${nomeGerado} (corda base ${cordaBase}, pestana: ${JSON.stringify(formaBase.pestana)})`);
+    console.log(`✅ Acorde dinâmico gerado: ${nomeGerado} (corda base ${cordaBase}, pestana: ${JSON.stringify(formaBase.pestana)}, dedos: ${JSON.stringify(dedosAjustados)})`);
     
     return {
         nome: nomeGerado,
         cordas: cordasAjustadas,
-        dedos: [...formaBase.dedos],
+        dedos: dedosAjustados,  // <-- DEDOS INCLUÍDOS!
         pestana: true,
         pestanaCordas: formaBase.pestana,
         pestanaCasa: casa,
@@ -504,6 +509,7 @@ function processarAcordeDinamico(sigla, nome) {
         cordaBase: cordaBase,
         baixo: cordaBase === 6 ? 'E' : (cordaBase === 5 ? 'A' : (cordaBase === 4 ? 'D' : 'G'))
     };
+
 }
 // Exporta as funções
 if (typeof window !== 'undefined') {
