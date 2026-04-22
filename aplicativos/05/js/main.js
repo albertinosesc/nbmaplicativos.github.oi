@@ -373,18 +373,15 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.stroke();
     }
     
-       const casaInicial = acorde.casaInicial || 1;
+    // ========== NÚMERO LATERAL (SEMPRE aparece) ==========
+    const casaInicial = acorde.casaInicial || 1;
+    ctx.font = 'bold 14px Arial';
+    ctx.fillStyle = '#333';
+    ctx.fillText(casaInicial + 'ª', startX - 28, startY + fretSpacing / 2 + 2);
+    
+    // ========== PESTANA (sem número) ==========
     const temPestana = acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0;
     
-    // SEMPRE mostra o número da casa inicial (se for >1) OU se tiver pestana
-    if (casaInicial > 1 || temPestana) {
-        ctx.font = 'bold 14px Arial';
-        ctx.fillStyle = '#333';
-        // Posição mais à esquerda
-        ctx.fillText(casaInicial + 'ª', startX - 26, startY + fretSpacing / 2 + 2);
-    }
-    
-    // Desenha a barra da pestana
     if (temPestana) {
         const pestanaY = startY + 12;
         const cordasValidas = acorde.pestanaCordas.filter(idx => idx >= 0 && idx <= 5);
@@ -402,13 +399,12 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.lineWidth = 8;
             ctx.strokeStyle = '#2c3e50';
             ctx.stroke();
-            
-            // NÃO desenha número na pestana (removido)
+            // SEM NÚMERO NA PESTANA
         }
         ctx.lineWidth = 1.5;
     }
     
-    // Desenha as notas e dedos (mesmo onde tem pestana!)
+    // Desenha as notas e dedos
     const pestanaCasa = acorde.pestanaCasa || casaInicial;
     
     acorde.cordas.forEach((casa, i) => {
