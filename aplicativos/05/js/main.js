@@ -22,7 +22,7 @@ const listaAulas = document.getElementById('listaAulas');
 // DICIONÁRIO DE ACORDES
 // ============================================
 const ACORDES = {
-    'C': { nome: 'Dó Maior', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 1 },
+    'C': { nome: 'C', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 1 },
     'G': { nome: 'Sol Maior', cordas: [3,2,0,0,0,3], dedos: ['2','1','','','','3'], pestana: false, casaInicial: 1 },
     'D': { nome: 'Ré Maior', cordas: [-1,0,0,2,3,2], dedos: ['','','','2','3','1'], pestana: false, casaInicial: 1 },
     'Am': { nome: 'Lá Menor', cordas: [-1,0,2,2,1,0], dedos: ['','','2','3','1',''], pestana: false, casaInicial: 1 },
