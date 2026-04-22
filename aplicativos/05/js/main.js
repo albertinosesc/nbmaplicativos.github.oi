@@ -1271,6 +1271,78 @@ function inserirImagem() {
     }
 }
 
+// ============================================
+// FUNÇÃO INSERIR ACORDE (PRINCIPAL)
+// ============================================
+function inserirAcorde() {
+    const opcao = prompt(
+        '🎸 INSERIR ACORDE\n\n' +
+        '1 - Biblioteca Básica (C, G, Am, F, D, Em)\n' +
+        '2 - Minha Biblioteca (acordes salvos)\n' +
+        '3 - Acorde Dinâmico (1;3 = Sol Maior)\n' +
+        '4 - Editor de Acordes\n\n' +
+        'Digite o número da opção:'
+    );
+    
+    // Opção 1: Biblioteca Básica
+    if (opcao === '1') {
+        const sigla = prompt('Digite a sigla do acorde (C, G, D, Am, Em, F):', 'C');
+        if (sigla && ACORDES[sigla]) {
+            inserirCodigoAcorde(`[Acorde:${sigla}]${ACORDES[sigla].nome}[/Acorde]`);
+        } else if (sigla) {
+            alert(`❌ Acorde "${sigla}" não encontrado! Use: C, G, D, Am, Em, F`);
+        }
+    }
+    
+    // Opção 2: Minha Biblioteca
+    else if (opcao === '2') {
+        if (typeof bibliotecaAcordes !== 'undefined' && Object.keys(bibliotecaAcordes).length > 0) {
+            const lista = Object.entries(bibliotecaAcordes)
+                .map(([sigla, acorde]) => `${sigla} - ${acorde.nome}`)
+                .join('\n');
+            const sigla = prompt(`📚 SEUS ACORDES SALVOS:\n\n${lista}\n\nDigite a sigla:`, '');
+            if (sigla && bibliotecaAcordes[sigla]) {
+                inserirCodigoAcorde(`[Acorde:${sigla}]${bibliotecaAcordes[sigla].nome}[/Acorde]`);
+            } else if (sigla) {
+                alert(`❌ Acorde "${sigla}" não encontrado!`);
+            }
+        } else {
+            alert('📭 Nenhum acorde salvo! Use opção 4 para criar.');
+        }
+    }
+    
+    // Opção 3: Acorde Dinâmico
+    else if (opcao === '3') {
+        const formato = prompt(
+            '🎸 ACORDE DINÂMICO\n\n' +
+            'Formatos:\n' +
+            '• 1;3 = Sol Maior (forma maior, casa 3)\n' +
+            '• 2;5 = Lá Menor (forma menor, casa 5)\n' +
+            '• 1;3;5 = Dó Maior (corda base 5)\n\n' +
+            'Digite o formato:'
+        );
+        
+        if (formato && typeof window.processarAcordeDinamico === 'function') {
+            const acordeTemp = window.processarAcordeDinamico(formato, '');
+            if (acordeTemp) {
+                inserirCodigoAcorde(`[Acorde:${formato}]${acordeTemp.nome}[/Acorde]`);
+            } else {
+                alert(`❌ Formato "${formato}" inválido! Exemplo: 1;3`);
+            }
+        } else if (formato) {
+            alert('❌ Módulo de acordes dinâmicos não carregado!');
+        }
+    }
+    
+    // Opção 4: Editor de Acordes
+    else if (opcao === '4') {
+        abrirEditorAcordes();
+    }
+    else if (opcao !== null) {
+        alert('Opção inválida! Digite 1, 2, 3 ou 4');
+    }
+}
+
 function inserirABC() {
     const start = editor.selectionStart;
     editor.value = editor.value.substring(0, start) + `[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC D E F | G A B c |]\n[/ABC]\n` + editor.value.substring(start);
