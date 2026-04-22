@@ -446,22 +446,22 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.stroke();
             ctx.lineWidth = 1.5;
         } else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
-            // Nota pressionada
-            const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
-            ctx.beginPath();
-            ctx.arc(x, y, 8, 0, 2 * Math.PI);
-            ctx.fillStyle = '#1a1a2e';
-            ctx.fill();
-            
-            const dedo = acorde.dedos && acorde.dedos[i] ? acorde.dedos[i] : '';
-            if (dedo) {
-                ctx.fillStyle = '#ffffff';
-                ctx.font = 'bold 11px Arial';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(dedo, x, y);
-            }
-        }
+    // Nota pressionada
+    const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, 2 * Math.PI);
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fill();
+    
+    const dedo = acorde.dedos && acorde.dedos[i] ? acorde.dedos[i] : '';
+    if (dedo) {
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 11px Arial';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(dedo, x, y);
+    }
+}
     });
     
     wrapper.appendChild(canvas);
