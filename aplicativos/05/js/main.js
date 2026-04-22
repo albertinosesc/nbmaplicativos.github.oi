@@ -376,11 +376,12 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     const casaInicial = acorde.casaInicial || 1;
     const temPestana = acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0;
     
-    // Número da casa inicial (só se não tiver pestana)
-    if (!temPestana && casaInicial > 1) {
-        ctx.font = 'bold 12px Arial';
+    // Número da casa inicial (só se NÃO tiver pestana OU se a casa inicial for maior que 1)
+    if (casaInicial > 1) {
+        ctx.font = 'bold 14px Arial';
         ctx.fillStyle = '#333';
-        ctx.fillText(casaInicial + 'ª', startX - 18, startY + fretSpacing / 2 + 2);
+        // Posição mais à esquerda e um pouco maior
+        ctx.fillText(casaInicial + 'ª', startX - 24, startY + fretSpacing / 2 + 2);
     }
     
     // Desenha a barra da pestana (por cima das bolinhas)
@@ -402,10 +403,13 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.strokeStyle = '#2c3e50';
             ctx.stroke();
             
-            // Número da pestana
-            ctx.font = 'bold 10px Arial';
-            ctx.fillStyle = '#2c3e50';
-            ctx.fillText(acorde.pestanaCasa || casaInicial, startX - 12, pestanaY + 4);
+            // Número da pestana - SÓ aparece se a casa for maior que 1
+            const pestanaCasa = acorde.pestanaCasa || casaInicial;
+            if (pestanaCasa > 1) {
+                ctx.font = 'bold 11px Arial';
+                ctx.fillStyle = '#2c3e50';
+                ctx.fillText(pestanaCasa, startX - 18, pestanaY + 4);
+            }
         }
         ctx.lineWidth = 1.5;
     }
@@ -416,9 +420,6 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
         const casaRelativa = casa - pestanaCasa + 1;
-        
-        // NÃO PULA mais as cordas com pestana!
-        // As bolinhas são desenhadas por cima da pestana
         
         if (casa === 0) {
             // Corda solta
