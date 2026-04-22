@@ -249,16 +249,12 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     // Os valores em acorde.cordas são os valores ABSOLUTOS (ex: 3,5,5,4,3,3)
     // Precisamos converter para valores relativos (1 a 5) para desenhar no diagrama
     acorde.cordas.forEach((casa, i) => {
-        const x = startX + i * stringSpacing;
-        
-        // CONVERSÃO: Valor absoluto para posição no diagrama (1 a 5)
-        // Ex: se casa=3, desenha no 3º traste do diagrama
-        // Ex: se casa=5, desenha no 5º traste do diagrama
-        // Ex: se casa=7, desenha no 5º traste (último) pois o diagrama só mostra 5 casas
-        let casaDiagrama = casa;
-        if (casaDiagrama > numFrets) {
-            casaDiagrama = numFrets;  // Limita ao último traste do diagrama
-        }
+    const x = startX + i * stringSpacing;
+    
+    // Usa pestanaCasa (que é 1) para calcular a posição relativa
+    const pestanaCasa = acorde.pestanaCasa || 1;
+    const casaRelativa = casa - pestanaCasa + 1;
+    const isPestana = (acorde.pestana && casa === pestanaCasa);
         
         const isPestana = (acorde.pestana && casa === 1);
         
