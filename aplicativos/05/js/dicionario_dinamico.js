@@ -27,7 +27,7 @@ const FORMAS_INFINITAS = {
 };
 
 const FORMAS_SEM_PESTANA_INFINITAS = {
-    '1': { nome: 'Maior', cordas: [-1, 3, 2, 2, 3, -1], dedos: ['', '3', '1', '2', '4', ''], pestana: false },
+    '1': { nome: '6(9)', cordas: [-1, 3, 2, 2, 3, -1], dedos: ['', '3', '1', '2', '4', ''], pestana: false },
     '2': { nome: 'Menor', cordas: [-1, 0, 2, 2, 1, 0], dedos: ['', '', '2', '3', '1', ''], pestana: false },
     '3': { nome: 'Sétima', cordas: [-1, 0, 2, 1, 2, 0], dedos: ['', '', '2', '1', '3', ''], pestana: false },
     
