@@ -341,180 +341,133 @@ function desenharAcordeComPestanaPersonalizada(container, acorde) {
     wrapper.appendChild(canvas);
     container.appendChild(wrapper);
 }
-// ============================================
-// PROCESSAR ACORDE DINÂMICO (formato 1;3 ou 1;3;5)
-// ============================================
+
+
+
 
 // ============================================
-// PROCESSAR ACORDE DINÂMICO (formato 1;3 ou 1;3;5)
+// ACORDES DINÂMICOS - PROCESSADOR PRINCIPAL
 // ============================================
 
-function processarAcordeDinamico(sigla, nome) {
-    console.log("processarAcordeDinamico chamado com:", sigla, nome);
+function processarAcordeDinamico(sigla, nomePersonalizado = '') {
+    console.log("processarAcordeDinamico chamado com:", sigla, nomePersonalizado);
     
-    // Suporta formatos: 1;3  ou  1;3;5
-    let match = sigla.match(/^(\d+);(\d+)$/);
-    let matchComCorda = sigla.match(/^(\d+);(\d+);(\d+)$/);
-    
-    if (!match && !matchComCorda) return null;
-    
-    let forma, casa, cordaBase;
-    
-    if (matchComCorda) {
-        forma = parseInt(matchComCorda[1]);
-        casa = parseInt(matchComCorda[2]);
-        cordaBase = parseInt(matchComCorda[3]);
-    } else {
-        forma = parseInt(match[1]);
-        casa = parseInt(match[2]);
-        cordaBase = 6;
-    }
-    
-    // FORMAS DE ACORDE com DEDOS e PESTANA corretos
-    const formas = {
-        // ===== CORDAS BASE 6 (Mi) - Pestana [0,1,2,3,4,5] =====
-        '6_1': { 
-            cordas: [1, 3, 3, 2, 1, 1], 
-            dedos: ['1', '3', '4', '2', '1', '1'], 
-            pestana: [0,1,2,3,4,5],
-            nome: 'Maior' 
-        },
-        '6_2': { 
-            cordas: [1, 2, 3, 3, 1, 1], 
-            dedos: ['1', '2', '3', '4', '1', '1'], 
-            pestana: [0,1,2,3,4,5],
-            nome: 'Menor' 
-        },
-        '6_3': { 
-            cordas: [1, 3, 2, 2, 1, 1], 
-            dedos: ['1', '3', '2', '4', '1', '1'], 
-            pestana: [0,1,2,3,4,5],
-            nome: 'Sétima' 
-        },
-        
-        // ===== CORDAS BASE 5 (Lá) - Pestana [1,2,3,4,5] =====
-        '5_1': { 
-            cordas: [-1, 1, 3, 3, 3, 1], 
-            dedos: ['', '1', '3', '4', '2', '1'], 
-            pestana: [1,2,3,4,5],
-            nome: 'Maior' 
-        },
-        '5_2': { 
-            cordas: [-1, 1, 2, 2, 3, 1], 
-            dedos: ['', '1', '2', '3', '4', '1'], 
-            pestana: [1,2,3,4,5],
-            nome: 'Menor' 
-        },
-        '5_3': { 
-            cordas: [-1, 1, 3, 2, 3, 1], 
-            dedos: ['', '1', '3', '2', '4', '1'], 
-            pestana: [1,2,3,4,5],
-            nome: 'Sétima' 
-        },
-        
-        // ===== CORDAS BASE 4 (Ré) - Pestana [2,3,4,5] =====
-        '4_1': { 
-            cordas: [-1, -1, 1, 3, 3, 1], 
-            dedos: ['', '', '1', '3', '4', '2'], 
-            pestana: [2,3,4,5],
-            nome: 'Maior' 
-        },
-        '4_2': { 
-            cordas: [-1, -1, 1, 2, 3, 1], 
-            dedos: ['', '', '1', '2', '3', '4'], 
-            pestana: [2,3,4,5],
-            nome: 'Menor' 
-        },
-        '4_3': { 
-            cordas: [-1, -1, 1, 3, 2, 1], 
-            dedos: ['', '', '1', '3', '2', '4'], 
-            pestana: [2,3,4,5],
-            nome: 'Sétima' 
-        },
-        
-        // ===== CORDAS BASE 3 (Sol) - Pestana [3,4,5] =====
-        '3_1': { 
-            cordas: [-1, -1, -1, 1, 3, 3], 
-            dedos: ['', '', '', '1', '3', '4'], 
-            pestana: [3,4,5],
-            nome: 'Maior' 
-        },
-        '3_2': { 
-            cordas: [-1, -1, -1, 1, 2, 3], 
-            dedos: ['', '', '', '1', '2', '3'], 
-            pestana: [3,4,5],
-            nome: 'Menor' 
-        },
-        '3_3': { 
-            cordas: [-1, -1, -1, 1, 3, 2], 
-            dedos: ['', '', '', '1', '3', '2'], 
-            pestana: [3,4,5],
-            nome: 'Sétima' 
-        }
-    };
-    
-    const chave = `${cordaBase}_${forma}`;
-    let formaBase = formas[chave];
-    
-    if (!formaBase) {
-        console.error(`Forma não encontrada: ${chave}`);
+    if (typeof FORMAS_INFINITAS === 'undefined' || typeof FORMAS_SEM_PESTANA_INFINITAS === 'undefined') {
+        console.error('Dicionário de formas não carregado!');
         return null;
     }
     
-    // Copia as cordas e ajusta para a casa desejada
-    const cordasAjustadas = [...formaBase.cordas];
-    const dedosAjustados = [...formaBase.dedos];
+    let matchDois = sigla.match(/^(\d+);(\d+)$/);
+    let matchTres = sigla.match(/^(\d+);(\d+);(\d+)$/);
     
-    // Ajusta os valores das cordas baseado na casa inicial
-    for (let i = 0; i < cordasAjustadas.length; i++) {
-        if (cordasAjustadas[i] > 0) {
-            cordasAjustadas[i] = cordasAjustadas[i] + (casa - 1);
-        }
+    let forma, segundo, terceiro;
+    
+    if (matchDois && !matchTres) {
+        forma = parseInt(matchDois[1]);
+        segundo = parseInt(matchDois[2]);
+        terceiro = null;
+    } else if (matchTres) {
+        forma = parseInt(matchTres[1]);
+        segundo = parseInt(matchTres[2]);
+        terceiro = parseInt(matchTres[3]);
+    } else {
+        console.error(`Formato inválido: ${sigla}`);
+        return null;
     }
     
-    // Gera o nome do acorde
-    let nomeGerado = nome;
-    if (!nomeGerado || nomeGerado === sigla) {
-        const notasPorCorda = {
-            6: { 1: 'F', 2: 'F#', 3: 'G', 4: 'G#', 5: 'A', 6: 'A#', 7: 'B', 8: 'C', 9: 'C#', 10: 'D', 11: 'D#', 12: 'E' },
-            5: { 1: 'A#', 2: 'B', 3: 'C', 4: 'C#', 5: 'D', 6: 'D#', 7: 'E', 8: 'F', 9: 'F#', 10: 'G', 11: 'G#', 12: 'A' },
-            4: { 1: 'D#', 2: 'E', 3: 'F', 4: 'F#', 5: 'G', 6: 'G#', 7: 'A', 8: 'A#', 9: 'B', 10: 'C', 11: 'C#', 12: 'D' },
-            3: { 1: 'G#', 2: 'A', 3: 'A#', 4: 'B', 5: 'C', 6: 'C#', 7: 'D', 8: 'D#', 9: 'E', 10: 'F', 11: 'F#', 12: 'G' }
-        };
+    let cordasAjustadas, dedosAjustados, pestanaCordas, temPestana;
+    let posicaoMostrar = null;
+    let mostrarNumero = true;
+    let cordaBase = null;
+    let nomeTipo = '';
+    
+    // CASO 1: COM PESTANA
+    if (matchDois && !matchTres) {
+        const casa = segundo;
+        const formaBase = FORMAS_INFINITAS[forma];
         
-        let notaBase = notasPorCorda[cordaBase]?.[casa];
-        if (!notaBase) {
-            const casaMod = ((casa - 1) % 12) + 1;
-            notaBase = notasPorCorda[cordaBase]?.[casaMod];
-            if (notaBase && casa > 12) {
-                const oitavas = Math.floor((casa - 1) / 12);
-                notaBase = notaBase + (oitavas > 0 ? ` (${oitavas+1}ª oitava)` : '');
+        if (!formaBase) {
+            console.error(`Forma ${forma} não encontrada.`);
+            return null;
+        }
+        
+        nomeTipo = formaBase.nome;
+        cordaBase = formaBase.cordaBase;
+        cordasAjustadas = [...formaBase.cordas];
+        dedosAjustados = [...formaBase.dedos];
+        pestanaCordas = formaBase.pestana;
+        temPestana = true;
+        posicaoMostrar = casa;
+        
+        for (let i = 0; i < cordasAjustadas.length; i++) {
+            if (cordasAjustadas[i] > 0) {
+                cordasAjustadas[i] = cordasAjustadas[i] + (casa - 1);
             }
         }
         
-        const tipoAcorde = formaBase.nome;
-        nomeGerado = notaBase ? `${notaBase} ${tipoAcorde}` : `${casa}ª casa ${tipoAcorde}`;
+        console.log(`✅ Com pestana: forma ${forma} (${nomeTipo}, corda base ${cordaBase}), casa ${casa}`);
+    }
+    // CASO 2: SEM PESTANA
+    else if (matchTres && segundo === 0) {
+        const posicao = terceiro;
+        const formaBase = FORMAS_SEM_PESTANA_INFINITAS[forma];
+        
+        if (!formaBase) {
+            console.error(`Forma sem pestana ${forma} não encontrada.`);
+            return null;
+        }
+        
+        nomeTipo = formaBase.nome;
+        cordasAjustadas = [...formaBase.cordas];
+        dedosAjustados = [...formaBase.dedos];
+        pestanaCordas = [];
+        temPestana = false;
+        
+        if (posicao > 0) {
+            posicaoMostrar = posicao;
+        } else {
+            posicaoMostrar = null;
+            mostrarNumero = false;
+        }
+        
+        console.log(`✅ Sem pestana: forma ${forma} (${nomeTipo}), posição ${posicao}`);
+    }
+    else {
+        console.error(`Formato não reconhecido: ${sigla}`);
+        return null;
     }
     
-    console.log(`✅ Acorde dinâmico gerado: ${nomeGerado} (corda base ${cordaBase}, pestana: ${JSON.stringify(formaBase.pestana)}, dedos: ${JSON.stringify(dedosAjustados)})`);
+    let nomeGerado = nomePersonalizado;
+    if (!nomeGerado || nomeGerado === sigla) {
+        nomeGerado = temPestana ? `${posicaoMostrar}ª ${nomeTipo}` : nomeTipo;
+    }
     
     return {
         nome: nomeGerado,
         cordas: cordasAjustadas,
-        dedos: dedosAjustados,  // <-- DEDOS INCLUÍDOS!
-        pestana: true,
-        pestanaCordas: formaBase.pestana,
-        pestanaCasa: casa,
-        casaInicial: casa,
-        cordaBase: cordaBase,
-        baixo: cordaBase === 6 ? 'E' : (cordaBase === 5 ? 'A' : (cordaBase === 4 ? 'D' : 'G'))
+        dedos: dedosAjustados,
+        pestana: temPestana,
+        pestanaCordas: pestanaCordas,
+        pestanaCasa: temPestana ? segundo : 1,
+        casaInicial: temPestana ? segundo : (posicaoMostrar || 1),
+        posicao: posicaoMostrar,
+        temPestana: temPestana,
+        mostrarNumero: mostrarNumero,
+        cordaBase: cordaBase
     };
-
 }
-// Exporta as funções
+
+// Função para adicionar nova forma
+function adicionarFormaAcorde(formaId, dados) {
+    if (dados.pestana) {
+        FORMAS_INFINITAS[formaId] = dados;
+    } else {
+        FORMAS_SEM_PESTANA_INFINITAS[formaId] = dados;
+    }
+    console.log(`✅ Forma ${formaId} adicionada!`);
+}
+
 if (typeof window !== 'undefined') {
-    window.processarAcordePersonalizado = processarAcordePersonalizado;
-    window.abrirEditorAcordePersonalizado = abrirEditorAcordePersonalizado;
-    window.desenharAcordeComPestanaPersonalizada = desenharAcordeComPestanaPersonalizada;
-    window.processarAcordeDinamico = processarAcordeDinamico;  // LINHA ADICIONADA
+    window.processarAcordeDinamico = processarAcordeDinamico;
+    window.adicionarFormaAcorde = adicionarFormaAcorde;
 }
