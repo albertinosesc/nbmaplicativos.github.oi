@@ -18,17 +18,6 @@ const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
 const listaAulas = document.getElementById('listaAulas');
 
-// ============================================
-// DICIONÁRIO DE ACORDES
-// ============================================
-const ACORDES = {
-    'C': { nome: 'C', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 1 },
-    'G': { nome: 'Sol Maior', cordas: [3,2,0,0,0,3], dedos: ['2','1','','','','3'], pestana: false, casaInicial: 1 },
-    'D': { nome: 'Ré Maior', cordas: [-1,0,0,2,3,2], dedos: ['','','','2','3','1'], pestana: false, casaInicial: 1 },
-    'Am': { nome: 'Lá Menor', cordas: [-1,0,2,2,1,0], dedos: ['','','2','3','1',''], pestana: false, casaInicial: 1 },
-    'Em': { nome: 'Mi Menor', cordas: [0,2,2,0,0,0], dedos: ['','2','3','','',''], pestana: false, casaInicial: 1 },
-    'F': { nome: 'Fá Maior', cordas: [1,3,3,2,1,1], dedos: ['1','3','4','2','1','1'], pestana: true, casaInicial: 1 }
-};
 
 
 // ============================================
@@ -293,14 +282,25 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     let acorde = null;
     let nomeExibido = nomeParam || sigla;
     
-    // 1️⃣ Busca do acorde (Biblioteca ou Dinâmico)
-    if (typeof ACORDES !== 'undefined' && ACORDES[sigla]) {
+    // FORÇAR O C1 A NÃO MOSTRAR NÚMERO
+    if (sigla === 'C1') {
+        // Busca direto no ACORDES original
+        if (typeof ACORDES !== 'undefined' && ACORDES['C1']) {
+            acorde = {...ACORDES['C1']};
+            acorde.posicao = null;
+            acorde.mostrarNumero = false;
+            nomeExibido = acorde.nome;
+        }
+    }
+    
+    // 1️⃣ Busca do acorde (Biblioteca ou Dinâmico) NORMAL
+    if (!acorde && typeof ACORDES !== 'undefined' && ACORDES[sigla]) {
         acorde = ACORDES[sigla];
         nomeExibido = acorde.nome;
-    } else if (typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[sigla]) {
+    } else if (!acorde && typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[sigla]) {
         acorde = bibliotecaAcordes[sigla];
         nomeExibido = acorde.nome;
-    } else if (typeof window.processarAcordeDinamico === 'function') {
+    } else if (!acorde && typeof window.processarAcordeDinamico === 'function') {
         const acordeDinamico = window.processarAcordeDinamico(sigla, nomeExibido);
         if (acordeDinamico) {
             acorde = acordeDinamico;
@@ -332,8 +332,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     
     const startX = 28, startY = 45, stringSpacing = 18, fretSpacing = 26;
     const numFrets = 5;
-    const casaInicial = acorde.casaInicial || 1;
-
+    
     // Desenha cordas
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1.5;
@@ -352,18 +351,18 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.stroke();
     }
     
-    // Número lateral da casa
-    ctx.font = 'bold 14px Arial';
-    ctx.fillStyle = '#333';
-    ctx.fillText(casaInicial + 'ª', startX - 28, startY + fretSpacing / 2 + 5);
-    
-    // ========== PESTANA ==========
+    // ========== PESTANA (declarar as variáveis PRIMEIRO) ==========
     const temPestana = acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0;
+    const casaInicialVal = acorde.casaInicial || 1;
+    const casaBase = acorde.pestanaCasa || acorde.casaInicial || 1;
+    const posicao = acorde.posicao || casaBase;
+    const mostrarNumero = acorde.mostrarNumero !== false;
+    
     let cordasNaPestana = [];
-
+    
     if (temPestana) {
         cordasNaPestana = acorde.pestanaCordas;
-        const pestanaY = startY + (fretSpacing / 2); // Centralizada na casa
+        const pestanaY = startY + (fretSpacing / 2);
         const primeiraCorda = Math.min(...cordasNaPestana);
         const ultimaCorda = Math.max(...cordasNaPestana);
         
@@ -373,23 +372,30 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.beginPath();
         ctx.moveTo(xInicio, pestanaY);
         ctx.lineTo(xFim, pestanaY);
-        ctx.lineWidth = 10; // Espessura da pestana
+        ctx.lineWidth = 10;
         ctx.lineCap = 'round';
         ctx.strokeStyle = '#2c3e50';
         ctx.stroke();
     }
     
+    // ========== NÚMERO LATERAL ==========
+if (acorde.mostrarNumero === false) {
+    // Não faz nada, número não aparece
+} else if (mostrarNumero && (temPestana || casaInicialVal > 0)) {
+    ctx.font = 'bold 14px Arial';
+    ctx.fillStyle = '#333';
+    ctx.fillText(posicao + 'ª', startX - 28, startY + fretSpacing / 2 + 2);
+}
+    
     // ========== DESENHAR NOTAS (BOLINHAS) ==========
     ctx.lineWidth = 1.5;
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
-        const casaRelativa = casa - casaInicial + 1;
+        const casaRelativa = casa - casaBase + 1;
         
-        // Verifica se esta corda já está ocupada pela pestana na casa inicial
-        const estaNaPestana = temPestana && cordasNaPestana.includes(i) && casa === casaInicial;
-
+        const estaNaPestana = temPestana && cordasNaPestana.includes(i) && casa === casaBase;
+        
         if (casa === 0) {
-            // Corda solta (O)
             const y = startY - 10;
             ctx.beginPath();
             ctx.arc(x, y, 5, 0, 2 * Math.PI);
@@ -397,7 +403,6 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.stroke();
         } 
         else if (casa === -1) {
-            // Corda não tocada (X)
             const y = startY - 10;
             ctx.strokeStyle = '#e94560';
             ctx.lineWidth = 2;
@@ -408,7 +413,6 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.lineWidth = 1.5;
         } 
         else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
-            // SÓ DESENHA A BOLINHA SE NÃO FOR A PESTANA
             if (!estaNaPestana) {
                 const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
                 
@@ -417,7 +421,6 @@ function desenharAcorde(container, sigla, nomeParam = '') {
                 ctx.fillStyle = '#1a1a2e';
                 ctx.fill();
                 
-                // Número do dedo (apenas se não for pestana)
                 const dedo = (acorde.dedos && acorde.dedos[i]) ? acorde.dedos[i] : '';
                 if (dedo) {
                     ctx.fillStyle = '#ffffff';
@@ -433,7 +436,6 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     wrapper.appendChild(canvas);
     container.appendChild(wrapper);
 }
-    
 
 // ============================================
 // FUNÇÕES DE SALVAR E CARREGAR
