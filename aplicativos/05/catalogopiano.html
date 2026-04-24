@@ -13,7 +13,6 @@ button{padding:10px; margin-top:5px; background:#4CAF50; color:white; border:non
 button:hover{background:#45a049}
 .delete-btn{background:#e74c3c}
 .edit-btn{background:#3498db}
-.sort-btn{background:#9b59b6}
 table{width:100%; border-collapse:collapse; margin-top:20px}
 th, td{border:1px solid #ddd; padding:8px; text-align:center}
 th{background:#333; color:white}
@@ -57,7 +56,6 @@ th{background:#333; color:white}
 <input type="text" id="intervalo">
 
 <button onclick="adicionar()">Adicionar</button>
-<button class="sort-btn" onclick="ordenar()">Ordenar por Dificuldade</button>
 
 <table>
 <thead>
@@ -87,7 +85,6 @@ let campos = document.getElementById('camposMaos');
 campos.classList.toggle('hidden', !(exec==='MA'||exec==='MJ'||exec==='MS'));
 }
 
-// NORMALIZA RITMO (aceita 1,2 ou 2 1 etc)
 function normalizarRitmo(r){
 return r.replace(/\s|,/g,'')
         .split('')
@@ -95,7 +92,6 @@ return r.replace(/\s|,/g,'')
         .join('');
 }
 
-// ORDEM PEDAGÓGICA DEFINIDA POR VOCÊ
 const ordemRitmo = [
 "1","2","4","3",
 "12","24","13",
@@ -104,36 +100,25 @@ const ordemRitmo = [
 
 function calcularDificuldade(qn, ritmo, md, me){
 let score = 0;
-
-// quantidade de notas
 score += Number(qn) || 0;
-
-// variedade de notas
 let totalNotas = (md + ' ' + me).trim().split(/\s+/).filter(n=>n).length;
 score += totalNotas;
-
-// dificuldade do ritmo baseada na sua ordem
 let rNorm = normalizarRitmo(ritmo);
 let pos = ordemRitmo.indexOf(rNorm);
-
-if(pos !== -1){
-score += pos * 2;
-}else{
-score += 10; // ritmo fora do padrão
-}
-
+if(pos !== -1){ score += pos * 2; }
+else{ score += 10; }
 return score;
 }
 
 function adicionar(){
-let musica=document.getElementById('musica').value;
-let livro=document.getElementById('livro').value;
-let execucao=document.getElementById('execucao').value;
-let mdNotas=document.getElementById('mdNotas').value;
-let meNotas=document.getElementById('meNotas').value;
-let qn=document.getElementById('qn').value;
-let ritmo=document.getElementById('ritmo').value;
-let intervalo=document.getElementById('intervalo').value;
+let musica=musicaInput.value;
+let livro=livroInput.value;
+let execucao=execucaoInput.value;
+let mdNotas=mdInput.value;
+let meNotas=meInput.value;
+let qn=qnInput.value;
+let ritmo=ritmoInput.value;
+let intervalo=intervaloInput.value;
 
 let dificuldade = calcularDificuldade(qn, ritmo, mdNotas, meNotas);
 
@@ -143,11 +128,12 @@ linhaEditando=null;
 }else{
 let linha=document.createElement('tr');
 linha.innerHTML = gerarLinha(musica,livro,execucao,mdNotas,meNotas,qn,ritmo,intervalo,dificuldade);
-document.getElementById('tabela').appendChild(linha);
+tabela.appendChild(linha);
 }
 
+ordenar();
+salvar();
 limparCampos();
-ordenar(); // ordena automaticamente
 }
 
 function gerarLinha(musica,livro,execucao,md,me,qn,ritmo,intervalo,dif){
@@ -171,44 +157,80 @@ function editarLinha(btn){
 let t=btn.parentNode.parentNode.children;
 linhaEditando=btn.parentNode.parentNode;
 
-musica.value=t[0].innerText;
-livro.value=t[1].innerText;
-execucao.value=t[2].innerText;
-mdNotas.value=t[3].innerText!=='-'?t[3].innerText:'';
-meNotas.value=t[4].innerText!=='-'?t[4].innerText:'';
-qn.value=t[5].innerText;
-ritmo.value=t[6].innerText;
-intervalo.value=t[7].innerText;
+musicaInput.value=t[0].innerText;
+livroInput.value=t[1].innerText;
+execucaoInput.value=t[2].innerText;
+mdInput.value=t[3].innerText!=='-'?t[3].innerText:'';
+meInput.value=t[4].innerText!=='-'?t[4].innerText:'';
+qnInput.value=t[5].innerText;
+ritmoInput.value=t[6].innerText;
+intervaloInput.value=t[7].innerText;
 
 toggleCampos();
 }
 
 function removerLinha(btn){
 btn.parentNode.parentNode.remove();
+salvar();
 }
 
 function ordenar(){
-let tbody=document.getElementById('tabela');
-let linhas=Array.from(tbody.rows);
+let linhas=Array.from(tabela.rows);
+linhas.sort((a,b)=>Number(a.cells[8].innerText)-Number(b.cells[8].innerText));
+linhas.forEach(l=>tabela.appendChild(l));
+}
 
-linhas.sort((a,b)=>{
-let da=Number(a.cells[8].innerText);
-let db=Number(b.cells[8].innerText);
-return da-db;
+function salvar(){
+let dados=[];
+Array.from(tabela.rows).forEach(l=>{
+let c=l.cells;
+dados.push({
+musica:c[0].innerText,
+livro:c[1].innerText,
+execucao:c[2].innerText,
+md:c[3].innerText,
+me:c[4].innerText,
+qn:c[5].innerText,
+ritmo:c[6].innerText,
+intervalo:c[7].innerText
 });
+});
+localStorage.setItem('pianoCatalogo', JSON.stringify(dados));
+}
 
-linhas.forEach(l=>tbody.appendChild(l));
+function carregar(){
+let dados=JSON.parse(localStorage.getItem('pianoCatalogo')||'[]');
+dados.forEach(d=>{
+let dif=calcularDificuldade(d.qn,d.ritmo,d.md,d.me);
+let linha=document.createElement('tr');
+linha.innerHTML=gerarLinha(d.musica,d.livro,d.execucao,d.md,d.me,d.qn,d.ritmo,d.intervalo,dif);
+tabela.appendChild(linha);
+});
+ordenar();
 }
 
 function limparCampos(){
-musica.value='';
-livro.value='';
-mdNotas.value='';
-meNotas.value='';
-qn.value='';
-ritmo.value='';
-intervalo.value='';
+musicaInput.value='';
+livroInput.value='';
+mdInput.value='';
+meInput.value='';
+qnInput.value='';
+ritmoInput.value='';
+intervaloInput.value='';
 }
+
+// atalhos
+const musicaInput = document.getElementById('musica');
+const livroInput = document.getElementById('livro');
+const execucaoInput = document.getElementById('execucao');
+const mdInput = document.getElementById('mdNotas');
+const meInput = document.getElementById('meNotas');
+const qnInput = document.getElementById('qn');
+const ritmoInput = document.getElementById('ritmo');
+const intervaloInput = document.getElementById('intervalo');
+const tabela = document.getElementById('tabela');
+
+carregar();
 </script>
 </body>
 </html>
