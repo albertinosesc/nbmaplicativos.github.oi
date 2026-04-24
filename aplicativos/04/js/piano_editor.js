@@ -69,15 +69,6 @@ function escapeHtml(text) {
     });
 }
 
-function toast(msg, tipo) {
-    let t = document.createElement("div");
-    t.textContent = msg;
-    let bgColor = tipo === 'success' ? '#2ed573' : (tipo === 'warning' ? '#ffa502' : '#3a86ff');
-    t.style.cssText = `position:fixed; bottom:20px; right:20px; background:${bgColor}; color:white; padding:12px 20px; border-radius:8px; z-index:9999; animation:fadeOut 3s forwards; font-weight:bold;`;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
-}
-
 // ============================================
 // CONTROLE DE CLAVE
 // ============================================
@@ -114,7 +105,7 @@ function criarTecladoPiano() {
     
     kb.innerHTML = "";
     let startNota = document.getElementById("startNota")?.value || "C3";
-    let endNota = document.getElementById("endNota")?.value || "C5";
+    let endNota = document.getElementById("endNota")?.value || "C4";
     
     let startMatch = startNota.match(/^([A-G])(\d+)$/);
     let endMatch = endNota.match(/^([A-G])(\d+)$/);
@@ -267,7 +258,7 @@ function sincronizarDoABCPiano() {
 
 function atualizarEditorPiano() {
     let startNota = document.getElementById("startNota")?.value || "C3";
-    let endNota = document.getElementById("endNota")?.value || "C5";
+    let endNota = document.getElementById("endNota")?.value || "C4";
     let zoom = parseInt(document.getElementById("zoomPiano")?.value || 30);
     let fingersTreble = document.getElementById("fingersTreble")?.value || "1 3 5";
     let fingersBass = document.getElementById("fingersBass")?.value || "5 3 1";
@@ -440,7 +431,7 @@ function adicionarDiagramaPiano() {
         nome: nome,
         sigla: siglaIdentificada || null,
         startNota: document.getElementById("startNota")?.value || "C3",
-        endNota: document.getElementById("endNota")?.value || "C5",
+        endNota: document.getElementById("endNota")?.value || "C4",
         zoom: parseInt(document.getElementById("zoomPiano")?.value || 30),
         fingersTreble: document.getElementById("fingersTreble")?.value || "1 3 5",
         fingersBass: document.getElementById("fingersBass")?.value || "5 3 1",
@@ -583,39 +574,19 @@ function gerarCodigoPianoParaEditor() {
     
     const nome = document.getElementById("diagramNamePiano")?.value.trim() || "Meu Acorde";
     const startNota = document.getElementById("startNota")?.value || "C3";
-    const endNota = document.getElementById("endNota")?.value || "C5";
+    const endNota = document.getElementById("endNota")?.value || "C4";
     const fingersTreble = document.getElementById("fingersTreble")?.value || "";
     const fingersBass = document.getElementById("fingersBass")?.value || "";
     
-    // Separar notas por mão
-    const notasTreble = notasSelecPiano.filter(n => n.clef === "treble");
-    const notasBass = notasSelecPiano.filter(n => n.clef === "bass");
-    
-    // Extrair as notas selecionadas com oitava
+    // CORRIGIDO: Extrair as notas selecionadas com OITAVA COMPLETA
     const todasNotas = notasSelecPiano.map(n => {
         let nota = n.char;
         if (n.acc === "^") nota += "#";
         else if (n.acc === "_") nota += "b";
-        return nota + n.oitava;
+        return nota + n.oitava;  // Ex: "C4", "E4", "G4"
     });
     
-    // Extrair apenas os nomes das notas (sem oitava) para comparação
-    const nomesNotas = todasNotas.map(n => n.replace(/[0-9]/g, ''));
-    
-    // Formatar notasTreble e notasBass para salvar
-    const notasTrebleStr = notasTreble.map(n => {
-        let nota = n.char;
-        if (n.acc === "^") nota += "#";
-        else if (n.acc === "_") nota += "b";
-        return nota + n.oitava;
-    });
-    
-    const notasBassStr = notasBass.map(n => {
-        let nota = n.char;
-        if (n.acc === "^") nota += "#";
-        else if (n.acc === "_") nota += "b";
-        return nota + n.oitava;
-    });
+    console.log("🎹 Notas com oitava:", todasNotas);
     
     // Criar uma sigla única
     const siglaPersonalizada = "CUSTOM_" + todasNotas.join("_");
@@ -624,10 +595,7 @@ function gerarCodigoPianoParaEditor() {
     const acordesPersonalizados = JSON.parse(localStorage.getItem("acordes_piano_personalizados") || "{}");
     acordesPersonalizados[siglaPersonalizada] = {
         nome: nome,
-        notas: todasNotas,
-        notasNomes: nomesNotas,
-        notasTreble: notasTrebleStr,
-        notasBass: notasBassStr,
+        notas: todasNotas,  // Isso já tem a oitava!
         startOitava: startNota,
         endOitava: endNota,
         fingersTreble: fingersTreble,
