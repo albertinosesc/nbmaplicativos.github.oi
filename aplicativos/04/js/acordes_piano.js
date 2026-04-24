@@ -3,344 +3,156 @@
 // DICIONÁRIO DE ACORDES DE PIANO 
 // ============================================
 
-// ============================================
-// DICIONÁRIO DE ACORDES DE PIANO COM RANGE DE OITAVAS
-// ============================================
-
-// ============================================
-// DICIONÁRIO DE ACORDES DE PIANO COM OITAVAS E DEDOS
-// ============================================
 
 const ACORDES_PIANO = {
-    // Acordes Maiores
-    'C': { 
-        nome: 'Dó Maior', 
-        notas: ['C3', 'E3', 'G3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'C3', 
-        endOitava: 'C4' 
-    },
-    'C#': { 
-        nome: 'Dó Sustenido Maior', 
-        notas: ['C#3', 'F3', 'G#3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'C#3', 
-        endOitava: 'C#4' 
-    },
-    'Db': { 
-        nome: 'Ré Bemol Maior', 
-        notas: ['Db3', 'F3', 'Ab3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'Db3', 
-        endOitava: 'Db4' 
-    },
-    'D': { 
-        nome: 'Ré Maior', 
-        notas: ['D3', 'F#3', 'A3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'D3', 
-        endOitava: 'D4' 
-    },
-    'D#': { 
-        nome: 'Ré Sustenido Maior', 
-        notas: ['D#3', 'G3', 'A#3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'D#3', 
-        endOitava: 'D#4' 
-    },
-    'Eb': { 
-        nome: 'Mi Bemol Maior', 
-        notas: ['Eb3', 'G3', 'Bb3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'Eb3', 
-        endOitava: 'Eb4' 
-    },
-    'E': { 
-        nome: 'Mi Maior', 
-        notas: ['E3', 'G#3', 'B3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'E3', 
-        endOitava: 'E4' 
-    },
-    'F': { 
-        nome: 'Fá Maior', 
-        notas: ['F3', 'A3', 'C4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'F3', 
-        endOitava: 'F4' 
-    },
-    'F#': { 
-        nome: 'Fá Sustenido Maior', 
-        notas: ['F#3', 'A#3', 'C#4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'F#3', 
-        endOitava: 'F#4' 
-    },
-    'Gb': { 
-        nome: 'Sol Bemol Maior', 
-        notas: ['Gb3', 'Bb3', 'Db4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'Gb3', 
-        endOitava: 'Gb4' 
-    },
-    'G': { 
-        nome: 'Sol Maior', 
-        notas: ['G3', 'B3', 'D4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'G3', 
-        endOitava: 'G4' 
-    },
-    'G#': { 
-        nome: 'Sol Sustenido Maior', 
-        notas: ['G#3', 'C4', 'D#4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'G#3', 
-        endOitava: 'G#4' 
-    },
-    'Ab': { 
-        nome: 'Lá Bemol Maior', 
-        notas: ['Ab3', 'C4', 'Eb4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'Ab3', 
-        endOitava: 'Ab4' 
-    },
-    'A': { 
-        nome: 'Lá Maior', 
-        notas: ['A3', 'C#4', 'E4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'A3', 
-        endOitava: 'A4' 
-    },
-    'A#': { 
-        nome: 'Lá Sustenido Maior', 
-        notas: ['A#3', 'D4', 'F4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'A#3', 
-        endOitava: 'A#4' 
-    },
-    'Bb': { 
-        nome: 'Si Bemol Maior', 
-        notas: ['Bb3', 'D4', 'F4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'Bb3', 
-        endOitava: 'Bb4' 
-    },
-    'B': { 
-        nome: 'Si Maior', 
-        notas: ['B3', 'D#4', 'F#4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'B3', 
-        endOitava: 'B4' 
-    },
+    // ===== ACORDES MAIORES =====
+    'CF': { nome: 'Dó Maior', notas: ['C3','E3','G3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'C#F': { nome: 'Dó# Maior', notas: ['C#3','F3','G#3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'DbF': { nome: 'Réb Maior', notas: ['Db3','F3','Ab3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
 
-    // Acordes Menores
-    'Cm': { 
-        nome: 'Dó Menor', 
-        notas: ['C3', 'D#3', 'Gb3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'C3', 
-        endOitava: 'C4' 
-    },
+    'DF': { nome: 'Ré Maior', notas: ['D3','F#3','A3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'D#F': { nome: 'Ré# Maior', notas: ['D#3','G3','A#3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'EbF': { nome: 'Mib Maior', notas: ['Eb3','G3','Bb3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
 
-        'Cm1': { 
-        nome: 'Dó Menor hfsfsj', 
-        notas: ['C3', 'D#3', 'Gb3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'C3', 
-        endOitava: 'C4' 
-    },
-    'Dm': { 
-        nome: 'Ré Menor', 
-        notas: ['D3', 'F3', 'A3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'D3', 
-        endOitava: 'D5' 
-    },
-    'Em': { 
-        nome: 'Mi Menor', 
-        notas: ['E3', 'G3', 'B3'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'E3', 
-        endOitava: 'E5' 
-    },
-    'Fm': { 
-        nome: 'Fá Menor', 
-        notas: ['F3', 'Ab3', 'C4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'F3', 
-        endOitava: 'F5' 
-    },
-    'Gm': { 
-        nome: 'Sol Menor', 
-        notas: ['G3', 'Bb3', 'D4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'G3', 
-        endOitava: 'G5' 
-    },
-    'Am': { 
-        nome: 'Lá Menor', 
-        notas: ['A3', 'C4', 'E4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'A3', 
-        endOitava: 'A5' 
-    },
-    'Bm': { 
-        nome: 'Si Menor', 
-        notas: ['B3', 'D4', 'F#4'],
-        dedosTreble: ['1', '3', '5'],
-        startOitava: 'B3', 
-        endOitava: 'B5' 
-    },
+    'EF': { nome: 'Mi Maior', notas: ['E3','G#3','B3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
 
-    // Acordes com Sétima
-    'C7': { 
-        nome: 'Dó com Sétima', 
-        notas: ['C3', 'E3', 'G3', 'Bb3'],
-        dedosTreble: ['1', '2', '3', '5'],
-        startOitava: 'C3', 
-        endOitava: 'C5' 
-    },
-    'D7': { 
-        nome: 'Ré com Sétima', 
-        notas: ['D3', 'F#3', 'A3', 'C4'],
-        dedosTreble: ['1', '2', '3', '5'],
-        startOitava: 'D3', 
-        endOitava: 'D5' 
-    },
-    'G7': { 
-        nome: 'Sol com Sétima', 
-        notas: ['G3', 'B3', 'D4', 'F4'],
-        dedosTreble: ['1', '2', '3', '5'],
-        startOitava: 'G3', 
-        endOitava: 'G5' 
-    },
-    'A7': { 
-        nome: 'Lá com Sétima', 
-        notas: ['A3', 'C#4', 'E4', 'G4'],
-        dedosTreble: ['1', '2', '3', '5'],
-        startOitava: 'A3', 
-        endOitava: 'A5' 
-    }
+    'FF': { nome: 'Fá Maior', notas: ['F3','A3','C4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'F#F': { nome: 'Fá# Maior', notas: ['F#3','A#3','C#4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'GbF': { nome: 'Solb Maior', notas: ['Gb3','Bb3','Db4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    'GF': { nome: 'Sol Maior', notas: ['G3','B3','D4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'G#F': { nome: 'Sol# Maior', notas: ['G#3','C4','D#4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'AbF': { nome: 'Láb Maior', notas: ['Ab3','C4','Eb4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    'AF': { nome: 'Lá Maior', notas: ['A3','C#4','E4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'A#F': { nome: 'Lá# Maior', notas: ['A#3','D4','F4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'BbF': { nome: 'Sib Maior', notas: ['Bb3','D4','F4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    'BF': { nome: 'Si Maior', notas: ['B3','D#4','F#4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    // ===== ACORDES MENORES =====
+    'CmF': { nome: 'Dó Menor', notas: ['C3','Eb3','G3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'DmF': { nome: 'Ré Menor', notas: ['D3','F3','A3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'EmF': { nome: 'Mi Menor', notas: ['E3','G3','B3'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'FmF': { nome: 'Fá Menor', notas: ['F3','Ab3','C4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'GmF': { nome: 'Sol Menor', notas: ['G3','Bb3','D4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'AmF': { nome: 'Lá Menor', notas: ['A3','C4','E4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'BmF': { nome: 'Si Menor', notas: ['B3','D4','F#4'], dedosTreble: ['1','3','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    // ===== ACORDES COM SÉTIMA =====
+    'C7F': { nome: 'Dó7', notas: ['C3','E3','G3','Bb3'], dedosTreble: ['1','2','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'D7F': { nome: 'Ré7', notas: ['D3','F#3','A3','C4'], dedosTreble: ['1','2','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'G7F': { nome: 'Sol7', notas: ['G3','B3','D4','F4'], dedosTreble: ['1','2','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'A7F': { nome: 'Lá7', notas: ['A3','C#4','E4','G4'], dedosTreble: ['1','2','3','5'], startOitava: 'C3', endOitava: 'C5' },
+
+
+// ==============================RIMEIRA INVERSÃO ============================================================================================================
+ 
+// ===== ACORDES MAIORES =====
+    'C1': { nome: 'Dó Maior', notas: ['E3','G3','C4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'C#1': { nome: 'Dó# Maior', notas: ['F3','G#3','C#4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Db1': { nome: 'Réb Maior', notas: ['F3','Ab3','Db4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    'D1': { nome: 'Ré Maior', notas: ['F#3','A3','D4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'D#1': { nome: 'Ré# Maior', notas: ['G3','A#3','D#4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Eb1': { nome: 'Mib Maior', notas: ['G3','Bb3','Eb4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    'E1': { nome: 'Mi Maior', notas: ['G#3','B3','E4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    'F1': { nome: 'Fá Maior', notas: ['A3','C4','F4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'F#1': { nome: 'Fá# Maior', notas: ['A#3','C#4','F#4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Gb1': { nome: 'Solb Maior', notas: ['Bb3','Db4','Gb4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    'G1': { nome: 'Sol Maior', notas: ['B3','D4','G4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'G#1': { nome: 'Sol# Maior', notas: ['C4','D#4','G#4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Ab1': { nome: 'Láb Maior', notas: ['C4','Eb4','Ab4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    'A1': { nome: 'Lá Maior', notas: ['C#4','E4','A4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'A#1': { nome: 'Lá# Maior', notas: ['D4','F4','A#4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Bb1': { nome: 'Sib Maior', notas: ['D4','F4','Bb4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    'B1': { nome: 'Si Maior', notas: ['D#4','F#4','B4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    // ===== ACORDES MENORES =====
+    'Cm1': { nome: 'Dó Menor', notas: ['Eb3','G3','C4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Dm1': { nome: 'Ré Menor', notas: ['F3','A3','D4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Em1': { nome: 'Mi Menor', notas: ['G3','B3','E4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Fm1': { nome: 'Fá Menor', notas: ['Ab3','C4','F4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Gm1': { nome: 'Sol Menor', notas: ['Bb3','D4','G4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Am1': { nome: 'Lá Menor', notas: ['C4','E4','A4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+    'Bm1': { nome: 'Si Menor', notas: ['D4','F#4','B4'], dedosTreble: ['1','2','5'], startOitava: 'C3', endOitava: 'C5' },
+
+    // ===== ACORDES COM SÉTIMA =====
+    'C71': { nome: 'Dó7', notas: ['E3','G3','Bb3','C4'], dedosTreble: ['1','2','4','5'], startOitava: 'C3', endOitava: 'C5' },
+    'D71': { nome: 'Ré7', notas: ['F#3','A3','C4','D4'], dedosTreble: ['1','2','4','5'], startOitava: 'C3', endOitava: 'C5' },
+    'G71': { nome: 'Sol7', notas: ['B3','D4','F4','G4'], dedosTreble: ['1','2','4','5'], startOitava: 'C3', endOitava: 'C5' },
+    'A71': { nome: 'Lá7', notas: ['C#4','E4','G4','A4'], dedosTreble: ['1','2','4','5'], startOitava: 'C3', endOitava: 'C5' },
+
+// ==============================SEGUNDA INVERSÃO ============================================================================================================
+
+    
+    // ===== ACORDES MAIORES =====
+    'C2': { nome: 'Dó Maior', notas: ['G3','C4','E4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'C#2': { nome: 'Dó# Maior', notas: ['G#3','C#4','F4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Db2': { nome: 'Réb Maior', notas: ['Ab3','Db4','F4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+
+    'D2': { nome: 'Ré Maior', notas: ['A3','D4','F#4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'D#2': { nome: 'Ré# Maior', notas: ['A#3','D#4','G4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Eb2': { nome: 'Mib Maior', notas: ['Bb3','Eb4','G4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+
+    'E2': { nome: 'Mi Maior', notas: ['B3','E4','G#4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+
+    'F2': { nome: 'Fá Maior', notas: ['C4','F4','A4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'F#2': { nome: 'Fá# Maior', notas: ['C#4','F#4','A#4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Gb2': { nome: 'Solb Maior', notas: ['Db4','Gb4','Bb4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+
+    'G2': { nome: 'Sol Maior', notas: ['D4','G4','B4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'G#2': { nome: 'Sol# Maior', notas: ['D#4','G#4','C5'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Ab2': { nome: 'Láb Maior', notas: ['Eb4','Ab4','C5'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+
+    'A2': { nome: 'Lá Maior', notas: ['E4','A4','C#5'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'A#2': { nome: 'Lá# Maior', notas: ['F4','A#4','D5'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Bb2': { nome: 'Sib Maior', notas: ['F4','Bb4','D5'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+
+    'B2': { nome: 'Si Maior', notas: ['F#4','B4','D#5'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+
+    // ===== ACORDES MENORES =====
+    'Cm2': { nome: 'Dó Menor', notas: ['G3','C4','Eb4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Dm2': { nome: 'Ré Menor', notas: ['A3','D4','F4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Em2': { nome: 'Mi Menor', notas: ['B3','E4','G4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Fm2': { nome: 'Fá Menor', notas: ['C4','F4','Ab4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Gm2': { nome: 'Sol Menor', notas: ['D4','G4','Bb4'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Am2': { nome: 'Lá Menor', notas: ['E4','A4','C5'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+    'Bm2': { nome: 'Si Menor', notas: ['F#4','B4','D5'], dedosTreble: ['1','2','3'], startOitava: 'C3', endOitava: 'C5' },
+
+    // ===== ACORDES COM SÉTIMA =====
+    'C72': { nome: 'Dó7', notas: ['G3','Bb3','C4','E4'], dedosTreble: ['1','2','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'D72': { nome: 'Ré7', notas: ['A3','C4','D4','F#4'], dedosTreble: ['1','2','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'G72': { nome: 'Sol7', notas: ['D4','F4','G4','B4'], dedosTreble: ['1','2','3','5'], startOitava: 'C3', endOitava: 'C5' },
+    'A72': { nome: 'Lá7', notas: ['E4','G4','A4','C#5'], dedosTreble: ['1','2','3','5'], startOitava: 'C3', endOitava: 'C5' }
+
+    
 };
 
+
 // ============================================
-// FUNÇÃO PARA DESENHAR ACORDE DE PIANO NO VISUALIZADOR
+// FUNÇÃO PARA DESENHAR ACORDE DE PIANO PADRÃO
 // ============================================
 function desenharAcordePianoPreview(container, sigla, nome) {
-    // Buscar o acorde no dicionário
-    let acorde = ACORDES_PIANO[sigla];
-    
-    // Se não encontrou, tenta encontrar pelo nome
-    if (!acorde && nome) {
-        for (const [key, value] of Object.entries(ACORDES_PIANO)) {
-            if (value.nome === nome) {
-                acorde = value;
-                break;
-            }
-        }
-    }
+    const acorde = ACORDES_PIANO[sigla];
     
     if (!acorde) {
-        container.innerHTML = `<div style="color:red; padding: 10px; border: 1px solid red; border-radius: 5px;">
-            ❌ Acorde de Piano "${sigla}" não encontrado
-        </div>`;
+        container.innerHTML = `<div style="color:red; padding:10px;">❌ Acorde "${sigla}" não encontrado</div>`;
         return;
     }
     
-    // Limpar o container
-    container.innerHTML = '';
-    
-    // Criar o wrapper principal
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display: inline-block; margin: 10px auto; text-align: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);';
-    
-    // Título
-    const title = document.createElement('div');
-    title.style.cssText = 'font-size: 1.2em; font-weight: bold; color: #e94560; margin-bottom: 10px;';
-    title.textContent = `${sigla} - ${acorde.nome}`;
-    wrapper.appendChild(title);
-    
-    // Container do teclado
-    const keyboardContainer = document.createElement('div');
-    keyboardContainer.style.cssText = 'display: flex; position: relative; height: 120px; margin: 5px 0; justify-content: center;';
-    
-    const notasTeclas = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const notasAcorde = acorde.notas;
-    const whiteKeyWidth = 40;
-    const whiteKeyHeight = 100;
-    
-    const whiteKeys = [];
-    
-    // Desenhar teclas brancas
-    for (let i = 0; i < notasTeclas.length; i++) {
-        const nota = notasTeclas[i];
-        if (!nota.includes('#')) {
-            const key = document.createElement('div');
-            const isActive = notasAcorde.includes(nota);
-            
-            key.style.cssText = `
-                width: ${whiteKeyWidth}px;
-                height: ${whiteKeyHeight}px;
-                background: ${isActive ? '#3a86ff' : '#ffffff'};
-                border: 1px solid #333;
-                display: inline-block;
-                position: relative;
-                border-radius: 0 0 4px 4px;
-                cursor: default;
-            `;
-            
-            const label = document.createElement('div');
-            label.textContent = nota;
-            label.style.cssText = 'position: absolute; bottom: 5px; width: 100%; text-align: center; font-size: 10px; color: #666; font-weight: bold;';
-            key.appendChild(label);
-            keyboardContainer.appendChild(key);
-            whiteKeys.push(key);
-        }
+    // Usa a mesma função do main.js
+    if (typeof desenharTecladoPiano === 'function') {
+        desenharTecladoPiano(container, sigla, acorde.nome, acorde.notas, acorde.startOitava, acorde.endOitava, acorde.dedosTreble);
+    } else {
+        // Fallback
+        container.innerHTML = `<div style="color:red; padding:10px;">❌ Função desenharTecladoPiano não encontrada</div>`;
     }
-    
-    // Desenhar teclas pretas
-    let blackIndex = 0;
-    const blackPositions = [1, 3, 6, 8, 10];
-    const blackKeyWidth = 26;
-    const blackKeyHeight = 65;
-    
-    for (let i = 0; i < notasTeclas.length; i++) {
-        const nota = notasTeclas[i];
-        if (nota.includes('#')) {
-            const pos = blackPositions[blackIndex++];
-            if (pos !== undefined && whiteKeys[pos]) {
-                const blackKey = document.createElement('div');
-                const isActive = notasAcorde.includes(nota);
-                
-                blackKey.style.cssText = `
-                    width: ${blackKeyWidth}px;
-                    height: ${blackKeyHeight}px;
-                    background: ${isActive ? '#ff4757' : '#222222'};
-                    position: absolute;
-                    left: ${pos * whiteKeyWidth - (blackKeyWidth / 2)}px;
-                    top: 0;
-                    border-radius: 0 0 3px 3px;
-                    cursor: default;
-                `;
-                
-                const label = document.createElement('div');
-                label.textContent = nota;
-                label.style.cssText = 'position: absolute; bottom: 5px; width: 100%; text-align: center; font-size: 8px; color: #fff; font-weight: bold;';
-                blackKey.appendChild(label);
-                keyboardContainer.appendChild(blackKey);
-            }
-        }
-    }
-    
-    wrapper.appendChild(keyboardContainer);
-    
-    // Legenda com as notas
-    const legend = document.createElement('div');
-    legend.style.cssText = 'font-size: 11px; color: #555; margin-top: 8px; padding: 4px 8px; background: #f0f2f5; border-radius: 15px; display: inline-block;';
-    legend.textContent = `🎵 Notas: ${notasAcorde.join(' + ')}`;
-    wrapper.appendChild(legend);
-    
-    container.appendChild(wrapper);
 }
 
 // ============================================
