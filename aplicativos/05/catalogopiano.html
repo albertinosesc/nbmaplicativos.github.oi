@@ -13,6 +13,7 @@ button{padding:10px; margin-top:5px; background:#4CAF50; color:white; border:non
 button:hover{background:#45a049}
 .delete-btn{background:#e74c3c}
 .edit-btn{background:#3498db}
+.csv-btn{background:#f39c12}
 table{width:100%; border-collapse:collapse; margin-top:20px}
 th, td{border:1px solid #ddd; padding:8px; text-align:center}
 th{background:#333; color:white}
@@ -40,22 +41,23 @@ th{background:#333; color:white}
 
 <div id="camposMaos" class="hidden">
 <label>Notas MD</label>
-<input type="text" id="mdNotas" placeholder="Ex: C D E">
+<input type="text" id="mdNotas">
 
 <label>Notas ME</label>
-<input type="text" id="meNotas" placeholder="Ex: A B C">
+<input type="text" id="meNotas">
 </div>
 
 <label>Quantidade de Notas (QN)</label>
 <input type="number" id="qn">
 
 <label>Ritmo (R)</label>
-<input type="text" id="ritmo" placeholder="Ex: 1,2 ou 1 2 3">
+<input type="text" id="ritmo">
 
 <label>Intervalo (I)</label>
 <input type="text" id="intervalo">
 
 <button onclick="adicionar()">Adicionar</button>
+<button class="csv-btn" onclick="copiarCSV()">Copiar CSV</button>
 
 <table>
 <thead>
@@ -80,155 +82,130 @@ th{background:#333; color:white}
 let linhaEditando = null;
 
 function toggleCampos(){
-let exec = document.getElementById('execucao').value;
-let campos = document.getElementById('camposMaos');
-campos.classList.toggle('hidden', !(exec==='MA'||exec==='MJ'||exec==='MS'));
+let exec = execucao.value;
+camposMaos.classList.toggle('hidden', !(exec==='MA'||exec==='MJ'||exec==='MS'));
 }
 
 function normalizarRitmo(r){
-return r.replace(/\s|,/g,'')
-        .split('')
-        .sort()
-        .join('');
+return r.replace(/\s|,/g,'').split('').sort().join('');
 }
 
-const ordemRitmo = [
-"1","2","4","3",
-"12","24","13",
-"124","123","1234"
-];
+const ordemRitmo = ["1","2","4","3","12","24","13","124","123","1234"];
 
 function calcularDificuldade(qn, ritmo, md, me){
-let score = 0;
-score += Number(qn) || 0;
-let totalNotas = (md + ' ' + me).trim().split(/\s+/).filter(n=>n).length;
-score += totalNotas;
+let score = Number(qn)||0;
+score += (md+' '+me).trim().split(/\s+/).filter(n=>n).length;
+
 let rNorm = normalizarRitmo(ritmo);
 let pos = ordemRitmo.indexOf(rNorm);
-if(pos !== -1){ score += pos * 2; }
-else{ score += 10; }
+
+score += (pos!==-1)? pos*2 : 10;
 return score;
 }
 
 function adicionar(){
-let musica=musicaInput.value;
-let livro=livroInput.value;
-let execucao=execucaoInput.value;
-let mdNotas=mdInput.value;
-let meNotas=meInput.value;
-let qn=qnInput.value;
-let ritmo=ritmoInput.value;
-let intervalo=intervaloInput.value;
-
-let dificuldade = calcularDificuldade(qn, ritmo, mdNotas, meNotas);
+let dificuldade = calcularDificuldade(qn.value, ritmo.value, mdNotas.value, meNotas.value);
 
 if(linhaEditando){
-linhaEditando.innerHTML = gerarLinha(musica,livro,execucao,mdNotas,meNotas,qn,ritmo,intervalo,dificuldade);
+linhaEditando.innerHTML = gerarLinha(dificuldade);
 linhaEditando=null;
 }else{
 let linha=document.createElement('tr');
-linha.innerHTML = gerarLinha(musica,livro,execucao,mdNotas,meNotas,qn,ritmo,intervalo,dificuldade);
+linha.innerHTML = gerarLinha(dificuldade);
 tabela.appendChild(linha);
 }
 
 ordenar();
 salvar();
-limparCampos();
+limpar();
 }
 
-function gerarLinha(musica,livro,execucao,md,me,qn,ritmo,intervalo,dif){
+function gerarLinha(dif){
 return `
-<td>${musica}</td>
-<td>${livro}</td>
-<td>${execucao}</td>
-<td>${md||'-'}</td>
-<td>${me||'-'}</td>
-<td>${qn}</td>
-<td>${ritmo}</td>
-<td>${intervalo}</td>
+<td>${musica.value}</td>
+<td>${livro.value}</td>
+<td>${execucao.value}</td>
+<td>${mdNotas.value||'-'}</td>
+<td>${meNotas.value||'-'}</td>
+<td>${qn.value}</td>
+<td>${ritmo.value}</td>
+<td>${intervalo.value}</td>
 <td>${dif}</td>
 <td>
-<button class="edit-btn" onclick="editarLinha(this)">Editar</button>
-<button class="delete-btn" onclick="removerLinha(this)">Excluir</button>
+<button onclick="editar(this)">Editar</button>
+<button onclick="remover(this)">Excluir</button>
 </td>`;
 }
 
-function editarLinha(btn){
+function editar(btn){
 let t=btn.parentNode.parentNode.children;
 linhaEditando=btn.parentNode.parentNode;
 
-musicaInput.value=t[0].innerText;
-livroInput.value=t[1].innerText;
-execucaoInput.value=t[2].innerText;
-mdInput.value=t[3].innerText!=='-'?t[3].innerText:'';
-meInput.value=t[4].innerText!=='-'?t[4].innerText:'';
-qnInput.value=t[5].innerText;
-ritmoInput.value=t[6].innerText;
-intervaloInput.value=t[7].innerText;
+musica.value=t[0].innerText;
+livro.value=t[1].innerText;
+execucao.value=t[2].innerText;
+mdNotas.value=t[3].innerText!=='-'?t[3].innerText:'';
+meNotas.value=t[4].innerText!=='-'?t[4].innerText:'';
+qn.value=t[5].innerText;
+ritmo.value=t[6].innerText;
+intervalo.value=t[7].innerText;
 
 toggleCampos();
 }
 
-function removerLinha(btn){
+function remover(btn){
 btn.parentNode.parentNode.remove();
 salvar();
 }
 
 function ordenar(){
-let linhas=Array.from(tabela.rows);
-linhas.sort((a,b)=>Number(a.cells[8].innerText)-Number(b.cells[8].innerText));
+let linhas=[...tabela.rows];
+linhas.sort((a,b)=>a.cells[8].innerText - b.cells[8].innerText);
 linhas.forEach(l=>tabela.appendChild(l));
 }
 
 function salvar(){
-let dados=[];
-Array.from(tabela.rows).forEach(l=>{
+let dados=[...tabela.rows].map(l=>{
 let c=l.cells;
-dados.push({
-musica:c[0].innerText,
-livro:c[1].innerText,
-execucao:c[2].innerText,
-md:c[3].innerText,
-me:c[4].innerText,
-qn:c[5].innerText,
-ritmo:c[6].innerText,
-intervalo:c[7].innerText
+return [c[0].innerText,c[1].innerText,c[2].innerText,c[3].innerText,c[4].innerText,c[5].innerText,c[6].innerText,c[7].innerText];
 });
-});
-localStorage.setItem('pianoCatalogo', JSON.stringify(dados));
+localStorage.setItem('piano', JSON.stringify(dados));
 }
 
 function carregar(){
-let dados=JSON.parse(localStorage.getItem('pianoCatalogo')||'[]');
-dados.forEach(d=>{
-let dif=calcularDificuldade(d.qn,d.ritmo,d.md,d.me);
+(JSON.parse(localStorage.getItem('piano'))||[]).forEach(d=>{
+let dif=calcularDificuldade(d[5],d[6],d[3],d[4]);
 let linha=document.createElement('tr');
-linha.innerHTML=gerarLinha(d.musica,d.livro,d.execucao,d.md,d.me,d.qn,d.ritmo,d.intervalo,dif);
+linha.innerHTML=`
+<td>${d[0]}</td><td>${d[1]}</td><td>${d[2]}</td>
+<td>${d[3]}</td><td>${d[4]}</td><td>${d[5]}</td>
+<td>${d[6]}</td><td>${d[7]}</td><td>${dif}</td>
+<td><button onclick="editar(this)">Editar</button>
+<button onclick="remover(this)">Excluir</button></td>`;
 tabela.appendChild(linha);
 });
 ordenar();
 }
 
-function limparCampos(){
-musicaInput.value='';
-livroInput.value='';
-mdInput.value='';
-meInput.value='';
-qnInput.value='';
-ritmoInput.value='';
-intervaloInput.value='';
+function copiarCSV(){
+let csv="Música,Livro,Execução,MD,ME,QN,R,I,Dificuldade\n";
+[...tabela.rows].forEach(l=>{
+let c=l.cells;
+csv+=`${c[0].innerText},${c[1].innerText},${c[2].innerText},${c[3].innerText},${c[4].innerText},${c[5].innerText},${c[6].innerText},${c[7].innerText},${c[8].innerText}\n`;
+});
+navigator.clipboard.writeText(csv);
+alert("CSV copiado!");
 }
 
-// atalhos
-const musicaInput = document.getElementById('musica');
-const livroInput = document.getElementById('livro');
-const execucaoInput = document.getElementById('execucao');
-const mdInput = document.getElementById('mdNotas');
-const meInput = document.getElementById('meNotas');
-const qnInput = document.getElementById('qn');
-const ritmoInput = document.getElementById('ritmo');
-const intervaloInput = document.getElementById('intervalo');
-const tabela = document.getElementById('tabela');
+function limpar(){
+musica.value='';
+livro.value='';
+mdNotas.value='';
+meNotas.value='';
+qn.value='';
+ritmo.value='';
+intervalo.value='';
+}
 
 carregar();
 </script>
