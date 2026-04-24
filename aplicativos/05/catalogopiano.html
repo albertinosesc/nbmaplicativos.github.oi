@@ -27,7 +27,6 @@
     
     /* Grupos de botões */
     .btn-group {display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center;}
-    .btn-group-right {display: flex; gap: 8px; margin-left: auto;}
     
     /* Área de importação */
     .import-area {display: flex; gap: 10px; margin-top: 15px; align-items: stretch;}
@@ -49,18 +48,18 @@
     .status-bar {background:#ecf0f1; padding:8px 12px; border-radius:6px; margin-top:15px; text-align:center; font-size:12px; color:#2c3e50;}
     .status-bar span {font-weight:bold; color:#27ae60;}
     
-    /* Linha divisória */
     hr {margin:15px 0; border:0; border-top:1px solid #ddd;}
 </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>🎹 Calculador_Dificuldade Piano</h2>
+    <h2>🎹 Calculador_Piano</h2>
     
     <!-- Área de entrada de dados -->
     <div class="inputs">
         <input id="musica" placeholder="Música">
+        <input id="referencia" placeholder="Referência (ex: Livro/Página)">
         <select id="execucao">
             <option value="MD">MD</option><option value="ME">ME</option>
             <option value="MS">MS</option><option value="MJ">MJ</option>
@@ -76,13 +75,13 @@
     
     <!-- Área de importação CSV -->
     <div class="import-area">
-        <textarea id="csvInput" placeholder="Cole o CSV aqui... (formato: Música;Exec;MD;ME;QN;Ritmo)"></textarea>
+        <textarea id="csvInput" placeholder="Cole o CSV aqui... (formato: Música;Ref;Exec;MD;ME;QN;Ritmo)"></textarea>
         <button class="btn-import" onclick="importar()">Importar</button>
     </div>
     
     <hr>
     
-    <!-- Grupo de botões principais (organizados de forma compacta) -->
+    <!-- Grupo de botões principais -->
     <div class="btn-group">
         <button class="btn-copy" onclick="copiar()">📋 Copiar Texto</button>
         <button class="btn-csv-copy" onclick="exportarCSV()">📄 Copiar CSV</button>
@@ -102,8 +101,17 @@
         <table>
             <thead>
                 <tr>
-                    <th>Música</th><th>Exec</th><th>MD</th><th>ME</th><th>QN</th><th>Ritmo</th>
-                    <th>Grau</th><th>Forçado</th><th>Status</th><th>Ações</th>
+                    <th>Música</th>
+                    <th>Ref</th>
+                    <th>Exec</th>
+                    <th>MD</th>
+                    <th>ME</th>
+                    <th>QN</th>
+                    <th>Ritmo</th>
+                    <th>Grau</th>
+                    <th>Forçado</th>
+                    <th>Status</th>
+                    <th>Ações</th>
                 </tr>
             </thead>
             <tbody id="tabela"></tbody>
@@ -229,6 +237,7 @@ function renderizarTabela() {
         
         row.innerHTML = `
             <td class="${classeForcado}" style="font-weight:500;">${escapeHtml(linha.musica)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.referencia || '-')}</td>
             <td class="${classeForcado}">${escapeHtml(linha.execucao)}</td>
             <td class="${classeForcado}">${escapeHtml(linha.md)}</td>
             <td class="${classeForcado}">${escapeHtml(linha.me)}</td>
@@ -259,10 +268,18 @@ function escapeHtml(str) {
 
 function gerarId() { return Date.now() + '-' + Math.random().toString(36).substr(2, 6); }
 
-function inserir(musica, execucao, md, me, qn, ritmo, grauCalculado) {
+function inserir(musica, referencia, execucao, md, me, qn, ritmo, grauCalculado) {
     linhasData.push({
-        id: gerarId(), musica, execucao, md: md || '-', me: me || '-', qn, ritmo,
-        grauCalculado, nivelForcado: null
+        id: gerarId(), 
+        musica: musica, 
+        referencia: referencia || '',
+        execucao: execucao, 
+        md: md || '-', 
+        me: me || '-', 
+        qn: qn, 
+        ritmo: ritmo,
+        grauCalculado: grauCalculado, 
+        nivelForcado: null
     });
     renderizarTabela();
     salvarLocalStorage();
@@ -294,6 +311,7 @@ function editarLinha(index) {
             <div style="background:white; padding:20px; border-radius:12px; width:380px; max-width:90%;">
                 <h3 style="margin:0 0 15px 0;">✏️ Editar</h3>
                 <input id="editMusica" value="${escapeHtml(linha.musica)}" placeholder="Música" style="width:100%; margin-bottom:8px; padding:8px;"><br>
+                <input id="editReferencia" value="${escapeHtml(linha.referencia || '')}" placeholder="Referência" style="width:100%; margin-bottom:8px; padding:8px;"><br>
                 <select id="editExecucao" style="width:100%; margin-bottom:8px; padding:8px;">
                     <option ${linha.execucao === 'MD' ? 'selected' : ''}>MD</option>
                     <option ${linha.execucao === 'ME' ? 'selected' : ''}>ME</option>
@@ -319,6 +337,7 @@ function editarLinha(index) {
     document.getElementById('saveEditBtn').onclick = () => {
         const novoMusica = document.getElementById('editMusica').value.trim();
         if(!novoMusica) { alert("Música obrigatória!"); return; }
+        const novoReferencia = document.getElementById('editReferencia').value;
         const novoExec = document.getElementById('editExecucao').value;
         const novoMd = document.getElementById('editMd').value || '-';
         const novoMe = document.getElementById('editMe').value || '-';
@@ -327,6 +346,7 @@ function editarLinha(index) {
         const novoForcado = document.getElementById('editForcado').value.trim();
         
         linha.musica = novoMusica;
+        linha.referencia = novoReferencia;
         linha.execucao = novoExec;
         linha.md = novoMd;
         linha.me = novoMe;
@@ -349,14 +369,16 @@ function editarLinha(index) {
 function add() {
     let m = document.getElementById('musica').value.trim();
     if(!m) { alert("Digite o nome da música!"); return; }
+    let ref = document.getElementById('referencia').value;
     let exec = document.getElementById('execucao').value;
     let md = document.getElementById('md').value;
     let me = document.getElementById('me').value;
     let qn = document.getElementById('qn').value || 0;
     let ritmo = document.getElementById('ritmo').value;
     let grau = calcularGrauOriginal(qn, md, me, ritmo, exec);
-    inserir(m, exec, md, me, qn, ritmo, grau);
+    inserir(m, ref, exec, md, me, qn, ritmo, grau);
     document.getElementById('musica').value = '';
+    document.getElementById('referencia').value = '';
     document.getElementById('md').value = '';
     document.getElementById('me').value = '';
     document.getElementById('qn').value = '';
@@ -371,9 +393,16 @@ function importar() {
     linhas.forEach(line => {
         if(line.toLowerCase().includes("música") || !line.trim()) return;
         let partes = line.split(';').map(v => v.replace(/^"|"$/g, '').trim());
-        if(partes.length >= 6) {
+        // Formatos aceitos: 
+        // Música;Ref;Exec;MD;ME;QN;Ritmo (7 colunas)
+        // Música;Exec;MD;ME;QN;Ritmo (6 colunas - Ref fica vazia)
+        if(partes.length >= 7) {
+            let grauCalc = calcularGrauOriginal(partes[5], partes[3], partes[4], partes[6], partes[2]);
+            inserir(partes[0], partes[1], partes[2], partes[3], partes[4], partes[5], partes[6], grauCalc);
+            count++;
+        } else if(partes.length >= 6) {
             let grauCalc = calcularGrauOriginal(partes[4], partes[2], partes[3], partes[5], partes[1]);
-            inserir(partes[0], partes[1], partes[2], partes[3], partes[4], partes[5], grauCalc);
+            inserir(partes[0], '', partes[1], partes[2], partes[3], partes[4], partes[5], grauCalc);
             count++;
         }
     });
@@ -382,14 +411,14 @@ function importar() {
 }
 
 function copiar() {
-    let header = "Música | Exec | MD | ME | QN | Ritmo | Grau | Forçado\n";
-    let linhasStr = linhasData.map(l => `${l.musica} | ${l.execucao} | ${l.md} | ${l.me} | ${l.qn} | ${l.ritmo} | ${l.grauCalculado} | ${l.nivelForcado !== null ? l.nivelForcado : '-'}`);
+    let header = "Música | Ref | Exec | MD | ME | QN | Ritmo | Grau | Forçado\n";
+    let linhasStr = linhasData.map(l => `${l.musica} | ${l.referencia || '-'} | ${l.execucao} | ${l.md} | ${l.me} | ${l.qn} | ${l.ritmo} | ${l.grauCalculado} | ${l.nivelForcado !== null ? l.nivelForcado : '-'}`);
     navigator.clipboard.writeText(header + linhasStr.join("\n")).then(() => alert("Copiado!"));
 }
 
 function exportarCSV() {
-    let csvRows = [["Música","Exec","MD","ME","QN","Ritmo","Grau","Nível_Forçado"]];
-    linhasData.forEach(l => csvRows.push([l.musica, l.execucao, l.md, l.me, l.qn, l.ritmo, l.grauCalculado, l.nivelForcado || ""]));
+    let csvRows = [["Música","Ref","Exec","MD","ME","QN","Ritmo","Grau","Nível_Forçado"]];
+    linhasData.forEach(l => csvRows.push([l.musica, l.referencia || '', l.execucao, l.md, l.me, l.qn, l.ritmo, l.grauCalculado, l.nivelForcado || ""]));
     const csv = csvRows.map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
     navigator.clipboard.writeText(csv).then(() => alert("CSV copiado!"));
 }
