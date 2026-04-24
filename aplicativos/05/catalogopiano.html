@@ -2,167 +2,130 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Catálogo de Estudos de Piano</title>
+<title>Catálogo de Piano</title>
 <style>
-body{font-family:Arial, sans-serif; background:#f4f4f4; padding:20px}
-.container{max-width:1000px; margin:auto; background:white; padding:20px; border-radius:10px; box-shadow:0 0 10px rgba(0,0,0,0.1)}
-h1{text-align:center}
-input, select, textarea{width:100%; padding:8px; margin:5px 0 10px}
-button{padding:10px; margin-top:5px; background:#4CAF50; color:white; border:none; cursor:pointer}
-button:hover{background:#45a049}
-.delete-btn{background:#e74c3c}
-.edit-btn{background:#3498db}
-.csv-btn{background:#f39c12}
-.import-btn{background:#8e44ad}
-table{width:100%; border-collapse:collapse; margin-top:20px}
-th, td{border:1px solid #ddd; padding:8px; text-align:center}
-th{background:#333; color:white}
-.hidden{display:none}
+body{font-family:Arial;background:#f4f4f4;padding:20px}
+.container{max-width:1000px;margin:auto;background:white;padding:20px;border-radius:10px}
+input,select,textarea{width:100%;margin:5px 0;padding:8px}
+button{padding:10px;margin-top:5px;cursor:pointer}
+table{width:100%;margin-top:20px;border-collapse:collapse}
+th,td{border:1px solid #ccc;padding:8px;text-align:center}
+th{background:#333;color:white}
 </style>
 </head>
 <body>
+
 <div class="container">
-<h1>Catálogo de Piano</h1>
+<h2>Catálogo de Piano</h2>
 
-<label>Música</label>
-<input type="text" id="musica">
+<input id="musica" placeholder="Música">
+<input id="livro" placeholder="Livro">
 
-<label>Livro</label>
-<input type="text" id="livro">
-
-<label>Execução</label>
-<select id="execucao" onchange="toggleCampos()">
-<option value="MD">MD</option>
-<option value="ME">ME</option>
-<option value="MA">MA</option>
-<option value="MJ">MJ</option>
-<option value="MS">MS</option>
+<select id="execucao">
+<option>MD</option><option>ME</option>
+<option>MA</option><option>MJ</option><option>MS</option>
 </select>
 
-<div id="camposMaos" class="hidden">
-<label>Notas MD</label>
-<input type="text" id="mdNotas">
+<input id="md" placeholder="Notas MD">
+<input id="me" placeholder="Notas ME">
+<input id="qn" type="number" placeholder="Quantidade de Notas">
+<input id="ritmo" placeholder="Ritmo (1,2 ou 1 2)">
+<input id="intervalo" placeholder="Intervalo">
 
-<label>Notas ME</label>
-<input type="text" id="meNotas">
-</div>
-
-<label>Quantidade de Notas (QN)</label>
-<input type="number" id="qn">
-
-<label>Ritmo (R)</label>
-<input type="text" id="ritmo" placeholder="Ex: 1,2 ou 1 4">
-
-<label>Intervalo (I)</label>
-<input type="text" id="intervalo">
-
-<button onclick="adicionar()">Adicionar</button>
-<button class="csv-btn" onclick="copiarCSV()">Copiar CSV</button>
+<button onclick="add()">Adicionar</button>
+<button onclick="copiarCSV()">Copiar CSV</button>
 
 <h3>Importar CSV</h3>
-<textarea id="csvInput" rows="5" placeholder="Cole o CSV aqui..."></textarea>
-<button class="import-btn" onclick="importarCSV()">Importar CSV</button>
+<textarea id="csv"></textarea>
+<button onclick="importar()">Importar</button>
 
 <table>
 <thead>
 <tr>
-<th>Música</th>
-<th>Livro</th>
-<th>Execução</th>
-<th>MD</th>
-<th>ME</th>
-<th>QN</th>
-<th>R</th>
-<th>I</th>
-<th>Dificuldade</th>
-<th>Ação</th>
+<th>Música</th><th>Livro</th><th>Exec</th>
+<th>MD</th><th>ME</th><th>QN</th>
+<th>R</th><th>I</th><th>Ação</th>
 </tr>
 </thead>
 <tbody id="tabela"></tbody>
 </table>
+
 </div>
 
 <script>
-let linhaEditando = null;
-
-function toggleCampos(){
-camposMaos.classList.toggle('hidden', !(execucao.value==='MA'||execucao.value==='MJ'||execucao.value==='MS'));
-}
+let editLinha=null;
 
 function normalizarRitmo(r){
-return r.replace(/\s|,/g,'').split('').sort().join('');
+return r.replace(/\\s|,/g,'').split('').sort().join('');
 }
 
-// agora com 14 mais fácil que 24
-const ordemRitmo = [
-"1","2","4","3",
-"12","14","24","13",
-"124","123","1234"
-];
+const ordemRitmo=["1","2","4","3","12","14","24","13","124","123","1234"];
 
-function calcularDificuldade(qn, ritmo, md, me){
-let score = 0;
-
-// QN tem peso maior
-score += (Number(qn)||0) * 2;
-
-// variedade de notas
-score += (md+' '+me).trim().split(/\s+/).filter(n=>n).length;
-
-// ritmo com peso menor
-let rNorm = normalizarRitmo(ritmo);
-let pos = ordemRitmo.indexOf(rNorm);
-score += (pos!==-1)? pos : 8;
-
-return score;
+function getDist(md,me){
+let a=md.trim()?md.trim().split(/\\s+/).length:0;
+let b=me.trim()?me.trim().split(/\\s+/).length:0;
+return a+b;
 }
 
-function adicionar(){
-let dif = calcularDificuldade(qn.value, ritmo.value, mdNotas.value, meNotas.value);
+function ordenar(){
+let linhas=[...tabela.rows];
 
-let linha = linhaEditando || document.createElement('tr');
-linha.innerHTML = gerarLinha(dif);
+linhas.sort((a,b)=>{
 
-if(!linhaEditando) tabela.appendChild(linha);
-linhaEditando=null;
+let qnA=Number(a.cells[5].innerText);
+let qnB=Number(b.cells[5].innerText);
+if(qnA!==qnB) return qnA-qnB;
+
+let distA=getDist(a.cells[3].innerText,a.cells[4].innerText);
+let distB=getDist(b.cells[3].innerText,b.cells[4].innerText);
+if(distA!==distB) return distA-distB;
+
+let rA=ordemRitmo.indexOf(normalizarRitmo(a.cells[6].innerText));
+let rB=ordemRitmo.indexOf(normalizarRitmo(b.cells[6].innerText));
+
+return rA-rB;
+});
+
+linhas.forEach(l=>tabela.appendChild(l));
+}
+
+function add(){
+let linha=editLinha||document.createElement('tr');
+
+linha.innerHTML=`
+<td>${musica.value}</td>
+<td>${livro.value}</td>
+<td>${execucao.value}</td>
+<td>${md.value||'-'}</td>
+<td>${me.value||'-'}</td>
+<td>${qn.value}</td>
+<td>${ritmo.value}</td>
+<td>${intervalo.value}</td>
+<td>
+<button onclick="editar(this)">Editar</button>
+<button onclick="remover(this)">Excluir</button>
+</td>`;
+
+if(!editLinha) tabela.appendChild(linha);
+editLinha=null;
 
 ordenar();
 salvar();
 limpar();
 }
 
-function gerarLinha(dif){
-return `
-<td>${musica.value}</td>
-<td>${livro.value}</td>
-<td>${execucao.value}</td>
-<td>${mdNotas.value||'-'}</td>
-<td>${meNotas.value||'-'}</td>
-<td>${qn.value}</td>
-<td>${ritmo.value}</td>
-<td>${intervalo.value}</td>
-<td>${dif}</td>
-<td>
-<button onclick="editar(this)">Editar</button>
-<button onclick="remover(this)">Excluir</button>
-</td>`;
-}
-
 function editar(btn){
 let t=btn.parentNode.parentNode.children;
-linhaEditando=btn.parentNode.parentNode;
+editLinha=btn.parentNode.parentNode;
 
 musica.value=t[0].innerText;
 livro.value=t[1].innerText;
 execucao.value=t[2].innerText;
-mdNotas.value=t[3].innerText!=='-'?t[3].innerText:'';
-meNotas.value=t[4].innerText!=='-'?t[4].innerText:'';
+md.value=t[3].innerText!='-'?t[3].innerText:'';
+me.value=t[4].innerText!='-'?t[4].innerText:'';
 qn.value=t[5].innerText;
 ritmo.value=t[6].innerText;
 intervalo.value=t[7].innerText;
-
-toggleCampos();
 }
 
 function remover(btn){
@@ -170,55 +133,51 @@ btn.parentNode.parentNode.remove();
 salvar();
 }
 
-function ordenar(){
-[...tabela.rows]
-.sort((a,b)=>a.cells[8].innerText - b.cells[8].innerText)
-.forEach(l=>tabela.appendChild(l));
-}
-
 function salvar(){
 let dados=[...tabela.rows].map(l=>[...l.cells].slice(0,8).map(c=>c.innerText));
-localStorage.setItem('piano', JSON.stringify(dados));
+localStorage.setItem('piano',JSON.stringify(dados));
 }
 
 function carregar(){
 (JSON.parse(localStorage.getItem('piano'))||[]).forEach(d=>{
-let dif=calcularDificuldade(d[5],d[6],d[3],d[4]);
 let linha=document.createElement('tr');
 linha.innerHTML=`
 <td>${d[0]}</td><td>${d[1]}</td><td>${d[2]}</td>
 <td>${d[3]}</td><td>${d[4]}</td><td>${d[5]}</td>
-<td>${d[6]}</td><td>${d[7]}</td><td>${dif}</td>
-<td><button onclick="editar(this)">Editar</button>
-<button onclick="remover(this)">Excluir</button></td>`;
+<td>${d[6]}</td><td>${d[7]}</td>
+<td>
+<button onclick="editar(this)">Editar</button>
+<button onclick="remover(this)">Excluir</button>
+</td>`;
 tabela.appendChild(linha);
 });
 ordenar();
 }
 
 function copiarCSV(){
-let csv="Música,Livro,Execução,MD,ME,QN,R,I,Dificuldade\n";
+let csv="Música,Livro,Execução,MD,ME,QN,R,I\n";
 [...tabela.rows].forEach(l=>{
 let c=l.cells;
-csv+=`${c[0].innerText},${c[1].innerText},${c[2].innerText},${c[3].innerText},${c[4].innerText},${c[5].innerText},${c[6].innerText},${c[7].innerText},${c[8].innerText}\n`;
+csv+=`${c[0].innerText},${c[1].innerText},${c[2].innerText},${c[3].innerText},${c[4].innerText},${c[5].innerText},${c[6].innerText},${c[7].innerText}\n`;
 });
 navigator.clipboard.writeText(csv);
-alert("CSV copiado!");
+alert("Copiado!");
 }
 
-function importarCSV(){
-let linhas = csvInput.value.trim().split("\n");
+function importar(){
+let linhas=csv.value.trim().split("\\n");
 linhas.slice(1).forEach(l=>{
-let c = l.split(",");
+let c=l.split(",");
 if(c.length>=8){
-let dif = calcularDificuldade(c[5],c[6],c[3],c[4]);
 let linha=document.createElement('tr');
 linha.innerHTML=`
 <td>${c[0]}</td><td>${c[1]}</td><td>${c[2]}</td>
 <td>${c[3]}</td><td>${c[4]}</td><td>${c[5]}</td>
-<td>${c[6]}</td><td>${c[7]}</td><td>${dif}</td>
-<td><button onclick="editar(this)">Editar</button>
-<button onclick="remover(this)">Excluir</button></td>`;
+<td>${c[6]}</td><td>${c[7]}</td>
+<td>
+<button onclick="editar(this)">Editar</button>
+<button onclick="remover(this)">Excluir</button>
+</td>`;
 tabela.appendChild(linha);
 }
 });
@@ -227,10 +186,14 @@ salvar();
 }
 
 function limpar(){
-musica.value='';livro.value='';mdNotas.value='';meNotas.value='';qn.value='';ritmo.value='';intervalo.value='';
+musica.value='';livro.value='';
+md.value='';me.value='';
+qn.value='';ritmo.value='';
+intervalo.value='';
 }
 
 carregar();
 </script>
+
 </body>
 </html>
