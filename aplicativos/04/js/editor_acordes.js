@@ -433,6 +433,7 @@ function abrirEditorAcordes() {
     }
 }
 
+
 function fecharEditorAcordes() {
     document.getElementById('modalAcordes').style.display = 'none';
 }
