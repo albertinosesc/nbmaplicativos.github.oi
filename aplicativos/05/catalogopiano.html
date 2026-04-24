@@ -2,219 +2,125 @@
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
-<title>Catálogo de Piano</title>
+<title>Calculador Piano - Ajuste Final 7 e 10</title>
 <style>
-body{font-family:Arial;background:#f4f4f4;padding:20px}
-.container{max-width:1000px;margin:auto;background:white;padding:20px;border-radius:10px}
-input,select,textarea{width:100%;margin:5px 0;padding:8px}
-button{padding:10px;margin-top:5px;cursor:pointer}
-table{width:100%;margin-top:20px;border-collapse:collapse}
-th,td{border:1px solid #ccc;padding:8px;text-align:center}
-th{background:#333;color:white}
+    body{font-family: sans-serif; background:#f0f2f5; padding:20px;}
+    .container{max-width:1100px; margin:auto; background:white; padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1)}
+    .inputs {display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px;}
+    input, select, textarea {padding:10px; border:1px solid #ddd; border-radius:6px;}
+    button {padding:12px; cursor:pointer; border:none; border-radius:6px; font-weight:bold;}
+    .btn-add {background:#27ae60; color:white; width: 100%;}
+    .btn-copy {background:#8e44ad; color:white; width: 100%; margin-top: 10px;}
+    table {width:100%; border-collapse:collapse; margin-top:20px;}
+    th, td {border:1px solid #eee; padding:10px; text-align:center;}
+    th {background:#2c3e50; color:white;}
+    .grau-val {font-weight:bold; color:#d35400; background:#fff3e0; padding:2px 6px; border-radius:4px;}
 </style>
 </head>
 <body>
 
 <div class="container">
-<h2>Catálogo de Piano</h2>
+    <h2>🎹 Calculador de Grau: 7 e 10 no Final</h2>
+    <div class="inputs">
+        <input id="musica" placeholder="Música">
+        <select id="execucao">
+            <option value="MD">MD</option><option value="ME">ME</option>
+            <option value="MS">MS</option><option value="MJ">MJ</option>
+        </select>
+        <input id="md" placeholder="Notas MD">
+        <input id="me" placeholder="Notas ME">
+        <input id="qn" type="number" placeholder="QN">
+        <input id="ritmo" placeholder="Ritmo">
+    </div>
 
-<input id="musica" placeholder="Música">
-<input id="livro" placeholder="Livro">
+    <button class="btn-add" onclick="add()">Calcular Grau</button>
+    <textarea id="csvInput" style="width:100%; height:60px; margin-top:15px;" placeholder="Cole o CSV aqui..."></textarea>
+    <button onclick="importar()" style="width:100%; background:#3498db; color:white; margin-top:5px;">Processar Lote</button>
+    <button class="btn-copy" onclick="copiar()">📋 Copiar para Chat</button>
 
-<select id="execucao">
-<option>MD</option><option>ME</option>
-<option>MA</option><option>MJ</option><option>MS</option>
-</select>
-
-<input id="md" placeholder="Notas MD">
-<input id="me" placeholder="Notas ME">
-<input id="qn" type="number" placeholder="Quantidade de Notas">
-<input id="ritmo" placeholder="Ritmo (1,2 ou 1 2)">
-<input id="intervalo" placeholder="Intervalo">
-
-<button onclick="add()">Adicionar</button>
-<button onclick="copiarCSV()">Copiar CSV</button>
-
-<h3>Importar CSV</h3>
-<textarea id="csv"></textarea>
-<button onclick="importar()">Importar</button>
-
-<table>
-<thead>
-<tr>
-<th>Música</th><th>Livro</th><th>Exec</th>
-<th>MD</th><th>ME</th><th>QN</th>
-<th>R</th><th>I</th><th>Nível</th><th>Ação</th>
-</tr>
-</thead>
-<tbody id="tabela"></tbody>
-</table>
-
+    <table>
+        <thead>
+            <tr>
+                <th>Música</th><th>Exec</th><th>MD</th><th>ME</th><th>QN</th><th>R</th><th>Grau ↓</th><th>Ação</th>
+            </tr>
+        </thead>
+        <tbody id="tabela"></tbody>
+    </table>
 </div>
 
 <script>
-let editLinha=null;
+const escalaRitmo = ["1", "2", "4", "3", "1;2", "1;4", "2;4", "1;3", "1;2;4", "1;2;3;4"];
+const escalaNotas = ["C", "D", "B,", "E", "A,", "F", "G,", "G", "F,", "A", "E,", "B", "D,", "c", "C,."];
 
-function normalizarRitmo(r){
-return r.replace(/\s|,/g,'').split('').sort().join('');
+function calcularGrau(qn, md, me, ritmo, exec) {
+    let pontos = 0;
+
+    // 1. BASE DE MÃO (Diferenças mínimas)
+    const pesosMao = { "MD": 10, "ME": 10.5, "MS": 11, "MJ": 20 };
+    pontos += pesosMao[exec] || 0;
+
+    // 2. PESO DO RITMO (Peso reduzido para 1.0 para não dominar o ranking)
+    let rIdx = escalaRitmo.indexOf(ritmo.replace(/,/g, ';').trim());
+    if (rIdx !== -1) pontos += (rIdx * 1.0); 
+
+    // 3. COMPLEXIDADE DE NOTAS (Peso 0.2 por posição)
+    const extrair = (t) => (t && t !== "-") ? t.split(/[ .;,/]+/).filter(Boolean) : [];
+    let nD = extrair(md);
+    let nE = extrair(me);
+    
+    [...nD, ...nE].forEach(n => {
+        let idx = escalaNotas.indexOf(n);
+        if (idx !== -1) pontos += (idx * 0.2);
+    });
+
+    // 4. BÔNUS DE NOTAS DUPLAS (Peso 3.0)
+    if (nD.length > 1 || nE.length > 1) { 
+        pontos += 3.0; 
+    }
+
+    // 5. QUANTIDADE DE NOTAS (QN) - O GRANDE DIFERENCIAL
+    // Aumentamos para 5.0 pontos por QN para empurrar a 7 e 10 para o fim
+    pontos += (Number(qn) * 5.0);
+
+    return pontos.toFixed(2);
 }
 
-const ordemRitmo=["1","2","4","3","12","14","24","13","124","123","1234"];
-
-function getDist(md,me){
-let a=md.trim()?md.trim().split(/\s+/).length:0;
-let b=me.trim()?me.trim().split(/\s+/).length:0;
-return a+b;
+function inserir(m, ex, d, e, q, r, g) {
+    let tr = document.getElementById('tabela').insertRow();
+    tr.innerHTML = `<td>${m}</td><td>${ex}</td><td>${d}</td><td>${e}</td><td>${q}</td><td>${r}</td><td><span class="grau-val">${g}</span></td><td><button onclick="this.closest('tr').remove(); ordenar();">X</button></td>`;
 }
 
-// 🔥 NOVO: cálculo de nível
-function calcularNivel(qn, md, me, ritmo){
-let nivel = 10;
-
-nivel += Number(qn) || 0;
-
-let dist = getDist(md, me);
-nivel += dist;
-
-let r = ordemRitmo.indexOf(normalizarRitmo(ritmo));
-if(r !== -1) nivel += Math.floor(r/2);
-
-return nivel;
+function ordenar() {
+    let rows = Array.from(document.getElementById('tabela').rows);
+    rows.sort((a, b) => parseFloat(a.cells[6].innerText) - parseFloat(b.cells[6].innerText));
+    rows.forEach(r => document.getElementById('tabela').appendChild(r));
 }
 
-// 🔥 ORDENAÇÃO PEDAGÓGICA
-function ordenar(){
-let linhas=[...tabela.rows];
-
-linhas.sort((a,b)=>{
-
-let qnA=Number(a.cells[5].innerText);
-let qnB=Number(b.cells[5].innerText);
-if(qnA!==qnB) return qnA-qnB;
-
-let distA=getDist(a.cells[3].innerText,a.cells[4].innerText);
-let distB=getDist(b.cells[3].innerText,b.cells[4].innerText);
-if(distA!==distB) return distA-distB;
-
-let rA=ordemRitmo.indexOf(normalizarRitmo(a.cells[6].innerText));
-let rB=ordemRitmo.indexOf(normalizarRitmo(b.cells[6].innerText));
-
-return rA-rB;
-});
-
-linhas.forEach(l=>tabela.appendChild(l));
+function add() {
+    let m = document.getElementById('musica').value;
+    if(!m) return;
+    let nv = calcularGrau(document.getElementById('qn').value, document.getElementById('md').value, document.getElementById('me').value, document.getElementById('ritmo').value, document.getElementById('execucao').value);
+    inserir(m, document.getElementById('execucao').value, document.getElementById('md').value||'-', document.getElementById('me').value||'-', document.getElementById('qn').value, document.getElementById('ritmo').value, nv);
+    ordenar();
 }
 
-function add(){
-let nivel = calcularNivel(qn.value, md.value, me.value, ritmo.value);
-
-let linha=editLinha||document.createElement('tr');
-
-linha.innerHTML=`
-<td>${musica.value}</td>
-<td>${livro.value}</td>
-<td>${execucao.value}</td>
-<td>${md.value||'-'}</td>
-<td>${me.value||'-'}</td>
-<td>${qn.value}</td>
-<td>${ritmo.value}</td>
-<td>${intervalo.value}</td>
-<td>${nivel}</td>
-<td>
-<button onclick="editar(this)">Editar</button>
-<button onclick="remover(this)">Excluir</button>
-</td>`;
-
-if(!editLinha) tabela.appendChild(linha);
-editLinha=null;
-
-ordenar();
-salvar();
-limpar();
+function importar() {
+    document.getElementById('csvInput').value.trim().split('\n').forEach(l => {
+        if(l.toLowerCase().includes("música") || !l.trim()) return;
+        let c = l.split(';').map(v => v.replace(/^"|"$/g, '').trim());
+        let nv = calcularGrau(c[5], c[3], c[4], c[6], c[2]);
+        inserir(c[0], c[2], c[3], c[4], c[5], c[6], nv);
+    });
+    ordenar();
 }
 
-function editar(btn){
-let t=btn.parentNode.parentNode.children;
-editLinha=btn.parentNode.parentNode;
-
-musica.value=t[0].innerText;
-livro.value=t[1].innerText;
-execucao.value=t[2].innerText;
-md.value=t[3].innerText!='-'?t[3].innerText:'';
-me.value=t[4].innerText!='-'?t[4].innerText:'';
-qn.value=t[5].innerText;
-ritmo.value=t[6].innerText;
-intervalo.value=t[7].innerText;
+function copiar() {
+    let t = "Música | Exec | MD | ME | QN | R | Grau\n";
+    Array.from(document.getElementById('tabela').rows).forEach(r => {
+        t += Array.from(r.cells).slice(0, 7).map(c => c.innerText).join(" | ") + "\n";
+    });
+    navigator.clipboard.writeText(t).then(() => alert("Tabela copiada!"));
 }
-
-function remover(btn){
-btn.parentNode.parentNode.remove();
-salvar();
-}
-
-function salvar(){
-let dados=[...tabela.rows].map(l=>[...l.cells].slice(0,8).map(c=>c.innerText));
-localStorage.setItem('piano',JSON.stringify(dados));
-}
-
-function carregar(){
-(JSON.parse(localStorage.getItem('piano'))||[]).forEach(d=>{
-let nivel=calcularNivel(d[5],d[3],d[4],d[6]);
-let linha=document.createElement('tr');
-linha.innerHTML=`
-<td>${d[0]}</td><td>${d[1]}</td><td>${d[2]}</td>
-<td>${d[3]}</td><td>${d[4]}</td><td>${d[5]}</td>
-<td>${d[6]}</td><td>${d[7]}</td><td>${nivel}</td>
-<td>
-<button onclick="editar(this)">Editar</button>
-<button onclick="remover(this)">Excluir</button>
-</td>`;
-tabela.appendChild(linha);
-});
-ordenar();
-}
-
-function copiarCSV(){
-let csv="Música,Livro,Execução,MD,ME,QN,R,I,Nível\n";
-[...tabela.rows].forEach(l=>{
-let c=l.cells;
-csv+=`${c[0].innerText},${c[1].innerText},${c[2].innerText},${c[3].innerText},${c[4].innerText},${c[5].innerText},${c[6].innerText},${c[7].innerText},${c[8].innerText}\n`;
-});
-navigator.clipboard.writeText(csv);
-alert("Copiado!");
-}
-
-function importar(){
-let linhas=csv.value.trim().split("\n");
-linhas.slice(1).forEach(l=>{
-let c=l.split(",");
-if(c.length>=8){
-let nivel=calcularNivel(c[5],c[3],c[4],c[6]);
-let linha=document.createElement('tr');
-linha.innerHTML=`
-<td>${c[0]}</td><td>${c[1]}</td><td>${c[2]}</td>
-<td>${c[3]}</td><td>${c[4]}</td><td>${c[5]}</td>
-<td>${c[6]}</td><td>${c[7]}</td><td>${nivel}</td>
-<td>
-<button onclick="editar(this)">Editar</button>
-<button onclick="remover(this)">Excluir</button>
-</td>`;
-tabela.appendChild(linha);
-}
-});
-ordenar();
-salvar();
-}
-
-function limpar(){
-musica.value='';livro.value='';
-md.value='';me.value='';
-qn.value='';ritmo.value='';
-intervalo.value='';
-}
-
-carregar();
 </script>
-
 </body>
 </html>
