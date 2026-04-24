@@ -44,7 +44,7 @@ th{background:#333;color:white}
 <tr>
 <th>Música</th><th>Livro</th><th>Exec</th>
 <th>MD</th><th>ME</th><th>QN</th>
-<th>R</th><th>I</th><th>Ação</th>
+<th>R</th><th>I</th><th>Nível</th><th>Ação</th>
 </tr>
 </thead>
 <tbody id="tabela"></tbody>
@@ -56,17 +56,33 @@ th{background:#333;color:white}
 let editLinha=null;
 
 function normalizarRitmo(r){
-return r.replace(/\\s|,/g,'').split('').sort().join('');
+return r.replace(/\s|,/g,'').split('').sort().join('');
 }
 
 const ordemRitmo=["1","2","4","3","12","14","24","13","124","123","1234"];
 
 function getDist(md,me){
-let a=md.trim()?md.trim().split(/\\s+/).length:0;
-let b=me.trim()?me.trim().split(/\\s+/).length:0;
+let a=md.trim()?md.trim().split(/\s+/).length:0;
+let b=me.trim()?me.trim().split(/\s+/).length:0;
 return a+b;
 }
 
+// 🔥 NOVO: cálculo de nível
+function calcularNivel(qn, md, me, ritmo){
+let nivel = 10;
+
+nivel += Number(qn) || 0;
+
+let dist = getDist(md, me);
+nivel += dist;
+
+let r = ordemRitmo.indexOf(normalizarRitmo(ritmo));
+if(r !== -1) nivel += Math.floor(r/2);
+
+return nivel;
+}
+
+// 🔥 ORDENAÇÃO PEDAGÓGICA
 function ordenar(){
 let linhas=[...tabela.rows];
 
@@ -90,6 +106,8 @@ linhas.forEach(l=>tabela.appendChild(l));
 }
 
 function add(){
+let nivel = calcularNivel(qn.value, md.value, me.value, ritmo.value);
+
 let linha=editLinha||document.createElement('tr');
 
 linha.innerHTML=`
@@ -101,6 +119,7 @@ linha.innerHTML=`
 <td>${qn.value}</td>
 <td>${ritmo.value}</td>
 <td>${intervalo.value}</td>
+<td>${nivel}</td>
 <td>
 <button onclick="editar(this)">Editar</button>
 <button onclick="remover(this)">Excluir</button>
@@ -140,11 +159,12 @@ localStorage.setItem('piano',JSON.stringify(dados));
 
 function carregar(){
 (JSON.parse(localStorage.getItem('piano'))||[]).forEach(d=>{
+let nivel=calcularNivel(d[5],d[3],d[4],d[6]);
 let linha=document.createElement('tr');
 linha.innerHTML=`
 <td>${d[0]}</td><td>${d[1]}</td><td>${d[2]}</td>
 <td>${d[3]}</td><td>${d[4]}</td><td>${d[5]}</td>
-<td>${d[6]}</td><td>${d[7]}</td>
+<td>${d[6]}</td><td>${d[7]}</td><td>${nivel}</td>
 <td>
 <button onclick="editar(this)">Editar</button>
 <button onclick="remover(this)">Excluir</button>
@@ -155,25 +175,26 @@ ordenar();
 }
 
 function copiarCSV(){
-let csv="Música,Livro,Execução,MD,ME,QN,R,I\n";
+let csv="Música,Livro,Execução,MD,ME,QN,R,I,Nível\n";
 [...tabela.rows].forEach(l=>{
 let c=l.cells;
-csv+=`${c[0].innerText},${c[1].innerText},${c[2].innerText},${c[3].innerText},${c[4].innerText},${c[5].innerText},${c[6].innerText},${c[7].innerText}\n`;
+csv+=`${c[0].innerText},${c[1].innerText},${c[2].innerText},${c[3].innerText},${c[4].innerText},${c[5].innerText},${c[6].innerText},${c[7].innerText},${c[8].innerText}\n`;
 });
 navigator.clipboard.writeText(csv);
 alert("Copiado!");
 }
 
 function importar(){
-let linhas=csv.value.trim().split("\\n");
+let linhas=csv.value.trim().split("\n");
 linhas.slice(1).forEach(l=>{
 let c=l.split(",");
 if(c.length>=8){
+let nivel=calcularNivel(c[5],c[3],c[4],c[6]);
 let linha=document.createElement('tr');
 linha.innerHTML=`
 <td>${c[0]}</td><td>${c[1]}</td><td>${c[2]}</td>
 <td>${c[3]}</td><td>${c[4]}</td><td>${c[5]}</td>
-<td>${c[6]}</td><td>${c[7]}</td>
+<td>${c[6]}</td><td>${c[7]}</td><td>${nivel}</td>
 <td>
 <button onclick="editar(this)">Editar</button>
 <button onclick="remover(this)">Excluir</button>
