@@ -2,7 +2,7 @@
 // main.js - PRO MAESTRO
 // ============================================
 
-// Variáveis globais
+// Variáveis
 let dados = {
     listas: []
 };
@@ -18,41 +18,91 @@ const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
 const listaAulas = document.getElementById('listaAulas');
 
+// ============================================
+// FUNÇÃO DE TELA CHEIA (CORREÇÃO)
+// ============================================
+function toggleFullscreenPreview() {
+    const previewElement = document.getElementById('preview');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        // Entrar em tela cheia
+        if (previewElement.requestFullscreen) {
+            previewElement.requestFullscreen();
+        } else if (previewElement.webkitRequestFullscreen) { /* Safari */
+            previewElement.webkitRequestFullscreen();
+        } else if (previewElement.msRequestFullscreen) { /* IE/Edge */
+            previewElement.msRequestFullscreen();
+        }
+        if (fullscreenBtn) {
+            fullscreenBtn.textContent = '✖';
+            fullscreenBtn.style.background = '#e94560';
+        }
+    } else {
+        // Sair da tela cheia
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) { /* Safari */
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) { /* IE/Edge */
+            document.msExitFullscreen();
+        }
+        if (fullscreenBtn) {
+            fullscreenBtn.textContent = '⛶';
+            fullscreenBtn.style.background = '#00CC00';
+        }
+    }
+}
 
+// Detectar quando sair da tela cheia (ESC)
+document.addEventListener('fullscreenchange', function() {
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    if (!document.fullscreenElement && fullscreenBtn) {
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.background = '#00CC00';
+    }
+});
+document.addEventListener('webkitfullscreenchange', function() {
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    if (!document.webkitFullscreenElement && fullscreenBtn) {
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.background = '#00CC00';
+    }
+});
 
 // ============================================
 // FUNÇÕES AUXILIARES
 // ============================================
-function getPathKey(path) {
-    return path.join('-');
+function obterChaveDoCaminho(caminho) {
+    return caminho.join('-');
 }
 
-function getListaByPath(path) {
-    if (!path || path.length === 0) return null;
-    let current = dados.listas[path[0]];
-    for (let i = 1; i < path.length; i++) {
-        if (!current || !current.subListas) return null;
-        current = current.subListas[path[i]];
+function obterListaPorCaminho(caminho) {
+    if (!caminho || caminho.length === 0) return null;
+    let atual = dados.listas[caminho[0]];
+    for (let i = 1; i < caminho.length; i++) {
+        if (!atual || !atual.sublistas) return null;
+        atual = atual.sublistas[caminho[i]];
     }
-    return current;
+    return atual;
 }
 
-function getDadosPadrao() {
+function obterDadosPadrao() {
     return {
         listas: [
             {
                 nome: "Piano",
                 cards: [
-                    { texto: "Escala de Dó Maior", conteudo: "# Escala de Dó Maior\n\n[PIANO:C]Dó Maior[/PIANO]\n\n[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC D E F | G A B c |]\n[/ABC]", ultimaModificacao: Date.now() },
+                    {texto: "Escala de Dó Maior", conteudo: "# Escala de Dó Maior\n\n[PIANO:C]Dó Maior[/PIANO]\n\n[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC DEF | GAB c |]\n[/ABC]", ultimaModificacao: Date.now() },
                     { texto: "Acordes Básicos", conteudo: "# Acordes Básicos\n\n[PIANO:C]Dó Maior[/PIANO]\n[PIANO:G]Sol Maior[/PIANO]\n[PIANO:Am]Lá Menor[/PIANO]", ultimaModificacao: Date.now() }
                 ],
-                subListas: [
+                sublistas: [
                     {
                         nome: "Exercícios",
                         cards: [
                             { texto: "Hanon 1", conteudo: "# Hanon 1\n\nExercício para dedos.", ultimaModificacao: Date.now() }
                         ],
-                        subListas: []
+                        sublistas: []
                     }
                 ]
             },
@@ -61,22 +111,19 @@ function getDadosPadrao() {
                 cards: [
                     { texto: "Acordes Iniciantes", conteudo: "# Acordes Iniciantes\n\n[Acorde:C]Dó Maior[/Acorde]\n[Acorde:G]Sol Maior[/Acorde]\n[Acorde:Am]Lá Menor[/Acorde]", ultimaModificacao: Date.now() }
                 ],
-                subListas: []
+                sublistas: []
             },
             {
                 nome: "Teoria Musical",
                 cards: [
-                    { texto: "Partitura Infantil", conteudo: "# Partitura Colorida\n\n[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/4\nK:C\nC D E F | G A B c |]\nw: Dó Ré Mi Fá Sol Lá Si Dó\n[/ABC-INFANTIL]", ultimaModificacao: Date.now() }
+                    { texto: "Partitura Infantil", conteudo: "# Partitura Colorida\n\n[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/4\nK:C\nC DEF | GAB c |]\nw: Dó Ré Mi Fá Sol Lá Si Dó\n[/ABC-INFANTIL]", ultimaModificacao: Date.now() }
                 ],
-                subListas: []
+                sublistas: []
             }
         ]
     };
 }
 
-// ============================================
-// FUNÇÃO INSERIR ACORDE - 3 FORMAS INTEGRADAS
-// ============================================
 // ============================================
 // FUNÇÃO PARA SALVAR ACORDE DINÂMICO NA BIBLIOTECA
 // ============================================
@@ -84,7 +131,7 @@ function getDadosPadrao() {
 function salvarAcordeDinamicoNaBiblioteca() {
     const formato = prompt(
         '💾 SALVAR ACORDE DINÂMICO NA BIBLIOTECA\n\n' +
-        'Digite o formato do acorde dinâmico que você quer salvar:\n\n' +
+        'Digite o formato do acorde sonoro que você quer salvar:\n\n' +
         'Exemplo: 1;3 (Sol Maior)\n' +
         'Exemplo: 2;5 (Lá Menor)\n\n' +
         'Formato:'
@@ -123,7 +170,7 @@ function salvarAcordeDinamicoNaBiblioteca() {
         // Salva no localStorage
         localStorage.setItem('biblioteca_acordes', JSON.stringify(bibliotecaAcordes));
         
-        // Atualiza visualização
+        // Atualizar visualização
         if (typeof atualizarBibliotecaVisual === 'function') {
             atualizarBibliotecaVisual();
         }
@@ -134,12 +181,12 @@ function salvarAcordeDinamicoNaBiblioteca() {
     }
 }
 
-// Adiciona um botão na sidebar para salvar acorde dinâmico
+// Adicionado um botão na barra lateral para salvar acorde sonoro
 function adicionarBotaoSalvarDinamico() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
         const btn = document.createElement('button');
-        btn.innerHTML = '🔄 Converter Dinâmico';
+        btn.innerHTML = '🔄 Conversor Dinâmico';
         btn.style.background = '#9b59b6';
         btn.style.marginTop = '10px';
         btn.onclick = salvarAcordeDinamicoNaBiblioteca;
@@ -154,30 +201,6 @@ function adicionarBotaoSalvarDinamico() {
     }
 }
 
-// Chame esta função no init()
-function init() {
-    console.log("Inicializando sistema...");
-    
-    if (typeof window.processarAcordeDinamico !== 'function') {
-        console.warn('⚠️ acordes_dinamicos.js não carregado');
-    } else {
-        console.log('✅ Módulo de acordes dinâmicos carregado!');
-        adicionarBotaoSalvarDinamico(); // Adiciona botão na sidebar
-    }
-    
-    carregarDados();
-    
-    if (editor) {
-        editor.addEventListener('input', () => {
-            clearTimeout(timeoutRenderTimer);
-            timeoutRenderTimer = setTimeout(() => {
-                renderizar();
-                salvarAulaAtual();
-            }, 500);
-        });
-    }
-}
-
 function inserirCodigoAcorde(codigo) {
     const start = editor.selectionStart;
     editor.value = editor.value.substring(0, start) + codigo + editor.value.substring(start);
@@ -189,10 +212,10 @@ function inserirCodigoAcorde(codigo) {
 // CONVERTER ACORDE DINÂMICO PARA EDITÁVEL
 // ============================================
 
-// Função para converter acorde dinâmico em formato editável
+// Função para converter acorde sonoro em formato editável
 function converterDinamicoParaEditavel(formato) {
     if (typeof window.processarAcordeDinamico !== 'function') {
-        alert('Módulo de acordes dinâmicos não carregado!');
+        alert('Módulo de acordes sonoros não carregado!');
         return null;
     }
     
@@ -202,9 +225,9 @@ function converterDinamicoParaEditavel(formato) {
         return null;
     }
     
-    // Gera a linha no formato que o editor entende
-    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestanaCordas) && acorde.pestanaCordas.length > 0 
-        ? JSON.stringify(acorde.pestanaCordas) 
+    // Gera uma linha no formato que o editor entende
+    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestanaCordas) && acorde.pestanaCordas.length > 0
+        ? JSON.stringify(acorde.pestanaCordas)
         : 'true') : 'false';
     
     const cordasStr = acorde.cordas.join(',');
@@ -221,11 +244,11 @@ function converterDinamicoParaEditavel(formato) {
     };
 }
 
-// Função para abrir editor com acorde dinâmico
+// Função para abrir editor com acorde sonoro
 function editarAcordeDinamico() {
     const formato = prompt(
         '🎸 EDITAR ACORDE DINÂMICO\n\n' +
-        'Digite o formato do acorde dinâmico que você quer editar:\n\n' +
+        'Digite o formato do acorde sonoro que você quer editar:\n\n' +
         'Exemplos:\n' +
         '• 1;3 = Sol Maior\n' +
         '• 2;5 = Lá Menor\n' +
@@ -268,14 +291,14 @@ function abrirEditorAcordesComDados(linha, nomeSugerido) {
         }
     }, 100);
     
-    // Gera preview automaticamente
+    // Pré-visualização gerada automaticamente
     setTimeout(() => {
         if (typeof gerarPreviewAcordes === 'function') {
             gerarPreviewAcordes();
         }
     }, 200);
     
-    alert(`✅ Acorde dinâmico "${formato}" convertido!\n\nAgora você pode editar e salvar na biblioteca.`);
+    alert(`✅ Acorde dinâmico convertido!\n\nAgora você pode editar e salvar na biblioteca.`);
 }
 
 function desenharAcorde(container, sigla, nomeParam = '') {
@@ -284,7 +307,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     
     // FORÇAR O C1 A NÃO MOSTRAR NÚMERO
     if (sigla === 'C1') {
-        // Busca direto no ACORDES original
+        // Busca direta no ACORDES original
         if (typeof ACORDES !== 'undefined' && ACORDES['C1']) {
             acorde = {...ACORDES['C1']};
             acorde.posicao = null;
@@ -379,13 +402,13 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     }
     
     // ========== NÚMERO LATERAL ==========
-if (acorde.mostrarNumero === false) {
-    // Não faz nada, número não aparece
-} else if (mostrarNumero && (temPestana || casaInicialVal > 0)) {
-    ctx.font = 'bold 14px Arial';
-    ctx.fillStyle = '#333';
-    ctx.fillText(posicao + 'ª', startX - 28, startY + fretSpacing / 2 + 2);
-}
+    if (acorde.mostrarNumero === false) {
+        // Não faz nada, o número não aparece
+    } else if (mostrarNumero && (temPestana || casaInicialVal > 0)) {
+        ctx.font = 'bold 14px Arial';
+        ctx.fillStyle = '#333';
+        ctx.fillText(posicao + 'ª', startX - 28, startY + fretSpacing / 2 + 2);
+    }
     
     // ========== DESENHAR NOTAS (BOLINHAS) ==========
     ctx.lineWidth = 1.5;
@@ -401,7 +424,7 @@ if (acorde.mostrarNumero === false) {
             ctx.arc(x, y, 5, 0, 2 * Math.PI);
             ctx.strokeStyle = '#333';
             ctx.stroke();
-        } 
+        }
         else if (casa === -1) {
             const y = startY - 10;
             ctx.strokeStyle = '#e94560';
@@ -411,7 +434,7 @@ if (acorde.mostrarNumero === false) {
             ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4);
             ctx.stroke();
             ctx.lineWidth = 1.5;
-        } 
+        }
         else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
             if (!estaNaPestana) {
                 const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
@@ -454,10 +477,10 @@ function carregarDados() {
             console.log("✅ Dados carregados:", dados.listas.length, "listas");
         } catch(e) {
             console.error("Erro ao carregar:", e);
-            dados = getDadosPadrao();
+            dados = obterDadosPadrao();
         }
     } else {
-        dados = getDadosPadrao();
+        dados = obterDadosPadrao();
         console.log("📁 Dados padrão carregados");
     }
     renderizarListaAulas();
@@ -497,7 +520,7 @@ function renderizarListaAulas() {
         return;
     }
     
-    function renderizarListaRecursiva(lista, path, nivel = 0) {
+    function renderizarListaRecursiva(lista, caminho, nivel = 0) {
         const listaDiv = document.createElement('div');
         listaDiv.style.marginBottom = '10px';
         listaDiv.style.marginLeft = `${nivel * 15}px`;
@@ -520,7 +543,7 @@ function renderizarListaAulas() {
         tituloSpan.style.fontWeight = 'bold';
         tituloSpan.style.color = '#e94560';
         
-        const pathKey = getPathKey(path);
+        const pathKey = obterChaveDoCaminho(caminho);
         const isExpanded = expandedPaths.has(pathKey);
         tituloSpan.innerHTML = isExpanded ? `📂 ${lista.nome}` : `📁 ${lista.nome}`;
         
@@ -528,16 +551,16 @@ function renderizarListaAulas() {
         botoesDiv.style.display = 'flex';
         botoesDiv.style.gap = '5px';
         
-        const addSubListaBtn = document.createElement('button');
-        addSubListaBtn.textContent = '📁+';
-        addSubListaBtn.style.padding = '4px 8px';
-        addSubListaBtn.style.background = '#f39c12';
-        addSubListaBtn.style.border = 'none';
-        addSubListaBtn.style.borderRadius = '3px';
-        addSubListaBtn.style.cursor = 'pointer';
-        addSubListaBtn.style.color = 'white';
-        addSubListaBtn.style.fontSize = '11px';
-        addSubListaBtn.onclick = (e) => { e.stopPropagation(); criarLista(path); };
+        const addSubListBtn = document.createElement('button');
+        addSubListBtn.textContent = '📁+';
+        addSubListBtn.style.padding = '4px 8px';
+        addSubListBtn.style.background = '#f39c12';
+        addSubListBtn.style.border = 'none';
+        addSubListBtn.style.borderRadius = '3px';
+        addSubListBtn.style.cursor = 'pointer';
+        addSubListBtn.style.color = 'white';
+        addSubListBtn.style.fontSize = '11px';
+        addSubListBtn.onclick = (e) => { e.stopPropagation(); criarLista(caminho); };
         
         const addCardBtn = document.createElement('button');
         addCardBtn.textContent = '+';
@@ -547,7 +570,7 @@ function renderizarListaAulas() {
         addCardBtn.style.borderRadius = '3px';
         addCardBtn.style.cursor = 'pointer';
         addCardBtn.style.color = 'white';
-        addCardBtn.onclick = (e) => { e.stopPropagation(); criarCartao(path); };
+        addCardBtn.onclick = (e) => { e.stopPropagation(); criarCartao(caminho); };
         
         const editListBtn = document.createElement('button');
         editListBtn.textContent = '✏️';
@@ -557,7 +580,7 @@ function renderizarListaAulas() {
         editListBtn.style.borderRadius = '3px';
         editListBtn.style.cursor = 'pointer';
         editListBtn.style.color = 'white';
-        editListBtn.onclick = (e) => { e.stopPropagation(); renomearLista(path); };
+        editListBtn.onclick = (e) => { e.stopPropagation(); renomearLista(caminho); };
         
         const deleteListBtn = document.createElement('button');
         deleteListBtn.textContent = '🗑️';
@@ -567,9 +590,9 @@ function renderizarListaAulas() {
         deleteListBtn.style.borderRadius = '3px';
         deleteListBtn.style.cursor = 'pointer';
         deleteListBtn.style.color = 'white';
-        deleteListBtn.onclick = (e) => { e.stopPropagation(); excluirLista(path); };
+        deleteListBtn.onclick = (e) => { e.stopPropagation(); excluirLista(caminho); };
         
-        botoesDiv.appendChild(addSubListaBtn);
+        botoesDiv.appendChild(addSubListBtn);
         botoesDiv.appendChild(addCardBtn);
         botoesDiv.appendChild(editListBtn);
         botoesDiv.appendChild(deleteListBtn);
@@ -615,7 +638,7 @@ function renderizarListaAulas() {
                 editCardBtn.style.cursor = 'pointer';
                 editCardBtn.style.color = 'white';
                 editCardBtn.style.fontSize = '10px';
-                editCardBtn.onclick = (e) => { e.stopPropagation(); renomearCartao(path, cardIdx); };
+                editCardBtn.onclick = (e) => { e.stopPropagation(); renomearCartao(caminho, cardIdx); };
                 
                 const deleteCardBtn = document.createElement('button');
                 deleteCardBtn.textContent = '🗑️';
@@ -626,26 +649,26 @@ function renderizarListaAulas() {
                 deleteCardBtn.style.cursor = 'pointer';
                 deleteCardBtn.style.color = 'white';
                 deleteCardBtn.style.fontSize = '10px';
-                deleteCardBtn.onclick = (e) => { e.stopPropagation(); excluirCartao(path, cardIdx); };
+                deleteCardBtn.onclick = (e) => { e.stopPropagation(); excluirCartao(caminho, cardIdx); };
                 
                 cardActions.appendChild(editCardBtn);
                 cardActions.appendChild(deleteCardBtn);
                 cardDiv.appendChild(cardTitle);
                 cardDiv.appendChild(cardActions);
-                cardDiv.onclick = () => carregarAula(path, cardIdx);
+                cardDiv.onclick = () => carregarAula(caminho, cardIdx);
                 contentContainer.appendChild(cardDiv);
             }
         }
         
-        if (lista.subListas && lista.subListas.length > 0) {
-            for (let subIdx = 0; subIdx < lista.subListas.length; subIdx++) {
-                const subPath = [...path, subIdx];
-                const subDiv = renderizarListaRecursiva(lista.subListas[subIdx], subPath, nivel + 1);
+        if (lista.sublistas && lista.sublistas.length > 0) {
+            for (let subIdx = 0; subIdx < lista.sublistas.length; subIdx++) {
+                const subPath = [...caminho, subIdx];
+                const subDiv = renderizarListaRecursiva(lista.sublistas[subIdx], subPath, nivel + 1);
                 contentContainer.appendChild(subDiv);
             }
         }
         
-        if ((!lista.cards || lista.cards.length === 0) && (!lista.subListas || lista.subListas.length === 0)) {
+        if ((!lista.cards || lista.cards.length === 0) && (!lista.sublistas || lista.sublistas.length === 0)) {
             const emptyMsg = document.createElement('div');
             emptyMsg.textContent = '📭 Nenhum conteúdo. Clique em "+" para adicionar cartão ou "📁+" para sub-lista.';
             emptyMsg.style.padding = '8px';
@@ -683,17 +706,17 @@ function renderizarListaAulas() {
 // ============================================
 // FUNÇÕES DE CRIAÇÃO
 // ============================================
-function criarLista(path) {
+function criarLista(caminho) {
     const nome = prompt("Nome da nova lista:");
     if (nome && nome.trim()) {
-        const novaListaObj = { nome: nome.trim(), cards: [], subListas: [] };
-        if (path === null) dados.listas.push(novaListaObj);
+        const novaListaObj = { nome: nome.trim(), cards: [], sublistas: [] };
+        if (caminho === null) dados.listas.push(novaListaObj);
         else {
-            const listaPai = getListaByPath(path);
+            const listaPai = obterListaPorCaminho(caminho);
             if (listaPai) {
-                if (!listaPai.subListas) listaPai.subListas = [];
-                listaPai.subListas.push(novaListaObj);
-                const parentKey = getPathKey(path);
+                if (!listaPai.sublistas) listaPai.sublistas = [];
+                listaPai.sublistas.push(novaListaObj);
+                const parentKey = obterChaveDoCaminho(caminho);
                 expandedPaths.add(parentKey);
             }
         }
@@ -702,10 +725,10 @@ function criarLista(path) {
     }
 }
 
-function criarCartao(path) {
+function criarCartao(caminho) {
     const nome = prompt("Nome do novo cartão:");
     if (nome && nome.trim()) {
-        const lista = getListaByPath(path);
+        const lista = obterListaPorCaminho(caminho);
         if (lista) {
             if (!lista.cards) lista.cards = [];
             lista.cards.push({
@@ -713,7 +736,7 @@ function criarCartao(path) {
                 conteudo: `# ${nome.trim()}\n\nDigite seu conteúdo aqui...`,
                 ultimaModificacao: Date.now()
             });
-            const parentKey = getPathKey(path);
+            const parentKey = obterChaveDoCaminho(caminho);
             expandedPaths.add(parentKey);
             salvarDados();
             alert(`✅ Cartão "${nome.trim()}" criado!`);
@@ -721,8 +744,8 @@ function criarCartao(path) {
     }
 }
 
-function renomearLista(path) {
-    const lista = getListaByPath(path);
+function renomearLista(caminho) {
+    const lista = obterListaPorCaminho(caminho);
     if (!lista) return;
     const novoNome = prompt("Novo nome:", lista.nome);
     if (novoNome && novoNome.trim()) {
@@ -732,31 +755,31 @@ function renomearLista(path) {
     }
 }
 
-function excluirLista(path) {
-    const lista = getListaByPath(path);
+function excluirLista(caminho) {
+    const lista = obterListaPorCaminho(caminho);
     if (!lista) return;
     if (confirm(`Excluir a lista "${lista.nome}" e todo seu conteúdo?`)) {
-        const pathStr = getPathKey(path);
+        const pathStr = obterChaveDoCaminho(caminho);
         for (let key of expandedPaths) {
             if (key.startsWith(pathStr)) {
                 expandedPaths.delete(key);
             }
         }
         
-        if (path.length === 1) dados.listas.splice(path[0], 1);
+        if (caminho.length === 1) dados.listas.splice(caminho[0], 1);
         else {
-            const paiPath = path.slice(0, -1);
-            const listaPai = getListaByPath(paiPath);
-            const idx = path[path.length - 1];
-            listaPai.subListas.splice(idx, 1);
+            const paiPath = caminho.slice(0, -1);
+            const listaPai = obterListaPorCaminho(paiPath);
+            const idx = caminho[caminho.length - 1];
+            listaPai.sublistas.splice(idx, 1);
         }
         salvarDados();
         alert("✅ Lista excluída!");
     }
 }
 
-function renomearCartao(path, cardIdx) {
-    const lista = getListaByPath(path);
+function renomearCartao(caminho, cardIdx) {
+    const lista = obterListaPorCaminho(caminho);
     if (!lista || !lista.cards[cardIdx]) return;
     const novoNome = prompt("Novo nome:", lista.cards[cardIdx].texto);
     if (novoNome && novoNome.trim()) {
@@ -766,8 +789,8 @@ function renomearCartao(path, cardIdx) {
     }
 }
 
-function excluirCartao(path, cardIdx) {
-    const lista = getListaByPath(path);
+function excluirCartao(caminho, cardIdx) {
+    const lista = obterListaPorCaminho(caminho);
     if (!lista || !lista.cards[cardIdx]) return;
     if (confirm(`Excluir o cartão "${lista.cards[cardIdx].texto}"?`)) {
         lista.cards.splice(cardIdx, 1);
@@ -776,11 +799,11 @@ function excluirCartao(path, cardIdx) {
     }
 }
 
-function carregarAula(path, cardIdx) {
-    const lista = getListaByPath(path);
+function carregarAula(caminho, cardIdx) {
+    const lista = obterListaPorCaminho(caminho);
     if (!lista || !lista.cards[cardIdx]) return;
     const card = lista.cards[cardIdx];
-    listaAtual = path;
+    listaAtual = caminho;
     cartaoAtual = cardIdx;
     editor.value = card.conteudo;
     if (timeoutRenderTimer) clearTimeout(timeoutRenderTimer);
@@ -789,7 +812,7 @@ function carregarAula(path, cardIdx) {
 
 function salvarAulaAtual() {
     if (listaAtual !== null && cartaoAtual !== null) {
-        const lista = getListaByPath(listaAtual);
+        const lista = obterListaPorCaminho(listaAtual);
         if (lista && lista.cards[cartaoAtual]) {
             lista.cards[cartaoAtual].conteudo = editor.value;
             lista.cards[cartaoAtual].ultimaModificacao = Date.now();
@@ -801,7 +824,7 @@ function salvarAulaAtual() {
 // ============================================
 // FUNÇÕES DE CORES DO ABC INFANTIL
 // ============================================
-function getCorPorNota(nota) {
+function obterCorPorNota(nota) {
     const cores = { 'C': '#FF0000', 'D': '#FF6600', 'E': '#FFDD00', 'F': '#00CC00', 'G': '#0066FF', 'A': '#4B0082', 'B': '#8B00FF' };
     return cores[nota.toUpperCase()] || '#000000';
 }
@@ -827,7 +850,7 @@ function aplicarCoresNasNotas() {
             let textoNota = nota.textContent || '';
             let match = textoNota.match(/[CDEFGAB]/i);
             if (match) {
-                cabeca.style.fill = getCorPorNota(match[0]);
+                cabeca.style.fill = obterCorPorNota(match[0]);
                 cabeca.style.fillOpacity = '1';
             }
         }
@@ -846,14 +869,14 @@ function aplicarCoresAcordesLetras() {
 // ============================================
 // PROCESSAR ABC COM ESPAÇAMENTO
 // ============================================
-function processarABCComEspacamento(id, codigo, tipo) {
+function processarABCComEspacamento(id, code, tipo) {
     const elemento = document.getElementById(id);
     if (!elemento) return;
     
     const staffsep = document.getElementById("staffsepRange")?.value || 60;
     const sysstaffsep = document.getElementById("sysstaffsepRange")?.value || 80;
     
-    let linhas = codigo.split('\n');
+    let linhas = code.split('\n');
     let novasLinhas = [];
     let hasStaffsep = false, hasSysstaffsep = false;
     
@@ -939,8 +962,8 @@ function atualizarIntensidadeCores() { if (coresAtivas) aplicarCoresNasNotas(); 
 // ============================================
 function normalizarNota(nota) {
     const eq = { 'Eb': 'D#', 'Bb': 'A#', 'Ab': 'G#', 'Db': 'C#', 'Gb': 'F#' };
-    for (const [bemol, sustenido] of Object.entries(eq)) {
-        if (nota.startsWith(bemol)) return sustenido + nota.replace(bemol, '');
+    for (const [bemol, sustain] of Object.entries(eq)) {
+        if (nota.startsWith(bemol)) return sustain + nota.replace(bemol, '');
     }
     return nota;
 }
@@ -1187,8 +1210,8 @@ function renderizar() {
         
         pianos.forEach(p => {
             const el = document.getElementById(p.id);
-            if (el && ACORDES_PIANO[p.sigla]) {
-                const a = ACORDES_PIANO[p.sigla];
+            if (el && window.ACORDES_PIANO && window.ACORDES_PIANO[p.sigla]) {
+                const a = window.ACORDES_PIANO[p.sigla];
                 desenharTecladoPiano(el, p.sigla, a.nome, a.notas, a.startOitava, a.endOitava, a.dedosTreble);
             }
         });
@@ -1217,21 +1240,21 @@ function renderizar() {
 // ============================================
 // FUNÇÕES DE FORMATAÇÃO
 // ============================================
-function addFormatacao(before, after) {
+function addFormatacao(antes, depois) {
     const start = editor.selectionStart;
     const end = editor.selectionEnd;
-    const text = editor.value;
-    const selectedText = text.substring(start, end);
-    let newText = selectedText ? text.substring(0, start) + before + selectedText + after + text.substring(end) : text.substring(0, start) + before + after + text.substring(end);
+    const texto = editor.value;
+    const selectedText = texto.substring(start, end);
+    let newText = selectedText ? texto.substring(0, start) + antes + selectedText + depois + texto.substring(end) : texto.substring(0, start) + antes + depois + texto.substring(end);
     editor.value = newText;
-    editor.setSelectionRange(start + before.length, start + before.length);
+    editor.setSelectionRange(start + antes.length, start + antes.length);
     renderizar();
     salvarAulaAtual();
     editor.focus();
 }
 
 function inserirLink() {
-    const url = prompt('Digite a URL:', 'https://');
+    const url = prompt('Digite uma URL:', 'https://');
     const texto = prompt('Digite o texto do link:', 'Clique aqui');
     if (url && texto) {
         const start = editor.selectionStart;
@@ -1268,8 +1291,8 @@ function inserirAcorde() {
     // Opção 1: Biblioteca Básica
     if (opcao === '1') {
         const sigla = prompt('Digite a sigla do acorde (C, G, D, Am, Em, F):', 'C');
-        if (sigla && ACORDES[sigla]) {
-            inserirCodigoAcorde(`[Acorde:${sigla}]${ACORDES[sigla].nome}[/Acorde]`);
+        if (sigla && window.ACORDES && window.ACORDES[sigla]) {
+            inserirCodigoAcorde(`[Acorde:${sigla}]${window.ACORDES[sigla].nome}[/Acorde]`);
         } else if (sigla) {
             alert(`❌ Acorde "${sigla}" não encontrado! Use: C, G, D, Am, Em, F`);
         }
@@ -1288,14 +1311,14 @@ function inserirAcorde() {
                 alert(`❌ Acorde "${sigla}" não encontrado!`);
             }
         } else {
-            alert('📭 Nenhum acorde salvo! Use opção 4 para criar.');
+            alert('📭 Nenhum acorde salvo! Use a opção 4 para criar.');
         }
     }
     
     // Opção 3: Acorde Dinâmico
     else if (opcao === '3') {
         const formato = prompt(
-            '🎸 ACORDE DINÂMICO\n\n' +
+            '🎸 Acorde Dinâmico\n\n' +
             'Formatos:\n' +
             '• 1;3 = Sol Maior (forma maior, casa 3)\n' +
             '• 2;5 = Lá Menor (forma menor, casa 5)\n' +
@@ -1311,7 +1334,7 @@ function inserirAcorde() {
                 alert(`❌ Formato "${formato}" inválido! Exemplo: 1;3`);
             }
         } else if (formato) {
-            alert('❌ Módulo de acordes dinâmicos não carregado!');
+            alert('❌ Módulo de acordes sonoros não carregado!');
         }
     }
     
@@ -1326,14 +1349,14 @@ function inserirAcorde() {
 
 function inserirABC() {
     const start = editor.selectionStart;
-    editor.value = editor.value.substring(0, start) + `[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC D E F | G A B c |]\n[/ABC]\n` + editor.value.substring(start);
+    editor.value = editor.value.substring(0, start) + `[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC DEF | GAB c |]\n[/ABC]\n` + editor.value.substring(start);
     renderizar();
     salvarAulaAtual();
 }
 
 function inserirABCInfantil() {
     const start = editor.selectionStart;
-    editor.value = editor.value.substring(0, start) + `[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/4\nK:C\nC D E F | G A B c |]\n[/ABC-INFANTIL]\n` + editor.value.substring(start);
+    editor.value = editor.value.substring(0, start) + `[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/4\nK:C\nC DEF | GAB c |]\n[/ABC-INFANTIL]\n` + editor.value.substring(start);
     renderizar();
     salvarAulaAtual();
 }
@@ -1341,7 +1364,7 @@ function inserirABCInfantil() {
 function inserirPiano() {
     const sigla = prompt('Sigla (C, G, Am, F, Dm):', 'C');
     if (!sigla) return;
-    const acordePiano = ACORDES_PIANO[sigla];
+    const acordePiano = window.ACORDES_PIANO ? window.ACORDES_PIANO[sigla] : null;
     const nome = acordePiano ? acordePiano.nome : sigla;
     const start = editor.selectionStart;
     const codigo = `[PIANO:${sigla}]${nome}[/PIANO]`;
@@ -1366,27 +1389,27 @@ function toggleCoresNotas() {
     }
 }
 
-function toggleSidebar() { 
-    document.getElementById('sidebar')?.classList.toggle('collapsed'); 
+function toggleSidebar() {
+    document.getElementById('sidebar')?.classList.toggle('collapsed');
 }
 
-function toggleCategoria(menuId) { 
-    document.getElementById(menuId)?.classList.toggle('collapsed'); 
+function toggleCategoria(menuId) {
+    document.getElementById(menuId)?.classList.toggle('collapsed');
 }
 
-function abrirModalPiano() { 
-    const modal = document.getElementById('modalPiano'); 
-    if (modal) modal.style.display = 'block'; 
-    if (typeof initPiano === 'function') initPiano(); 
+function abrirModalPiano() {
+    const modal = document.getElementById('modalPiano');
+    if (modal) modal.style.display = 'block';
+    if (typeof initPiano === 'function') initPiano();
 }
 
-function fecharModalPiano() { 
-    const modal = document.getElementById('modalPiano'); 
-    if (modal) modal.style.display = 'none'; 
+function fecharModalPiano() {
+    const modal = document.getElementById('modalPiano');
+    if (modal) modal.style.display = 'none';
 }
 
-function abrirEditorAcordes() { 
-    const modal = document.getElementById('modalAcordes'); 
+function abrirEditorAcordes() {
+    const modal = document.getElementById('modalAcordes');
     if (modal) {
         if (typeof carregarBiblioteca === 'function') carregarBiblioteca();
         modal.style.display = 'block';
@@ -1403,16 +1426,16 @@ function abrirEditorAcordes() {
     }
 }
 
-function fecharEditorAcordes() { 
-    const modal = document.getElementById('modalAcordes'); 
-    if (modal) modal.style.display = 'none'; 
+function fecharEditorAcordes() {
+    const modal = document.getElementById('modalAcordes');
+    if (modal) modal.style.display = 'none';
 }
 
-function resetarAcordes() { 
-    if (confirm('Resetar acordes?')) { 
-        localStorage.removeItem('acordes_personalizados_usuario'); 
-        alert('Acordes resetados!'); 
-    } 
+function resetarAcordes() {
+    if (confirm('Redefinir acordes?')) {
+        localStorage.removeItem('acordes_personalizados_usuario');
+        alert('Acordes resetados!');
+    }
 }
 
 function exportHTML() { alert("📄 Exportação HTML em desenvolvimento"); }
@@ -1434,12 +1457,13 @@ function toast(msg, tipo) {
 // INICIALIZAÇÃO
 // ============================================
 function init() {
-    console.log("Inicializando sistema...");
+    console.log("Inicializando o sistema...");
     
     if (typeof window.processarAcordeDinamico !== 'function') {
-        console.warn('⚠️ acordes_dinamicos.js não carregado. Acordes dinâmicos não funcionarão.');
+        console.warn('⚠️ acordes_dinamicos.js não carregado. Acordes sonoros não funcionam.');
     } else {
-        console.log('✅ Módulo de acordes dinâmicos carregado!');
+        console.log('✅ Módulo de acordes sonoros carregado!');
+        adicionarBotaoSalvarDinamico();
     }
     
     carregarDados();
