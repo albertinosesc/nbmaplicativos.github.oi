@@ -12,7 +12,6 @@ let cartaoAtual = null;
 let timeoutRenderTimer;
 let coresAtivas = true;
 let expandedPaths = new Set();
-let sidebarAberta = false;
 
 const STORAGE_KEY = 'pro_maestro_listas';
 const editor = document.getElementById('editor');
@@ -1406,67 +1405,9 @@ function toggleCoresNotas() {
     }
 }
 
-// ============================================
-// FUNÇÕES DA SIDEBAR (CORRIGIDAS)
-// ============================================
-
-// ============================================
-// SIDEBAR MOBILE - VERSÃO SIMPLES E FUNCIONAL
-// ============================================
-
-let sidebarAberta = false;
-
-function toggleSidebar(event) {
-    if (event) event.stopPropagation();
-    const sidebar = document.getElementById('sidebar');
-    sidebarAberta = !sidebarAberta;
-    
-    if (sidebarAberta) {
-        sidebar.classList.add('collapsed');
-    } else {
-        sidebar.classList.remove('collapsed');
-    }
+function toggleSidebar() {
+    document.getElementById('sidebar')?.classList.toggle('collapsed');
 }
-
-// Fechar sidebar ao clicar fora
-document.addEventListener('click', function(event) {
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.querySelector('.toggle-sidebar');
-    
-    // Se não tem sidebar ou botão, sai
-    if (!sidebar || !toggleBtn) return;
-    
-    // Verifica se é mobile
-    const isMobile = window.innerWidth <= 1024;
-    if (!isMobile) return;
-    
-    // Verifica onde foi o clique
-    const cliqueNaSidebar = sidebar.contains(event.target);
-    const cliqueNoBotao = toggleBtn.contains(event.target);
-    
-    // Se clicou fora e sidebar está aberta, fecha
-    if (!cliqueNaSidebar && !cliqueNoBotao && sidebarAberta) {
-        sidebar.classList.remove('collapsed');
-        sidebarAberta = false;
-    }
-});
-
-// Impedir que cliques dentro da sidebar fechem ela
-document.getElementById('sidebar')?.addEventListener('click', function(e) {
-    e.stopPropagation();
-});
-
-// Ajustar altura do editor
-window.addEventListener('resize', function() {
-    if (window.innerWidth <= 768) {
-        const editor = document.getElementById('editor');
-        const preview = document.getElementById('preview');
-        if (editor && preview) {
-            editor.style.height = '45vh';
-            preview.style.height = '45vh';
-        }
-    }
-});
 
 function toggleCategoria(menuId) {
     document.getElementById(menuId)?.classList.toggle('collapsed');
@@ -1559,29 +1500,3 @@ document.addEventListener('DOMContentLoaded', init);
 const styleToast = document.createElement('style');
 styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
 document.head.appendChild(styleToast);
-
-// Fechar sidebar ao clicar fora (mobile)
-document.addEventListener('click', function(event) {
-    const sidebar = document.getElementById('sidebar');
-    const toggleBtn = document.querySelector('.toggle-sidebar');
-    const isMobile = window.innerWidth <= 1024;
-    
-    if (isMobile && sidebar && !sidebar.contains(event.target) && !toggleBtn.contains(event.target)) {
-        if (sidebar.classList.contains('collapsed')) {
-            sidebar.classList.remove('collapsed');
-        }
-    }
-});
-
-// Ajustar altura do editor quando mudar orientação
-window.addEventListener('resize', function() {
-    if (window.innerWidth <= 768) {
-        const editor = document.getElementById('editor');
-        const preview = document.getElementById('preview');
-        if (editor && preview) {
-            editor.style.height = '45vh';
-            preview.style.height = '45vh';
-        }
-    }
-});
-
