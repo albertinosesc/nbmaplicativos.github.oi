@@ -1406,7 +1406,10 @@ function toggleCoresNotas() {
 }
 
 function toggleSidebar() {
-    document.getElementById('sidebar')?.classList.toggle('collapsed');
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        sidebar.classList.toggle('collapsed');
+    }
 }
 
 function toggleCategoria(menuId) {
