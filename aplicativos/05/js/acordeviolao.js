@@ -68,7 +68,7 @@ const ACORDES = {
 
 // ========== Menor 7(b5) ==========
     'Am7(b5)': { nome: 'Am7(b5)', cordas: [-1,0,1,2,1,3], dedos: ['','','1','2','1','4'], pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
-    'Bbm7(b5)': { nome: 'Bb7(b5)', cordas: [-1,1,2,1,2,-1], dedos: ['','1','3','2','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    'Bbm7(b5)': { nome: 'Bbm7(b5)', cordas: [-1,1,2,1,2,-1], dedos: ['','1','3','2','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
 
 
 
