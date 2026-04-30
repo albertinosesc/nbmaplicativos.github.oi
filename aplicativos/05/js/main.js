@@ -1405,9 +1405,51 @@ function toggleCoresNotas() {
     }
 }
 
-function toggleSidebar() {
-    document.getElementById('sidebar')?.classList.toggle('collapsed');
+// ============================================
+// FUNÇÕES DA SIDEBAR (CORRIGIDAS)
+// ============================================
+
+function toggleSidebar(event) {
+    if (event) event.stopPropagation();
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        sidebar.classList.toggle('collapsed');
+    }
 }
+// Fechar sidebar ao clicar fora (mobile) - VERSÃO CORRIGIDA
+document.addEventListener('click', function(event) {
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-sidebar');
+    const isMobile = window.innerWidth <= 1024;
+    
+    // Verificar se o clique foi dentro da sidebar ou no botão
+    const cliqueNaSidebar = sidebar && sidebar.contains(event.target);
+    const cliqueNoBotao = toggleBtn && toggleBtn.contains(event.target);
+    
+    if (isMobile && sidebar && !cliqueNaSidebar && !cliqueNoBotao) {
+        // Se a sidebar está aberta (collapsed = false significa aberta)
+        if (!sidebar.classList.contains('collapsed')) {
+            sidebar.classList.add('collapsed');
+        }
+    }
+});
+
+// Evitar que cliques dentro da sidebar fechem ela
+document.getElementById('sidebar')?.addEventListener('click', function(event) {
+    event.stopPropagation();
+});
+
+// Ajustar altura do editor quando mudar orientação
+window.addEventListener('resize', function() {
+    if (window.innerWidth <= 768) {
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        if (editor && preview) {
+            editor.style.height = '45vh';
+            preview.style.height = '45vh';
+        }
+    }
+});
 
 function toggleCategoria(menuId) {
     document.getElementById(menuId)?.classList.toggle('collapsed');
