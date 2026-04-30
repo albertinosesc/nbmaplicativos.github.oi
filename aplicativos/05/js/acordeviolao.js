@@ -8,7 +8,7 @@ const ACORDES = {
 // Maior
     'C': { nome: 'C', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
     'G': { nome: 'G', cordas: [3,2,0,0,0,3], dedos: ['2','1','','','','3'], pestana: false, casaInicial:  0, mostrarNumero: false },
-    'D': { nome: 'D', cordas: [-1,-1,0,2,3,2], dedos: ['','','','2','3','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    'D': { nome: 'D', cordas: [-1,-1,0,2,3,2], dedos: ['','','','1','3','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
     'A': { nome: 'A', cordas: [-1,0,2,2,2,0], dedos: ['','','1','2','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
     'E': { nome: 'E', cordas: [0,2,2,1,0,0], dedos: ['','2','3','1','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
 
