@@ -21,6 +21,9 @@ const listaAulas = document.getElementById('listaAulas');
 // ============================================
 // FUNÇÃO DE TELA CHEIA (CORREÇÃO)
 // ============================================
+// ============================================
+// FUNÇÃO DE TELA CHEIA (CORREÇÃO PARA MOBILE)
+// ============================================
 function toggleFullscreenPreview() {
     const previewElement = document.getElementById('preview');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
@@ -29,47 +32,77 @@ function toggleFullscreenPreview() {
         // Entrar em tela cheia
         if (previewElement.requestFullscreen) {
             previewElement.requestFullscreen();
-        } else if (previewElement.webkitRequestFullscreen) { /* Safari */
+        } else if (previewElement.webkitRequestFullscreen) {
             previewElement.webkitRequestFullscreen();
-        } else if (previewElement.msRequestFullscreen) { /* IE/Edge */
+        } else if (previewElement.msRequestFullscreen) {
             previewElement.msRequestFullscreen();
         }
+        
+        // Mudar o botão
         if (fullscreenBtn) {
             fullscreenBtn.textContent = '✖';
             fullscreenBtn.style.background = '#e94560';
+            fullscreenBtn.style.position = 'fixed';
+            fullscreenBtn.style.bottom = '20px';
+            fullscreenBtn.style.right = '20px';
+            fullscreenBtn.style.zIndex = '999999';
         }
+        
+        // Adicionar uma classe para estilização adicional
+        document.body.classList.add('fullscreen-active');
+        
     } else {
         // Sair da tela cheia
         if (document.exitFullscreen) {
             document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) { /* Safari */
+        } else if (document.webkitExitFullscreen) {
             document.webkitExitFullscreen();
-        } else if (document.msExitFullscreen) { /* IE/Edge */
+        } else if (document.msExitFullscreen) {
             document.msExitFullscreen();
         }
+        
+        // Restaurar o botão
         if (fullscreenBtn) {
             fullscreenBtn.textContent = '⛶';
             fullscreenBtn.style.background = '#00CC00';
+            fullscreenBtn.style.position = 'fixed';
+            fullscreenBtn.style.bottom = '20px';
+            fullscreenBtn.style.right = '20px';
+            fullscreenBtn.style.zIndex = '1001';
         }
+        
+        document.body.classList.remove('fullscreen-active');
     }
 }
 
-// Detectar quando sair da tela cheia (ESC)
+// Detectar quando sair da tela cheia (ESC ou botão do sistema)
 document.addEventListener('fullscreenchange', function() {
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     if (!document.fullscreenElement && fullscreenBtn) {
         fullscreenBtn.textContent = '⛶';
         fullscreenBtn.style.background = '#00CC00';
+        fullscreenBtn.style.position = 'fixed';
+        fullscreenBtn.style.bottom = '20px';
+        fullscreenBtn.style.right = '20px';
     }
 });
+
 document.addEventListener('webkitfullscreenchange', function() {
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     if (!document.webkitFullscreenElement && fullscreenBtn) {
         fullscreenBtn.textContent = '⛶';
         fullscreenBtn.style.background = '#00CC00';
+        fullscreenBtn.style.position = 'fixed';
+        fullscreenBtn.style.bottom = '20px';
+        fullscreenBtn.style.right = '20px';
     }
 });
 
+// Para dispositivos iOS/Safari
+document.addEventListener('fullscreenerror', function(e) {
+    console.error('Erro ao entrar em tela cheia:', e);
+    toast('❌ Não foi possível entrar em tela cheia neste dispositivo', 'error');
+});
 // ============================================
 // FUNÇÕES AUXILIARES
 // ============================================
