@@ -21,9 +21,6 @@ const listaAulas = document.getElementById('listaAulas');
 // ============================================
 // FUNÇÃO DE TELA CHEIA (CORREÇÃO)
 // ============================================
-// ============================================
-// FUNÇÃO DE TELA CHEIA (CORREÇÃO PARA MOBILE)
-// ============================================
 function toggleFullscreenPreview() {
     const previewElement = document.getElementById('preview');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
@@ -32,77 +29,47 @@ function toggleFullscreenPreview() {
         // Entrar em tela cheia
         if (previewElement.requestFullscreen) {
             previewElement.requestFullscreen();
-        } else if (previewElement.webkitRequestFullscreen) {
+        } else if (previewElement.webkitRequestFullscreen) { /* Safari */
             previewElement.webkitRequestFullscreen();
-        } else if (previewElement.msRequestFullscreen) {
+        } else if (previewElement.msRequestFullscreen) { /* IE/Edge */
             previewElement.msRequestFullscreen();
         }
-        
-        // Mudar o botão
         if (fullscreenBtn) {
             fullscreenBtn.textContent = '✖';
             fullscreenBtn.style.background = '#e94560';
-            fullscreenBtn.style.position = 'fixed';
-            fullscreenBtn.style.bottom = '20px';
-            fullscreenBtn.style.right = '20px';
-            fullscreenBtn.style.zIndex = '999999';
         }
-        
-        // Adicionar uma classe para estilização adicional
-        document.body.classList.add('fullscreen-active');
-        
     } else {
         // Sair da tela cheia
         if (document.exitFullscreen) {
             document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) {
+        } else if (document.webkitExitFullscreen) { /* Safari */
             document.webkitExitFullscreen();
-        } else if (document.msExitFullscreen) {
+        } else if (document.msExitFullscreen) { /* IE/Edge */
             document.msExitFullscreen();
         }
-        
-        // Restaurar o botão
         if (fullscreenBtn) {
             fullscreenBtn.textContent = '⛶';
             fullscreenBtn.style.background = '#00CC00';
-            fullscreenBtn.style.position = 'fixed';
-            fullscreenBtn.style.bottom = '20px';
-            fullscreenBtn.style.right = '20px';
-            fullscreenBtn.style.zIndex = '1001';
         }
-        
-        document.body.classList.remove('fullscreen-active');
     }
 }
 
-// Detectar quando sair da tela cheia (ESC ou botão do sistema)
+// Detectar quando sair da tela cheia (ESC)
 document.addEventListener('fullscreenchange', function() {
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     if (!document.fullscreenElement && fullscreenBtn) {
         fullscreenBtn.textContent = '⛶';
         fullscreenBtn.style.background = '#00CC00';
-        fullscreenBtn.style.position = 'fixed';
-        fullscreenBtn.style.bottom = '20px';
-        fullscreenBtn.style.right = '20px';
     }
 });
-
 document.addEventListener('webkitfullscreenchange', function() {
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     if (!document.webkitFullscreenElement && fullscreenBtn) {
         fullscreenBtn.textContent = '⛶';
         fullscreenBtn.style.background = '#00CC00';
-        fullscreenBtn.style.position = 'fixed';
-        fullscreenBtn.style.bottom = '20px';
-        fullscreenBtn.style.right = '20px';
     }
 });
 
-// Para dispositivos iOS/Safari
-document.addEventListener('fullscreenerror', function(e) {
-    console.error('Erro ao entrar em tela cheia:', e);
-    toast('❌ Não foi possível entrar em tela cheia neste dispositivo', 'error');
-});
 // ============================================
 // FUNÇÕES AUXILIARES
 // ============================================
@@ -416,32 +383,48 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     
     let cordasNaPestana = [];
     
-    if (temPestana) {
-        cordasNaPestana = acorde.pestanaCordas;
-        const pestanaY = startY + (fretSpacing / 2);
-        const primeiraCorda = Math.min(...cordasNaPestana);
-        const ultimaCorda = Math.max(...cordasNaPestana);
-        
-        const xInicio = startX + primeiraCorda * stringSpacing - 2;
-        const xFim = startX + ultimaCorda * stringSpacing + 2;
-        
-        ctx.beginPath();
-        ctx.moveTo(xInicio, pestanaY);
-        ctx.lineTo(xFim, pestanaY);
-        ctx.lineWidth = 10;
-        ctx.lineCap = 'round';
-        ctx.strokeStyle = '#2c3e50';
-        ctx.stroke();
-    }
+if (temPestana) {
+    cordasNaPestana = acorde.pestanaCordas;
+    // Pega a casa da pestana (padrão: 1)
+    const casaPestana = acorde.pestanaCasa || acorde.casaInicialParaPestana || 1;
+    // Calcula a posição Y baseada na casa da pestana
+    const pestanaY = startY + (casaPestana - 1) * fretSpacing + (fretSpacing / 2);
+    const primeiraCorda = Math.min(...cordasNaPestana);
+    const ultimaCorda = Math.max(...cordasNaPestana);
     
-    // ========== NÚMERO LATERAL ==========
-    if (acorde.mostrarNumero === false) {
-        // Não faz nada, o número não aparece
-    } else if (mostrarNumero && (temPestana || casaInicialVal > 0)) {
-        ctx.font = 'bold 14px Arial';
-        ctx.fillStyle = '#333';
-        ctx.fillText(posicao + 'ª', startX - 28, startY + fretSpacing / 2 + 2);
-    }
+    const xInicio = startX + primeiraCorda * stringSpacing - 2;
+    const xFim = startX + ultimaCorda * stringSpacing + 2;
+    
+    ctx.beginPath();
+    ctx.moveTo(xInicio, pestanaY);
+    ctx.lineTo(xFim, pestanaY);
+    ctx.lineWidth = 10;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = '#2c3e50';
+    ctx.stroke();
+}
+
+// ========== NÚMERO LATERAL ==========
+let numeroMostrar = null;
+let textoMostrar = null;
+
+if (acorde.mostrarPosicao === true && acorde.posicao) {
+    // Para acordes dinâmicos com posição definida
+    numeroMostrar = acorde.posicao;           // posição (casa onde o número fica)
+    textoMostrar = acorde.textoPosicao || (acorde.posicao + 'ª'); // texto a mostrar
+} else if (mostrarNumero && temPestana) {
+    // Para acordes normais com pestana
+    numeroMostrar = acorde.pestanaCasa || acorde.casaInicial || 1;
+    textoMostrar = numeroMostrar + 'ª';
+}
+
+if (numeroMostrar !== null && textoMostrar !== null && acorde.mostrarNumero !== false) {
+    ctx.font = 'bold 14px Arial';
+    ctx.fillStyle = '#333';
+    const yPos = startY + (numeroMostrar - 1) * fretSpacing + fretSpacing / 2 + 2;
+    ctx.fillText(textoMostrar, startX - 28, yPos);
+}
+
     
     // ========== DESENHAR NOTAS (BOLINHAS) ==========
     ctx.lineWidth = 1.5;
