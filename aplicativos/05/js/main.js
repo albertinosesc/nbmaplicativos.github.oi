@@ -1503,3 +1503,34 @@ document.addEventListener('DOMContentLoaded', init);
 const styleToast = document.createElement('style');
 styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
 document.head.appendChild(styleToast);
+
+// Ajustar zoom na tela cheia
+function ajustarZoomFullscreen() {
+    const valor = document.getElementById("zoomFullscreenRange")?.value || 130;
+    document.getElementById("zoomFullscreenValue").innerText = valor;
+    localStorage.setItem('zoom_fullscreen', valor);
+}
+
+// Aplicar zoom ao entrar em tela cheia
+function aplicarZoomFullscreen() {
+    const zoom = localStorage.getItem('zoom_fullscreen') || 130;
+    const style = document.createElement('style');
+    style.id = 'zoom-fullscreen-style';
+    style.textContent = `
+        #preview:fullscreen .chord-diagram canvas { transform: scale(${zoom/100}) !important; }
+        #preview:-webkit-full-screen .chord-diagram canvas { transform: scale(${zoom/100}) !important; }
+        #preview:fullscreen .abcjs-container svg { transform: scale(${zoom/100}) !important; }
+        #preview:-webkit-full-screen .abcjs-container svg { transform: scale(${zoom/100}) !important; }
+    `;
+    
+    const oldStyle = document.getElementById('zoom-fullscreen-style');
+    if (oldStyle) oldStyle.remove();
+    document.head.appendChild(style);
+}
+
+// Chamar quando entra em tela cheia
+document.addEventListener('fullscreenchange', function() {
+    if (document.fullscreenElement) {
+        aplicarZoomFullscreen();
+    }
+});
