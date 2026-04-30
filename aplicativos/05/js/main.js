@@ -375,7 +375,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     
     const cifraDiv = document.createElement('div');
     cifraDiv.textContent = nomeExibido;
-    cifraDiv.style.cssText = 'position:absolute; top:-25px; left:50%; transform:translateX(-50%); font-size:1.4em; font-weight:bold; color:#e94560; background:white; padding:2px 8px; border-radius:20px; white-space:nowrap;';
+    cifraDiv.style.cssText = 'position:absolute; top:-2px; left:50%; transform:translateX(-50%); font-size:1.4em; font-weight:bold; color:#e94560; background:white; padding:2px 8px; border-radius:20px; white-space:nowrap;';
     wrapper.appendChild(cifraDiv);
     
     const canvas = document.createElement('canvas');
