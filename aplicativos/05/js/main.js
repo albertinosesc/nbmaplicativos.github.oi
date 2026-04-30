@@ -1500,3 +1500,29 @@ document.addEventListener('DOMContentLoaded', init);
 const styleToast = document.createElement('style');
 styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
 document.head.appendChild(styleToast);
+
+// Fechar sidebar ao clicar fora (mobile)
+document.addEventListener('click', function(event) {
+    const sidebar = document.getElementById('sidebar');
+    const toggleBtn = document.querySelector('.toggle-sidebar');
+    const isMobile = window.innerWidth <= 1024;
+    
+    if (isMobile && sidebar && !sidebar.contains(event.target) && !toggleBtn.contains(event.target)) {
+        if (sidebar.classList.contains('collapsed')) {
+            sidebar.classList.remove('collapsed');
+        }
+    }
+});
+
+// Ajustar altura do editor quando mudar orientação
+window.addEventListener('resize', function() {
+    if (window.innerWidth <= 768) {
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        if (editor && preview) {
+            editor.style.height = '45vh';
+            preview.style.height = '45vh';
+        }
+    }
+});
+
