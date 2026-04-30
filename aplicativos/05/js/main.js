@@ -12,6 +12,7 @@ let cartaoAtual = null;
 let timeoutRenderTimer;
 let coresAtivas = true;
 let expandedPaths = new Set();
+let sidebarAberta = false;
 
 const STORAGE_KEY = 'pro_maestro_listas';
 const editor = document.getElementById('editor');
@@ -1409,37 +1410,53 @@ function toggleCoresNotas() {
 // FUNÇÕES DA SIDEBAR (CORRIGIDAS)
 // ============================================
 
+// ============================================
+// SIDEBAR MOBILE - VERSÃO SIMPLES E FUNCIONAL
+// ============================================
+
+let sidebarAberta = false;
+
 function toggleSidebar(event) {
     if (event) event.stopPropagation();
     const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
-        sidebar.classList.toggle('collapsed');
+    sidebarAberta = !sidebarAberta;
+    
+    if (sidebarAberta) {
+        sidebar.classList.add('collapsed');
+    } else {
+        sidebar.classList.remove('collapsed');
     }
 }
-// Fechar sidebar ao clicar fora (mobile) - VERSÃO CORRIGIDA
+
+// Fechar sidebar ao clicar fora
 document.addEventListener('click', function(event) {
     const sidebar = document.getElementById('sidebar');
     const toggleBtn = document.querySelector('.toggle-sidebar');
+    
+    // Se não tem sidebar ou botão, sai
+    if (!sidebar || !toggleBtn) return;
+    
+    // Verifica se é mobile
     const isMobile = window.innerWidth <= 1024;
+    if (!isMobile) return;
     
-    // Verificar se o clique foi dentro da sidebar ou no botão
-    const cliqueNaSidebar = sidebar && sidebar.contains(event.target);
-    const cliqueNoBotao = toggleBtn && toggleBtn.contains(event.target);
+    // Verifica onde foi o clique
+    const cliqueNaSidebar = sidebar.contains(event.target);
+    const cliqueNoBotao = toggleBtn.contains(event.target);
     
-    if (isMobile && sidebar && !cliqueNaSidebar && !cliqueNoBotao) {
-        // Se a sidebar está aberta (collapsed = false significa aberta)
-        if (!sidebar.classList.contains('collapsed')) {
-            sidebar.classList.add('collapsed');
-        }
+    // Se clicou fora e sidebar está aberta, fecha
+    if (!cliqueNaSidebar && !cliqueNoBotao && sidebarAberta) {
+        sidebar.classList.remove('collapsed');
+        sidebarAberta = false;
     }
 });
 
-// Evitar que cliques dentro da sidebar fechem ela
-document.getElementById('sidebar')?.addEventListener('click', function(event) {
-    event.stopPropagation();
+// Impedir que cliques dentro da sidebar fechem ela
+document.getElementById('sidebar')?.addEventListener('click', function(e) {
+    e.stopPropagation();
 });
 
-// Ajustar altura do editor quando mudar orientação
+// Ajustar altura do editor
 window.addEventListener('resize', function() {
     if (window.innerWidth <= 768) {
         const editor = document.getElementById('editor');
