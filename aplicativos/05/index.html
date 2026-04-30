@@ -451,6 +451,13 @@
     </button>
 </div>
 
+<!-- Botões de zoom flutuantes - SEPARADO do botão de tela cheia -->
+<div id="zoomControls" style="position: fixed; bottom: 20px; left: 20px; z-index: 10001; display: flex; gap: 10px;">
+    <button id="zoomOutBtn" style="background: #333; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">−</button>
+    <button id="zoomInBtn" style="background: #333; color: white; border: none; border-radius: 50%; width: 45px; height: 45px; font-size: 24px; cursor: pointer; box-shadow: 0 2px 10px rgba(0,0,0,0.3);">+</button>
+    <span id="zoomPercent" style="background: rgba(0,0,0,0.7); color: white; padding: 8px 12px; border-radius: 20px; font-size: 14px; display: flex; align-items: center;">130%</span>
+</div>
+
 <script>
 // Botão de tela cheia GLOBAL (funciona em qualquer lugar)
 const globalBtn = document.getElementById('globalFullscreenBtn');
@@ -509,6 +516,94 @@ if (globalBtn) {
             }
         }, 100);
     }
+})();
+</script>
+    <script>
+// Controle de zoom na tela cheia
+(function() {
+    let zoomLevel = 130; // %
+    const preview = document.getElementById('preview');
+    const zoomInBtn = document.getElementById('zoomInBtn');
+    const zoomOutBtn = document.getElementById('zoomOutBtn');
+    const zoomPercent = document.getElementById('zoomPercent');
+    
+    function aplicarZoom() {
+        if (!preview) return;
+        
+        // Remove estilos anteriores
+        const oldStyle = document.getElementById('zoom-style');
+        if (oldStyle) oldStyle.remove();
+        
+        // Cria novo estilo com zoom
+        const style = document.createElement('style');
+        style.id = 'zoom-style';
+        style.textContent = `
+            #preview:fullscreen .chord-diagram canvas { 
+                transform: scale(${zoomLevel/100}) !important; 
+                transform-origin: center !important;
+            }
+            #preview:-webkit-full-screen .chord-diagram canvas { 
+                transform: scale(${zoomLevel/100}) !important;
+                transform-origin: center !important;
+            }
+            #preview:fullscreen .abcjs-container svg { 
+                transform: scale(${zoomLevel/100}) !important;
+                transform-origin: top left !important;
+            }
+            #preview:-webkit-full-screen .abcjs-container svg { 
+                transform: scale(${zoomLevel/100}) !important;
+                transform-origin: top left !important;
+            }
+            #preview:fullscreen .chord-cifra,
+            #preview:fullscreen .chord-diagram div {
+                font-size: ${zoomLevel/100 * 1.4}em !important;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        if (zoomPercent) zoomPercent.textContent = zoomLevel + '%';
+        
+        // Salvar no localStorage
+        localStorage.setItem('zoom_fullscreen_level', zoomLevel);
+    }
+    
+    // Carregar zoom salvo
+    const savedZoom = localStorage.getItem('zoom_fullscreen_level');
+    if (savedZoom) {
+        zoomLevel = parseInt(savedZoom);
+        if (zoomPercent) zoomPercent.textContent = zoomLevel + '%';
+    }
+    
+    if (zoomInBtn) {
+        zoomInBtn.addEventListener('click', function() {
+            if (zoomLevel < 200) {
+                zoomLevel += 10;
+                aplicarZoom();
+            }
+        });
+    }
+    
+    if (zoomOutBtn) {
+        zoomOutBtn.addEventListener('click', function() {
+            if (zoomLevel > 100) {
+                zoomLevel -= 10;
+                aplicarZoom();
+            }
+        });
+    }
+    
+    // Aplicar zoom quando entrar em tela cheia
+    document.addEventListener('fullscreenchange', function() {
+        if (document.fullscreenElement || document.webkitFullscreenElement) {
+            aplicarZoom();
+        }
+    });
+    
+    document.addEventListener('webkitfullscreenchange', function() {
+        if (document.webkitFullscreenElement) {
+            aplicarZoom();
+        }
+    });
 })();
 </script>
 </body>
