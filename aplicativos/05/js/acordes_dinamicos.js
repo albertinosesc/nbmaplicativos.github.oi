@@ -27,14 +27,23 @@ const FORMAS_INFINITAS = {
     '15': { nome: 'm7+', cordaBase: 6, cordas: [1, -1, 2, 1, 1, -1], dedos: ['1', '', '2', '4', '3', ''], pestana: false },
     '16': { nome: '°7', cordaBase: 6, cordas: [2, -1, 1, 2, 1, -1], dedos: ['3', '', '1', '4', '2', ''], pestana: false },
 
-     // ===== Formação 1-3-5-7 (fundamental na 5ª corda) =====
-   '17': { nome: '7+',    cordaBase: 5, cordas: [-1, 1, 2, 1, 2, -1], dedos: ['', '1', '3', '2', '4', ''], pestana: false },
-   '18': { nome: '7',     cordaBase: 5, cordas: [-1, 1, 2, 1, 2, 1],  dedos: ['', '1', '3', '2', '4', '1'], pestana: true },
-   '19': { nome: 'm7',    cordaBase: 5, cordas: [-1, 1, 3, 1, 2, 1],  dedos: ['', '1', '4', '1', '2', '1'], pestana: true },
-   '20': { nome: 'm7(b5)',cordaBase: 5, cordas: [-1, 1, 2, 1, 1, 1],  dedos: ['', '1', '3', '2', '1', '1'], pestana: true },
-   '21': { nome: '°7',    cordaBase: 5, cordas: [-1, 2, 3, 1, 3, -1], dedos: ['', '2', '4', '1', '3', ''], pestana: false },
-   '22': { nome: '7(5+)', cordaBase: 5, cordas: [-1, 1, 2, 2, 2, -1], dedos: ['', '1', '2', '3', '4', ''], pestana: false },
+     // ===== Formação 1-5-7-3 (fundamental na 5ª corda) =====
+   '17': { nome: '7+',    cordaBase: 5, cordas: [-1, 1, 3, 2, 3, 1], dedos: ['', '1', '3', '2', '4', '1'], pestana: [1,2,3,4,5] },
+   '18': { nome: '7',     cordaBase: 5, cordas: [-1, 1, 3, 1, 3, 1],  dedos: ['', '1', '3', '1', '4', '1'], pestana: [1,2,3,4,5] },
+   '19': { nome: 'm7',    cordaBase: 5, cordas: [-1, 1, 3, 1, 2, 1],  dedos: ['', '1', '3', '1', '2', '1'], pestana: [1,2,3,4,5] },
+   '20': { nome: 'm7(b5)',cordaBase: 5, cordas: [-1, 1, 2, 1, 2, -1],  dedos: ['', '1', '3', '2', '4', ''], pestana: false },
+   '21': { nome: '°7',    cordaBase: 5, cordas: [-1, 2, 3, 1, 3, -1], dedos: ['', '2', '3', '1', '4', ''], pestana: false },
+   '22': { nome: '7(5+)', cordaBase: 5, cordas: [-1, 1, 4, 2, 3, -1], dedos: ['', '1', '4', '2', '3', ''], pestana: false },
    '23': { nome: 'm(7+)', cordaBase: 5, cordas: [-1, 1, 3, 2, 2, -1], dedos: ['', '1', '4', '2', '3', ''], pestana: false },
+
+// ===== Formação 1-5-7-3 (fundamental na 4ª corda) =====
+'24': { nome: '7+',    cordaBase: 4, cordas: [-1, -1, 1, 3, 2, 3], dedos: ['', '', '1', '3', '2', '4'], pestana: false },
+'25': { nome: '7',     cordaBase: 4, cordas: [-1, -1, 1, 3, 1, 3], dedos: ['', '', '1', '3', '1', '4'], pestana: false },
+'26': { nome: 'm7',    cordaBase: 4, cordas: [-1, -1, 1, 3, 1, 2], dedos: ['', '', '1', '4', '2', '3'], pestana: false },
+'27': { nome: 'm7(b5)',cordaBase: 4, cordas: [-1, -1, 1, 2, 1, 2], dedos: ['', '', '1', '3', '2', '4'], pestana: false },
+'28': { nome: '°7',    cordaBase: 4, cordas: [-1, -1, 2, 3, 1, 3], dedos: ['', '', '2', '3', '1', '4'], pestana: false },
+'29': { nome: '7(5+)', cordaBase: 4, cordas: [-1, -1, 1, 4, 2, 3], dedos: ['', '', '1', '4', '2', '3'], pestana: false },
+'30': { nome: 'm(7+)', cordaBase: 4, cordas: [-1, -1, 1, 3, 2, 2], dedos: ['', '', '1', '4', '2', '3'], pestana: false },
 
 
 };
