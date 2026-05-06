@@ -17,8 +17,26 @@ const FORMAS_INFINITAS = {
     '7': { nome: 'Maior', cordaBase: 4, cordas: [-1, -1, 1, 3, 4, 3], dedos: ['', '', '1', '3', '4', '2'], pestana: [2,3,4,5] },
     '8': { nome: 'Menor', cordaBase: 4, cordas: [-1, -1, 1, 2, 3, 1], dedos: ['', '', '1', '2', '3', '4'], pestana: [2,3,4,5] },
     '9': { nome: 'Sétima', cordaBase: 4, cordas: [-1, -1, 1, 3, 2, 1], dedos: ['', '', '1', '3', '2', '4'], pestana: [2,3,4,5] },
+    
+    // =====Formação 1-7-3-5 (fundamnetal na 6 Corda) =====
     '10': { nome: '7+', cordaBase: 6, cordas: [1, -1, 2, 2, 1, -1], dedos: ['1', '', '3', '4', '2', ''], pestana: false },
-    '11': { nome: 'Séti', cordaBase: 4, cordas: [-1, -1, 1, 3, 2, 1], dedos: ['', '', '1', '3', '2', '4'], pestana: [2,3,4,5] },
+    '11': { nome: 'm7', cordaBase: 6, cordas: [1, -1, 1, 1, 1, -1], dedos: ['1', '', '2', '3', '4', ''], pestana: false },
+    '12': { nome: 'm7(b5)', cordaBase: 6, cordas: [2, -1, 2, 2, 1, -1], dedos: ['2', '', '3', '4', '1', ''], pestana: false },
+    '13': { nome: '7', cordaBase: 6, cordas: [1, -1, 1, 2, 1, -1], dedos: ['1', '', '2', '4', '3', ''], pestana: false },
+    '14': { nome: '7+(5+)', cordaBase: 6, cordas: [1, -1, 2, 2, 2, -1], dedos: ['1', '', '2', '3', '4', ''], pestana: false },
+    '15': { nome: 'm7+', cordaBase: 6, cordas: [1, -1, 2, 1, 1, -1], dedos: ['1', '', '2', '4', '3', ''], pestana: false },
+    '16': { nome: '°7', cordaBase: 6, cordas: [2, -1, 1, 2, 1, -1], dedos: ['3', '', '1', '4', '2', ''], pestana: false },
+
+     // ===== Formação 1-3-5-7 (fundamental na 5ª corda) =====
+   '17': { nome: '7+',    cordaBase: 5, cordas: [-1, 1, 2, 1, 2, -1], dedos: ['', '1', '3', '2', '4', ''], pestana: false },
+   '18': { nome: '7',     cordaBase: 5, cordas: [-1, 1, 2, 1, 2, 1],  dedos: ['', '1', '3', '2', '4', '1'], pestana: true },
+   '19': { nome: 'm7',    cordaBase: 5, cordas: [-1, 1, 3, 1, 2, 1],  dedos: ['', '1', '4', '1', '2', '1'], pestana: true },
+   '20': { nome: 'm7(b5)',cordaBase: 5, cordas: [-1, 1, 2, 1, 1, 1],  dedos: ['', '1', '3', '2', '1', '1'], pestana: true },
+   '21': { nome: '°7',    cordaBase: 5, cordas: [-1, 2, 3, 1, 3, -1], dedos: ['', '2', '4', '1', '3', ''], pestana: false },
+   '22': { nome: '7(5+)', cordaBase: 5, cordas: [-1, 1, 2, 2, 2, -1], dedos: ['', '1', '2', '3', '4', ''], pestana: false },
+   '23': { nome: 'm(7+)', cordaBase: 5, cordas: [-1, 1, 3, 2, 2, -1], dedos: ['', '1', '4', '2', '3', ''], pestana: false },
+
+
 };
 
 // Processa pestana
