@@ -1,248 +1,132 @@
 // ============================================
-// ACORDES DINÂMICOS
+// DICIONÁRIO DINÂMICO DE ACORDES
 // ============================================
 
-// Função para processar acorde com pestana personalizada
-function processarAcordePersonalizado(sigla, dadosAcorde) {
-    // dadosAcorde pode ter:
-    // - cordas: array com as casas (-1=silêncio, 0=solta, >0=pressionada)
-    // - dedos: array com os dedos para cada corda
-    // - pestana: pode ser boolean, número da casa, ou array de índices das cordas
-    // - casaInicial: número da primeira casa do diagrama
-    // - nome: nome do acorde
+const FORMAS_INFINITAS = {
+    // ===== CORDAS BASE 6 (Mi) =====
+    '1': { nome: 'Maior', cordaBase: 6, cordas: [1, 3, 3, 2, 1, 1], dedos: ['1', '3', '4', '2', '1', '1'], pestana: [0,1,2,3,4,5] },
+    '2': { nome: 'Menor', cordaBase: 6, cordas: [1, 3, 3, 1, 1, 1], dedos: ['1', '3', '4', '1', '1', '1'], pestana: [0,1,2,3,4,5] },
+    '3': { nome: 'Sétima', cordaBase: 6, cordas: [1, 3, 1, 2, 4, 1], dedos: ['1', '3', '1', '2', '4', '1'], pestana: [0,1,2,3,4,5] },
     
-    const cordas = dadosAcorde.cordas || [];
-    if (cordas.length !== 6) {
-        console.error('Cordas deve ter 6 posições');
-        return null;
-    }
+    // ===== CORDAS BASE 5 (Lá) =====
+    '4': { nome: 'Maior', cordaBase: 5, cordas: [-1, 1, 3, 3, 3, 1], dedos: ['', '1', '3', '4', '2', '1'], pestana: [1,2,3,4,5] },
+    '5': { nome: 'Menor', cordaBase: 5, cordas: [-1, 1, 2, 2, 3, 1], dedos: ['', '1', '2', '3', '4', '1'], pestana: [1,2,3,4,5] },
+    '6': { nome: 'Sétima', cordaBase: 5, cordas: [-1, 1, 3, 2, 3, 1], dedos: ['', '1', '3', '2', '4', '1'], pestana: [1,2,3,4,5] },
     
-    // Processa a pestana
-    let pestanaInfo = processarPestana(dadosAcorde.pestana, cordas);
-    
-    return {
-        nome: dadosAcorde.nome || sigla,
-        cordas: cordas,
-        dedos: dadosAcorde.dedos || ['', '', '', '', '', ''],
-        pestana: pestanaInfo.temPestana,
-        pestanaCasa: pestanaInfo.casa,
-        pestanaCordas: pestanaInfo.cordas,
-        casaInicial: dadosAcorde.casaInicial || 1,
-        baixo: dadosAcorde.baixo || ''
-    };
-}
+    // ===== CORDAS BASE 4 (Ré) =====
+    '7': { nome: 'Maior', cordaBase: 4, cordas: [-1, -1, 1, 3, 4, 3], dedos: ['', '', '1', '3', '4', '2'], pestana: [2,3,4,5] },
+    '8': { nome: 'Menor', cordaBase: 4, cordas: [-1, -1, 1, 2, 3, 1], dedos: ['', '', '1', '2', '3', '4'], pestana: [2,3,4,5] },
+    '9': { nome: 'Sétima', cordaBase: 4, cordas: [-1, -1, 1, 3, 2, 1], dedos: ['', '', '1', '3', '2', '4'], pestana: [2,3,4,5] },
+};
 
-// Função para processar diferentes tipos de pestana
+// Processa pestana
 function processarPestana(pestanaConfig, cordas) {
     let temPestana = false;
     let casa = 1;
     let cordasPestana = [];
     
-    if (!pestanaConfig) {
-        return { temPestana: false, casa: 1, cordas: [] };
-    }
+    if (!pestanaConfig) return { temPestana: false, casa: 1, cordas: [] };
     
-    // Caso 1: Pestana é um número (casa onde está a pestana)
     if (typeof pestanaConfig === 'number') {
         temPestana = true;
         casa = pestanaConfig;
-        // Encontra todas as cordas que têm esta casa
         cordas.forEach((cordaCasa, idx) => {
-            if (cordaCasa === casa) {
-                cordasPestana.push(idx);
-            }
+            if (cordaCasa === casa) cordasPestana.push(idx);
         });
-    }
-    
-    // Caso 2: Pestana é um array de índices das cordas
-    else if (Array.isArray(pestanaConfig)) {
+    } else if (Array.isArray(pestanaConfig)) {
         temPestana = true;
-        // Usa a casa da primeira corda da pestana
         const primeiraCorda = pestanaConfig[0];
-        if (cordas[primeiraCorda]) {
-            casa = cordas[primeiraCorda];
-        }
+        if (cordas[primeiraCorda]) casa = cordas[primeiraCorda];
         cordasPestana = pestanaConfig;
-    }
-    
-    // Caso 3: Pestana é true (pestana em todas as cordas na casa 1)
-    else if (pestanaConfig === true) {
+    } else if (pestanaConfig === true) {
         temPestana = true;
         casa = 1;
         cordas.forEach((cordaCasa, idx) => {
-            if (cordaCasa === casa) {
-                cordasPestana.push(idx);
-            }
+            if (cordaCasa === casa) cordasPestana.push(idx);
         });
     }
     
     return { temPestana, casa, cordas: cordasPestana };
 }
 
-// Interface para o usuário criar acorde personalizado
-function abrirEditorAcordePersonalizado() {
-    const modal = document.createElement('div');
-    modal.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.8);
-        display: flex;
-        justify-content: center;
-        align-items: center;
-        z-index: 10000;
-    `;
+// Função principal USANDO o dicionário FORMAS_INFINITAS
+function processarAcordeDinamico(formato, nomePersonalizado = '') {
+    // Formato: "forma;casa;posicao;texto" 
+    // Exemplo: "2;5;5;5" (forma 2=Menor, casa 5, posição 5, texto 5)
     
-    modal.innerHTML = `
-        <div style="background: #1a1a2e; padding: 20px; border-radius: 10px; width: 90%; max-width: 500px; color: white;">
-            <h2 style="color: #e94560; margin-bottom: 20px;">🎸 Criar Acorde Personalizado</h2>
-            
-            <div style="margin-bottom: 15px;">
-                <label>Nome do Acorde:</label>
-                <input type="text" id="acordeNome" placeholder="Ex: C7M" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px; border: none;">
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <label>Casa Inicial:</label>
-                <input type="number" id="casaInicial" value="1" min="1" max="12" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px; border: none;">
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <label>Cordas (casa ou -1 para silêncio, 0 para solta):</label>
-                <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 10px;">
-                    ${['6 (E)', '5 (A)', '4 (D)', '3 (G)', '2 (B)', '1 (e)'].map((corda, i) => `
-                        <div>
-                            <div style="text-align: center; font-size: 12px; margin-bottom: 5px;">${corda}</div>
-                            <input type="number" id="corda${i}" value="-1" style="width: 100%; padding: 8px; border-radius: 5px; border: none; text-align: center;">
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <label>Dedos (opcional, deixe vazio para nenhum):</label>
-                <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; margin-top: 10px;">
-                    ${[1,2,3,4,5,6].map(i => `
-                        <div>
-                            <div style="text-align: center; font-size: 12px; margin-bottom: 5px;">Corda ${i}</div>
-                            <input type="text" id="dedo${i-1}" maxlength="1" placeholder="" style="width: 100%; padding: 8px; border-radius: 5px; border: none; text-align: center;">
-                        </div>
-                    `).join('')}
-                </div>
-            </div>
-            
-            <div style="margin-bottom: 15px;">
-                <label>Pestana:</label>
-                <select id="tipoPestana" style="width: 100%; padding: 8px; margin-top: 5px; border-radius: 5px;">
-                    <option value="none">Sem pestana</option>
-                    <option value="auto">Automática (nas cordas com mesma casa)</option>
-                    <option value="custom">Personalizada (escolher cordas)</option>
-                </select>
-            </div>
-            
-            <div id="pestanaCustomDiv" style="display: none; margin-top: 10px;">
-                <label>Cordas com pestana (selecione):</label>
-                <div style="display: flex; gap: 10px; margin-top: 10px;">
-                    ${[1,2,3,4,5,6].map(i => `
-                        <label style="display: flex; flex-direction: column; align-items: center;">
-                            <span style="font-size: 12px;">Corda ${i}</span>
-                            <input type="checkbox" id="pestanaCorda${i-1}" value="${i-1}">
-                        </label>
-                    `).join('')}
-                </div>
-            </div>
-            
-            <div style="display: flex; gap: 10px; margin-top: 20px;">
-                <button id="salvarAcordeBtn" style="flex: 1; background: #2ecc71; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer;">💾 Salvar Acorde</button>
-                <button id="cancelarAcordeBtn" style="flex: 1; background: #e94560; color: white; padding: 10px; border: none; border-radius: 5px; cursor: pointer;">❌ Cancelar</button>
-            </div>
-        </div>
-    `;
+    const partes = formato.split(';').map(p => p.trim());
     
-    document.body.appendChild(modal);
+    if (partes.length < 2) {
+        console.error('Formato inválido. Use: forma;casa');
+        return null;
+    }
     
-    // Mostrar/esconder opções de pestana personalizada
-    const tipoPestana = modal.querySelector('#tipoPestana');
-    const pestanaCustomDiv = modal.querySelector('#pestanaCustomDiv');
+    const formaId = partes[0];  // '1', '2', '3', '4', '5', '6', '7', '8', '9'
+    const casa = parseInt(partes[1]);  // casa da pestana
+    const posicaoMostrada = partes[2] ? parseInt(partes[2]) : null;
+    const textoNumero = partes[3] ? parseInt(partes[3]) : null;
     
-    tipoPestana.addEventListener('change', (e) => {
-        pestanaCustomDiv.style.display = e.target.value === 'custom' ? 'block' : 'none';
+    // Busca a forma no dicionário
+    const formaBase = FORMAS_INFINITAS[formaId];
+    if (!formaBase) {
+        console.error(`Forma ${formaId} não encontrada no dicionário`);
+        return null;
+    }
+    
+    // Calcula as cordas baseado na casa
+    const cordas = formaBase.cordas.map(c => {
+        if (c === -1) return -1;
+        if (c === 0) return 0;
+        return c + casa - 1;  // Ajusta pela casa da pestana
     });
     
-    // Salvar acorde
-    modal.querySelector('#salvarAcordeBtn').addEventListener('click', () => {
-        const nome = modal.querySelector('#acordeNome').value.trim();
-        if (!nome) {
-            alert('Digite um nome para o acorde!');
-            return;
-        }
-        
-        const casaInicial = parseInt(modal.querySelector('#casaInicial').value) || 1;
-        
-        // Pega as cordas
-        const cordas = [];
-        for (let i = 0; i < 6; i++) {
-            cordas.push(parseInt(modal.querySelector(`#corda${i}`).value) || -1);
-        }
-        
-        // Pega os dedos
-        const dedos = [];
-        for (let i = 0; i < 6; i++) {
-            dedos.push(modal.querySelector(`#dedo${i}`).value || '');
-        }
-        
-        // Processa a pestana
-        let pestana = false;
-        const tipo = tipoPestana.value;
-        
-        if (tipo === 'auto') {
-            pestana = true; // Será processado automaticamente
-        } else if (tipo === 'custom') {
-            const cordasPestana = [];
-            for (let i = 0; i < 6; i++) {
-                const checkbox = modal.querySelector(`#pestanaCorda${i}`);
-                if (checkbox && checkbox.checked) {
-                    cordasPestana.push(i);
-                }
-            }
-            pestana = cordasPestana;
-        }
-        
-        // Salvar acorde
-        const acordeData = {
-            nome: nome,
-            cordas: cordas,
-            dedos: dedos,
-            pestana: pestana,
-            casaInicial: casaInicial
-        };
-        
-        // Salvar no localStorage
-        const acordesPersonalizados = JSON.parse(localStorage.getItem('acordes_violao_personalizados') || '{}');
-        acordesPersonalizados[nome] = acordeData;
-        localStorage.setItem('acordes_violao_personalizados', JSON.stringify(acordesPersonalizados));
-        
-        // Adicionar ao ACORDES global
-        if (typeof ACORDES !== 'undefined') {
-            ACORDES[nome] = processarAcordePersonalizado(nome, acordeData);
-        }
-        
-        alert(`✅ Acorde "${nome}" salvo com sucesso!`);
-        modal.remove();
-    });
+    // Dedos (mantém os mesmos)
+    const dedos = [...formaBase.dedos];
     
-    modal.querySelector('#cancelarAcordeBtn').addEventListener('click', () => {
-        modal.remove();
-    });
+    // Processa a pestana
+    let pestanaInfo = { temPestana: false, casa: casa, cordas: [] };
+    if (formaBase.pestana) {
+        pestanaInfo = processarPestana(formaBase.pestana, cordas);
+    }
+    
+    // Nome do acorde
+    let nome = nomePersonalizado;
+    if (!nome || nome === '') {
+        const notas = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+        const notaIndex = (casa + 2) % 12;
+        nome = `${notas[notaIndex]} ${formaBase.nome}`;
+    }
+    
+    const acorde = {
+        nome: nome,
+        cordas: cordas,
+        dedos: dedos,
+        pestana: pestanaInfo.temPestana,
+        pestanaCasa: pestanaInfo.casa,
+        pestanaCordas: pestanaInfo.cordas,
+        casaInicial: casa,
+        baixo: ''
+    };
+    
+    // Adiciona posição se tiver
+    if (posicaoMostrada !== null) {
+        acorde.posicao = posicaoMostrada;
+        acorde.mostrarPosicao = true;
+        acorde.textoPosicao = (textoNumero !== null && !isNaN(textoNumero)) 
+            ? textoNumero + 'ª' 
+            : posicaoMostrada + 'ª';
+    }
+    
+    return acorde;
 }
 
-// Função para desenhar acorde com pestana personalizada
-function desenharAcordeComPestanaPersonalizada(container, acorde) {
+// Desenha acorde no canvas
+function desenharAcorde(container, acorde) {
+    if (!container || !acorde) return;
+    
     container.innerHTML = '';
     const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display: inline-block; margin: 20px 10px; text-align: center;';
+    wrapper.style.cssText = 'display: inline-block; margin: 10px; text-align: center;';
     
     const canvas = document.createElement('canvas');
     canvas.width = 140;
@@ -255,7 +139,7 @@ function desenharAcordeComPestanaPersonalizada(container, acorde) {
     const startX = 28, startY = 45, stringSpacing = 18, fretSpacing = 26;
     const numFrets = 5;
     
-    // Desenha cordas
+    // Cordas
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 6; i++) {
@@ -265,7 +149,7 @@ function desenharAcordeComPestanaPersonalizada(container, acorde) {
         ctx.stroke();
     }
     
-    // Desenha trastes
+    // Trastes
     for (let i = 0; i <= numFrets; i++) {
         ctx.beginPath();
         ctx.moveTo(startX, startY + i * fretSpacing);
@@ -273,14 +157,22 @@ function desenharAcordeComPestanaPersonalizada(container, acorde) {
         ctx.stroke();
     }
     
-    // Número da casa inicial
+    // Casa inicial
     if (acorde.casaInicial > 1) {
         ctx.font = 'bold 12px Arial';
         ctx.fillStyle = '#333';
         ctx.fillText(acorde.casaInicial + 'ª', startX - 18, startY + fretSpacing / 2 + 2);
     }
     
-    // Desenha pestana personalizada
+    // Texto da posição
+    if (acorde.textoPosicao && acorde.posicao) {
+        const posY = startY + (acorde.posicao - 1) * fretSpacing + fretSpacing / 2;
+        ctx.font = 'bold 14px Arial';
+        ctx.fillStyle = '#e94560';
+        ctx.fillText(acorde.textoPosicao, startX - 20, posY + 5);
+    }
+    
+    // Pestana
     if (acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0) {
         const pestanaY = startY + 12;
         const primeiraCorda = Math.min(...acorde.pestanaCordas);
@@ -295,13 +187,11 @@ function desenharAcordeComPestanaPersonalizada(container, acorde) {
         ctx.lineWidth = 1.5;
     }
     
-    // Desenha as notas
+    // Notas
     const pestanaCasa = acorde.pestanaCasa || acorde.casaInicial;
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
-        let casaRelativa = casa - pestanaCasa + 1;
-        
-        // Se a corda está na pestana, não desenha bolinha separada
+        const casaRelativa = casa - pestanaCasa + 1;
         const isPestanaCorda = acorde.pestanaCordas && acorde.pestanaCordas.includes(i);
         
         if (casa === 0) {
@@ -339,135 +229,60 @@ function desenharAcordeComPestanaPersonalizada(container, acorde) {
     });
     
     wrapper.appendChild(canvas);
+    
+    const nomeSpan = document.createElement('div');
+    nomeSpan.textContent = acorde.nome;
+    nomeSpan.style.cssText = 'font-size: 12px; margin-top: 8px; color: #333; font-weight: bold;';
+    wrapper.appendChild(nomeSpan);
+    
     container.appendChild(wrapper);
 }
 
-
-
-
-// ============================================
-// ACORDES DINÂMICOS - PROCESSADOR PRINCIPAL
-// ============================================
-
-function processarAcordeDinamico(sigla, nomePersonalizado = '') {
-    console.log("processarAcordeDinamico chamado com:", sigla, nomePersonalizado);
+// PARSER
+function renderizarAcordes() {
+    const body = document.body;
+    if (!body) return;
     
-    if (typeof FORMAS_INFINITAS === 'undefined' || typeof FORMAS_SEM_PESTANA_INFINITAS === 'undefined') {
-        console.error('Dicionário de formas não carregado!');
-        return null;
-    }
+    let html = body.innerHTML;
+    const regex = /\[Acorde:([^\]]+)\]([^\[]*)\[\/Acorde\]/g;
+    let match;
+    let newHtml = html;
+    let containers = [];
     
-    let matchDois = sigla.match(/^(\d+);(\d+)$/);
-    let matchTres = sigla.match(/^(\d+);(\d+);(\d+)$/);
-    
-    let forma, segundo, terceiro;
-    
-    if (matchDois && !matchTres) {
-        forma = parseInt(matchDois[1]);
-        segundo = parseInt(matchDois[2]);
-        terceiro = null;
-    } else if (matchTres) {
-        forma = parseInt(matchTres[1]);
-        segundo = parseInt(matchTres[2]);
-        terceiro = parseInt(matchTres[3]);
-    } else {
-        console.error(`Formato inválido: ${sigla}`);
-        return null;
-    }
-    
-    let cordasAjustadas, dedosAjustados, pestanaCordas, temPestana;
-    let posicaoMostrar = null;
-    let mostrarNumero = true;
-    let cordaBase = null;
-    let nomeTipo = '';
-    
-    // CASO 1: COM PESTANA
-    if (matchDois && !matchTres) {
-        const casa = segundo;
-        const formaBase = FORMAS_INFINITAS[forma];
+    while ((match = regex.exec(html)) !== null) {
+        const formato = match[1];
+        const nomeAcorde = match[2];
+        const acorde = processarAcordeDinamico(formato, nomeAcorde);
         
-        if (!formaBase) {
-            console.error(`Forma ${forma} não encontrada.`);
-            return null;
+        if (acorde) {
+            const id = 'acorde-' + Date.now() + '-' + containers.length;
+            const placeholder = `<div id="${id}" class="acorde-placeholder" style="display: inline-block;"></div>`;
+            newHtml = newHtml.replace(match[0], placeholder);
+            containers.push({ id, acorde });
         }
-        
-        nomeTipo = formaBase.nome;
-        cordaBase = formaBase.cordaBase;
-        cordasAjustadas = [...formaBase.cordas];
-        dedosAjustados = [...formaBase.dedos];
-        pestanaCordas = formaBase.pestana;
-        temPestana = true;
-        posicaoMostrar = casa;
-        
-        for (let i = 0; i < cordasAjustadas.length; i++) {
-            if (cordasAjustadas[i] > 0) {
-                cordasAjustadas[i] = cordasAjustadas[i] + (casa - 1);
-            }
-        }
-        
-        console.log(`✅ Com pestana: forma ${forma} (${nomeTipo}, corda base ${cordaBase}), casa ${casa}`);
-    }
-    // CASO 2: SEM PESTANA
-    else if (matchTres && segundo === 0) {
-        const posicao = terceiro;
-        const formaBase = FORMAS_SEM_PESTANA_INFINITAS[forma];
-        
-        if (!formaBase) {
-            console.error(`Forma sem pestana ${forma} não encontrada.`);
-            return null;
-        }
-        
-        nomeTipo = formaBase.nome;
-        cordasAjustadas = [...formaBase.cordas];
-        dedosAjustados = [...formaBase.dedos];
-        pestanaCordas = [];
-        temPestana = false;
-        
-        if (posicao > 0) {
-            posicaoMostrar = posicao;
-        } else {
-            posicaoMostrar = null;
-            mostrarNumero = false;
-        }
-        
-        console.log(`✅ Sem pestana: forma ${forma} (${nomeTipo}), posição ${posicao}`);
-    }
-    else {
-        console.error(`Formato não reconhecido: ${sigla}`);
-        return null;
     }
     
-    let nomeGerado = nomePersonalizado;
-    if (!nomeGerado || nomeGerado === sigla) {
-        nomeGerado = temPestana ? `${posicaoMostrar}ª ${nomeTipo}` : nomeTipo;
+    if (newHtml !== html) {
+        body.innerHTML = newHtml;
+        containers.forEach(container => {
+            const elemento = document.getElementById(container.id);
+            if (elemento) desenharAcorde(elemento, container.acorde);
+        });
     }
-    
-    return {
-        nome: nomeGerado,
-        cordas: cordasAjustadas,
-        dedos: dedosAjustados,
-        pestana: temPestana,
-        pestanaCordas: pestanaCordas,
-        pestanaCasa: temPestana ? segundo : 1,
-        casaInicial: temPestana ? segundo : (posicaoMostrar || 1),
-        posicao: posicaoMostrar,
-        temPestana: temPestana,
-        mostrarNumero: mostrarNumero,
-        cordaBase: cordaBase
-    };
 }
 
-// Função para adicionar nova forma
-function adicionarFormaAcorde(formaId, dados) {
-    if (dados.pestana) {
-        FORMAS_INFINITAS[formaId] = dados;
-    } else {
-        FORMAS_SEM_PESTANA_INFINITAS[formaId] = dados;
-    }
-    console.log(`✅ Forma ${formaId} adicionada!`);
-}
-
+// Inicializa
 if (typeof window !== 'undefined') {
-    window.processarAcordeDinamico = processarAcordeDinamico;
-    window.adicionarFormaAcorde = adicionarFormaAcorde;
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', renderizarAcordes);
+    } else {
+        renderizarAcordes();
+    }
 }
+
+window.processarAcordeDinamico = processarAcordeDinamico;
+window.desenharAcorde = desenharAcorde;
+window.renderizarAcordes = renderizarAcordes;
+window.FORMAS_INFINITAS = FORMAS_INFINITAS;
+
+console.log('✅ Sistema com dicionário carregado!');
