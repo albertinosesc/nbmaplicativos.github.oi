@@ -197,55 +197,70 @@
     <div id="modalPlanosAluno" class="modal"><div class="modal-content" style="max-width:700px;"><div class="modal-header"><h3 id="modalPlanosTitulo">📋 Planos</h3><button class="close-modal" onclick="fecharModal('modalPlanosAluno')">✕</button></div><div id="modalPlanosConteudo"></div></div></div>
 
     <script>
-               // ==================== CONFIGURAÇÃO DO GITHUB (CORRIGIDA) ====================
-        // Use o caminho RAW do GitHub, que é o único que funciona para fetch.
-        // O caminho base é construído a partir da URL da sua pasta no GitHub.
-        // Exemplo: https://github.com/albertinosesc/nbmaplicativos.github.oi/blob/main/aplicativos/06/data/atividades/15.json
-        // Deve virar: https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/06/data/atividades/15.json
-        
-        const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/06/data/";
-        
-        // A função de carregar atividades será atualizada para usar esta base
-        async function carregarAtividadesDoGitHub() {
-            console.log("🔄 Carregando atividades do GitHub a partir de:", GITHUB_RAW_BASE + "atividades/");
-            let carregadas = 0;
-            // Tenta carregar os IDs que você tem. Vamos supor que existem de 1 a 50 por enquanto.
-            for (let id = 1; id <= 50; id++) {
-                const url = `${GITHUB_RAW_BASE}atividades/${id}.json`;
-                try {
-                    const response = await fetch(url);
-                    if (response.ok) {
-                        const atividade = await response.json();
-                        if (atividade && atividade.id) {
-                            // Salva a atividade no objeto global ATIVIDADES
-                            ATIVIDADES[id] = atividade;
-                            carregadas++;
-                            console.log(`✅ Atividade ${id} carregada: ${atividade.titulo}`);
-                        }
-                    } else {
-                        // Arquieto não encontrado (404) é normal, só ignora.
-                        // console.log(`ℹ️ Atividade ${id} não encontrada.`);
-                    }
-                } catch (e) {
-                    // Erro de rede ou permissão (CORS). Pode acontecer se a URL estiver errada.
-                    console.error(`❌ Erro ao buscar atividade ${id}:`, e);
+              // ==================== CONFIGURAÇÃO DO GITHUB ====================
+// DEFINIR O BASE_PATH CORRETAMENTE
+const GITHUB_USER = "albertinosesc";
+const GITHUB_REPO = "nbmaplicativos.github.oi";
+const GITHUB_BRANCH = "main";
+const BASE_PATH = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/aplicativos/06/`;
+
+// ==================== CARREGAR DO GITHUB ====================
+async function carregarAtividadesDoGitHub() {
+    console.log("🔄 Carregando atividades do GitHub...");
+    let carregadas = 0;
+    
+    for (let id = 1; id <= 50; id++) {
+        const url = `${BASE_PATH}data/atividades/${id}.json`;
+        try {
+            const response = await fetch(url);
+            if (response.ok) {
+                const atividade = await response.json();
+                if (atividade && atividade.id) {
+                    ATIVIDADES[id] = atividade;
+                    carregadas++;
+                    console.log(`✅ Atividade ${id} carregada`);
                 }
             }
-            console.log(`✅ Total de ${carregadas} atividades carregadas do GitHub.`);
-            // Após carregar, salva no localStorage e atualiza a interface
-            if (carregadas > 0) {
-                salvarTodosDados(); // Esta função deve existir no seu código
-                atualizarListasAdmin();
-                mostrarToast(`${carregadas} atividades carregadas do GitHub!`);
-            } else {
-                mostrarToast("⚠️ Nenhuma atividade encontrada no GitHub. Verifique a pasta 'data/atividades/'.");
-            }
-        }
+        } catch(e) { /* arquivo não existe */ }
+    }
+    console.log(`✅ Total: ${carregadas} atividades carregadas`);
+    if (carregadas > 0) {
+        salvarTodosDados();
+        atualizarListasAdmin();
+    }
+}
 
-        // IMPORTANTE: Como o GitHub pode demorar, chame esta função explicitamente após carregar a página
-        // e certifique-se de que ela não está sendo bloqueada por outras funções.
-        // No final do seu script, onde você chama carregarDados(), adicione:
-        // carregarAtividadesDoGitHub();
+async function carregarPlanosAulaDoGitHub() {
+    for (let id = 1; id <= 20; id++) {
+        const url = `${BASE_PATH}data/planosAula/${id}.json`;
+        try {
+            const response = await fetch(url);
+            if (response.ok) {
+                const plano = await response.json();
+                if (plano && plano.id) {
+                    PLANOS_AULA[id] = plano;
+                    console.log(`✅ Plano de aula ${id} carregado`);
+                }
+            }
+        } catch(e) {}
+    }
+}
+
+async function carregarPlanosCursoDoGitHub() {
+    for (let id = 1; id <= 10; id++) {
+        const url = `${BASE_PATH}data/planosCurso/${id}.json`;
+        try {
+            const response = await fetch(url);
+            if (response.ok) {
+                const plano = await response.json();
+                if (plano && plano.id) {
+                    PLANOS_CURSO[id] = plano;
+                    console.log(`✅ Plano de curso ${id} carregado`);
+                }
+            }
+        } catch(e) {}
+    }
+}
         // ==================== DADOS ====================
         let ALUNOS = [];
         let ALUNO_SELECIONADO_ID = null;
@@ -330,40 +345,46 @@
             mostrarToast('✅ Dados salvos!');
         }
         
-        function carregarDados() {
-            const salvos = localStorage.getItem('musica_dados');
-            if (salvos) {
-                try {
-                    const dados = JSON.parse(salvos);
-                    ALUNOS = dados.alunos || [];
-                    ATIVIDADES = dados.atividades || {};
-                    PLANOS_AULA = dados.planosAula || {};
-                    PLANOS_CURSO = dados.planosCurso || {};
-                    ALUNOS.forEach(a => { if (!a.acoes) a.acoes = []; if (!a.planosConcluidos) a.planosConcluidos = []; });
-                } catch(e) { console.error(e); }
-            }
-            if (ALUNOS.length === 0) {
-                ALUNOS = [{ id: Date.now(), nome: "Aluno Demo", nivel: 1, acoes: [1,2,12], planosConcluidos: [] }];
-            }
-            if (Object.keys(PLANOS_CURSO).length === 0) {
-                PLANOS_CURSO[1] = { id: 1, nome: "Fundação Musical", ano: 1, nivel: 1, objetivoGeral: "Desenvolver fundamentos musicais", cargaHoraria: 40, planos_aula_ids: [1,2] };
-            }
-            if (Object.keys(PLANOS_AULA).length === 0) {
-                PLANOS_AULA[1] = { id: 1, titulo: "Conhecendo a Nota Dó", nivel: 1, duracao: "50min", objetivoGeral: "Familiarizar com a nota Dó", atividades_ids: [1,2,12] };
-                PLANOS_AULA[2] = { id: 2, titulo: "Brincando com Ritmo", nivel: 1, duracao: "50min", objetivoGeral: "Desenvolver percepção rítmica", atividades_ids: [94,95,96] };
-            }
-            atualizarTudo();
-            
-            // Carregar do GitHub em segundo plano
-            carregarAtividadesDoGitHub().then(() => {
-                salvarTodosDados();
-                atualizarListasAdmin();
-                mostrarToast(`✅ ${Object.keys(ATIVIDADES).length} atividades carregadas do GitHub!`);
-            });
-            carregarPlanosAulaDoGitHub();
-            carregarPlanosCursoDoGitHub();
-        }
-        
+function carregarDados() {
+    // Primeiro carrega do localStorage
+    const salvos = localStorage.getItem('musica_dados');
+    if (salvos) {
+        try {
+            const dados = JSON.parse(salvos);
+            ALUNOS = dados.alunos || [];
+            ATIVIDADES = dados.atividades || {};
+            PLANOS_AULA = dados.planosAula || {};
+            PLANOS_CURSO = dados.planosCurso || {};
+            ALUNOS.forEach(a => { if (!a.acoes) a.acoes = []; if (!a.planosConcluidos) a.planosConcluidos = []; });
+        } catch(e) { console.error(e); }
+    }
+    
+    // Dados padrão
+    if (ALUNOS.length === 0) {
+        ALUNOS = [{ id: Date.now(), nome: "Aluno Demo", nivel: 1, acoes: [1,2,12], planosConcluidos: [] }];
+    }
+    if (Object.keys(PLANOS_CURSO).length === 0) {
+        PLANOS_CURSO[1] = { id: 1, nome: "Fundação Musical", ano: 1, nivel: 1, objetivoGeral: "Desenvolver fundamentos musicais", cargaHoraria: 40, planos_aula_ids: [1,2] };
+    }
+    if (Object.keys(PLANOS_AULA).length === 0) {
+        PLANOS_AULA[1] = { id: 1, titulo: "Conhecendo a Nota Dó", nivel: 1, duracao: "50min", objetivoGeral: "Familiarizar com a nota Dó", atividades_ids: [1,2,12] };
+        PLANOS_AULA[2] = { id: 2, titulo: "Brincando com Ritmo", nivel: 1, duracao: "50min", objetivoGeral: "Desenvolver percepção rítmica", atividades_ids: [94,95,96] };
+    }
+    
+    atualizarTudo();
+    
+    // Carregar do GitHub (sem travar a interface)
+    setTimeout(() => {
+        carregarAtividadesDoGitHub();
+        carregarPlanosAulaDoGitHub();
+        carregarPlanosCursoDoGitHub();
+    }, 500);
+}
+
+
+
+
+
         function atualizarEstatisticas() {
             document.getElementById('statAtividades').textContent = Object.keys(ATIVIDADES).length;
             document.getElementById('statPlanosAula').textContent = Object.keys(PLANOS_AULA).length;
