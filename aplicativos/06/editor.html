@@ -1,0 +1,977 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Editor - Criar Atividades, Planos de Aula e Curso</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; padding: 20px; color: #333; }
+        .container { max-width: 1400px; margin: 0 auto; }
+        .header { background: white; border-radius: 20px; padding: 20px; margin-bottom: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .header h1 { color: #1e3c72; font-size: 1.8em; }
+        .tabs { display: flex; gap: 10px; margin-bottom: 25px; flex-wrap: wrap; }
+        .tab-btn { background: rgba(255,255,255,0.2); border: none; padding: 12px 25px; border-radius: 50px; font-size: 1em; font-weight: bold; cursor: pointer; color: white; transition: all 0.3s; }
+        .tab-btn.active { background: white; color: #1e3c72; box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.4); }
+        .panel { display: none; animation: fadeIn 0.3s ease; }
+        .panel.active { display: block; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .card { background: white; border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .card h2 { color: #1e3c72; margin-bottom: 20px; border-left: 5px solid #ff6b6b; padding-left: 15px; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        input, select, textarea { width: 100%; padding: 12px; border: 2px solid #ddd; border-radius: 10px; font-size: 1em; }
+        input:focus, select:focus, textarea:focus { outline: none; border-color: #ff6b6b; }
+        textarea { font-family: monospace; resize: vertical; }
+        button { background: #ff6b6b; color: white; border: none; padding: 12px 25px; border-radius: 50px; font-size: 1em; cursor: pointer; font-weight: bold; transition: all 0.3s; }
+        button:hover { background: #ff5252; transform: scale(1.02); }
+        button.secondary { background: #4ecdc4; }
+        button.success { background: #28a745; }
+        button.warning { background: #ffc107; color: #333; }
+        button.info { background: #17a2b8; }
+        button.danger { background: #dc3545; }
+        .toolbar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; justify-content: space-between; align-items: center; }
+        .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(350px, 1fr)); gap: 20px; }
+        .item-card { background: #f8f9fa; border-radius: 15px; padding: 15px; margin-bottom: 15px; border-left: 4px solid #ff6b6b; }
+        .item-card .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; background: none; padding: 0; box-shadow: none; }
+        .badge { display: inline-block; background: #e0e0e0; padding: 3px 10px; border-radius: 20px; font-size: 0.75em; margin-right: 5px; }
+        .badge-id { background: #ff6b6b; color: white; }
+        .empty-state { text-align: center; padding: 40px; color: #999; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; }
+        .stat-card { background: linear-gradient(135deg,#667eea,#764ba2); color: white; padding: 20px; border-radius: 15px; text-align: center; }
+        @media (max-width: 768px) { .grid-2 { grid-template-columns: 1fr; } .tab-btn { padding: 8px 16px; font-size: 0.85em; } }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>✏️ Editor de Conteúdo Musical</h1>
+            <p>Crie e edite Atividades, Planos de Aula e Planos de Curso - Você escolhe o ID</p>
+        </div>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="atividades">🎯 Atividades</button>
+            <button class="tab-btn" data-tab="planosAula">📚 Planos de Aula</button>
+            <button class="tab-btn" data-tab="planosCurso">🎓 Planos de Curso</button>
+            <button class="tab-btn" data-tab="exportar">💾 Exportar</button>
+        </div>
+
+        <!-- ==================== TAB ATIVIDADES ==================== -->
+        <div id="tab-atividades" class="panel active">
+            <div class="card">
+                <div class="toolbar">
+                    <h2>📝 Atividades</h2>
+                    <button id="btnNovaAtividade" class="info">✨ Nova Atividade</button>
+                </div>
+
+                <div id="formAtividade" style="display: none;">
+                    <div class="grid-2">
+                        <div>
+                            <div class="form-group">
+                                <label>🆔 ID da Atividade (você escolhe):</label>
+                                <input type="number" id="ativId" placeholder="Ex: 1, 2, 3...">
+                            </div>
+                            <div class="form-group">
+                                <label>📝 Título da Atividade:</label>
+                                <input type="text" id="ativTitulo" placeholder="Ex: Desenhando a nota na pauta">
+                            </div>
+                            <div class="form-group">
+                                <label>🎯 Objetivo:</label>
+                                <textarea id="ativObjetivo" rows="3" placeholder="Descreva o objetivo da atividade..."></textarea>
+                            </div>
+                        </div>
+                        <div>
+                            <div class="form-group">
+                                <label>⏱️ Duração Estimada:</label>
+                                <input type="text" id="ativDuracao" placeholder="Ex: 10min, 50min, 2h">
+                            </div>
+                            <div class="form-group">
+                                <label>🔗 Ação Vinculada (opcional):</label>
+                                <input type="number" id="ativAcaoId" placeholder="ID da ação relacionada (1-400)">
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>📦 Materiais (um por linha):</label>
+                        <textarea id="ativMateriais" rows="3" placeholder="Papel&#10;Lápis&#10;Piano"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label>📝 Passo a passo (um por linha):</label>
+                        <textarea id="ativPassos" rows="6" placeholder="1. Professor demonstra a ação&#10;2. Aluno observa e tenta imitar&#10;3. Pratica 5 vezes"></textarea>
+                    </div>
+                    <div class="toolbar">
+                        <button id="btnSalvarAtividade" class="success">💾 Salvar Atividade</button>
+                        <button id="btnCancelarAtividade" class="danger">Cancelar</button>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <h3>📋 Atividades Criadas</h3>
+                    <div id="listaAtividadesSalvas" class="empty-state">Nenhuma atividade criada ainda. Clique em "Nova Atividade" para começar.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB PLANOS DE AULA ==================== -->
+        <div id="tab-planosAula" class="panel">
+            <div class="card">
+                <div class="toolbar">
+                    <h2>📚 Planos de Aula</h2>
+                    <button id="btnNovoPlanoAula" class="info">✨ Novo Plano de Aula</button>
+                </div>
+
+                <div id="formPlanoAula" style="display: none;">
+                    <div class="grid-2">
+                        <div>
+                            <div class="form-group">
+                                <label>🆔 ID do Plano (você escolhe):</label>
+                                <input type="number" id="paId" placeholder="Ex: 1, 2, 3...">
+                            </div>
+                            <div class="form-group">
+                                <label>📖 Título:</label>
+                                <input type="text" id="paTitulo" placeholder="Ex: Conhecendo a Nota Dó">
+                            </div>
+                            <div class="form-group">
+                                <label>📊 Nível:</label>
+                                <select id="paNivel">
+                                    <option value="1">Nível 1 - Iniciante</option>
+                                    <option value="2">Nível 2 - Básico</option>
+                                    <option value="3">Nível 3 - Intermediário</option>
+                                    <option value="4">Nível 4 - Avançado</option>
+                                    <option value="5">Nível 5 - Especialista</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>⏱️ Duração:</label>
+                                <input type="text" id="paDuracao" placeholder="Ex: 50min">
+                            </div>
+                        </div>
+                        <div>
+                            <div class="form-group">
+                                <label>🎯 Objetivo Geral:</label>
+                                <textarea id="paObjetivoGeral" rows="3" placeholder="Objetivo principal do plano..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>📝 Objetivos Específicos (um por linha):</label>
+                                <textarea id="paObjetivosEspecificos" rows="3" placeholder="1. Identificar a nota Dó&#10;2. Localizar a tecla Dó"></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📚 Conteúdo (um por linha):</label>
+                        <textarea id="paConteudo" rows="3" placeholder="Apresentação do instrumento&#10;A nota Dó na pauta"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>⚙️ Metodologia:</label>
+                        <textarea id="paMetodologia" rows="2" placeholder="Aula expositiva e prática com jogos musicais"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🛠️ Recursos Didáticos (um por linha):</label>
+                        <textarea id="paRecursos" rows="3" placeholder="Piano&#10;Flashcards"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>⏰ Desenvolvimento (um por linha):</label>
+                        <textarea id="paDesenvolvimento" rows="4" placeholder="Momento 1 (5min): Boas-vindas&#10;Momento 2 (10min): Apresentação"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>✅ Avaliação:</label>
+                        <textarea id="paAvaliacao" rows="2" placeholder="Observação da participação"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🎨 IDs das Atividades (separados por vírgula):</label>
+                        <input type="text" id="paAtividadesIds" placeholder="Ex: 1, 2, 5, 10">
+                        <small>Digite os IDs das atividades que você já criou</small>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🔄 Adaptações (um por linha):</label>
+                        <textarea id="paAdaptacoes" rows="2" placeholder="Para alunos com dificuldade motora: teclas maiores"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🏠 Tarefa de Casa:</label>
+                        <textarea id="paTarefaCasa" rows="2" placeholder="Desenhar 5 notas na pauta"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📚 Referências (um por linha):</label>
+                        <textarea id="paReferencias" rows="2" placeholder="Apostila Nível 1&#10;Vídeo complementar"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📝 Observações:</label>
+                        <textarea id="paObservacoes" rows="2" placeholder="Aula lúdica, sem rigidez"></textarea>
+                    </div>
+                    
+                    <div class="toolbar">
+                        <button id="btnSalvarPlanoAula" class="success">💾 Salvar Plano de Aula</button>
+                        <button id="btnCancelarPlanoAula" class="danger">Cancelar</button>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <h3>📋 Planos de Aula Criados</h3>
+                    <div id="listaPlanosAula" class="empty-state">Nenhum plano de aula criado ainda.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB PLANOS DE CURSO ==================== -->
+        <div id="tab-planosCurso" class="panel">
+            <div class="card">
+                <div class="toolbar">
+                    <h2>🎓 Planos de Curso</h2>
+                    <button id="btnNovoPlanoCurso" class="info">✨ Novo Plano de Curso</button>
+                </div>
+
+                <div id="formPlanoCurso" style="display: none;">
+                    <div class="grid-2">
+                        <div>
+                            <div class="form-group">
+                                <label>🆔 ID do Curso (você escolhe):</label>
+                                <input type="number" id="pcId" placeholder="Ex: 1, 2, 3...">
+                            </div>
+                            <div class="form-group">
+                                <label>📛 Nome do Curso:</label>
+                                <input type="text" id="pcNome" placeholder="Ex: Fundação Musical - Nível 1">
+                            </div>
+                            <div class="form-group">
+                                <label>📅 Ano:</label>
+                                <input type="number" id="pcAno" placeholder="1">
+                            </div>
+                            <div class="form-group">
+                                <label>📊 Nível:</label>
+                                <select id="pcNivel">
+                                    <option value="1">Nível 1</option>
+                                    <option value="2">Nível 2</option>
+                                    <option value="3">Nível 3</option>
+                                    <option value="4">Nível 4</option>
+                                    <option value="5">Nível 5</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>🔖 Código:</label>
+                                <input type="text" id="pcCodigo" placeholder="Ex: MUS-001">
+                            </div>
+                        </div>
+                        <div>
+                            <div class="form-group">
+                                <label>📌 JUSTIFICATIVA:</label>
+                                <textarea id="pcJustificativa" rows="3" placeholder="Justificativa do curso..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>📖 EMENTA:</label>
+                                <textarea id="pcEmenta" rows="3" placeholder="Descrição resumida do curso..."></textarea>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🎯 OBJETIVO GERAL:</label>
+                        <textarea id="pcObjetivoGeral" rows="2" placeholder="Objetivo principal do curso..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📝 OBJETIVOS ESPECÍFICOS (um por linha):</label>
+                        <textarea id="pcObjetivosEspecificos" rows="3" placeholder="1. Reconhecer a nota Dó&#10;2. Desenvolver percepção auditiva"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>👥 PÚBLICO-ALVO:</label>
+                        <input type="text" id="pcPublicoAlvo" placeholder="Ex: Crianças de 4 a 7 anos">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🔧 PRÉ-REQUISITOS:</label>
+                        <input type="text" id="pcPreRequisitos" placeholder="Ex: Nenhum">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>⏱️ CARGA HORÁRIA:</label>
+                        <input type="number" id="pcCargaHoraria" placeholder="40">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📅 DURAÇÃO DO CURSO:</label>
+                        <input type="text" id="pcDuracaoCurso" placeholder="Ex: 4 meses">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📚 CONTEÚDO PROGRAMÁTICO (um por linha):</label>
+                        <textarea id="pcConteudoProgramatico" rows="3" placeholder="Unidade 1: Conhecendo o som&#10;Unidade 2: As notas Dó, Ré, Mi"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>⚙️ METODOLOGIA:</label>
+                        <textarea id="pcMetodologia" rows="2" placeholder="Aulas práticas e lúdicas"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🛠️ RECURSOS DIDÁTICOS (um por linha):</label>
+                        <textarea id="pcRecursos" rows="3" placeholder="Piano&#10;Xilofone&#10;Flashcards"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>✅ AVALIAÇÃO:</label>
+                        <textarea id="pcAvaliacao" rows="2" placeholder="Avaliação formativa contínua"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📜 CRITÉRIOS DE APROVAÇÃO:</label>
+                        <input type="text" id="pcCriterios" placeholder="Ex: 75% de frequência e 70% de aproveitamento">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📅 CRONOGRAMA (total semanas):</label>
+                        <input type="number" id="pcSemanas" placeholder="16">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📅 CRONOGRAMA (distribuição):</label>
+                        <input type="text" id="pcDistribuicao" placeholder="Ex: 1 encontro semanal de 50 minutos">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🎓 COMPETÊNCIAS (um por linha):</label>
+                        <textarea id="pcCompetencias" rows="3" placeholder="Percepção auditiva&#10;Coordenação motora"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📚 BIBLIOGRAFIA (um por linha):</label>
+                        <textarea id="pcBibliografia" rows="2" placeholder="Autor. Título. Editora, Ano."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🔗 REFERÊNCIAS COMPLEMENTARES (um por linha):</label>
+                        <textarea id="pcReferencias" rows="2" placeholder="Links, artigos, vídeos..."></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>🎓 CERTIFICAÇÃO:</label>
+                        <input type="text" id="pcCertificacao" placeholder="Ex: Certificado de Conclusão">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>👨‍🏫 PROFESSOR RESPONSÁVEL:</label>
+                        <input type="text" id="pcProfessor" placeholder="Ex: Equipe de Musicalização">
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📝 OBSERVAÇÕES:</label>
+                        <textarea id="pcObservacoes" rows="2" placeholder="Observações gerais"></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>📚 IDs dos Planos de Aula (separados por vírgula):</label>
+                        <input type="text" id="pcPlanosAulaIds" placeholder="Ex: 1, 2, 3">
+                        <small>Digite os IDs dos planos de aula que você já criou</small>
+                    </div>
+                    
+                    <div class="toolbar">
+                        <button id="btnSalvarPlanoCurso" class="success">💾 Salvar Plano de Curso</button>
+                        <button id="btnCancelarPlanoCurso" class="danger">Cancelar</button>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <h3>📋 Planos de Curso Criados</h3>
+                    <div id="listaPlanosCurso" class="empty-state">Nenhum plano de curso criado ainda.</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ==================== TAB EXPORTAR ==================== -->
+        <div id="tab-exportar" class="panel">
+            <div class="card">
+                <h2>💾 Exportar Dados</h2>
+                <div class="grid-2">
+                    <div>
+                        <h3>📤 Exportar</h3>
+                        <button id="btnExportarAtividades" class="success" style="width:100%; margin-bottom:10px;">📄 Exportar Atividades (JSON)</button>
+                        <button id="btnExportarPlanosAula" class="success" style="width:100%; margin-bottom:10px;">📚 Exportar Planos de Aula (JSON)</button>
+                        <button id="btnExportarPlanosCurso" class="success" style="width:100%; margin-bottom:10px;">🎓 Exportar Planos de Curso (JSON)</button>
+                        <button id="btnExportarTudo" class="info" style="width:100%;">💾 Exportar Tudo (Backup)</button>
+                    </div>
+                    <div>
+                        <h3>📥 Importar</h3>
+                        <input type="file" id="arquivoImport" accept=".json" style="margin-bottom:10px;">
+                        <button id="btnImportar" class="warning" style="width:100%;">📥 Importar Backup</button>
+                        <hr>
+                        <h3>📊 Estatísticas</h3>
+                        <div class="stats-grid">
+                            <div class="stat-card"><div class="stat-number" id="statAtividades">0</div><div>Atividades</div></div>
+                            <div class="stat-card"><div class="stat-number" id="statPlanosAula">0</div><div>Planos de Aula</div></div>
+                            <div class="stat-card"><div class="stat-number" id="statPlanosCurso">0</div><div>Planos de Curso</div></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==================== BANCO DE DADOS LOCAL ====================
+        let atividades = {};      // key = id (você escolhe)
+        let planosAula = {};      // key = id (você escolhe)
+        let planosCurso = {};      // key = id (você escolhe)
+        
+        // ==================== UTILITÁRIOS ====================
+        function mostrarToast(mensagem) {
+            const toast = document.createElement('div');
+            toast.style.cssText = 'position:fixed;bottom:20px;right:20px;background:#28a745;color:white;padding:10px 20px;border-radius:50px;z-index:1100;animation:fadeOut 2s ease;font-weight:bold';
+            toast.textContent = mensagem;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 2000);
+        }
+        
+        function carregarDadosSalvos() {
+            const saved = localStorage.getItem('editor_dados');
+            if (saved) {
+                const dados = JSON.parse(saved);
+                atividades = dados.atividades || {};
+                planosAula = dados.planosAula || {};
+                planosCurso = dados.planosCurso || {};
+            }
+            atualizarTudo();
+        }
+        
+        function salvarTudo() {
+            const dados = { atividades, planosAula, planosCurso };
+            localStorage.setItem('editor_dados', JSON.stringify(dados));
+            atualizarTudo();
+            mostrarToast('✅ Dados salvos!');
+        }
+        
+        function atualizarTudo() {
+            atualizarListaAtividades();
+            atualizarListaPlanosAula();
+            atualizarListaPlanosCurso();
+            atualizarEstatisticas();
+        }
+        
+        function atualizarEstatisticas() {
+            document.getElementById('statAtividades').textContent = Object.keys(atividades).length;
+            document.getElementById('statPlanosAula').textContent = Object.keys(planosAula).length;
+            document.getElementById('statPlanosCurso').textContent = Object.keys(planosCurso).length;
+        }
+        
+        // ==================== ATIVIDADES ====================
+        function novaAtividade() {
+            document.getElementById('ativId').value = '';
+            document.getElementById('ativTitulo').value = '';
+            document.getElementById('ativObjetivo').value = '';
+            document.getElementById('ativDuracao').value = '';
+            document.getElementById('ativAcaoId').value = '';
+            document.getElementById('ativMateriais').value = '';
+            document.getElementById('ativPassos').value = '';
+            document.getElementById('formAtividade').style.display = 'block';
+        }
+        
+        function salvarAtividade() {
+            const id = parseInt(document.getElementById('ativId').value);
+            if (!id || isNaN(id)) { alert('Digite um ID válido para a atividade'); return; }
+            
+            atividades[id] = {
+                id: id,
+                titulo: document.getElementById('ativTitulo').value,
+                objetivo: document.getElementById('ativObjetivo').value,
+                materiais: document.getElementById('ativMateriais').value.split('\n').filter(l => l.trim()),
+                passo_a_passo: document.getElementById('ativPassos').value.split('\n').filter(l => l.trim()),
+                duracao: document.getElementById('ativDuracao').value,
+                acao_id: parseInt(document.getElementById('ativAcaoId').value) || null
+            };
+            
+            salvarTudo();
+            document.getElementById('formAtividade').style.display = 'none';
+        }
+        
+        function cancelarAtividade() {
+            document.getElementById('formAtividade').style.display = 'none';
+        }
+        
+        function editarAtividade(id) {
+            const ativ = atividades[id];
+            if (!ativ) return;
+            document.getElementById('ativId').value = id;
+            document.getElementById('ativTitulo').value = ativ.titulo || '';
+            document.getElementById('ativObjetivo').value = ativ.objetivo || '';
+            document.getElementById('ativDuracao').value = ativ.duracao || '';
+            document.getElementById('ativAcaoId').value = ativ.acao_id || '';
+            document.getElementById('ativMateriais').value = (ativ.materiais || []).join('\n');
+            document.getElementById('ativPassos').value = (ativ.passo_a_passo || []).join('\n');
+            document.getElementById('formAtividade').style.display = 'block';
+        }
+        
+        function deletarAtividade(id) {
+            if (confirm(`Excluir atividade ID ${id}?`)) {
+                delete atividades[id];
+                salvarTudo();
+            }
+        }
+        
+        function atualizarListaAtividades() {
+            const container = document.getElementById('listaAtividadesSalvas');
+            const ids = Object.keys(atividades).sort((a,b) => a-b);
+            if (ids.length === 0) {
+                container.innerHTML = '<div class="empty-state">Nenhuma atividade criada ainda. Clique em "Nova Atividade" para começar.</div>';
+                return;
+            }
+            container.innerHTML = ids.map(id => `
+                <div class="item-card">
+                    <div class="header">
+                        <strong>🎯 ${escapeHtml(atividades[id].titulo || 'Sem título')}</strong>
+                        <span class="badge badge-id">ID: ${id}</span>
+                    </div>
+                    <div><strong>Duração:</strong> ${atividades[id].duracao || 'Não definida'}</div>
+                    <div><strong>Ação vinculada:</strong> ${atividades[id].acao_id || 'Nenhuma'}</div>
+                    <div style="margin-top:10px;">
+                        <button onclick="editarAtividade(${id})" class="secondary" style="padding:5px 15px;">✏️ Editar</button>
+                        <button onclick="deletarAtividade(${id})" class="danger" style="background:#dc3545; padding:5px 15px;">🗑️ Excluir</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // ==================== PLANOS DE AULA ====================
+        function novoPlanoAula() {
+            document.getElementById('paId').value = '';
+            document.getElementById('paTitulo').value = '';
+            document.getElementById('paNivel').value = 1;
+            document.getElementById('paDuracao').value = '50min';
+            document.getElementById('paObjetivoGeral').value = '';
+            document.getElementById('paObjetivosEspecificos').value = '';
+            document.getElementById('paConteudo').value = '';
+            document.getElementById('paMetodologia').value = '';
+            document.getElementById('paRecursos').value = '';
+            document.getElementById('paDesenvolvimento').value = '';
+            document.getElementById('paAvaliacao').value = '';
+            document.getElementById('paAtividadesIds').value = '';
+            document.getElementById('paAdaptacoes').value = '';
+            document.getElementById('paTarefaCasa').value = '';
+            document.getElementById('paReferencias').value = '';
+            document.getElementById('paObservacoes').value = '';
+            document.getElementById('formPlanoAula').style.display = 'block';
+        }
+        
+        function salvarPlanoAula() {
+            const id = parseInt(document.getElementById('paId').value);
+            if (!id || isNaN(id)) { alert('Digite um ID válido para o plano de aula'); return; }
+            
+            planosAula[id] = {
+                id: id,
+                titulo: document.getElementById('paTitulo').value,
+                nivel: parseInt(document.getElementById('paNivel').value),
+                duracao: document.getElementById('paDuracao').value,
+                objetivoGeral: document.getElementById('paObjetivoGeral').value,
+                objetivosEspecificos: document.getElementById('paObjetivosEspecificos').value.split('\n').filter(l => l.trim()),
+                conteudo: document.getElementById('paConteudo').value.split('\n').filter(l => l.trim()),
+                metodologia: document.getElementById('paMetodologia').value,
+                recursosDidaticos: document.getElementById('paRecursos').value.split('\n').filter(l => l.trim()),
+                desenvolvimento: document.getElementById('paDesenvolvimento').value.split('\n').filter(l => l.trim()),
+                avaliacao: document.getElementById('paAvaliacao').value,
+                atividades_ids: document.getElementById('paAtividadesIds').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)),
+                adaptacoes: document.getElementById('paAdaptacoes').value.split('\n').filter(l => l.trim()),
+                tarefaCasa: document.getElementById('paTarefaCasa').value,
+                referencias: document.getElementById('paReferencias').value.split('\n').filter(l => l.trim()),
+                observacoes: document.getElementById('paObservacoes').value
+            };
+            
+            salvarTudo();
+            document.getElementById('formPlanoAula').style.display = 'none';
+        }
+        
+        function cancelarPlanoAula() {
+            document.getElementById('formPlanoAula').style.display = 'none';
+        }
+        
+        function editarPlanoAula(id) {
+            const plano = planosAula[id];
+            if (!plano) return;
+            document.getElementById('paId').value = id;
+            document.getElementById('paTitulo').value = plano.titulo || '';
+            document.getElementById('paNivel').value = plano.nivel || 1;
+            document.getElementById('paDuracao').value = plano.duracao || '';
+            document.getElementById('paObjetivoGeral').value = plano.objetivoGeral || '';
+            document.getElementById('paObjetivosEspecificos').value = (plano.objetivosEspecificos || []).join('\n');
+            document.getElementById('paConteudo').value = (plano.conteudo || []).join('\n');
+            document.getElementById('paMetodologia').value = plano.metodologia || '';
+            document.getElementById('paRecursos').value = (plano.recursosDidaticos || []).join('\n');
+            document.getElementById('paDesenvolvimento').value = (plano.desenvolvimento || []).join('\n');
+            document.getElementById('paAvaliacao').value = plano.avaliacao || '';
+            document.getElementById('paAtividadesIds').value = (plano.atividades_ids || []).join(', ');
+            document.getElementById('paAdaptacoes').value = (plano.adaptacoes || []).join('\n');
+            document.getElementById('paTarefaCasa').value = plano.tarefaCasa || '';
+            document.getElementById('paReferencias').value = (plano.referencias || []).join('\n');
+            document.getElementById('paObservacoes').value = plano.observacoes || '';
+            document.getElementById('formPlanoAula').style.display = 'block';
+        }
+        
+        function deletarPlanoAula(id) {
+            if (confirm(`Excluir plano de aula ID ${id}?`)) {
+                delete planosAula[id];
+                salvarTudo();
+            }
+        }
+        
+        function atualizarListaPlanosAula() {
+            const container = document.getElementById('listaPlanosAula');
+            const ids = Object.keys(planosAula).sort((a,b) => a-b);
+            if (ids.length === 0) {
+                container.innerHTML = '<div class="empty-state">Nenhum plano de aula criado ainda.</div>';
+                return;
+            }
+            container.innerHTML = ids.map(id => `
+                <div class="item-card">
+                    <div class="header">
+                        <strong>📖 ${escapeHtml(planosAula[id].titulo || 'Sem título')}</strong>
+                        <span class="badge badge-id">ID: ${id}</span>
+                    </div>
+                    <div><strong>Nível:</strong> ${planosAula[id].nivel}</div>
+                    <div><strong>Atividades:</strong> ${(planosAula[id].atividades_ids || []).join(', ') || 'Nenhuma'}</div>
+                    <div style="margin-top:10px;">
+                        <button onclick="editarPlanoAula(${id})" class="secondary" style="padding:5px 15px;">✏️ Editar</button>
+                        <button onclick="deletarPlanoAula(${id})" class="danger" style="background:#dc3545; padding:5px 15px;">🗑️ Excluir</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // ==================== PLANOS DE CURSO ====================
+        function novoPlanoCurso() {
+            document.getElementById('pcId').value = '';
+            document.getElementById('pcNome').value = '';
+            document.getElementById('pcAno').value = 1;
+            document.getElementById('pcNivel').value = 1;
+            document.getElementById('pcCodigo').value = '';
+            document.getElementById('pcJustificativa').value = '';
+            document.getElementById('pcEmenta').value = '';
+            document.getElementById('pcObjetivoGeral').value = '';
+            document.getElementById('pcObjetivosEspecificos').value = '';
+            document.getElementById('pcPublicoAlvo').value = '';
+            document.getElementById('pcPreRequisitos').value = '';
+            document.getElementById('pcCargaHoraria').value = 40;
+            document.getElementById('pcDuracaoCurso').value = '';
+            document.getElementById('pcConteudoProgramatico').value = '';
+            document.getElementById('pcMetodologia').value = '';
+            document.getElementById('pcRecursos').value = '';
+            document.getElementById('pcAvaliacao').value = '';
+            document.getElementById('pcCriterios').value = '';
+            document.getElementById('pcSemanas').value = '';
+            document.getElementById('pcDistribuicao').value = '';
+            document.getElementById('pcCompetencias').value = '';
+            document.getElementById('pcBibliografia').value = '';
+            document.getElementById('pcReferencias').value = '';
+            document.getElementById('pcCertificacao').value = '';
+            document.getElementById('pcProfessor').value = '';
+            document.getElementById('pcObservacoes').value = '';
+            document.getElementById('pcPlanosAulaIds').value = '';
+            document.getElementById('formPlanoCurso').style.display = 'block';
+        }
+        
+        function salvarPlanoCurso() {
+            const id = parseInt(document.getElementById('pcId').value);
+            if (!id || isNaN(id)) { alert('Digite um ID válido para o plano de curso'); return; }
+            
+            planosCurso[id] = {
+                id: id,
+                nome: document.getElementById('pcNome').value,
+                ano: parseInt(document.getElementById('pcAno').value),
+                nivel: parseInt(document.getElementById('pcNivel').value),
+                codigo: document.getElementById('pcCodigo').value,
+                justificativa: document.getElementById('pcJustificativa').value,
+                ementa: document.getElementById('pcEmenta').value,
+                objetivoGeral: document.getElementById('pcObjetivoGeral').value,
+                objetivosEspecificos: document.getElementById('pcObjetivosEspecificos').value.split('\n').filter(l => l.trim()),
+                publicoAlvo: document.getElementById('pcPublicoAlvo').value,
+                preRequisitos: document.getElementById('pcPreRequisitos').value,
+                cargaHoraria: parseInt(document.getElementById('pcCargaHoraria').value),
+                duracaoCurso: document.getElementById('pcDuracaoCurso').value,
+                conteudoProgramatico: document.getElementById('pcConteudoProgramatico').value.split('\n').filter(l => l.trim()),
+                metodologia: document.getElementById('pcMetodologia').value,
+                recursosDidaticos: document.getElementById('pcRecursos').value.split('\n').filter(l => l.trim()),
+                avaliacao: document.getElementById('pcAvaliacao').value,
+                criteriosAprovacao: document.getElementById('pcCriterios').value,
+                cronograma: {
+                    totalSemanas: parseInt(document.getElementById('pcSemanas').value) || 0,
+                    distribuicao: document.getElementById('pcDistribuicao').value
+                },
+                competenciasHabilidades: document.getElementById('pcCompetencias').value.split('\n').filter(l => l.trim()),
+                bibliografia: document.getElementById('pcBibliografia').value.split('\n').filter(l => l.trim()),
+                referenciasComplementares: document.getElementById('pcReferencias').value.split('\n').filter(l => l.trim()),
+                certificacao: document.getElementById('pcCertificacao').value,
+                professorResponsavel: document.getElementById('pcProfessor').value,
+                observacoes: document.getElementById('pcObservacoes').value,
+                planos_aula_ids: document.getElementById('pcPlanosAulaIds').value.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n))
+            };
+            
+            salvarTudo();
+            document.getElementById('formPlanoCurso').style.display = 'none';
+        }
+        
+        function cancelarPlanoCurso() {
+            document.getElementById('formPlanoCurso').style.display = 'none';
+        }
+        
+        function editarPlanoCurso(id) {
+            const plano = planosCurso[id];
+            if (!plano) return;
+            document.getElementById('pcId').value = id;
+            document.getElementById('pcNome').value = plano.nome || '';
+            document.getElementById('pcAno').value = plano.ano || 1;
+            document.getElementById('pcNivel').value = plano.nivel || 1;
+            document.getElementById('pcCodigo').value = plano.codigo || '';
+            document.getElementById('pcJustificativa').value = plano.justificativa || '';
+            document.getElementById('pcEmenta').value = plano.ementa || '';
+            document.getElementById('pcObjetivoGeral').value = plano.objetivoGeral || '';
+            document.getElementById('pcObjetivosEspecificos').value = (plano.objetivosEspecificos || []).join('\n');
+            document.getElementById('pcPublicoAlvo').value = plano.publicoAlvo || '';
+            document.getElementById('pcPreRequisitos').value = plano.preRequisitos || '';
+            document.getElementById('pcCargaHoraria').value = plano.cargaHoraria || 40;
+            document.getElementById('pcDuracaoCurso').value = plano.duracaoCurso || '';
+            document.getElementById('pcConteudoProgramatico').value = (plano.conteudoProgramatico || []).join('\n');
+            document.getElementById('pcMetodologia').value = plano.metodologia || '';
+            document.getElementById('pcRecursos').value = (plano.recursosDidaticos || []).join('\n');
+            document.getElementById('pcAvaliacao').value = plano.avaliacao || '';
+            document.getElementById('pcCriterios').value = plano.criteriosAprovacao || '';
+            document.getElementById('pcSemanas').value = plano.cronograma?.totalSemanas || '';
+            document.getElementById('pcDistribuicao').value = plano.cronograma?.distribuicao || '';
+            document.getElementById('pcCompetencias').value = (plano.competenciasHabilidades || []).join('\n');
+            document.getElementById('pcBibliografia').value = (plano.bibliografia || []).join('\n');
+            document.getElementById('pcReferencias').value = (plano.referenciasComplementares || []).join('\n');
+            document.getElementById('pcCertificacao').value = plano.certificacao || '';
+            document.getElementById('pcProfessor').value = plano.professorResponsavel || '';
+            document.getElementById('pcObservacoes').value = plano.observacoes || '';
+            document.getElementById('pcPlanosAulaIds').value = (plano.planos_aula_ids || []).join(', ');
+            document.getElementById('formPlanoCurso').style.display = 'block';
+        }
+        
+        function deletarPlanoCurso(id) {
+            if (confirm(`Excluir plano de curso ID ${id}?`)) {
+                delete planosCurso[id];
+                salvarTudo();
+            }
+        }
+        
+        function atualizarListaPlanosCurso() {
+            const container = document.getElementById('listaPlanosCurso');
+            const ids = Object.keys(planosCurso).sort((a,b) => a-b);
+            if (ids.length === 0) {
+                container.innerHTML = '<div class="empty-state">Nenhum plano de curso criado ainda.</div>';
+                return;
+            }
+            container.innerHTML = ids.map(id => `
+                <div class="item-card">
+                    <div class="header">
+                        <strong>🎓 ${escapeHtml(planosCurso[id].nome || 'Sem nome')}</strong>
+                        <span class="badge badge-id">ID: ${id}</span>
+                    </div>
+                    <div><strong>Ano:</strong> ${planosCurso[id].ano}</div>
+                    <div><strong>Planos de Aula:</strong> ${(planosCurso[id].planos_aula_ids || []).join(', ') || 'Nenhum'}</div>
+                    <div style="margin-top:10px;">
+                        <button onclick="editarPlanoCurso(${id})" class="secondary" style="padding:5px 15px;">✏️ Editar</button>
+                        <button onclick="deletarPlanoCurso(${id})" class="danger" style="background:#dc3545; padding:5px 15px;">🗑️ Excluir</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // ==================== EXPORTAÇÃO CORRIGIDA ====================
+
+function limparTituloParaNome(titulo) {
+    // Remove acentos e caracteres especiais, substitui espaços por _
+    return titulo
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9\s]/g, '')
+        .replace(/\s+/g, '_')
+        .substring(0, 50); // Limita a 50 caracteres
+}
+
+function exportarAtividades() {
+    if (Object.keys(atividades).length === 0) {
+        alert('Nenhuma atividade para exportar');
+        return;
+    }
+    
+    for (const [id, atividade] of Object.entries(atividades)) {
+        // Formato correto: objeto direto, sem a chave externa
+        const atividadeFormatada = {
+            id: atividade.id,
+            acao_id: atividade.acao_id || atividade.id,
+            titulo: atividade.titulo,
+            objetivo: atividade.objetivo,
+            materiais: atividade.materiais,
+            passo_a_passo: atividade.passo_a_passo,
+            duracao: atividade.duracao
+        };
+        const json = JSON.stringify(atividadeFormatada, null, 2);
+        baixarArquivo(json, `${id}.json`);
+    }
+    mostrarToast(`✅ ${Object.keys(atividades).length} atividades exportadas!`);
+}
+
+function exportarPlanosAula() {
+    if (Object.keys(planosAula).length === 0) {
+        alert('Nenhum plano de aula para exportar');
+        return;
+    }
+    
+    for (const [id, plano] of Object.entries(planosAula)) {
+        const tituloLimpo = limparTituloParaNome(plano.titulo || 'sem_titulo');
+        const nomeArquivo = `${id}_${tituloLimpo}.json`;
+        
+        const planoFormatado = {
+            id: plano.id,
+            titulo: plano.titulo,
+            nivel: plano.nivel,
+            duracao: plano.duracao,
+            objetivoGeral: plano.objetivoGeral,
+            objetivosEspecificos: plano.objetivosEspecificos,
+            conteudo: plano.conteudo,
+            metodologia: plano.metodologia,
+            recursosDidaticos: plano.recursosDidaticos,
+            desenvolvimento: plano.desenvolvimento,
+            avaliacao: plano.avaliacao,
+            atividades_ids: plano.atividades_ids,
+            adaptacoes: plano.adaptacoes,
+            tarefaCasa: plano.tarefaCasa,
+            referencias: plano.referencias,
+            observacoes: plano.observacoes
+        };
+        const json = JSON.stringify(planoFormatado, null, 2);
+        baixarArquivo(json, nomeArquivo);
+    }
+    mostrarToast(`✅ ${Object.keys(planosAula).length} planos de aula exportados!`);
+}
+
+function exportarPlanosCurso() {
+    if (Object.keys(planosCurso).length === 0) {
+        alert('Nenhum plano de curso para exportar');
+        return;
+    }
+    
+    for (const [id, plano] of Object.entries(planosCurso)) {
+        const nomeLimpo = limparTituloParaNome(plano.nome || 'sem_nome');
+        const nomeArquivo = `${id}_${nomeLimpo}.json`;
+        
+        const planoFormatado = {
+            id: plano.id,
+            nome: plano.nome,
+            ano: plano.ano,
+            nivel: plano.nivel,
+            codigo: plano.codigo,
+            justificativa: plano.justificativa,
+            ementa: plano.ementa,
+            objetivoGeral: plano.objetivoGeral,
+            objetivosEspecificos: plano.objetivosEspecificos,
+            publicoAlvo: plano.publicoAlvo,
+            preRequisitos: plano.preRequisitos,
+            cargaHoraria: plano.cargaHoraria,
+            duracaoCurso: plano.duracaoCurso,
+            conteudoProgramatico: plano.conteudoProgramatico,
+            metodologia: plano.metodologia,
+            recursosDidaticos: plano.recursosDidaticos,
+            avaliacao: plano.avaliacao,
+            criteriosAprovacao: plano.criteriosAprovacao,
+            cronograma: plano.cronograma,
+            competenciasHabilidades: plano.competenciasHabilidades,
+            bibliografia: plano.bibliografia,
+            referenciasComplementares: plano.referenciasComplementares,
+            certificacao: plano.certificacao,
+            professorResponsavel: plano.professorResponsavel,
+            observacoes: plano.observacoes,
+            planos_aula_ids: plano.planos_aula_ids
+        };
+        const json = JSON.stringify(planoFormatado, null, 2);
+        baixarArquivo(json, nomeArquivo);
+    }
+    mostrarToast(`✅ ${Object.keys(planosCurso).length} planos de curso exportados!`);
+}
+
+function exportarTudo() {
+    // Backup completo (mantém o formato original para importação)
+    const tudo = { atividades, planosAula, planosCurso };
+    const json = JSON.stringify(tudo, null, 2);
+    baixarArquivo(json, `backup_completo_${new Date().toISOString().split('T')[0]}.json`);
+    mostrarToast('✅ Backup completo exportado!');
+}
+        
+   
+        
+        function importarDados() {
+            const file = document.getElementById('arquivoImport').files[0];
+            if (!file) { alert('Selecione um arquivo'); return; }
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const dados = JSON.parse(e.target.result);
+                    if (dados.atividades) atividades = dados.atividades;
+                    if (dados.planosAula) planosAula = dados.planosAula;
+                    if (dados.planosCurso) planosCurso = dados.planosCurso;
+                    if (dados.atividades || dados.planosAula || dados.planosCurso) {
+                        salvarTudo();
+                        mostrarToast('✅ Importação realizada!');
+                    } else {
+                        alert('Formato não reconhecido');
+                    }
+                } catch(err) { alert('Erro: ' + err.message); }
+            };
+            reader.readAsText(file);
+        }
+        
+        function baixarArquivo(conteudo, nome) {
+            const blob = new Blob([conteudo], {type: 'application/json'});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = nome;
+            link.click();
+            URL.revokeObjectURL(blob);
+        }
+        
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m]));
+        }
+        
+        // ==================== INICIALIZAÇÃO ====================
+        document.getElementById('btnNovaAtividade').addEventListener('click', novaAtividade);
+        document.getElementById('btnSalvarAtividade').addEventListener('click', salvarAtividade);
+        document.getElementById('btnCancelarAtividade').addEventListener('click', cancelarAtividade);
+        
+        document.getElementById('btnNovoPlanoAula').addEventListener('click', novoPlanoAula);
+        document.getElementById('btnSalvarPlanoAula').addEventListener('click', salvarPlanoAula);
+        document.getElementById('btnCancelarPlanoAula').addEventListener('click', cancelarPlanoAula);
+        
+        document.getElementById('btnNovoPlanoCurso').addEventListener('click', novoPlanoCurso);
+        document.getElementById('btnSalvarPlanoCurso').addEventListener('click', salvarPlanoCurso);
+        document.getElementById('btnCancelarPlanoCurso').addEventListener('click', cancelarPlanoCurso);
+        
+        document.getElementById('btnExportarAtividades').addEventListener('click', exportarAtividades);
+        document.getElementById('btnExportarPlanosAula').addEventListener('click', exportarPlanosAula);
+        document.getElementById('btnExportarPlanosCurso').addEventListener('click', exportarPlanosCurso);
+        document.getElementById('btnExportarTudo').addEventListener('click', exportarTudo);
+        document.getElementById('btnImportar').addEventListener('click', importarDados);
+        
+        // Abas
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const tab = btn.dataset.tab;
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                document.getElementById(`tab-${tab}`).classList.add('active');
+            });
+        });
+
+        window.escapeHtml = escapeHtml;
+        carregarDadosSalvos();
+    </script>
+</body>
+</html>
