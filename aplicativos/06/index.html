@@ -197,12 +197,55 @@
     <div id="modalPlanosAluno" class="modal"><div class="modal-content" style="max-width:700px;"><div class="modal-header"><h3 id="modalPlanosTitulo">📋 Planos</h3><button class="close-modal" onclick="fecharModal('modalPlanosAluno')">✕</button></div><div id="modalPlanosConteudo"></div></div></div>
 
     <script>
-        // ==================== CONFIGURAÇÃO DO GITHUB ====================
-        const GITHUB_USER = "albertinosesc";
-        const GITHUB_REPO = "nbmaplicativos.github.oi";
-        const GITHUB_BRANCH = "main";
-        const BASE_PATH = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/aplicativos/06/`;
+               // ==================== CONFIGURAÇÃO DO GITHUB (CORRIGIDA) ====================
+        // Use o caminho RAW do GitHub, que é o único que funciona para fetch.
+        // O caminho base é construído a partir da URL da sua pasta no GitHub.
+        // Exemplo: https://github.com/albertinosesc/nbmaplicativos.github.oi/blob/main/aplicativos/06/data/atividades/15.json
+        // Deve virar: https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/06/data/atividades/15.json
         
+        const GITHUB_RAW_BASE = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/06/data/";
+        
+        // A função de carregar atividades será atualizada para usar esta base
+        async function carregarAtividadesDoGitHub() {
+            console.log("🔄 Carregando atividades do GitHub a partir de:", GITHUB_RAW_BASE + "atividades/");
+            let carregadas = 0;
+            // Tenta carregar os IDs que você tem. Vamos supor que existem de 1 a 50 por enquanto.
+            for (let id = 1; id <= 50; id++) {
+                const url = `${GITHUB_RAW_BASE}atividades/${id}.json`;
+                try {
+                    const response = await fetch(url);
+                    if (response.ok) {
+                        const atividade = await response.json();
+                        if (atividade && atividade.id) {
+                            // Salva a atividade no objeto global ATIVIDADES
+                            ATIVIDADES[id] = atividade;
+                            carregadas++;
+                            console.log(`✅ Atividade ${id} carregada: ${atividade.titulo}`);
+                        }
+                    } else {
+                        // Arquieto não encontrado (404) é normal, só ignora.
+                        // console.log(`ℹ️ Atividade ${id} não encontrada.`);
+                    }
+                } catch (e) {
+                    // Erro de rede ou permissão (CORS). Pode acontecer se a URL estiver errada.
+                    console.error(`❌ Erro ao buscar atividade ${id}:`, e);
+                }
+            }
+            console.log(`✅ Total de ${carregadas} atividades carregadas do GitHub.`);
+            // Após carregar, salva no localStorage e atualiza a interface
+            if (carregadas > 0) {
+                salvarTodosDados(); // Esta função deve existir no seu código
+                atualizarListasAdmin();
+                mostrarToast(`${carregadas} atividades carregadas do GitHub!`);
+            } else {
+                mostrarToast("⚠️ Nenhuma atividade encontrada no GitHub. Verifique a pasta 'data/atividades/'.");
+            }
+        }
+
+        // IMPORTANTE: Como o GitHub pode demorar, chame esta função explicitamente após carregar a página
+        // e certifique-se de que ela não está sendo bloqueada por outras funções.
+        // No final do seu script, onde você chama carregarDados(), adicione:
+        // carregarAtividadesDoGitHub();
         // ==================== DADOS ====================
         let ALUNOS = [];
         let ALUNO_SELECIONADO_ID = null;
@@ -411,16 +454,19 @@
         
         // ==================== VER ATIVIDADE ====================
         function verAtividade(acaoId) {
-            const ativ = ATIVIDADES[acaoId];
-            if (ativ) {
-                document.getElementById('modalTitulo').innerHTML = `📖 ${escapeHtml(ativ.titulo)}`;
-                document.getElementById('modalConteudo').innerHTML = `<div class="atividade-detalhe"><strong>Objetivo:</strong> ${escapeHtml(ativ.objetivo || '')}</div><div class="atividade-detalhe"><strong>Duração:</strong> ${ativ.duracao || ''}</div><div class="atividade-detalhe"><strong>Materiais:</strong><ul>${(ativ.materiais || []).map(m=>`<li>${escapeHtml(m)}</li>`).join('')}</ul></div><div class="atividade-detalhe"><strong>Passo a passo:</strong><ul>${(ativ.passo_a_passo || []).map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul></div><button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
-            } else {
-                document.getElementById('modalTitulo').innerHTML = `📖 Atividade #${acaoId}`;
-                document.getElementById('modalConteudo').innerHTML = `<div class="empty-state">Nenhuma atividade cadastrada para esta ação. Crie uma nova atividade com ID ${acaoId} na aba "Admin" ou coloque o arquivo na pasta data/atividades/ do GitHub.</div><button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
-            }
-            abrirModal('modalAtividade');
-        }
+    // Fechar modal anterior se estiver aberto
+    fecharModal('modalAtividade');
+    
+    const ativ = ATIVIDADES[acaoId];
+    if (ativ) {
+        document.getElementById('modalTitulo').innerHTML = `📖 ${escapeHtml(ativ.titulo)}`;
+        document.getElementById('modalConteudo').innerHTML = `<div class="atividade-detalhe"><strong>Objetivo:</strong> ${escapeHtml(ativ.objetivo || '')}</div><div class="atividade-detalhe"><strong>Duração:</strong> ${ativ.duracao || ''}</div><div class="atividade-detalhe"><strong>Materiais:</strong><ul>${(ativ.materiais || []).map(m=>`<li>${escapeHtml(m)}</li>`).join('')}</ul></div><div class="atividade-detalhe"><strong>Passo a passo:</strong><ul>${(ativ.passo_a_passo || []).map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul></div><button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
+    } else {
+        document.getElementById('modalTitulo').innerHTML = `📖 Atividade #${acaoId}`;
+        document.getElementById('modalConteudo').innerHTML = `<div class="empty-state">Nenhuma atividade cadastrada.</div><button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
+    }
+    abrirModal('modalAtividade');
+}
         
         // ==================== PLANOS ====================
         function verPlanosDoAluno(id) {
@@ -442,25 +488,28 @@
         }
         
         function verPlanoAulaDetalhado(planoId) {
-            const plano = PLANOS_AULA[planoId];
-            if (!plano) { alert('Plano não encontrado'); return; }
-            
-            let atividadesHtml = '';
-            for (const aid of (plano.atividades_ids || [])) {
-                const ativ = ATIVIDADES[aid];
-                atividadesHtml += `<div style="border-left:3px solid #ff6b6b; padding-left:10px; margin-bottom:10px;"><strong>Atividade #${aid}</strong><br>${ativ ? escapeHtml(ativ.titulo || '') : 'Não encontrada'}<br><button class="btn-ver" onclick="verAtividade(${aid})">Ver atividade</button></div>`;
-            }
-            
-            document.getElementById('modalTitulo').innerHTML = `📖 ${escapeHtml(plano.titulo)}`;
-            document.getElementById('modalConteudo').innerHTML = `
-                <div><strong>Objetivo Geral:</strong> ${escapeHtml(plano.objetivoGeral)}</div>
-                <div><strong>Duração:</strong> ${plano.duracao}</div>
-                <div><strong>Nível:</strong> ${plano.nivel}</div>
-                <div><strong>Atividades:</strong>${atividadesHtml || 'Nenhuma'}</div>
-                <button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>
-            `;
-            abrirModal('modalAtividade');
-        }
+    const plano = PLANOS_AULA[planoId];
+    if (!plano) { alert('Plano não encontrado'); return; }
+    
+    // Fechar o modal anterior (planos do aluno)
+    fecharModal('modalPlanosAluno');
+    
+    let atividadesHtml = '';
+    for (const aid of (plano.atividades_ids || [])) {
+        const ativ = ATIVIDADES[aid];
+        atividadesHtml += `<div style="border-left:3px solid #ff6b6b; padding-left:10px; margin-bottom:10px;"><strong>Atividade #${aid}</strong><br>${ativ ? escapeHtml(ativ.titulo || '') : 'Não encontrada'}<br><button class="btn-ver" onclick="verAtividade(${aid})">Ver atividade</button></div>`;
+    }
+    
+    document.getElementById('modalTitulo').innerHTML = `📖 ${escapeHtml(plano.titulo)}`;
+    document.getElementById('modalConteudo').innerHTML = `
+        <div><strong>Objetivo Geral:</strong> ${escapeHtml(plano.objetivoGeral)}</div>
+        <div><strong>Duração:</strong> ${plano.duracao}</div>
+        <div><strong>Nível:</strong> ${plano.nivel}</div>
+        <div><strong>Atividades:</strong>${atividadesHtml || 'Nenhuma'}</div>
+        <button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>
+    `;
+    abrirModal('modalAtividade');
+}
         
         function togglePlanoConcluido(planoId, alunoId) {
             const aluno = ALUNOS.find(a => a.id === alunoId);
