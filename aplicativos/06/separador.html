@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Separador de Atividades - Bloco 6 (251-300)</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .card { background: white; border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        h1 { color: #1e3c72; margin-bottom: 10px; }
+        textarea { width: 100%; height: 400px; padding: 15px; font-family: monospace; font-size: 12px; border: 2px solid #ddd; border-radius: 10px; margin-bottom: 15px; }
+        button { background: #ff6b6b; color: white; border: none; padding: 12px 25px; border-radius: 50px; font-size: 1em; cursor: pointer; font-weight: bold; margin-right: 10px; margin-bottom: 10px; }
+        button:hover { background: #ff5252; transform: scale(1.02); }
+        button.success { background: #28a745; }
+        button.info { background: #17a2b8; }
+        .separados { margin-top: 20px; max-height: 400px; overflow-y: auto; border: 1px solid #ddd; border-radius: 10px; padding: 10px; background: #f8f9fa; }
+        .item { background: white; border-radius: 10px; padding: 10px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .download-btn { background: #28a745; padding: 5px 15px; font-size: 0.8em; }
+        .badge { background: #ff6b6b; color: white; padding: 3px 10px; border-radius: 20px; font-size: 0.8em; }
+        .loading { text-align: center; padding: 20px; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>📦 Separador de Atividades (Bloco 6: 251-300)</h1>
+            <p>Cole todo o bloco de atividades abaixo e clique em "Separar e Baixar"</p>
+            
+            <textarea id="blocoTexto" placeholder="Cole aqui o conteúdo das atividades (formato com --- separadores)..."></textarea>
+            
+            <div>
+                <button id="btnSeparar" class="success">🔍 Separar e Listar</button>
+                <button id="btnBaixarTudo" class="info">📦 Baixar TODOS (ZIP)</button>
+                <button id="btnLimpar">🗑️ Limpar</button>
+            </div>
+            
+            <div id="resultado" class="separados">
+                <div class="loading">Cole o bloco de atividades e clique em "Separar e Listar"</div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>📋 Instruções</h2>
+            <ol style="margin-left: 20px;">
+                <li>Copie todo o bloco de atividades (251 a 300)</li>
+                <li>Cole no campo acima</li>
+                <li>Clique em "Separar e Listar"</li>
+                <li>Clique em "Baixar TODOS" para baixar um arquivo ZIP com todos os JSONs</li>
+                <li>Ou clique em "Baixar" individualmente</li>
+            </ol>
+        </div>
+    </div>
+
+    <script>
+        document.getElementById('btnSeparar').addEventListener('click', separarAtividades);
+        document.getElementById('btnLimpar').addEventListener('click', limpar);
+        
+        let atividadesExtraidas = [];
+        
+        function separarAtividades() {
+            const texto = document.getElementById('blocoTexto').value;
+            if (!texto.trim()) {
+                alert('Cole o bloco de atividades primeiro!');
+                return;
+            }
+            
+            atividadesExtraidas = [];
+            const resultadoDiv = document.getElementById('resultado');
+            resultadoDiv.innerHTML = '<div class="loading">Processando...</div>';
+            
+            // Separar pelo padrão "XXXX.json\n{"
+            const regex = /(\d+)\.json\s*\n({[\s\S]*?})\n*(?=\d+\.json|$)/g;
+            let match;
+            let count = 0;
+            
+            while ((match = regex.exec(texto)) !== null) {
+                const id = match[1];
+                let jsonStr = match[2];
+                
+                // Tentar corrigir JSON
+                try {
+                    // Remover espaços extras
+                    jsonStr = jsonStr.trim();
+                    // Tentar parse
+                    const json = JSON.parse(jsonStr);
+                    if (json && json.id) {
+                        atividadesExtraidas.push({ id: id, json: json, jsonStr: JSON.stringify(json, null, 2) });
+                        count++;
+                    }
+                } catch(e) {
+                    console.log(`Erro ao parsear ${id}:`, e);
+                }
+            }
+            
+            if (atividadesExtraidas.length === 0) {
+                resultadoDiv.innerHTML = '<div class="loading">❌ Nenhuma atividade encontrada. Verifique o formato.</div>';
+                return;
+            }
+            
+            // Exibir lista
+            resultadoDiv.innerHTML = `
+                <div style="margin-bottom: 10px; font-weight: bold;">✅ ${atividadesExtraidas.length} atividades encontradas!</div>
+                ${atividadesExtraidas.map(ativ => `
+                    <div class="item">
+                        <span><span class="badge">ID ${ativ.id}</span> <strong>${ativ.json.titulo || 'Sem título'}</strong></span>
+                        <button class="download-btn" onclick="baixarIndividual(${ativ.id})">📥 Baixar ${ativ.id}.json</button>
+                    </div>
+                `).join('')}
+            `;
+        }
+        
+        function baixarIndividual(id) {
+            const ativ = atividadesExtraidas.find(a => a.id == id);
+            if (!ativ) return;
+            baixarArquivo(ativ.jsonStr, `${id}.json`);
+        }
+        
+        function baixarArquivo(conteudo, nome) {
+            const blob = new Blob([conteudo], {type: 'application/json'});
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = nome;
+            link.click();
+            URL.revokeObjectURL(blob);
+        }
+        
+        function baixarTudo() {
+            if (atividadesExtraidas.length === 0) {
+                alert('Primeiro clique em "Separar e Listar"');
+                return;
+            }
+            
+            // Como não podemos criar ZIP nativamente no navegador sem biblioteca,
+            // Vamos baixar um por um em sequência
+            let i = 0;
+            function baixarProximo() {
+                if (i >= atividadesExtraidas.length) {
+                    alert(`✅ Download de ${atividadesExtraidas.length} atividades concluído!`);
+                    return;
+                }
+                const ativ = atividadesExtraidas[i];
+                baixarArquivo(ativ.jsonStr, `${ativ.id}.json`);
+                i++;
+                setTimeout(baixarProximo, 500);
+            }
+            baixarProximo();
+        }
+        
+        function limpar() {
+            document.getElementById('blocoTexto').value = '';
+            document.getElementById('resultado').innerHTML = '<div class="loading">Cole o bloco de atividades e clique em "Separar e Listar"</div>';
+            atividadesExtraidas = [];
+        }
+        
+        document.getElementById('btnBaixarTudo').addEventListener('click', baixarTudo);
+    </script>
+</body>
+</html>

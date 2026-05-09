@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unificador Local - Unir 400 arquivos JSON em um</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; padding: 20px; color: #333; }
+        .container { max-width: 1000px; margin: 0 auto; }
+        .header { background: white; border-radius: 20px; padding: 20px; margin-bottom: 25px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+        .header h1 { color: #1e3c72; font-size: 1.8em; }
+        .card { background: white; border-radius: 20px; padding: 25px; margin-bottom: 20px; box-shadow: 0 5px 20px rgba(0,0,0,0.1); }
+        .card h2 { color: #1e3c72; margin-bottom: 15px; border-left: 5px solid #ff6b6b; padding-left: 15px; }
+        .file-input-area { border: 3px dashed #ddd; border-radius: 20px; padding: 40px; text-align: center; margin-bottom: 20px; cursor: pointer; transition: all 0.3s; }
+        .file-input-area:hover { border-color: #ff6b6b; background: #fef5f5; }
+        .file-input-area.dragover { border-color: #28a745; background: #e8f5e9; }
+        .progress-bar { width: 100%; height: 20px; background: #ddd; border-radius: 10px; overflow: hidden; margin: 15px 0; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #28a745, #4ecdc4); border-radius: 10px; width: 0%; transition: width 0.3s; }
+        button { background: #ff6b6b; color: white; border: none; padding: 12px 25px; border-radius: 50px; font-size: 1em; cursor: pointer; font-weight: bold; margin-right: 10px; margin-top: 10px; }
+        button:hover { background: #ff5252; transform: scale(1.02); }
+        button.success { background: #28a745; }
+        button.info { background: #17a2b8; }
+        .status { padding: 10px; border-radius: 10px; margin-top: 10px; }
+        .status.success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status.error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status.info { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+        .status.warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .resultado { background: #2d2d2d; color: #f8f8f2; padding: 15px; border-radius: 10px; font-family: monospace; font-size: 11px; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+        .stats { display: flex; gap: 20px; flex-wrap: wrap; margin: 15px 0; }
+        .stat-card { background: #f8f9fa; border-radius: 15px; padding: 15px; text-align: center; flex: 1; min-width: 120px; }
+        .stat-number { font-size: 2em; font-weight: bold; color: #1e3c72; }
+        .stat-label { color: #666; }
+        .toolbar { display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Unificador Local</h1>
+            <p>Selecione 400 arquivos JSON (1.json a 400.json) e una em um único <code>atividades.json</code></p>
+        </div>
+
+        <div class="card">
+            <h2>📁 Selecione os Arquivos</h2>
+            <div id="dropArea" class="file-input-area" onclick="document.getElementById('fileInput').click()">
+                📂 Clique ou arraste os arquivos JSON aqui<br>
+                <small>(Selecione os 400 arquivos: 1.json, 2.json, ... 400.json)</small>
+            </div>
+            <input type="file" id="fileInput" multiple accept=".json" style="display: none;">
+            
+            <div id="stats" class="stats">
+                <div class="stat-card"><div class="stat-number" id="totalSelecionados">0</div><div class="stat-label">Arquivos selecionados</div></div>
+                <div class="stat-card"><div class="stat-number" id="totalCarregados">0</div><div class="stat-label">Carregados com sucesso</div></div>
+                <div class="stat-card"><div class="stat-number" id="totalErros">0</div><div class="stat-label">Erros</div></div>
+            </div>
+            
+            <div class="progress-bar"><div id="progressFill" class="progress-fill"></div></div>
+            
+            <div id="status" class="status info">⏳ Selecione os arquivos JSON para começar...</div>
+            
+            <div class="toolbar">
+                <button id="btnProcessar" class="success" disabled>🔗 Processar e Unir</button>
+                <button id="btnBaixar" class="info" disabled>📥 Baixar atividades.json</button>
+                <button id="btnLimpar">🗑️ Limpar</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h2>📄 Resultado (atividades.json)</h2>
+            <div id="resultado" class="resultado">Nenhum dado processado ainda...</div>
+        </div>
+    </div>
+
+    <script>
+        let arquivosSelecionados = [];
+        let atividadesUnidas = {};
+        let processado = false;
+        
+        // Elementos DOM
+        const dropArea = document.getElementById('dropArea');
+        const fileInput = document.getElementById('fileInput');
+        const totalSelecionadosSpan = document.getElementById('totalSelecionados');
+        const totalCarregadosSpan = document.getElementById('totalCarregados');
+        const totalErrosSpan = document.getElementById('totalErros');
+        const progressFill = document.getElementById('progressFill');
+        const statusDiv = document.getElementById('status');
+        const btnProcessar = document.getElementById('btnProcessar');
+        const btnBaixar = document.getElementById('btnBaixar');
+        const resultadoDiv = document.getElementById('resultado');
+        
+        // Evento de seleção de arquivos
+        fileInput.addEventListener('change', (e) => {
+            arquivosSelecionados = Array.from(e.target.files);
+            atualizarStats();
+            processado = false;
+            btnProcessar.disabled = arquivosSelecionados.length === 0;
+            btnBaixar.disabled = true;
+            resultadoDiv.textContent = 'Nenhum dado processado ainda...';
+        });
+        
+        // Drag and drop
+        dropArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropArea.classList.add('dragover');
+        });
+        
+        dropArea.addEventListener('dragleave', () => {
+            dropArea.classList.remove('dragover');
+        });
+        
+        dropArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropArea.classList.remove('dragover');
+            arquivosSelecionados = Array.from(e.dataTransfer.files).filter(f => f.name.endsWith('.json'));
+            atualizarStats();
+            processado = false;
+            btnProcessar.disabled = arquivosSelecionados.length === 0;
+            btnBaixar.disabled = true;
+            resultadoDiv.textContent = 'Nenhum dado processado ainda...';
+        });
+        
+        function atualizarStats() {
+            totalSelecionadosSpan.textContent = arquivosSelecionados.length;
+            mostrarStatus(`${arquivosSelecionados.length} arquivos selecionados. Clique em "Processar e Unir".`, 'info');
+        }
+        
+        function mostrarStatus(msg, tipo) {
+            statusDiv.textContent = msg;
+            statusDiv.className = `status ${tipo}`;
+        }
+        
+        async function processarArquivos() {
+            if (arquivosSelecionados.length === 0) {
+                mostrarStatus("❌ Nenhum arquivo selecionado!", "error");
+                return;
+            }
+            
+            mostrarStatus("🔄 Processando arquivos...", "info");
+            atividadesUnidas = {};
+            let carregados = 0;
+            let erros = 0;
+            
+            for (let i = 0; i < arquivosSelecionados.length; i++) {
+                const file = arquivosSelecionados[i];
+                const nomeArquivo = file.name;
+                const id = parseInt(nomeArquivo.replace('.json', ''));
+                
+                try {
+                    const texto = await file.text();
+                    const atividade = JSON.parse(texto);
+                    
+                    if (atividade && atividade.id) {
+                        // Garantir que acoes_ids existe
+                        if (!atividade.acoes_ids) {
+                            atividade.acoes_ids = [atividade.id];
+                        }
+                        atividadesUnidas[atividade.id] = atividade;
+                        carregados++;
+                    } else {
+                        erros++;
+                        console.warn(`Arquivo ${nomeArquivo} não contém um JSON válido`);
+                    }
+                } catch(e) {
+                    erros++;
+                    console.error(`Erro ao ler ${nomeArquivo}:`, e);
+                }
+                
+                // Atualizar progresso
+                const percentual = ((i + 1) / arquivosSelecionados.length) * 100;
+                progressFill.style.width = `${percentual}%`;
+                totalCarregadosSpan.textContent = carregados;
+                totalErrosSpan.textContent = erros;
+                
+                // Pequena pausa para UI atualizar
+                await new Promise(r => setTimeout(r, 5));
+            }
+            
+            // Ordenar por ID
+            const atividadesOrdenadas = {};
+            Object.keys(atividadesUnidas).sort((a, b) => parseInt(a) - parseInt(b)).forEach(id => {
+                atividadesOrdenadas[id] = atividadesUnidas[id];
+            });
+            atividadesUnidas = atividadesOrdenadas;
+            
+            const totalAtividades = Object.keys(atividadesUnidas).length;
+            totalCarregadosSpan.textContent = totalAtividades;
+            
+            if (totalAtividades > 0) {
+                mostrarStatus(`✅ ${totalAtividades} atividades processadas com sucesso! ${erros} erros.`, "success");
+                btnBaixar.disabled = false;
+                processado = true;
+                
+                // Exibir resultado
+                const jsonPreview = JSON.stringify(atividadesUnidas, null, 2);
+                const linhas = jsonPreview.split('\n').length;
+                resultadoDiv.textContent = jsonPreview;
+                resultadoDiv.title = `${jsonPreview.length} caracteres, ${linhas} linhas`;
+            } else {
+                mostrarStatus(`❌ Nenhuma atividade válida encontrada. ${erros} erros.`, "error");
+                btnBaixar.disabled = true;
+            }
+        }
+        
+        function baixarArquivo() {
+            if (!processado || Object.keys(atividadesUnidas).length === 0) {
+                mostrarStatus("❌ Nenhuma atividade para exportar. Processe primeiro!", "error");
+                return;
+            }
+            
+            const json = JSON.stringify(atividadesUnidas, null, 2);
+            const blob = new Blob([json], {type: 'application/json'});
+            const link = document.createElement('a');
+            const url = URL.createObjectURL(blob);
+            link.href = url;
+            link.download = 'atividades.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+            mostrarStatus(`📥 Arquivo atividades.json baixado! ${Object.keys(atividadesUnidas).length} atividades`, "success");
+        }
+        
+        function limparTudo() {
+            arquivosSelecionados = [];
+            atividadesUnidas = {};
+            processado = false;
+            fileInput.value = '';
+            totalSelecionadosSpan.textContent = '0';
+            totalCarregadosSpan.textContent = '0';
+            totalErrosSpan.textContent = '0';
+            progressFill.style.width = '0%';
+            resultadoDiv.textContent = 'Nenhum dado processado ainda...';
+            btnProcessar.disabled = true;
+            btnBaixar.disabled = true;
+            mostrarStatus("🗑️ Tudo limpo. Selecione novos arquivos.", "info");
+        }
+        
+        // Eventos
+        document.getElementById('btnProcessar').addEventListener('click', processarArquivos);
+        document.getElementById('btnBaixar').addEventListener('click', baixarArquivo);
+        document.getElementById('btnLimpar').addEventListener('click', limparTudo);
+        
+        console.log("Unificador Local pronto - Selecione os arquivos JSON!");
+    </script>
+</body>
+</html>
