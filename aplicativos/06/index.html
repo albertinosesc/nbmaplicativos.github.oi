@@ -390,6 +390,8 @@
             carregarAtividadesDoGitHub();
             carregarPlanosAulaDoGitHub();
             carregarPlanosCursoDoGitHub();
+            // Dentro de carregarDados(), junto com os outros carregamentos
+            carregarAbordagensDoGitHub();
         }
         
         function atualizarEstatisticas() {
@@ -479,19 +481,74 @@
             const perc = total ? Math.round((aluno.acoes.length/total)*100) : 0;
             container.innerHTML = `<div style="text-align:center;padding:20px;"><h3>${escapeHtml(aluno.nome)}</h3><div class="stat-number" style="font-size:3em;">${perc}%</div><div>${aluno.acoes.length} de ${total} ações</div><div class="progress-bar" style="margin-top:10px;"><div class="progress-fill" style="width:${perc}%"></div></div></div>`;
         }
-        
+
+        let ABORDAGENS = {};  // Nova variável global
+
+async function carregarAbordagensDoGitHub() {
+    const url = `${BASE_PATH}data/abordagem.json`;
+    try {
+        const response = await fetch(url);
+        if (response.ok) {
+            ABORDAGENS = await response.json();
+            console.log("✅ Abordagens carregadas!");
+        }
+    } catch(e) {
+        console.log("⚠️ Arquivo abordagem.json não encontrado");
+    }
+}
         // ==================== VER ATIVIDADE ====================
         function verAtividade(acaoId) {
-            const ativ = ATIVIDADES[acaoId];
-            if (ativ) {
-                document.getElementById('modalTitulo').innerHTML = `📖 ${escapeHtml(ativ.titulo)}`;
-                document.getElementById('modalConteudo').innerHTML = `<div class="atividade-detalhe"><strong>Objetivo:</strong> ${escapeHtml(ativ.objetivo || '')}</div><div class="atividade-detalhe"><strong>Duração:</strong> ${ativ.duracao || ''}</div><div class="atividade-detalhe"><strong>Materiais:</strong><ul>${(ativ.materiais || []).map(m=>`<li>${escapeHtml(m)}</li>`).join('')}</ul></div><div class="atividade-detalhe"><strong>Passo a passo:</strong><ul>${(ativ.passo_a_passo || []).map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul></div><div class="atividade-detalhe"><strong>Ações vinculadas:</strong> ${(ativ.acoes_ids || []).join(', ') || 'Nenhuma'}</div><button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
-            } else {
-                document.getElementById('modalTitulo').innerHTML = `📖 Atividade #${acaoId}`;
-                document.getElementById('modalConteudo').innerHTML = `<div class="empty-state">Nenhuma atividade cadastrada para esta ação.</div><button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
-            }
-            abrirModal('modalAtividade');
+    const ativ = ATIVIDADES[acaoId];
+    if (ativ) {
+        let html = `<div class="atividade-detalhe"><strong>Objetivo:</strong> ${escapeHtml(ativ.objetivo || '')}</div>`;
+        html += `<div class="atividade-detalhe"><strong>Duração:</strong> ${ativ.duracao || ''}</div>`;
+        
+        // Se tiver materiais específicos na atividade
+        if (ativ.materiais && ativ.materiais.length) {
+            html += `<div class="atividade-detalhe"><strong>Materiais:</strong><ul>${ativ.materiais.map(m=>`<li>${escapeHtml(m)}</li>`).join('')}</ul></div>`;
         }
+        
+        // Se tiver abordagem vinculada
+        if (ativ.abordagem) {
+            const caminhos = ativ.abordagem.split('/');
+            let abordagem = ABORDAGENS;
+            for (const caminho of caminhos) {
+                abordagem = abordagem?.[caminho];
+                if (!abordagem) break;
+            }
+            
+            if (abordagem) {
+                html += `<div class="atividade-detalhe"><strong>📚 Abordagem Técnica: ${escapeHtml(abordagem.nome || '')}</strong></div>`;
+                if (abordagem.descricao) {
+                    html += `<div class="atividade-detalhe">${escapeHtml(abordagem.descricao)}</div>`;
+                }
+                if (abordagem.padroes) {
+                    html += `<div class="atividade-detalhe"><strong>🎯 Padrões:</strong><br>`;
+                    if (abordagem.padroes.basicos) html += `<strong>Básicos:</strong> ${abordagem.padroes.basicos.join(', ')}<br>`;
+                    if (abordagem.padroes.intermediarios) html += `<strong>Intermediários:</strong> ${abordagem.padroes.intermediarios.join(', ')}<br>`;
+                    if (abordagem.padroes.avancados) html += `<strong>Avançados:</strong> ${abordagem.padroes.avancados.join(', ')}<br>`;
+                    html += `</div>`;
+                }
+                if (abordagem.dicas) {
+                    html += `<div class="atividade-detalhe"><strong>💡 Dicas:</strong><ul>${abordagem.dicas.map(d=>`<li>${escapeHtml(d)}</li>`).join('')}</ul></div>`;
+                }
+            }
+        }
+        
+        // Se tiver passo a passo específico na atividade
+        if (ativ.passo_a_passo && ativ.passo_a_passo.length) {
+            html += `<div class="atividade-detalhe"><strong>📝 Passo a passo:</strong><ul>${ativ.passo_a_passo.map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul></div>`;
+        }
+        
+        html += `<button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
+        document.getElementById('modalTitulo').innerHTML = `📖 ${escapeHtml(ativ.titulo)}`;
+        document.getElementById('modalConteudo').innerHTML = html;
+    } else {
+        document.getElementById('modalTitulo').innerHTML = `📖 Atividade #${acaoId}`;
+        document.getElementById('modalConteudo').innerHTML = `<div class="empty-state">Nenhuma atividade cadastrada.</div><button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
+    }
+    abrirModal('modalAtividade');
+}
         
         // ==================== PLANOS ====================
         function verPlanosDoAluno(id) {
