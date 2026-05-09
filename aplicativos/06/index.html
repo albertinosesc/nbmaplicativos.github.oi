@@ -76,6 +76,8 @@
         .search-box input { flex: 1; min-width: 200px; }
         .search-box select { width: auto; min-width: 120px; }
         @media (max-width: 768px) { .filtros select, .filtros button, .filtros input { width: 100%; } .acao-categoria, .acao-nivel { display: none; } .tab-btn { padding: 6px 12px; font-size: 0.8em; } }
+    .btn-copiar { background: #6c757d; color: white; border: none; padding: 2px 8px; border-radius: 15px; font-size: 0.7em; cursor: pointer; margin-left: 5px; }
+.btn-copiar:hover { background: #5a6268; }
     </style>
 </head>
 <body>
@@ -146,6 +148,7 @@
                 
                 <div class="admin-subtabs">
                     <button class="admin-subtab-btn active" data-subtab="adminAtividades">📝 Atividades</button>
+                    <button class="admin-subtab-btn" data-subtab="adminAbordagens">📚 Abordagens</button>
                     <button class="admin-subtab-btn" data-subtab="adminPlanosAula">📚 Planos de Aula</button>
                     <button class="admin-subtab-btn" data-subtab="adminPlanosCurso">🎓 Planos de Curso</button>
                 </div>
@@ -206,6 +209,24 @@
                     <div id="listaPlanosCursoAdmin" class="acoes-container" style="max-height: 400px;"></div>
                 </div>
             </div>
+
+            <!-- Sub-aba Abordagens -->
+<div id="adminAbordagens" class="admin-subpanel" style="display: none;">
+    <div class="search-box">
+        <input type="text" id="searchAdminAbordagem" placeholder="🔍 Buscar por caminho ou título...">
+        <select id="searchAdminAbordagemCampo">
+            <option value="tudo">Todos os campos</option>
+            <option value="caminho">Caminho</option>
+            <option value="titulo">Título</option>
+        </select>
+        <button id="btnBuscarAdminAbordagem" class="secondary">🔍 Buscar</button>
+        <button id="btnLimparAdminAbordagem" class="secondary">✖️ Limpar</button>
+    </div>
+    <div style="text-align: right; margin-bottom: 10px;">
+        <button id="btnNovaAbordagemAdmin" class="info" style="padding: 8px 20px;">✨ Nova Abordagem</button>
+    </div>
+    <div id="listaAbordagensAdmin" class="acoes-container" style="max-height: 400px;"></div>
+</div>
             
             <!-- Formulário de Edição -->
             <div id="formEditor" style="display:none; background:white; border-radius:20px; padding:20px; margin-top:20px;">
@@ -443,7 +464,291 @@
             if (idx === -1) aluno.acoes.push(acaoId); else aluno.acoes.splice(idx, 1);
             salvarTodosDados(); atualizarAcoes(); atualizarDashboard();
         }
+        // ==================== COPIAR MARKDOWN ====================
+function copiarMarkdown(tipo, id, dados) {
+    let markdown = '';
+    const data = new Date().toLocaleDateString('pt-BR');
+    
+    if (tipo === 'atividade') {
+        markdown = `# 📝 ${dados.titulo}\n\n`;
+        markdown += `**ID:** ${id}\n`;
+        markdown += `**Duração:** ${dados.duracao || 'Não definida'}\n\n`;
+        markdown += `## 🎯 Objetivo\n\n${dados.objetivo || 'Não informado'}\n\n`;
+        if (dados.materiais && dados.materiais.length) {
+            markdown += `## 📦 Materiais\n\n${dados.materiais.map(m => `- ${m}`).join('\n')}\n\n`;
+        }
+        if (dados.passo_a_passo && dados.passo_a_passo.length) {
+            markdown += `## 📝 Passo a Passo\n\n${dados.passo_a_passo.map(p => `${p}`).join('\n')}\n\n`;
+        }
+        if (dados.acoes_ids && dados.acoes_ids.length) {
+            markdown += `## 🔗 Ações Vinculadas\n\nIDs: ${dados.acoes_ids.join(', ')}\n\n`;
+        }
+        if (dados.abordagem) {
+            markdown += `## 📚 Abordagem\n\n\`${dados.abordagem}\`\n\n`;
+        }
+    } 
+    else if (tipo === 'planoAula') {
+        markdown = `# 📖 ${dados.titulo}\n\n`;
+        markdown += `**ID:** ${id}\n`;
+        markdown += `**Nível:** ${dados.nivel}\n`;
+        markdown += `**Duração:** ${dados.duracao}\n\n`;
+        markdown += `## 🎯 Objetivo Geral\n\n${dados.objetivoGeral || 'Não informado'}\n\n`;
+        if (dados.objetivosEspecificos && dados.objetivosEspecificos.length) {
+            markdown += `## 📝 Objetivos Específicos\n\n${dados.objetivosEspecificos.map(o => `- ${o}`).join('\n')}\n\n`;
+        }
+        if (dados.conteudo && dados.conteudo.length) {
+            markdown += `## 📚 Conteúdo\n\n${dados.conteudo.map(c => `- ${c}`).join('\n')}\n\n`;
+        }
+        if (dados.metodologia) markdown += `## ⚙️ Metodologia\n\n${dados.metodologia}\n\n`;
+        if (dados.recursosDidaticos && dados.recursosDidaticos.length) {
+            markdown += `## 🛠️ Recursos Didáticos\n\n${dados.recursosDidaticos.map(r => `- ${r}`).join('\n')}\n\n`;
+        }
+        if (dados.desenvolvimento && dados.desenvolvimento.length) {
+            markdown += `## ⏰ Desenvolvimento\n\n${dados.desenvolvimento.map(d => `${d}`).join('\n')}\n\n`;
+        }
+        if (dados.avaliacao) markdown += `## ✅ Avaliação\n\n${dados.avaliacao}\n\n`;
+        if (dados.atividades_ids && dados.atividades_ids.length) {
+            markdown += `## 🎨 Atividades\n\nIDs: ${dados.atividades_ids.join(', ')}\n\n`;
+        }
+    }
+    else if (tipo === 'planoCurso') {
+        markdown = `# 🎓 ${dados.nome}\n\n`;
+        markdown += `**ID:** ${id}\n`;
+        markdown += `**Ano:** ${dados.ano}\n`;
+        markdown += `**Nível:** ${dados.nivel}\n`;
+        markdown += `**Código:** ${dados.codigo || 'Não informado'}\n`;
+        markdown += `**Carga Horária:** ${dados.cargaHoraria}h\n\n`;
+        if (dados.justificativa) markdown += `## 📌 Justificativa\n\n${dados.justificativa}\n\n`;
+        if (dados.ementa) markdown += `## 📖 Ementa\n\n${dados.ementa}\n\n`;
+        if (dados.objetivoGeral) markdown += `## 🎯 Objetivo Geral\n\n${dados.objetivoGeral}\n\n`;
+        if (dados.objetivosEspecificos && dados.objetivosEspecificos.length) {
+            markdown += `## 📝 Objetivos Específicos\n\n${dados.objetivosEspecificos.map(o => `- ${o}`).join('\n')}\n\n`;
+        }
+        if (dados.conteudoProgramatico && dados.conteudoProgramatico.length) {
+            markdown += `## 📚 Conteúdo Programático\n\n${dados.conteudoProgramatico.map(c => `- ${c}`).join('\n')}\n\n`;
+        }
+        if (dados.metodologia) markdown += `## ⚙️ Metodologia\n\n${dados.metodologia}\n\n`;
+        if (dados.avaliacao) markdown += `## ✅ Avaliação\n\n${dados.avaliacao}\n\n`;
+        if (dados.planos_aula_ids && dados.planos_aula_ids.length) {
+            markdown += `## 📚 Planos de Aula\n\nIDs: ${dados.planos_aula_ids.join(', ')}\n\n`;
+        }
+    }
+    else if (tipo === 'abordagem') {
+        markdown = `# 📚 ${dados.nome || dados.caminho || 'Abordagem'}\n\n`;
+        markdown += `**Caminho:** \`${id}\`\n\n`;
+        if (dados.descricao) markdown += `## 📖 Descrição\n\n${dados.descricao}\n\n`;
+        if (dados.digitos) {
+            markdown += `## 🎯 Dígitos\n\n`;
+            for (const [digito, nome] of Object.entries(dados.digitos)) {
+                markdown += `- **${digito}**: ${nome}\n`;
+            }
+            markdown += `\n`;
+        }
+        if (dados.padroes) {
+            markdown += `## 🎯 Padrões\n\n`;
+            if (dados.padroes.basicos) markdown += `**Básicos:** ${dados.padroes.basicos.join(', ')}\n\n`;
+            if (dados.padroes.intermediarios) markdown += `**Intermediários:** ${dados.padroes.intermediarios.join(', ')}\n\n`;
+            if (dados.padroes.avancados) markdown += `**Avançados:** ${dados.padroes.avancados.join(', ')}\n\n`;
+        }
+        if (dados.execucao) {
+            markdown += `## ⚙️ Execução\n\n`;
+            if (dados.execucao.ritmo_sugerido) markdown += `- **Ritmo:** ${dados.execucao.ritmo_sugerido}\n`;
+            if (dados.execucao.bpm_inicial) markdown += `- **BPM Inicial:** ${dados.execucao.bpm_inicial}\n`;
+            if (dados.execucao.cordas) markdown += `- **Cordas:** ${dados.execucao.cordas.join(', ')}\n`;
+            markdown += `\n`;
+        }
+        if (dados.dicas && dados.dicas.length) {
+            markdown += `## 💡 Dicas\n\n${dados.dicas.map(d => `- ${d}`).join('\n')}\n\n`;
+        }
+        if (dados.analogia_mao) {
+            markdown += `## 🖐️ Analogia da Mão\n\n`;
+            if (dados.analogia_mao.linhas) {
+                markdown += `**Linhas (dedos):**\n`;
+                for (const [linha, desc] of Object.entries(dados.analogia_mao.linhas)) {
+                    markdown += `- ${linha}: ${desc}\n`;
+                }
+                markdown += `\n`;
+            }
+            if (dados.analogia_mao.espacos) {
+                markdown += `**Espaços (entre dedos):**\n`;
+                for (const [espaco, desc] of Object.entries(dados.analogia_mao.espacos)) {
+                    markdown += `- ${espaco}: ${desc}\n`;
+                }
+                markdown += `\n`;
+            }
+        }
+        if (dados.passo_a_passo && dados.passo_a_passo.length) {
+            markdown += `## 📝 Passo a Passo\n\n${dados.passo_a_passo.map(p => `${p}`).join('\n')}\n\n`;
+        }
+    }
+    
+    markdown += `---\n*Gerado em: ${data}*`;
+    
+    // Copiar para área de transferência
+    navigator.clipboard.writeText(markdown).then(() => {
+        mostrarToast(`✅ ${tipo.charAt(0).toUpperCase() + tipo.slice(1)} copiado em Markdown!`);
+    }).catch(() => {
+        alert('Erro ao copiar. Selecione manualmente.');
+    });
+}
+
+        function atualizarListaAbordagensAdmin() {
+    const container = document.getElementById('listaAbordagensAdmin');
+    const termo = document.getElementById('searchAdminAbordagem')?.value.toLowerCase() || '';
+    const campo = document.getElementById('searchAdminAbordagemCampo')?.value || 'tudo';
+    
+    function buscarAbordagens(obj, caminho = '') {
+        let resultados = [];
+        for (const [chave, valor] of Object.entries(obj)) {
+            const novoCaminho = caminho ? `${caminho}/${chave}` : chave;
+            if (valor && typeof valor === 'object' && !Array.isArray(valor) && valor.nome === undefined) {
+                resultados = resultados.concat(buscarAbordagens(valor, novoCaminho));
+            } else if (valor && typeof valor === 'object' && valor.nome) {
+                resultados.push({ caminho: novoCaminho, dados: valor });
+            }
+        }
+        return resultados;
+    }
+    
+    let resultados = buscarAbordagens(ABORDAGENS);
+    
+    if (termo) {
+        resultados = resultados.filter(r => {
+            if (campo === 'tudo') {
+                return r.caminho.toLowerCase().includes(termo) || r.dados.nome?.toLowerCase().includes(termo);
+            } else if (campo === 'caminho') {
+                return r.caminho.toLowerCase().includes(termo);
+            } else if (campo === 'titulo') {
+                return r.dados.nome?.toLowerCase().includes(termo);
+            }
+            return false;
+        });
+    }
+    
+    if (resultados.length === 0) {
+        container.innerHTML = '<div class="empty-state">Nenhuma abordagem encontrada.</div>';
+        return;
+    }
+    
+    container.innerHTML = resultados.map(r => `
+        <div class="acao-item" style="cursor:pointer;" onclick="editarAbordagemAdmin('${r.caminho}')">
+            <span class="acao-numero">📚</span>
+            <span class="acao-texto"><strong>${escapeHtml(r.dados.nome || 'Sem nome')}</strong><br><small style="color:#666;">${escapeHtml(r.caminho)}</small></span>
+            <button onclick="event.stopPropagation(); copiarMarkdown('abordagem', '${r.caminho}', r.dados)" class="btn-copiar">📋 Copiar MD</button>
+            <button onclick="event.stopPropagation(); deletarAbordagemAdmin('${r.caminho}')" style="background:#dc3545; padding:2px 8px;">🗑️</button>
+        </div>
+    `).join('');
+}
+
+function editarAbordagemAdmin(caminho) {
+    const partes = caminho.split('/');
+    let abordagem = ABORDAGENS;
+    for (const parte of partes) {
+        abordagem = abordagem?.[parte];
+        if (!abordagem) break;
+    }
+    if (!abordagem) { alert('Abordagem não encontrada'); return; }
+    
+    document.getElementById('editorTitulo').innerHTML = `✏️ Editar Abordagem: ${caminho}`;
+    document.getElementById('editorConteudo').innerHTML = `
+        <div class="form-row"><label>Caminho:</label><input type="text" id="editCaminho" value="${escapeHtml(caminho)}" readonly style="background:#f0f0f0;"></div>
+        <div class="form-row"><label>Nome:</label><input type="text" id="editNome" value="${escapeHtml(abordagem.nome || '')}"></div>
+        <div class="form-row"><label>Descrição:</label><textarea id="editDescricao" rows="3">${escapeHtml(abordagem.descricao || '')}</textarea></div>
+        <div class="form-row"><label>Dicas (uma por linha):</label><textarea id="editDicas" rows="3">${(abordagem.dicas || []).join('\n')}</textarea></div>
+        <div class="form-row"><label>JSON Completo (opcional):</label><textarea id="editJson" rows="10">${JSON.stringify(abordagem, null, 2)}</textarea></div>
+        <button onclick="salvarAbordagemAdmin()" class="success">💾 Salvar</button>
+    `;
+    document.getElementById('formEditor').style.display = 'block';
+    window.editandoAdminTipo = 'abordagem';
+    window.editandoCaminho = caminho;
+}
+
+function salvarAbordagemAdmin() {
+    try {
+        const jsonStr = document.getElementById('editJson').value;
+        const dados = JSON.parse(jsonStr);
+        const caminho = document.getElementById('editCaminho').value;
+        const partes = caminho.split('/');
         
+        let obj = ABORDAGENS;
+        for (let i = 0; i < partes.length - 1; i++) {
+            if (!obj[partes[i]]) obj[partes[i]] = {};
+            obj = obj[partes[i]];
+        }
+        obj[partes[partes.length - 1]] = dados;
+        
+        salvarTodosDados();
+        document.getElementById('formEditor').style.display = 'none';
+        atualizarListaAbordagensAdmin();
+        mostrarToast('✅ Abordagem salva!');
+    } catch(e) {
+        alert('Erro ao salvar: ' + e.message);
+    }
+}
+
+function deletarAbordagemAdmin(caminho) {
+    if (confirm(`Excluir abordagem "${caminho}"?`)) {
+        const partes = caminho.split('/');
+        let obj = ABORDAGENS;
+        for (let i = 0; i < partes.length - 1; i++) {
+            obj = obj?.[partes[i]];
+            if (!obj) break;
+        }
+        if (obj && obj[partes[partes.length - 1]]) {
+            delete obj[partes[partes.length - 1]];
+            salvarTodosDados();
+            atualizarListaAbordagensAdmin();
+            mostrarToast('✅ Abordagem excluída!');
+        }
+    }
+}
+
+function novaAbordagemAdmin() {
+    document.getElementById('editorTitulo').innerHTML = '✏️ Nova Abordagem';
+    document.getElementById('editorConteudo').innerHTML = `
+        <div class="form-row"><label>Caminho (ex: violino/padroes_digitais):</label><input type="text" id="editCaminho" placeholder="ex: instrumento/nome_da_tecnica"></div>
+        <div class="form-row"><label>Nome:</label><input type="text" id="editNome" placeholder="Nome da abordagem"></div>
+        <div class="form-row"><label>Descrição:</label><textarea id="editDescricao" rows="3"></textarea></div>
+        <div class="form-row"><label>Dicas (uma por linha):</label><textarea id="editDicas" rows="3"></textarea></div>
+        <div class="form-row"><label>JSON Completo:</label><textarea id="editJson" rows="10"></textarea></div>
+        <button onclick="salvarNovaAbordagemAdmin()" class="success">💾 Salvar</button>
+    `;
+    document.getElementById('formEditor').style.display = 'block';
+    window.editandoAdminTipo = 'novaAbordagem';
+}
+
+function salvarNovaAbordagemAdmin() {
+    try {
+        let dados = {};
+        const caminho = document.getElementById('editCaminho').value;
+        const jsonStr = document.getElementById('editJson').value;
+        
+        if (jsonStr.trim()) {
+            dados = JSON.parse(jsonStr);
+        } else {
+            dados = {
+                nome: document.getElementById('editNome').value,
+                descricao: document.getElementById('editDescricao').value,
+                dicas: document.getElementById('editDicas').value.split('\n').filter(l => l.trim())
+            };
+        }
+        
+        const partes = caminho.split('/');
+        let obj = ABORDAGENS;
+        for (let i = 0; i < partes.length - 1; i++) {
+            if (!obj[partes[i]]) obj[partes[i]] = {};
+            obj = obj[partes[i]];
+        }
+        obj[partes[partes.length - 1]] = dados;
+        
+        salvarTodosDados();
+        document.getElementById('formEditor').style.display = 'none';
+        atualizarListaAbordagensAdmin();
+        mostrarToast('✅ Nova abordagem criada!');
+    } catch(e) {
+        alert('Erro: ' + e.message);
+    }
+}
         // ==================== AÇÕES ====================
         function atualizarFiltros() {
             const sCat = document.getElementById('filtroCategoria');
@@ -703,34 +1008,49 @@ async function carregarAbordagensDoGitHub() {
         }
         
         function atualizarListaAtividadesAdmin() {
-            const container = document.getElementById('listaAtividadesAdmin');
-            const ids = Object.keys(atividadesFiltradasAdmin).sort((a,b)=>a-b);
-            if (ids.length === 0) {
-                container.innerHTML = '<div class="empty-state">Nenhuma atividade encontrada.</div>';
-                return;
-            }
-            container.innerHTML = ids.map(id => `<div class="acao-item" style="cursor:pointer;" onclick="editarAtividadeAdmin(${id})"><span class="acao-numero">ID ${id}</span><span class="acao-texto">${escapeHtml(ATIVIDADES[id]?.titulo || 'Sem título')}</span><button onclick="event.stopPropagation(); deletarAtividadeAdmin(${id})" style="background:#dc3545; padding:2px 8px;">🗑️</button></div>`).join('');
-        }
+    const container = document.getElementById('listaAtividadesAdmin');
+    const ids = Object.keys(atividadesFiltradasAdmin).sort((a,b)=>a-b);
+    if (ids.length === 0) {
+        container.innerHTML = '<div class="empty-state">Nenhuma atividade encontrada.</div>';
+        return;
+    }
+    container.innerHTML = ids.map(id => `<div class="acao-item" style="cursor:pointer;" onclick="editarAtividadeAdmin(${id})">
+        <span class="acao-numero">ID ${id}</span>
+        <span class="acao-texto">${escapeHtml(ATIVIDADES[id]?.titulo || 'Sem título')}</span>
+        <button onclick="event.stopPropagation(); copiarMarkdown('atividade', ${id}, ATIVIDADES[id])" class="btn-copiar">📋 Copiar MD</button>
+        <button onclick="event.stopPropagation(); deletarAtividadeAdmin(${id})" style="background:#dc3545; padding:2px 8px;">🗑️</button>
+    </div>`).join('');
+}
         
         function atualizarListaPlanosAulaAdmin() {
-            const container = document.getElementById('listaPlanosAulaAdmin');
-            const ids = Object.keys(planosAulaFiltradosAdmin).sort((a,b)=>a-b);
-            if (ids.length === 0) {
-                container.innerHTML = '<div class="empty-state">Nenhum plano de aula encontrado.</div>';
-                return;
-            }
-            container.innerHTML = ids.map(id => `<div class="acao-item" style="cursor:pointer;" onclick="editarPlanoAulaAdmin(${id})"><span class="acao-numero">ID ${id}</span><span class="acao-texto">${escapeHtml(PLANOS_AULA[id]?.titulo || 'Sem título')}</span><button onclick="event.stopPropagation(); deletarPlanoAulaAdmin(${id})" style="background:#dc3545; padding:2px 8px;">🗑️</button></div>`).join('');
-        }
+    const container = document.getElementById('listaPlanosAulaAdmin');
+    const ids = Object.keys(planosAulaFiltradosAdmin).sort((a,b)=>a-b);
+    if (ids.length === 0) {
+        container.innerHTML = '<div class="empty-state">Nenhum plano de aula encontrado.</div>';
+        return;
+    }
+    container.innerHTML = ids.map(id => `<div class="acao-item" style="cursor:pointer;" onclick="editarPlanoAulaAdmin(${id})">
+        <span class="acao-numero">ID ${id}</span>
+        <span class="acao-texto">${escapeHtml(PLANOS_AULA[id]?.titulo || 'Sem título')}</span>
+        <button onclick="event.stopPropagation(); copiarMarkdown('planoAula', ${id}, PLANOS_AULA[id])" class="btn-copiar">📋 Copiar MD</button>
+        <button onclick="event.stopPropagation(); deletarPlanoAulaAdmin(${id})" style="background:#dc3545; padding:2px 8px;">🗑️</button>
+    </div>`).join('');
+}
         
         function atualizarListaPlanosCursoAdmin() {
-            const container = document.getElementById('listaPlanosCursoAdmin');
-            const ids = Object.keys(planosCursoFiltradosAdmin).sort((a,b)=>a-b);
-            if (ids.length === 0) {
-                container.innerHTML = '<div class="empty-state">Nenhum plano de curso encontrado.</div>';
-                return;
-            }
-            container.innerHTML = ids.map(id => `<div class="acao-item" style="cursor:pointer;" onclick="editarPlanoCursoAdmin(${id})"><span class="acao-numero">ID ${id}</span><span class="acao-texto">${escapeHtml(PLANOS_CURSO[id]?.nome || 'Sem nome')}</span><button onclick="event.stopPropagation(); deletarPlanoCursoAdmin(${id})" style="background:#dc3545; padding:2px 8px;">🗑️</button></div>`).join('');
-        }
+    const container = document.getElementById('listaPlanosCursoAdmin');
+    const ids = Object.keys(planosCursoFiltradosAdmin).sort((a,b)=>a-b);
+    if (ids.length === 0) {
+        container.innerHTML = '<div class="empty-state">Nenhum plano de curso encontrado.</div>';
+        return;
+    }
+    container.innerHTML = ids.map(id => `<div class="acao-item" style="cursor:pointer;" onclick="editarPlanoCursoAdmin(${id})">
+        <span class="acao-numero">ID ${id}</span>
+        <span class="acao-texto">${escapeHtml(PLANOS_CURSO[id]?.nome || 'Sem nome')}</span>
+        <button onclick="event.stopPropagation(); copiarMarkdown('planoCurso', ${id}, PLANOS_CURSO[id])" class="btn-copiar">📋 Copiar MD</button>
+        <button onclick="event.stopPropagation(); deletarPlanoCursoAdmin(${id})" style="background:#dc3545; padding:2px 8px;">🗑️</button>
+    </div>`).join('');
+}
         
         function editarAtividadeAdmin(id) {
             const ativ = ATIVIDADES[id];
@@ -979,7 +1299,14 @@ async function carregarAbordagensDoGitHub() {
         document.getElementById('selecionarAlunoDash')?.addEventListener('change', (e) => e.target.value && selecionarAluno(parseInt(e.target.value)));
         document.getElementById('selecionarAlunoPlanos')?.addEventListener('change', (e) => e.target.value && selecionarAluno(parseInt(e.target.value)));
         document.getElementById('selecionarAlunoPlanosCurso')?.addEventListener('change', (e) => e.target.value && selecionarAluno(parseInt(e.target.value)));
-        
+
+        document.getElementById('btnBuscarAdminAbordagem')?.addEventListener('click', atualizarListaAbordagensAdmin);
+document.getElementById('btnLimparAdminAbordagem')?.addEventListener('click', () => {
+    document.getElementById('searchAdminAbordagem').value = '';
+    atualizarListaAbordagensAdmin();
+});
+document.getElementById('searchAdminAbordagem')?.addEventListener('keypress', (e) => { if(e.key === 'Enter') atualizarListaAbordagensAdmin(); });
+document.getElementById('btnNovaAbordagemAdmin')?.addEventListener('click', novaAbordagemAdmin);
         // Admin sub-tabs
         document.querySelectorAll('.admin-subtab-btn').forEach(btn => {
             btn.addEventListener('click', () => {
