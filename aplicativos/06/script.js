@@ -2,7 +2,16 @@
 const GITHUB_USER = "albertinosesc";
 const GITHUB_REPO = "nbmaplicativos.github.oi";
 const GITHUB_BRANCH = "main";
-const BASE_PATH = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/aplicativos/06/`;
+const BASE_PATH = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/aplicativos/06/data/`;
+
+// NOVO: Lista dos arquivos de atividades
+const ARQUIVOS_ATIVIDADES = [
+    'atividades1_100.json',
+    'atividades101_200.json',
+    'atividades201_300.json',
+    'atividades301_400.json',
+    'atividades401_500.json'
+];
 
 // ==================== DADOS ====================
 let ATIVIDADES = {};
@@ -24,42 +33,26 @@ function gerarAcoesAPartirDasAtividades() {
         const atividade = ATIVIDADES[id];
         const titulo = atividade.titulo ? atividade.titulo : `Atividade ${id}`;
         
-        // USA A CATEGORIA DEFINIDA NA ATIVIDADE
-        let categoria = atividade.categoria || 'Atividade';
+        // MUDANÇA AQUI: usa categorias_base (array) ou fallback
+        let categorias = atividade.categorias_base || [atividade.categoria || 'Atividade'];
         
-        // Se não tiver categoria definida, tenta inferir pelo título
-        if (categoria === 'Atividade' && titulo) {
-            const tituloLower = titulo.toLowerCase();
-            if (tituloLower.includes('escrev') || tituloLower.includes('desenh') || tituloLower.includes('copi') || tituloLower.includes('pauta')) categoria = 'Escrita';
-            else if (tituloLower.includes('ler') || tituloLower.includes('ler') || tituloLower.includes('ler')) categoria = 'Leitura';
-            else if (tituloLower.includes('tocar') || tituloLower.includes('cantar') || tituloLower.includes('executar')) categoria = 'Execução';
-            else if (tituloLower.includes('ouvir') || tituloLower.includes('escutar') || tituloLower.includes('perceber')) categoria = 'Percepção';
-            else if (tituloLower.includes('decor') || tituloLower.includes('memor') || tituloLower.includes('repetir')) categoria = 'Memória';
-            else if (tituloLower.includes('compor') || tituloLower.includes('criar') || tituloLower.includes('improvisar')) categoria = 'Composição';
-            else if (tituloLower.includes('analisar') || tituloLower.includes('classificar') || tituloLower.includes('identificar')) categoria = 'Teoria';
-            else if (tituloLower.includes('coord') || tituloLower.includes('dedo') || tituloLower.includes('movimento')) categoria = 'Coordenação';
-            else if (tituloLower.includes('express') || tituloLower.includes('sentir') || tituloLower.includes('emoção')) categoria = 'Expressão';
-            else if (tituloLower.includes('digital') || tituloLower.includes('software') || tituloLower.includes('gravar')) categoria = 'Tecnologia';
-            else if (tituloLower.includes('refletir') || tituloLower.includes('avaliar') || tituloLower.includes('planejar')) categoria = 'Metacognição';
-            else if (tituloLower.includes('ensinar') || tituloLower.includes('compartilhar') || tituloLower.includes('grupo')) categoria = 'Social';
-            else if (tituloLower.includes('jogo') || tituloLower.includes('brincadeira') || tituloLower.includes('desafio')) categoria = 'Ludicidade';
-            else categoria = 'Atividade';
+        // Para cada categoria, cria uma ação separada
+        for (const categoria of categorias) {
+            let nivel = atividade.nivel || 1;
+            if (id <= 70) nivel = 1;
+            else if (id <= 145) nivel = 2;
+            else if (id <= 275) nivel = 3;
+            else if (id <= 340) nivel = 4;
+            else nivel = 5;
+            
+            acoes.push({
+                id: parseInt(id),
+                numero: parseInt(id),
+                texto: titulo,
+                categoria: categoria,
+                nivel: nivel
+            });
         }
-        
-        let nivel = atividade.nivel || 1;
-        if (id <= 70) nivel = 1;
-        else if (id <= 145) nivel = 2;
-        else if (id <= 275) nivel = 3;
-        else if (id <= 340) nivel = 4;
-        else nivel = 5;
-        
-        acoes.push({
-            id: parseInt(id),
-            numero: parseInt(id),
-            texto: titulo,
-            categoria: categoria,
-            nivel: nivel
-        });
     }
     
     acoes.sort((a, b) => a.id - b.id);
@@ -70,25 +63,34 @@ let TODAS_ACOES = [];
 
 // ==================== CARREGAR DO GITHUB ====================
 async function carregarAtividadesDoGitHub() {
-    console.log("🔄 Carregando atividades do GitHub...");
-    const url = `${BASE_PATH}data/atividades.json`;
-    try {
-        const response = await fetch(url);
-        if (response.ok) {
-            const dados = await response.json();
-            ATIVIDADES = dados;
-            const total = Object.keys(ATIVIDADES).length;
-            console.log(`✅ ${total} atividades carregadas!`);
-            mostrarToast(`✅ ${total} atividades carregadas!`);
-        } else {
-            console.log("⚠️ Arquivo atividades.json não encontrado.");
+    console.log("🔄 Carregando atividades do GitHub (múltiplos arquivos)...");
+    ATIVIDADES = {};
+    let total = 0;
+    
+    for (const arquivo of ARQUIVOS_ATIVIDADES) {
+        const url = `${BASE_PATH}data/atividades/${arquivo}?t=${Date.now()}`;
+        try {
+            const response = await fetch(url);
+            if (response.ok) {
+                const dados = await response.json();
+                ATIVIDADES = { ...ATIVIDADES, ...dados };
+                const count = Object.keys(dados).length;
+                total += count;
+                console.log(`✅ ${arquivo}: ${count} atividades carregadas`);
+            } else {
+                console.log(`⚠️ ${arquivo} não encontrado`);
+            }
+        } catch(e) {
+            console.error(`❌ Erro ao carregar ${arquivo}:`, e);
         }
-    } catch(e) {
-        console.error("Erro ao carregar atividades:", e);
     }
+    
+    console.log(`✅ Total: ${total} atividades carregadas!`);
+    mostrarToast(`✅ ${total} atividades carregadas!`);
+    
     atividadesFiltradasAdmin = { ...ATIVIDADES };
     TODAS_ACOES = gerarAcoesAPartirDasAtividades();
-    if (Object.keys(ATIVIDADES).length > 0) salvarTodosDados();
+    if (total > 0) salvarTodosDados();
 }
 
 async function carregarPlanosAulaDoGitHub() {
@@ -132,15 +134,23 @@ function salvarTodosDados() {
     mostrarToast('✅ Dados salvos!');
 }
 
-function carregarDados() {
-    const salvos = localStorage.getItem('biblioteca_dados');
-    if (salvos) {
-        try {
-            const dados = JSON.parse(salvos);
-            ATIVIDADES = dados.atividades || {};
-            PLANOS_AULA = dados.planosAula || {};
-            PLANOS_CURSO = dados.planosCurso || {};
-        } catch(e) { console.error(e); }
+async function carregarDados() {
+    const forceReload = true;
+    
+    if (!forceReload) {
+        const salvos = localStorage.getItem('biblioteca_dados');
+        if (salvos) {
+            try {
+                const dados = JSON.parse(salvos);
+                ATIVIDADES = dados.atividades || {};
+                PLANOS_AULA = dados.planosAula || {};
+                PLANOS_CURSO = dados.planosCurso || {};
+                console.log("📀 Dados carregados do localStorage");
+            } catch(e) { console.error(e); }
+        }
+    } else {
+        localStorage.removeItem('biblioteca_dados');
+        console.log("🔄 Forçando recarga do GitHub...");
     }
     
     atividadesFiltradasAdmin = { ...ATIVIDADES };
@@ -150,11 +160,19 @@ function carregarDados() {
     
     atualizarTudo();
     
-    carregarAtividadesDoGitHub();
-    carregarPlanosAulaDoGitHub();
-    carregarPlanosCursoDoGitHub();
-    carregarAbordagensDoGitHub();
+    // ESPERA o carregamento de TODOS os arquivos
+    await carregarAtividadesDoGitHub();
+    await carregarPlanosAulaDoGitHub();
+    await carregarPlanosCursoDoGitHub();
+    await carregarAbordagensDoGitHub();
+    
+    // Após carregar, atualiza tudo novamente
+    atualizarAcoes();
+    atualizarListasAdmin();
+    atualizarEstatisticas();
+    console.log("✅ Todos os dados carregados!");
 }
+ 
 
 function atualizarEstatisticas() {
     document.getElementById('statAtividades').textContent = Object.keys(ATIVIDADES).length;
@@ -195,8 +213,50 @@ function verAtividade(acaoId) {
     const ativ = ATIVIDADES[acaoId];
     if (ativ) {
         let html = `<div class="atividade-detalhe"><strong>🎯 Objetivo:</strong> ${escapeHtml(ativ.objetivo || '')}</div>`;
-        html += `<div class="atividade-detalhe"><strong>📂 Categoria:</strong> ${ativ.categoria || 'Não definida'}</div>`;
+        
+        // MUDANÇA: exibe categorias_base (array)
+        if (ativ.categorias_base && ativ.categorias_base.length) {
+            html += `<div class="atividade-detalhe"><strong>📂 Categorias:</strong> ${ativ.categorias_base.join(', ')}</div>`;
+        } else if (ativ.categoria) {
+            html += `<div class="atividade-detalhe"><strong>📂 Categoria:</strong> ${ativ.categoria}</div>`;
+        }
+        
         html += `<div class="atividade-detalhe"><strong>⏱️ Duração:</strong> ${ativ.duracao || 'Não informada'}</div>`;
+        html += `<div class="atividade-detalhe"><strong>🎚️ Nível:</strong> ${ativ.nivel || 1}</div>`;
+        
+        // NOVO: exibe tags_avancadas se existirem
+        if (ativ.tags_avancadas) {
+            const tags = ativ.tags_avancadas;
+            html += `<div class="tags-section"><strong>🏷️ Tags Avançadas:</strong><div class="tags-container">`;
+            
+            if (tags.pedagogico && tags.pedagogico.length) {
+                html += `<div class="tag-group"><strong>🎯 Pedagógico:</strong> ${tags.pedagogico.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`;
+            }
+            if (tags.tipo_atividade && tags.tipo_atividade.length) {
+                html += `<div class="tag-group"><strong>🎭 Tipo:</strong> ${tags.tipo_atividade.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`;
+            }
+            if (tags.interacao && tags.interacao.length) {
+                html += `<div class="tag-group"><strong>👥 Interação:</strong> ${tags.interacao.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`;
+            }
+            if (tags.cognitivo && tags.cognitivo.length) {
+                html += `<div class="tag-group"><strong>🧠 Cognitivo:</strong> ${tags.cognitivo.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`;
+            }
+            if (tags.elemento_musical && tags.elemento_musical.length) {
+                html += `<div class="tag-group"><strong>🎵 Elemento:</strong> ${tags.elemento_musical.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`;
+            }
+            if (tags.conteudo && tags.conteudo.length) {
+                html += `<div class="tag-group"><strong>📚 Conteúdo:</strong> ${tags.conteudo.map(t => `<span class="tag">${escapeHtml(t)}</span>`).join('')}</div>`;
+            }
+            if (tags.pedagogos && tags.pedagogos.length) {
+                html += `<div class="tag-group"><strong>🎓 Pedagogos:</strong> ${tags.pedagogos.map(t => `<span class="tag tag-pedagogo">${escapeHtml(t)}</span>`).join('')}</div>`;
+            }
+            if (tags.principios && tags.principios.length) {
+                html += `<div class="tag-group"><strong>📖 Princípios:</strong> ${tags.principios.map(t => `<span class="tag tag-principio">${escapeHtml(t)}</span>`).join('')}</div>`;
+            }
+            
+            html += `</div></div>`;
+        }
+        
         if (ativ.materiais && ativ.materiais.length) {
             html += `<div class="atividade-detalhe"><strong>📦 Materiais:</strong><ul>${ativ.materiais.map(m=>`<li>${escapeHtml(m)}</li>`).join('')}</ul></div>`;
         }
@@ -204,11 +264,11 @@ function verAtividade(acaoId) {
             html += `<div class="atividade-detalhe"><strong>📝 Passo a passo:</strong><ul>${ativ.passo_a_passo.map(p=>`<li>${escapeHtml(p)}</li>`).join('')}</ul></div>`;
         }
         html += `<button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
+        
         document.getElementById('modalTitulo').innerHTML = `📖 ${escapeHtml(ativ.titulo)}`;
         document.getElementById('modalConteudo').innerHTML = html;
     } else {
-        document.getElementById('modalTitulo').innerHTML = `📖 Atividade #${acaoId}`;
-        document.getElementById('modalConteudo').innerHTML = `<div class="empty-state">Nenhuma atividade cadastrada.</div><button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
+        // ... fallback
     }
     abrirModal('modalAtividade');
 }
@@ -623,32 +683,36 @@ function atualizarListaPlanosCursoAdmin() {
 function editarAtividadeAdmin(id) {
     const ativ = ATIVIDADES[id];
     if (!ativ) { alert('Atividade não encontrada'); return; }
+    
+    // Preparar categorias_base para exibição (array para texto)
+    const categoriasBaseStr = (ativ.categorias_base || [ativ.categoria || '']).join(', ');
+    
     document.getElementById('editorTitulo').innerHTML = `✏️ Editar Atividade ID ${id}`;
     document.getElementById('editorConteudo').innerHTML = `
         <div class="form-row"><label>ID:</label><input type="number" id="editId" value="${id}" readonly></div>
         <div class="form-row"><label>Título:</label><input type="text" id="editTitulo" value="${escapeHtml(ativ.titulo || '')}"></div>
-        <div class="form-row"><label>Categoria:</label>
-            <select id="editCategoria">
-                <option value="Percepção" ${ativ.categoria === 'Percepção' ? 'selected' : ''}>🎧 Percepção e Audição</option>
-                <option value="Leitura" ${ativ.categoria === 'Leitura' ? 'selected' : ''}>📖 Leitura</option>
-                <option value="Escrita" ${ativ.categoria === 'Escrita' ? 'selected' : ''}>✍️ Escrita</option>
-                <option value="Execução" ${ativ.categoria === 'Execução' ? 'selected' : ''}>🎹 Execução Instrumental</option>
-                <option value="Teoria" ${ativ.categoria === 'Teoria' ? 'selected' : ''}>📐 Teoria e Análise</option>
-                <option value="Composição" ${ativ.categoria === 'Composição' ? 'selected' : ''}>🎼 Composição e Criatividade</option>
-                <option value="Memória" ${ativ.categoria === 'Memória' ? 'selected' : ''}>🧠 Memória Musical</option>
-                <option value="Coordenação" ${ativ.categoria === 'Coordenação' ? 'selected' : ''}>🦶 Coordenação Motora</option>
-                <option value="Expressão" ${ativ.categoria === 'Expressão' ? 'selected' : ''}>🎭 Expressão e Musicalidade</option>
-                <option value="Tecnologia" ${ativ.categoria === 'Tecnologia' ? 'selected' : ''}>💻 Tecnologia Musical</option>
-                <option value="Metacognição" ${ativ.categoria === 'Metacognição' ? 'selected' : ''}>🔍 Metacognição</option>
-                <option value="Social" ${ativ.categoria === 'Social' ? 'selected' : ''}>👥 Interação Social</option>
-                <option value="Ludicidade" ${ativ.categoria === 'Ludicidade' ? 'selected' : ''}>🎲 Ludicidade</option>
-            </select>
+        <div class="form-row"><label>Categorias Base (separadas por vírgula):</label>
+            <input type="text" id="editCategoriasBase" value="${escapeHtml(categoriasBaseStr)}" placeholder="Ex: Percepção, Escrita, Memória">
+            <small>Digite as categorias separadas por vírgula (ex: Percepção, Escrita, Memória)</small>
         </div>
         <div class="form-row"><label>Objetivo:</label><textarea id="editObjetivo" rows="3">${escapeHtml(ativ.objetivo || '')}</textarea></div>
         <div class="form-row"><label>Materiais (um por linha):</label><textarea id="editMateriais" rows="3">${(ativ.materiais || []).join('\n')}</textarea></div>
         <div class="form-row"><label>Passo a passo (um por linha):</label><textarea id="editPassos" rows="5">${(ativ.passo_a_passo || []).join('\n')}</textarea></div>
         <div class="form-row"><label>Duração:</label><input type="text" id="editDuracao" value="${escapeHtml(ativ.duracao || '')}"></div>
+        <div class="form-row"><label>Nível:</label><select id="editNivel">${[1,2,3,4,5].map(n => `<option value="${n}" ${ativ.nivel===n?'selected':''}>Nível ${n}</option>`).join('')}</select></div>
         <div class="form-row"><label>IDs das Ações (separados por vírgula):</label><input type="text" id="editAcoesIds" value="${(ativ.acoes_ids || []).join(', ')}"></div>
+        
+        <details><summary>🏷️ Tags Avançadas (opcional)</summary>
+            <div class="form-row"><label>Pedagógico (separados por vírgula):</label><input type="text" id="editPedagogico" value="${(ativ.tags_avancadas?.pedagogico || []).join(', ')}"></div>
+            <div class="form-row"><label>Tipo de Atividade:</label><input type="text" id="editTipoAtividade" value="${(ativ.tags_avancadas?.tipo_atividade || []).join(', ')}"></div>
+            <div class="form-row"><label>Interação Social:</label><input type="text" id="editInteracao" value="${(ativ.tags_avancadas?.interacao || []).join(', ')}"></div>
+            <div class="form-row"><label>Cognitivo:</label><input type="text" id="editCognitivo" value="${(ativ.tags_avancadas?.cognitivo || []).join(', ')}"></div>
+            <div class="form-row"><label>Elemento Musical:</label><input type="text" id="editElemento" value="${(ativ.tags_avancadas?.elemento_musical || []).join(', ')}"></div>
+            <div class="form-row"><label>Conteúdo:</label><input type="text" id="editConteudo" value="${(ativ.tags_avancadas?.conteudo || []).join(', ')}"></div>
+            <div class="form-row"><label>Pedagogos:</label><input type="text" id="editPedagogos" value="${(ativ.tags_avancadas?.pedagogos || []).join(', ')}"></div>
+            <div class="form-row"><label>Princípios:</label><input type="text" id="editPrincipios" value="${(ativ.tags_avancadas?.principios || []).join(', ')}"></div>
+        </details>
+        
         <button onclick="salvarAtividadeAdmin()" class="success">💾 Salvar</button>
     `;
     document.getElementById('formEditor').style.display = 'block';
@@ -695,19 +759,48 @@ function editarPlanoCursoAdmin(id) {
 
 function salvarAtividadeAdmin() {
     const id = parseInt(document.getElementById('editId').value);
-    const categoria = document.getElementById('editCategoria')?.value || 'Atividade';
+    
+    // Processar categorias_base (array)
+    const categoriasBaseStr = document.getElementById('editCategoriasBase').value;
+    const categoriasBase = categoriasBaseStr ? categoriasBaseStr.split(',').map(s => s.trim()).filter(s => s) : [];
+    
+    // Processar tags avançadas
+    const tags_avancadas = {
+        pedagogico: document.getElementById('editPedagogico')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
+        tipo_atividade: document.getElementById('editTipoAtividade')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
+        interacao: document.getElementById('editInteracao')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
+        cognitivo: document.getElementById('editCognitivo')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
+        elemento_musical: document.getElementById('editElemento')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
+        conteudo: document.getElementById('editConteudo')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
+        pedagogos: document.getElementById('editPedagogos')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
+        principios: document.getElementById('editPrincipios')?.value.split(',').map(s=>s.trim()).filter(s=>s) || []
+    };
+    
+    // Remover grupos vazios
+    Object.keys(tags_avancadas).forEach(key => {
+        if (tags_avancadas[key].length === 0) delete tags_avancadas[key];
+    });
+    
     const acoesIdsStr = document.getElementById('editAcoesIds').value;
     const acoesIds = acoesIdsStr ? acoesIdsStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)) : [];
+    
     ATIVIDADES[id] = {
         id: id,
         titulo: document.getElementById('editTitulo').value,
-        categoria: categoria,
+        categorias_base: categoriasBase,
         objetivo: document.getElementById('editObjetivo').value,
+        nivel: parseInt(document.getElementById('editNivel').value) || 1,
         materiais: document.getElementById('editMateriais').value.split('\n').filter(l=>l.trim()),
         passo_a_passo: document.getElementById('editPassos').value.split('\n').filter(l=>l.trim()),
         duracao: document.getElementById('editDuracao').value,
         acoes_ids: acoesIds
     };
+    
+    // Adicionar tags_avancadas se não estiver vazio
+    if (Object.keys(tags_avancadas).length > 0) {
+        ATIVIDADES[id].tags_avancadas = tags_avancadas;
+    }
+    
     salvarTodosDados();
     document.getElementById('formEditor').style.display = 'none';
     atividadesFiltradasAdmin = { ...ATIVIDADES };
@@ -716,7 +809,6 @@ function salvarAtividadeAdmin() {
     atualizarAcoes();
     mostrarToast('✅ Atividade salva!');
 }
-
 function salvarPlanoAulaAdmin() {
     const id = parseInt(document.getElementById('editId').value);
     const atividadesIdsStr = document.getElementById('editAtividadesIds').value;
@@ -761,28 +853,28 @@ function novaAtividadeAdmin() {
     document.getElementById('editorConteudo').innerHTML = `
         <div class="form-row"><label>ID da Atividade:</label><input type="number" id="editId"></div>
         <div class="form-row"><label>Título:</label><input type="text" id="editTitulo"></div>
-        <div class="form-row"><label>Categoria:</label>
-            <select id="editCategoria">
-                <option value="Percepção">🎧 Percepção e Audição</option>
-                <option value="Leitura">📖 Leitura</option>
-                <option value="Escrita">✍️ Escrita</option>
-                <option value="Execução">🎹 Execução Instrumental</option>
-                <option value="Teoria">📐 Teoria e Análise</option>
-                <option value="Composição">🎼 Composição e Criatividade</option>
-                <option value="Memória">🧠 Memória Musical</option>
-                <option value="Coordenação">🦶 Coordenação Motora</option>
-                <option value="Expressão">🎭 Expressão e Musicalidade</option>
-                <option value="Tecnologia">💻 Tecnologia Musical</option>
-                <option value="Metacognição">🔍 Metacognição</option>
-                <option value="Social">👥 Interação Social</option>
-                <option value="Ludicidade">🎲 Ludicidade</option>
-            </select>
+        <div class="form-row"><label>Categorias Base (separadas por vírgula):</label>
+            <input type="text" id="editCategoriasBase" placeholder="Ex: Percepção, Escrita, Memória">
+            <small>Opções: ${CATEGORIAS.join(', ')}</small>
         </div>
         <div class="form-row"><label>Objetivo:</label><textarea id="editObjetivo" rows="3"></textarea></div>
         <div class="form-row"><label>Materiais (um por linha):</label><textarea id="editMateriais" rows="3"></textarea></div>
         <div class="form-row"><label>Passo a passo (um por linha):</label><textarea id="editPassos" rows="5"></textarea></div>
         <div class="form-row"><label>Duração:</label><input type="text" id="editDuracao"></div>
+        <div class="form-row"><label>Nível:</label><select id="editNivel"><option value="1">Nível 1</option><option value="2">Nível 2</option><option value="3">Nível 3</option><option value="4">Nível 4</option><option value="5">Nível 5</option></select></div>
         <div class="form-row"><label>IDs das Ações (separados por vírgula):</label><input type="text" id="editAcoesIds"></div>
+        
+        <details><summary>🏷️ Tags Avançadas (opcional)</summary>
+            <div class="form-row"><label>Pedagógico (separados por vírgula):</label><input type="text" id="editPedagogico" placeholder="Ex: Alfabetização Musical, Ritmo"></div>
+            <div class="form-row"><label>Tipo de Atividade:</label><input type="text" id="editTipoAtividade" placeholder="Ex: Jogo, Exercício, Desafio"></div>
+            <div class="form-row"><label>Interação Social:</label><input type="text" id="editInteracao" placeholder="Ex: Individual, Dupla, Grupo"></div>
+            <div class="form-row"><label>Cognitivo:</label><input type="text" id="editCognitivo" placeholder="Ex: Memória, Percepção, Raciocínio"></div>
+            <div class="form-row"><label>Elemento Musical:</label><input type="text" id="editElemento" placeholder="Ex: Altura, Duração, Timbre"></div>
+            <div class="form-row"><label>Conteúdo:</label><input type="text" id="editConteudo" placeholder="Ex: Escala, Acorde, Intervalo"></div>
+            <div class="form-row"><label>Pedagogos:</label><input type="text" id="editPedagogos" placeholder="Ex: Kodály, Orff, Suzuki"></div>
+            <div class="form-row"><label>Princípios:</label><input type="text" id="editPrincipios" placeholder="Ex: Movimento corporal, Criatividade"></div>
+        </details>
+        
         <button onclick="salvarAtividadeAdmin()" class="success">💾 Salvar</button>
     `;
     document.getElementById('formEditor').style.display = 'block';
@@ -987,13 +1079,129 @@ function exportarPlanosCursoEspecificos() {
 }
 
 // ==================== EXPORTAÇÃO ====================
-function baixarArquivo(conteudo, nome) { const blob = new Blob([conteudo], {type:'application/json'}); const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; a.click(); URL.revokeObjectURL(blob); }
-function exportarAtividades() { baixarArquivo(JSON.stringify(ATIVIDADES, null, 2), `atividades.json`); }
-function exportarPlanosAula() { baixarArquivo(JSON.stringify(PLANOS_AULA, null, 2), `planos_aula.json`); }
-function exportarPlanosCurso() { baixarArquivo(JSON.stringify(PLANOS_CURSO, null, 2), `planos_curso.json`); }
-function exportarTudo() { baixarArquivo(JSON.stringify({ atividades: ATIVIDADES, planosAula: PLANOS_AULA, planosCurso: PLANOS_CURSO }, null, 2), `backup_completo_${new Date().toISOString().split('T')[0]}.json`); }
-function importarDados() { const file = document.getElementById('arquivoImport').files[0]; if(!file) return; const reader = new FileReader(); reader.onload = function(e) { try { const dados = JSON.parse(e.target.result); if(dados.atividades) ATIVIDADES = dados.atividades; if(dados.planosAula) PLANOS_AULA = dados.planosAula; if(dados.planosCurso) PLANOS_CURSO = dados.planosCurso; salvarTodosDados(); mostrarToast('✅ Importado!'); location.reload(); } catch(err) { alert('Erro: '+err.message); } }; reader.readAsText(file); }
+function baixarArquivo(conteudo, nome) { 
+    const blob = new Blob([conteudo], {type:'application/json'}); 
+    const a = document.createElement('a'); 
+    a.href = URL.createObjectURL(blob); 
+    a.download = nome; 
+    a.click(); 
+    URL.revokeObjectURL(blob); 
+}
 
+// EXPORTAR ATIVIDADES COMPLETAS (para backup)
+function exportarAtividades() { 
+    baixarArquivo(JSON.stringify(ATIVIDADES, null, 2), `atividades_completo_${new Date().toISOString().split('T')[0]}.json`); 
+}
+
+// EXPORTAR POR BLOCOS (para manter a estrutura)
+function exportarAtividadesPorBloco(inicio, fim) {
+    const bloco = {};
+    for (let i = inicio; i <= fim; i++) {
+        if (ATIVIDADES[i]) {
+            bloco[i] = ATIVIDADES[i];
+        }
+    }
+    baixarArquivo(JSON.stringify(bloco, null, 2), `atividades${inicio}_${fim}.json`);
+}
+
+// EXPORTAR TODOS OS BLOCOS (compactado em ZIP não é possível nativamente, então criamos múltiplos downloads)
+function exportarTodosBlocos() {
+    const blocos = [
+        { inicio: 1, fim: 100 },
+        { inicio: 101, fim: 200 },
+        { inicio: 201, fim: 300 },
+        { inicio: 301, fim: 400 },
+        { inicio: 401, fim: 500 }
+    ];
+    
+    for (const bloco of blocos) {
+        exportarAtividadesPorBloco(bloco.inicio, bloco.fim);
+    }
+    mostrarToast('✅ Blocos exportados! Verifique a pasta de downloads.');
+}
+
+function exportarPlanosAula() { 
+    baixarArquivo(JSON.stringify(PLANOS_AULA, null, 2), `planos_aula.json`); 
+}
+
+function exportarPlanosCurso() { 
+    baixarArquivo(JSON.stringify(PLANOS_CURSO, null, 2), `planos_curso.json`); 
+}
+
+function exportarTudo() { 
+    baixarArquivo(JSON.stringify({ 
+        atividades: ATIVIDADES, 
+        planosAula: PLANOS_AULA, 
+        planosCurso: PLANOS_CURSO 
+    }, null, 2), `backup_completo_${new Date().toISOString().split('T')[0]}.json`); 
+}
+
+// IMPORTAR DADOS - mantém a estrutura de blocos
+function importarDados() { 
+    const file = document.getElementById('arquivoImport').files[0]; 
+    if(!file) return; 
+    const reader = new FileReader(); 
+    reader.onload = function(e) { 
+        try { 
+            const dados = JSON.parse(e.target.result); 
+            
+            // Se for backup completo (com atividades, planosAula, planosCurso)
+            if(dados.atividades) ATIVIDADES = dados.atividades; 
+            if(dados.planosAula) PLANOS_AULA = dados.planosAula; 
+            if(dados.planosCurso) PLANOS_CURSO = dados.planosCurso; 
+            
+            // Se for apenas um bloco de atividades (objeto com IDs)
+            else if(dados && typeof dados === 'object') {
+                // Verifica se parece ser um bloco de atividades (contém IDs numéricos)
+                const primeiraChave = Object.keys(dados)[0];
+                if(primeiraChave && !isNaN(parseInt(primeiraChave))) {
+                    ATIVIDADES = { ...ATIVIDADES, ...dados };
+                }
+            }
+            
+            salvarTodosDados(); 
+            mostrarToast('✅ Importado! Recarregando...'); 
+            setTimeout(() => location.reload(), 500);
+        } catch(err) { 
+            alert('Erro: '+err.message); 
+        } 
+    }; 
+    reader.readAsText(file); 
+}
+
+// FUNÇÃO PARA RECARREGAR UM BLOCO ESPECÍFICO DO GITHUB
+async function recarregarBlocoAtividades(inicio, fim) {
+    const arquivo = `atividades${inicio}_${fim}.json`;
+    const url = `${BASE_PATH}data/atividades/${arquivo}?t=${Date.now()}`;
+    
+    try {
+        const response = await fetch(url);
+        if (response.ok) {
+            const dados = await response.json();
+            
+            // Remover atividades antigas do bloco
+            for (let i = inicio; i <= fim; i++) {
+                delete ATIVIDADES[i];
+            }
+            
+            // Adicionar as novas
+            ATIVIDADES = { ...ATIVIDADES, ...dados };
+            
+            salvarTodosDados();
+            atividadesFiltradasAdmin = { ...ATIVIDADES };
+            TODAS_ACOES = gerarAcoesAPartirDasAtividades();
+            atualizarAcoes();
+            atualizarListasAdmin();
+            
+            mostrarToast(`✅ Bloco ${inicio}-${fim} recarregado!`);
+        } else {
+            mostrarToast(`⚠️ Bloco ${inicio}-${fim} não encontrado no GitHub`);
+        }
+    } catch(e) {
+        console.error(`Erro ao recarregar bloco ${inicio}-${fim}:`, e);
+        mostrarToast(`❌ Erro ao recarregar bloco ${inicio}-${fim}`);
+    }
+}
 // ==================== INICIALIZAÇÃO ====================
 function atualizarTudo() {
     atualizarFiltros();
@@ -1068,6 +1276,14 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
         if (tab === 'acoes') { atualizarFiltros(); atualizarAcoes(); }
         if (tab === 'admin') { atualizarListasAdmin(); }
     });
+});
+
+document.getElementById('btnLimparCache')?.addEventListener('click', () => {
+    if(confirm('Limpar cache e recarregar dados do GitHub?')) {
+        localStorage.removeItem('biblioteca_dados');
+        mostrarToast('✅ Cache limpo! Recarregando...');
+        setTimeout(() => location.reload(), 500);
+    }
 });
 
 carregarDados();
