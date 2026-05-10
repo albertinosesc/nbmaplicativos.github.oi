@@ -749,14 +749,38 @@ function editarAtividadeAdmin(id) {
 function editarPlanoAulaAdmin(id) {
     const plano = PLANOS_AULA[id];
     if (!plano) { alert('Plano não encontrado'); return; }
+    
     document.getElementById('editorTitulo').innerHTML = `✏️ Editar Plano de Aula ID ${id}`;
     document.getElementById('editorConteudo').innerHTML = `
         <div class="form-row"><label>ID:</label><input type="number" id="editId" value="${id}" readonly></div>
         <div class="form-row"><label>Título:</label><input type="text" id="editTitulo" value="${escapeHtml(plano.titulo || '')}"></div>
         <div class="form-row"><label>Nível:</label><select id="editNivel">${[1,2,3,4,5].map(n => `<option value="${n}" ${plano.nivel===n?'selected':''}>Nível ${n}</option>`).join('')}</select></div>
         <div class="form-row"><label>Duração:</label><input type="text" id="editDuracao" value="${escapeHtml(plano.duracao || '')}"></div>
+        
         <div class="form-row"><label>Objetivo Geral:</label><textarea id="editObjetivoGeral" rows="2">${escapeHtml(plano.objetivoGeral || '')}</textarea></div>
+        
+        <div class="form-row"><label>Objetivos Específicos (um por linha):</label><textarea id="editObjetivosEspecificos" rows="4">${(plano.objetivosEspecificos || []).join('\n')}</textarea></div>
+        
+        <div class="form-row"><label>Conteúdo (um por linha):</label><textarea id="editConteudo" rows="4">${(plano.conteudo || []).join('\n')}</textarea></div>
+        
+        <div class="form-row"><label>Metodologia:</label><textarea id="editMetodologia" rows="3">${escapeHtml(plano.metodologia || '')}</textarea></div>
+        
+        <div class="form-row"><label>Recursos Didáticos (um por linha):</label><textarea id="editRecursosDidaticos" rows="3">${(plano.recursosDidaticos || []).join('\n')}</textarea></div>
+        
+        <div class="form-row"><label>Desenvolvimento (um por linha):</label><textarea id="editDesenvolvimento" rows="5">${(plano.desenvolvimento || []).join('\n')}</textarea></div>
+        
+        <div class="form-row"><label>Avaliação:</label><textarea id="editAvaliacao" rows="2">${escapeHtml(plano.avaliacao || '')}</textarea></div>
+        
         <div class="form-row"><label>IDs das Atividades (separados por vírgula):</label><input type="text" id="editAtividadesIds" value="${(plano.atividades_ids || []).join(', ')}"></div>
+        
+        <div class="form-row"><label>Adaptações (um por linha):</label><textarea id="editAdaptacoes" rows="3">${(plano.adaptacoes || []).join('\n')}</textarea></div>
+        
+        <div class="form-row"><label>Tarefa de Casa:</label><textarea id="editTarefaCasa" rows="2">${escapeHtml(plano.tarefaCasa || '')}</textarea></div>
+        
+        <div class="form-row"><label>Referências (um por linha):</label><textarea id="editReferencias" rows="3">${(plano.referencias || []).join('\n')}</textarea></div>
+        
+        <div class="form-row"><label>Observações:</label><textarea id="editObservacoes" rows="2">${escapeHtml(plano.observacoes || '')}</textarea></div>
+        
         <button onclick="salvarPlanoAulaAdmin()" class="success">💾 Salvar</button>
     `;
     document.getElementById('formEditor').style.display = 'block';
@@ -837,22 +861,44 @@ function salvarAtividadeAdmin() {
 }
 function salvarPlanoAulaAdmin() {
     const id = parseInt(document.getElementById('editId').value);
+    
     const atividadesIdsStr = document.getElementById('editAtividadesIds').value;
     const atividadesIds = atividadesIdsStr ? atividadesIdsStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)) : [];
+    
+    // Processar campos de texto (arrays)
+    const objetivosEspecificos = document.getElementById('editObjetivosEspecificos')?.value.split('\n').filter(l => l.trim()) || [];
+    const conteudo = document.getElementById('editConteudo')?.value.split('\n').filter(l => l.trim()) || [];
+    const recursosDidaticos = document.getElementById('editRecursosDidaticos')?.value.split('\n').filter(l => l.trim()) || [];
+    const desenvolvimento = document.getElementById('editDesenvolvimento')?.value.split('\n').filter(l => l.trim()) || [];
+    const adaptacoes = document.getElementById('editAdaptacoes')?.value.split('\n').filter(l => l.trim()) || [];
+    const referencias = document.getElementById('editReferencias')?.value.split('\n').filter(l => l.trim()) || [];
+    
     PLANOS_AULA[id] = {
         id: id,
         titulo: document.getElementById('editTitulo').value,
         nivel: parseInt(document.getElementById('editNivel').value),
         duracao: document.getElementById('editDuracao').value,
         objetivoGeral: document.getElementById('editObjetivoGeral').value,
-        atividades_ids: atividadesIds
+        objetivosEspecificos: objetivosEspecificos,
+        conteudo: conteudo,
+        metodologia: document.getElementById('editMetodologia').value,
+        recursosDidaticos: recursosDidaticos,
+        desenvolvimento: desenvolvimento,
+        avaliacao: document.getElementById('editAvaliacao').value,
+        atividades_ids: atividadesIds,
+        adaptacoes: adaptacoes,
+        tarefaCasa: document.getElementById('editTarefaCasa').value,
+        referencias: referencias,
+        observacoes: document.getElementById('editObservacoes').value
     };
+    
     salvarTodosDados();
     document.getElementById('formEditor').style.display = 'none';
     planosAulaFiltradosAdmin = { ...PLANOS_AULA };
     atualizarListaPlanosAulaAdmin();
     mostrarToast('✅ Plano de aula salvo!');
 }
+
 
 function salvarPlanoCursoAdmin() {
     const id = parseInt(document.getElementById('editId').value);
@@ -914,13 +960,37 @@ function novoPlanoAulaAdmin() {
         <div class="form-row"><label>Título:</label><input type="text" id="editTitulo"></div>
         <div class="form-row"><label>Nível:</label><select id="editNivel"><option value="1">Nível 1</option><option value="2">Nível 2</option><option value="3">Nível 3</option><option value="4">Nível 4</option><option value="5">Nível 5</option></select></div>
         <div class="form-row"><label>Duração:</label><input type="text" id="editDuracao" value="50min"></div>
+        
         <div class="form-row"><label>Objetivo Geral:</label><textarea id="editObjetivoGeral" rows="2"></textarea></div>
+        
+        <div class="form-row"><label>Objetivos Específicos (um por linha):</label><textarea id="editObjetivosEspecificos" rows="4"></textarea></div>
+        
+        <div class="form-row"><label>Conteúdo (um por linha):</label><textarea id="editConteudo" rows="4"></textarea></div>
+        
+        <div class="form-row"><label>Metodologia:</label><textarea id="editMetodologia" rows="3"></textarea></div>
+        
+        <div class="form-row"><label>Recursos Didáticos (um por linha):</label><textarea id="editRecursosDidaticos" rows="3"></textarea></div>
+        
+        <div class="form-row"><label>Desenvolvimento (um por linha):</label><textarea id="editDesenvolvimento" rows="5"></textarea></div>
+        
+        <div class="form-row"><label>Avaliação:</label><textarea id="editAvaliacao" rows="2"></textarea></div>
+        
         <div class="form-row"><label>IDs das Atividades (separados por vírgula):</label><input type="text" id="editAtividadesIds"></div>
+        
+        <div class="form-row"><label>Adaptações (um por linha):</label><textarea id="editAdaptacoes" rows="3"></textarea></div>
+        
+        <div class="form-row"><label>Tarefa de Casa:</label><textarea id="editTarefaCasa" rows="2"></textarea></div>
+        
+        <div class="form-row"><label>Referências (um por linha):</label><textarea id="editReferencias" rows="3"></textarea></div>
+        
+        <div class="form-row"><label>Observações:</label><textarea id="editObservacoes" rows="2"></textarea></div>
+        
         <button onclick="salvarPlanoAulaAdmin()" class="success">💾 Salvar</button>
     `;
     document.getElementById('formEditor').style.display = 'block';
     window.editandoAdminTipo = 'planoAula';
 }
+
 
 function novoPlanoCursoAdmin() {
     document.getElementById('editorTitulo').innerHTML = '✏️ Novo Plano de Curso';
