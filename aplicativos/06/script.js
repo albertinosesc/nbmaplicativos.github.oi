@@ -6,11 +6,11 @@ const BASE_PATH = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REP
 
 // NOVO: Lista dos arquivos de atividades
 const ARQUIVOS_ATIVIDADES = [
-    'atividades1_100.json',
-    'atividades101_200.json',
-    'atividades201_300.json',
-    'atividades301_400.json',
-    'atividades401_500.json'
+    'atividades/atividades1_100.json',      // ← CORRETO: começa com 'atividades/'
+    'atividades/atividades101_200.json',
+    'atividades/atividades201_300.json',
+    'atividades/atividades301_400.json',
+    'atividades/atividades401_500.json'
 ];
 
 // ==================== DADOS ====================
@@ -68,7 +68,10 @@ async function carregarAtividadesDoGitHub() {
     let total = 0;
     
     for (const arquivo of ARQUIVOS_ATIVIDADES) {
-        const url = `${BASE_PATH}data/atividades/${arquivo}?t=${Date.now()}`;
+        // CORRETO: BASE_PATH já inclui /data/, então ARQUIVOS_ATIVIDADES deve começar com 'atividades/'
+        const url = `${BASE_PATH}${arquivo}?t=${Date.now()}`;
+        console.log("📡 Tentando carregar:", url); // ← ADICIONE ESTA LINHA PARA DEBUG
+        
         try {
             const response = await fetch(url);
             if (response.ok) {
@@ -78,7 +81,7 @@ async function carregarAtividadesDoGitHub() {
                 total += count;
                 console.log(`✅ ${arquivo}: ${count} atividades carregadas`);
             } else {
-                console.log(`⚠️ ${arquivo} não encontrado`);
+                console.log(`⚠️ ${arquivo} não encontrado (status: ${response.status})`);
             }
         } catch(e) {
             console.error(`❌ Erro ao carregar ${arquivo}:`, e);
@@ -86,11 +89,7 @@ async function carregarAtividadesDoGitHub() {
     }
     
     console.log(`✅ Total: ${total} atividades carregadas!`);
-    mostrarToast(`✅ ${total} atividades carregadas!`);
-    
-    atividadesFiltradasAdmin = { ...ATIVIDADES };
-    TODAS_ACOES = gerarAcoesAPartirDasAtividades();
-    if (total > 0) salvarTodosDados();
+    // ... resto
 }
 
 async function carregarPlanosAulaDoGitHub() {
