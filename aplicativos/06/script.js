@@ -38,18 +38,24 @@ function gerarAcoesAPartirDasAtividades() {
         const atividade = ATIVIDADES[id];
         const titulo = atividade.titulo ? atividade.titulo : `Atividade ${id}`;
         
-        // MUDANÇA AQUI: usa categorias_base (array) ou fallback
-        let categorias = atividade.categorias_base || [atividade.categoria || 'Atividade'];
+        // CORREÇÃO: verifica categorias_base (array) ou categoria (string)
+        let categorias = [];
+        if (atividade.categorias_base && Array.isArray(atividade.categorias_base)) {
+            categorias = atividade.categorias_base;
+        } else if (atividade.categoria) {
+            categorias = [atividade.categoria];
+        } else {
+            categorias = ['Atividade'];
+        }
         
-        // Para cada categoria, cria uma ação separada
+        let nivel = atividade.nivel || 1;
+        if (id <= 70) nivel = 1;
+        else if (id <= 145) nivel = 2;
+        else if (id <= 275) nivel = 3;
+        else if (id <= 340) nivel = 4;
+        else nivel = 5;
+        
         for (const categoria of categorias) {
-            let nivel = atividade.nivel || 1;
-            if (id <= 70) nivel = 1;
-            else if (id <= 145) nivel = 2;
-            else if (id <= 275) nivel = 3;
-            else if (id <= 340) nivel = 4;
-            else nivel = 5;
-            
             acoes.push({
                 id: parseInt(id),
                 numero: parseInt(id),
@@ -163,26 +169,32 @@ async function carregarDados() {
     } else {
         localStorage.removeItem('biblioteca_dados');
         console.log("🔄 Forçando recarga do GitHub...");
+        // Quando força recarga, limpa as variáveis
+        ATIVIDADES = {};
+        PLANOS_AULA = {};
+        PLANOS_CURSO = {};
     }
-    
-    atividadesFiltradasAdmin = { ...ATIVIDADES };
-    planosAulaFiltradosAdmin = { ...PLANOS_AULA };
-    planosCursoFiltradosAdmin = { ...PLANOS_CURSO };
-    TODAS_ACOES = gerarAcoesAPartirDasAtividades();
     
     atualizarTudo();
     
-    // ESPERA o carregamento de TODOS os arquivos
+    // PRIMEIRO: carrega do GitHub
     await carregarAtividadesDoGitHub();
     await carregarPlanosAulaDoGitHub();
     await carregarPlanosCursoDoGitHub();
     await carregarAbordagensDoGitHub();
     
-    // Após carregar, atualiza tudo novamente
+    // SEGUNDO: depois de carregar, sincroniza e atualiza
+    atividadesFiltradasAdmin = { ...ATIVIDADES };
+    planosAulaFiltradosAdmin = { ...PLANOS_AULA };
+    planosCursoFiltradosAdmin = { ...PLANOS_CURSO };
+    TODAS_ACOES = gerarAcoesAPartirDasAtividades();
+    
+    // TERCEIRO: atualiza as interfaces
     atualizarAcoes();
     atualizarListasAdmin();
     atualizarEstatisticas();
-    console.log("✅ Todos os dados carregados!");
+    
+    console.log(`✅ Todos os dados carregados! Atividades: ${Object.keys(ATIVIDADES).length}`);
 }
  
 
