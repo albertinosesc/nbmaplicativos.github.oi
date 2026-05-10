@@ -4,15 +4,19 @@ const GITHUB_REPO = "nbmaplicativos.github.oi";
 const GITHUB_BRANCH = "main";
 const BASE_PATH = `https://raw.githubusercontent.com/${GITHUB_USER}/${GITHUB_REPO}/${GITHUB_BRANCH}/aplicativos/06/data/`;
 
-// NOVO: Lista dos arquivos de atividades
+// Lista dos arquivos de atividades (dentro da pasta atividades/)
 const ARQUIVOS_ATIVIDADES = [
-    'atividades/atividades1_100.json',      // ← CORRETO: começa com 'atividades/'
+    'atividades/atividades1_100.json',
     'atividades/atividades101_200.json',
     'atividades/atividades201_300.json',
     'atividades/atividades301_400.json',
     'atividades/atividades401_500.json'
 ];
 
+// Para os outros arquivos, usamos BASE_PATH diretamente
+// Ex: carregarPlanosAulaDoGitHub() usa `${BASE_PATH}planosAula.json`
+// Ex: carregarPlanosCursoDoGitHub() usa `${BASE_PATH}planosCurso.json`
+// Ex: carregarAbordagensDoGitHub() usa `${BASE_PATH}abordagem.json`
 // ==================== DADOS ====================
 let ATIVIDADES = {};
 let PLANOS_AULA = {};
