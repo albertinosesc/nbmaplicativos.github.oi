@@ -17,6 +17,7 @@ const ARQUIVOS_ATIVIDADES = [
 // Ex: carregarPlanosAulaDoGitHub() usa `${BASE_PATH}planosAula.json`
 // Ex: carregarPlanosCursoDoGitHub() usa `${BASE_PATH}planosCurso.json`
 // Ex: carregarAbordagensDoGitHub() usa `${BASE_PATH}abordagem.json`
+
 // ==================== DADOS ====================
 let ATIVIDADES = {};
 let PLANOS_AULA = {};
@@ -97,28 +98,36 @@ async function carregarAtividadesDoGitHub() {
 }
 
 async function carregarPlanosAulaDoGitHub() {
-    const url = `${BASE_PATH}data/planosAula.json`;
+    const url = `${BASE_PATH}planosAula.json?t=${Date.now()}`;  // ← CORRETO
     try {
         const response = await fetch(url);
         if (response.ok) {
             const dados = await response.json();
             PLANOS_AULA = dados;
             console.log(`✅ ${Object.keys(PLANOS_AULA).length} planos de aula carregados!`);
+        } else {
+            console.log("⚠️ planosAula.json não encontrado");
         }
-    } catch(e) {}
+    } catch(e) {
+        console.error("Erro ao carregar planosAula:", e);
+    }
     planosAulaFiltradosAdmin = { ...PLANOS_AULA };
 }
 
 async function carregarPlanosCursoDoGitHub() {
-    const url = `${BASE_PATH}data/planosCurso.json`;
+    const url = `${BASE_PATH}planosCurso.json?t=${Date.now()}`;  // ← CORRETO
     try {
         const response = await fetch(url);
         if (response.ok) {
             const dados = await response.json();
             PLANOS_CURSO = dados;
             console.log(`✅ ${Object.keys(PLANOS_CURSO).length} planos de curso carregados!`);
+        } else {
+            console.log("⚠️ planosCurso.json não encontrado");
         }
-    } catch(e) {}
+    } catch(e) {
+        console.error("Erro ao carregar planosCurso:", e);
+    }
     planosCursoFiltradosAdmin = { ...PLANOS_CURSO };
 }
 
@@ -397,12 +406,14 @@ function copiarConteudoEditor() {
 let ABORDAGENS = {};
 
 async function carregarAbordagensDoGitHub() {
-    const url = `${BASE_PATH}data/abordagem.json`;
+    const url = `${BASE_PATH}abordagem.json?t=${Date.now()}`;  // ← CORRETO
     try {
         const response = await fetch(url);
         if (response.ok) {
             ABORDAGENS = await response.json();
             console.log("✅ Abordagens carregadas!");
+        } else {
+            console.log("⚠️ abordagem.json não encontrado");
         }
     } catch(e) {
         console.log("⚠️ Arquivo abordagem.json não encontrado");
