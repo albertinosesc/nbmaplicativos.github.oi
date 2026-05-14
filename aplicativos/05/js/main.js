@@ -307,7 +307,6 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     
     // FORÇAR O C1 A NÃO MOSTRAR NÚMERO
     if (sigla === 'C1') {
-        // Busca direta no ACORDES original
         if (typeof ACORDES !== 'undefined' && ACORDES['C1']) {
             acorde = {...ACORDES['C1']};
             acorde.posicao = null;
@@ -316,7 +315,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         }
     }
     
-    // 1️⃣ Busca do acorde (Biblioteca ou Dinâmico) NORMAL
+    // Busca do acorde
     if (!acorde && typeof ACORDES !== 'undefined' && ACORDES[sigla]) {
         acorde = ACORDES[sigla];
         nomeExibido = acorde.nome;
@@ -340,6 +339,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'position:relative; display:inline-block; text-align:center; margin:20px 10px;';
     
+    // Cifra (nome do acorde) em cima
     const cifraDiv = document.createElement('div');
     cifraDiv.textContent = nomeExibido;
     cifraDiv.style.cssText = 'position:absolute; top:-3px; left:50%; transform:translateX(-50%); font-size:25px; font-weight:bold; color:#e94560; background:white; padding:0px 8px; border-radius:20px; white-space:nowrap;';
@@ -374,64 +374,57 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.stroke();
     }
     
-    // ========== PESTANA (declarar as variáveis PRIMEIRO) ==========
+    // PESTANA
     const temPestana = acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0;
     const casaInicialVal = acorde.casaInicial || 1;
     const casaBase = acorde.pestanaCasa || acorde.casaInicial || 1;
-    const posicao = acorde.posicao || casaBase;
     const mostrarNumero = acorde.mostrarNumero !== false;
     
     let cordasNaPestana = [];
     
-if (temPestana) {
-    cordasNaPestana = acorde.pestanaCordas;
-    // Pega a casa da pestana (padrão: 1)
-    const casaPestana = acorde.pestanaCasa || acorde.casaInicialParaPestana || 1;
-    // Calcula a posição Y baseada na casa da pestana
-    const pestanaY = startY + (casaPestana - 1) * fretSpacing + (fretSpacing / 2);
-    const primeiraCorda = Math.min(...cordasNaPestana);
-    const ultimaCorda = Math.max(...cordasNaPestana);
+    if (temPestana) {
+        cordasNaPestana = acorde.pestanaCordas;
+        const casaPestana = acorde.pestanaCasa || acorde.casaInicialParaPestana || 1;
+        const pestanaY = startY + (casaPestana - 1) * fretSpacing + (fretSpacing / 2);
+        const primeiraCorda = Math.min(...cordasNaPestana);
+        const ultimaCorda = Math.max(...cordasNaPestana);
+        
+        const xInicio = startX + primeiraCorda * stringSpacing - 2;
+        const xFim = startX + ultimaCorda * stringSpacing + 2;
+        
+        ctx.beginPath();
+        ctx.moveTo(xInicio, pestanaY);
+        ctx.lineTo(xFim, pestanaY);
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#2c3e50';
+        ctx.stroke();
+    }
     
-    const xInicio = startX + primeiraCorda * stringSpacing - 2;
-    const xFim = startX + ultimaCorda * stringSpacing + 2;
+    // NÚMERO LATERAL
+    let numeroMostrar = null;
+    let textoMostrar = null;
     
-    ctx.beginPath();
-    ctx.moveTo(xInicio, pestanaY);
-    ctx.lineTo(xFim, pestanaY);
-    ctx.lineWidth = 10;
-    ctx.lineCap = 'round';
-    ctx.strokeStyle = '#2c3e50';
-    ctx.stroke();
-}
-
-// ========== NÚMERO LATERAL ==========
-let numeroMostrar = null;
-let textoMostrar = null;
-
-if (acorde.mostrarPosicao === true && acorde.posicao) {
-    // Para acordes dinâmicos com posição definida
-    numeroMostrar = acorde.posicao;           // posição (casa onde o número fica)
-    textoMostrar = acorde.textoPosicao || (acorde.posicao + 'ª'); // texto a mostrar
-} else if (mostrarNumero && temPestana) {
-    // Para acordes normais com pestana
-    numeroMostrar = acorde.pestanaCasa || acorde.casaInicial || 1;
-    textoMostrar = numeroMostrar + 'ª';
-}
-
-if (numeroMostrar !== null && textoMostrar !== null && acorde.mostrarNumero !== false) {
-    ctx.font = 'bold 14px Arial';
-    ctx.fillStyle = '#333';
-    const yPos = startY + (numeroMostrar - 1) * fretSpacing + fretSpacing / 2 + 2;
-    ctx.fillText(textoMostrar, startX - 28, yPos);
-}
-
+    if (acorde.mostrarPosicao === true && acorde.posicao) {
+        numeroMostrar = acorde.posicao;
+        textoMostrar = acorde.textoPosicao || (acorde.posicao + 'ª');
+    } else if (mostrarNumero && temPestana) {
+        numeroMostrar = acorde.pestanaCasa || acorde.casaInicial || 1;
+        textoMostrar = numeroMostrar + 'ª';
+    }
     
-    // ========== DESENHAR NOTAS (BOLINHAS) ==========
+    if (numeroMostrar !== null && textoMostrar !== null && acorde.mostrarNumero !== false) {
+        ctx.font = 'bold 14px Arial';
+        ctx.fillStyle = '#333';
+        const yPos = startY + (numeroMostrar - 1) * fretSpacing + fretSpacing / 2 + 2;
+        ctx.fillText(textoMostrar, startX - 28, yPos);
+    }
+    
+    // DESENHAR NOTAS (BOLINHAS)
     ctx.lineWidth = 1.5;
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
         const casaRelativa = casa - casaBase + 1;
-        
         const estaNaPestana = temPestana && cordasNaPestana.includes(i) && casa === casaBase;
         
         if (casa === 0) {
@@ -454,7 +447,6 @@ if (numeroMostrar !== null && textoMostrar !== null && acorde.mostrarNumero !== 
         else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
             if (!estaNaPestana) {
                 const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
-                
                 ctx.beginPath();
                 ctx.arc(x, y, 8, 0, 2 * Math.PI);
                 ctx.fillStyle = '#1a1a2e';
@@ -472,8 +464,23 @@ if (numeroMostrar !== null && textoMostrar !== null && acorde.mostrarNumero !== 
         }
     });
     
-    wrapper.appendChild(canvas);
-    container.appendChild(wrapper);
+wrapper.appendChild(canvas);
+
+// Nome do acorde (ID) centralizado abaixo do diagrama
+const idDiv = document.createElement('div');
+// Só mostra o ID se for acorde dinâmico (formato com ;)
+if (sigla.includes(';')) {
+    const primeiroNumero = sigla.split(';')[0];
+    idDiv.textContent = primeiroNumero;
+    idDiv.style.cssText = 'text-align: center; width: 100%; margin-top: -18px; font-size: 20px; font-weight: bold; color: #e94560;';
+} else {
+    idDiv.textContent = '';
+    idDiv.style.display = 'none';
+}
+
+wrapper.appendChild(idDiv);
+
+container.appendChild(wrapper);
 }
 
 // ============================================
