@@ -133,6 +133,15 @@ const FORMAS_INFINITAS = {
 '92': { nome: '7(5+)', cordaBase: 4, cordas: [-1, -1, 2, 2, 2, 1], dedos: ['', '', '2', '3', '4', '1'], pestana: false },
 '93': { nome: 'm(7+)', cordaBase: 4, cordas: [-1, -1, 2, 1, 1, 1], dedos: ['', '', '4', '1', '2', '3'], pestana: false },
 
+// outros musica wave
+'94': { nome: '7(b9)', cordaBase: 5, cordas: [-1, 2, 1, 2, 1, -1], dedos: ['', '3', '1', '4', '2', ''], pestana: false },
+'95': { nome: 'm6', cordaBase: 6, cordas: [3, -1, 2, 3, 3, -1], dedos: ['2', '', '1', '3', '4', ''], pestana: false },
+'96': { nome: '7(13)', cordaBase: 6, cordas: [2, -1, 2, 3, 4, -1], dedos: ['1', '', '2', '3', '4', ''], pestana: false },
+'97': { nome: '7(b13)', cordaBase: 6, cordas: [2, -1, 2, 3, 3, -1], dedos: ['2', '', '1', '3', '4', ''], pestana: false },
+'98': { nome: '7(9)', cordaBase: 5, cordas: [-1, 2, 1, 2, 2, -1], dedos: ['', '2', '1', '3', '4', ''], pestana: false },
+'99': { nome: '7(9)', cordaBase: 4, cordas: [-1, -1, 2, 1, 3, 2], dedos: ['', '', '2', '1', '4', '3'], pestana: false },
+
+
 
 };
 
