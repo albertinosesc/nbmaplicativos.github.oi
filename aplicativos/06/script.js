@@ -13,23 +13,99 @@ const ARQUIVOS_ATIVIDADES = [
     'atividades/atividades401_500.json'
 ];
 
-// Para os outros arquivos, usamos BASE_PATH diretamente
-// Ex: carregarPlanosAulaDoGitHub() usa `${BASE_PATH}planosAula.json`
-// Ex: carregarPlanosCursoDoGitHub() usa `${BASE_PATH}planosCurso.json`
-// Ex: carregarAbordagensDoGitHub() usa `${BASE_PATH}abordagem.json`
-
 // ==================== DADOS ====================
 let ATIVIDADES = {};
 let PLANOS_AULA = {};
 let PLANOS_CURSO = {};
 
-const CATEGORIAS = ['Percepção', 'Leitura', 'Escrita', 'Execução', 'Teoria', 'Composição', 'Memória', 'Coordenação', 'Expressão', 'Tecnologia', 'Metacognição', 'Social', 'Ludicidade'];
+// ==================== CATEGORIAS ATUALIZADAS ====================
+// Categorias Base (principais - usadas em categorias_base)
+const CATEGORIAS_BASE = [
+    'Percepção', 'Leitura', 'Escrita', 'Execução', 'Teoria', 
+    'Composição', 'Memória', 'Coordenação', 'Expressão', 
+    'Tecnologia', 'Metacognição', 'Social', 'Ludicidade',
+    // NOVAS CATEGORIAS BASE (usadas nas atividades G3)
+    'Ritmo', 'Audição', 'Discriminação', 'Criação', 
+    'Exploração', 'Dinâmica', 'Duração', 'Performance', 
+    'Canto', 'Cultura', 'Movimento', 'Apreciação'
+];
 
-let atividadesFiltradasAdmin = {};
-let planosAulaFiltradosAdmin = {};
-let planosCursoFiltradosAdmin = {};
+// Categorias Pedagógicas (para tags_avancadas.pedagogico)
+const CATEGORIAS_PEDAGOGICAS = [
+    'Alfabetização Musical', 'Coordenação Motora', 'Técnica', 'Execução',
+    'Leitura Musical', 'Escala', 'Percepção Musical', 'Discriminação Auditiva',
+    'Expressão Vocal', 'Ritmo', 'Movimento', 'Expressão', 'Canto',
+    'Teoria Musical', 'Acidentes', 'Instrumentos', 'Articulação',
+    'Memória Musical', 'Performance', 'Criação', 'Exploração Sonora',
+    'Audição', 'Dinâmica', 'Duração', 'Social', 'Cultura Brasileira',
+    'Metacognição', 'Avaliação', 'Reflexão', 'Tecnologia Musical'
+];
 
-// ==================== GERAR AÇÕES A PARTIR DAS ATIVIDADES (CORRIGIDO) ====================
+// Tipos de Atividade (para tags_avancadas.tipo_atividade)
+const CATEGORIAS_TIPO_ATIVIDADE = [
+    'Exercício', 'Jogo', 'Demonstração', 'Performance', 
+    'Exploração', 'Criação', 'Apreciação', 'Desafio',
+    'Movimento', 'Dança', 'Canto', 'Ritmo', 'Leitura',
+    'Teoria', 'Percepção', 'Avaliação', 'Revisão',
+    'Ensaio', 'Brincadeira', 'Classificação', 'Competição'
+];
+
+// Tipos de Interação (para tags_avancadas.interacao)
+const CATEGORIAS_INTERACAO = [
+    'Individual', 'Turma', 'Grupo', 'Dupla', 'Professor-Aluno', 'Famílias'
+];
+
+// Habilidades Cognitivas (para tags_avancadas.cognitivo)
+const CATEGORIAS_COGNITIVAS = [
+    'Memória', 'Percepção', 'Coordenação Motora', 'Atenção', 'Criatividade',
+    'Discriminação Auditiva', 'Associação', 'Raciocínio Lógico', 'Planejamento',
+    'Sincronização', 'Expressão Emocional', 'Contextualização Cultural',
+    'Metacognição', 'Avaliação', 'Comunicação', 'Autoconfiança',
+    'Percepção Temporal', 'Percepção Espacial', 'Memória Sequencial',
+    'Memória de Timbre', 'Imitação', 'Classificação', 'Transferência'
+];
+
+// Elementos Musicais (para tags_avancadas.elemento_musical)
+const CATEGORIAS_ELEMENTO_MUSICAL = [
+    'Altura', 'Ritmo', 'Duração', 'Timbre', 'Intensidade', 'Melodia',
+    'Harmonia', 'Escala', 'Acorde', 'Intervalo', 'Pulso', 'Andamento',
+    'Som/Silêncio', 'Paisagem Sonora', 'Notação', 'Clave', 'Fraseado',
+    'Articulação', 'Staccato', 'Legato', 'Dinâmica', 'Expressão',
+    'Forma Musical', 'Tonalidade', 'Acidentes'
+];
+
+// Conteúdos (para tags_avancadas.conteudo)
+const CATEGORIAS_CONTEUDO = [
+    'Violino/Cordas', 'Piano/Teclado', 'Instrumentos de Percussão',
+    'Notas', 'Pauta', 'Escala Maior', 'Intervalo', 'Acorde',
+    'Ritmo', 'Pulsação', 'Cantigas de Roda', 'Folclore Brasileiro',
+    'MPB', 'História da Música', 'Partitura Gráfica', 'Notação Digital',
+    'DAW', 'Sequenciador', 'Áudio', 'MIDI', 'Gravação',
+    'Movimento Corporal', 'Dança', 'Expressão', 'Performance',
+    'Avaliação', 'Processo Criativo', 'Percepção Auditiva'
+];
+
+// Pedagogos/Referências (para tags_avancadas.pedagogos)
+const CATEGORIAS_PEDAGOGOS = [
+    'Suzuki', 'Kodály', 'Orff', 'Dalcroze', 'Willems', 'Martenot',
+    'Schafer', 'Gordon', 'Swanwick', 'Montessori', 'Cage', 'Brincante'
+];
+
+// Princípios Pedagógicos (para tags_avancadas.principios)
+const CATEGORIAS_PRINCIPIOS = [
+    'Técnica', 'Coordenação Motora', 'Repetição', 'Memorização',
+    'Prática antes da teoria', 'Vivência musical', 'Expressão musical',
+    'Movimento corporal', 'Escuta ativa', 'Criatividade', 'Exploração',
+    'Trabalho em equipe', 'Performance', 'Avaliação formativa',
+    'Metacognição', 'Jogo musical', 'Tradição oral', 'Cultura popular'
+];
+
+// ==================== FUNÇÃO PARA OBTER TODAS AS CATEGORIAS ====================
+function obterTodasCategorias() {
+    return CATEGORIAS_BASE;
+}
+
+// ==================== GERAR AÇÕES A PARTIR DAS ATIVIDADES ====================
 function gerarAcoesAPartirDasAtividades() {
     const acoes = [];
     const ids = Object.keys(ATIVIDADES).sort((a, b) => a - b);
@@ -38,7 +114,6 @@ function gerarAcoesAPartirDasAtividades() {
         const atividade = ATIVIDADES[id];
         const titulo = atividade.titulo ? atividade.titulo : `Atividade ${id}`;
         
-        // CORREÇÃO: verifica categorias_base (array) ou categoria (string)
         let categorias = [];
         if (atividade.categorias_base && Array.isArray(atividade.categorias_base)) {
             categorias = atividade.categorias_base;
@@ -79,9 +154,8 @@ async function carregarAtividadesDoGitHub() {
     let total = 0;
     
     for (const arquivo of ARQUIVOS_ATIVIDADES) {
-        // CORRETO: BASE_PATH já inclui /data/, então ARQUIVOS_ATIVIDADES deve começar com 'atividades/'
         const url = `${BASE_PATH}${arquivo}?t=${Date.now()}`;
-        console.log("📡 Tentando carregar:", url); // ← ADICIONE ESTA LINHA PARA DEBUG
+        console.log("📡 Tentando carregar:", url);
         
         try {
             const response = await fetch(url);
@@ -100,11 +174,10 @@ async function carregarAtividadesDoGitHub() {
     }
     
     console.log(`✅ Total: ${total} atividades carregadas!`);
-    // ... resto
 }
 
 async function carregarPlanosAulaDoGitHub() {
-    const url = `${BASE_PATH}planosAula.json?t=${Date.now()}`;  // ← CORRETO
+    const url = `${BASE_PATH}planosAula.json?t=${Date.now()}`;
     try {
         const response = await fetch(url);
         if (response.ok) {
@@ -121,7 +194,7 @@ async function carregarPlanosAulaDoGitHub() {
 }
 
 async function carregarPlanosCursoDoGitHub() {
-    const url = `${BASE_PATH}planosCurso.json?t=${Date.now()}`;  // ← CORRETO
+    const url = `${BASE_PATH}planosCurso.json?t=${Date.now()}`;
     try {
         const response = await fetch(url);
         if (response.ok) {
@@ -138,10 +211,28 @@ async function carregarPlanosCursoDoGitHub() {
 }
 
 // ==================== UTILITÁRIOS ====================
-function mostrarToast(msg) { const t = document.createElement('div'); t.className = 'toast'; t.textContent = msg; document.body.appendChild(t); setTimeout(() => t.remove(), 2000); }
-function escapeHtml(t) { if (!t) return ''; return t.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); }
-function fecharModal(id) { const m = document.getElementById(id); if (m) m.classList.remove('active'); }
-function abrirModal(id) { const m = document.getElementById(id); if (m) m.classList.add('active'); }
+function mostrarToast(msg) { 
+    const t = document.createElement('div'); 
+    t.className = 'toast'; 
+    t.textContent = msg; 
+    document.body.appendChild(t); 
+    setTimeout(() => t.remove(), 2000); 
+}
+
+function escapeHtml(t) { 
+    if (!t) return ''; 
+    return t.replace(/[&<>]/g, m => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;' }[m])); 
+}
+
+function fecharModal(id) { 
+    const m = document.getElementById(id); 
+    if (m) m.classList.remove('active'); 
+}
+
+function abrirModal(id) { 
+    const m = document.getElementById(id); 
+    if (m) m.classList.add('active'); 
+}
 
 // ==================== SALVAR/CARREGAR ====================
 function salvarTodosDados() {
@@ -169,7 +260,6 @@ async function carregarDados() {
     } else {
         localStorage.removeItem('biblioteca_dados');
         console.log("🔄 Forçando recarga do GitHub...");
-        // Quando força recarga, limpa as variáveis
         ATIVIDADES = {};
         PLANOS_AULA = {};
         PLANOS_CURSO = {};
@@ -177,26 +267,22 @@ async function carregarDados() {
     
     atualizarTudo();
     
-    // PRIMEIRO: carrega do GitHub
     await carregarAtividadesDoGitHub();
     await carregarPlanosAulaDoGitHub();
     await carregarPlanosCursoDoGitHub();
     await carregarAbordagensDoGitHub();
     
-    // SEGUNDO: depois de carregar, sincroniza e atualiza
     atividadesFiltradasAdmin = { ...ATIVIDADES };
     planosAulaFiltradosAdmin = { ...PLANOS_AULA };
     planosCursoFiltradosAdmin = { ...PLANOS_CURSO };
     TODAS_ACOES = gerarAcoesAPartirDasAtividades();
     
-    // TERCEIRO: atualiza as interfaces
     atualizarAcoes();
     atualizarListasAdmin();
     atualizarEstatisticas();
     
     console.log(`✅ Todos os dados carregados! Atividades: ${Object.keys(ATIVIDADES).length}`);
 }
- 
 
 function atualizarEstatisticas() {
     document.getElementById('statAtividades').textContent = Object.keys(ATIVIDADES).length;
@@ -207,9 +293,15 @@ function atualizarEstatisticas() {
 // ==================== AÇÕES ====================
 function atualizarFiltros() {
     const sCat = document.getElementById('filtroCategoria');
-    if (sCat && sCat.options.length <= 1) { sCat.innerHTML = '<option value="todas">Todas</option>'; CATEGORIAS.forEach(c => sCat.innerHTML += `<option value="${c}">${c}</option>`); }
+    if (sCat && sCat.options.length <= 1) { 
+        sCat.innerHTML = '<option value="todas">Todas</option>'; 
+        CATEGORIAS_BASE.forEach(c => sCat.innerHTML += `<option value="${c}">${c}</option>`); 
+    }
     const sNiv = document.getElementById('filtroNivel');
-    if (sNiv && sNiv.options.length <= 1) { sNiv.innerHTML = '<option value="todos">Todos</option>'; for(let i=1;i<=5;i++) sNiv.innerHTML += `<option value="${i}">Nível ${i}</option>`; }
+    if (sNiv && sNiv.options.length <= 1) { 
+        sNiv.innerHTML = '<option value="todos">Todos</option>'; 
+        for(let i=1;i<=5;i++) sNiv.innerHTML += `<option value="${i}">Nível ${i}</option>`; 
+    }
 }
 
 function atualizarAcoes() {
@@ -238,7 +330,6 @@ function verAtividade(acaoId) {
     if (ativ) {
         let html = `<div class="atividade-detalhe"><strong>🎯 Objetivo:</strong> ${escapeHtml(ativ.objetivo || '')}</div>`;
         
-        // MUDANÇA: exibe categorias_base (array)
         if (ativ.categorias_base && ativ.categorias_base.length) {
             html += `<div class="atividade-detalhe"><strong>📂 Categorias:</strong> ${ativ.categorias_base.join(', ')}</div>`;
         } else if (ativ.categoria) {
@@ -248,7 +339,6 @@ function verAtividade(acaoId) {
         html += `<div class="atividade-detalhe"><strong>⏱️ Duração:</strong> ${ativ.duracao || 'Não informada'}</div>`;
         html += `<div class="atividade-detalhe"><strong>🎚️ Nível:</strong> ${ativ.nivel || 1}</div>`;
         
-        // NOVO: exibe tags_avancadas se existirem
         if (ativ.tags_avancadas) {
             const tags = ativ.tags_avancadas;
             html += `<div class="tags-section"><strong>🏷️ Tags Avançadas:</strong><div class="tags-container">`;
@@ -292,7 +382,8 @@ function verAtividade(acaoId) {
         document.getElementById('modalTitulo').innerHTML = `📖 ${escapeHtml(ativ.titulo)}`;
         document.getElementById('modalConteudo').innerHTML = html;
     } else {
-        // ... fallback
+        document.getElementById('modalTitulo').innerHTML = '📖 Atividade não encontrada';
+        document.getElementById('modalConteudo').innerHTML = `<p>Atividade ID ${acaoId} não encontrada.</p><button onclick="fecharModal('modalAtividade')" class="secondary">Fechar</button>`;
     }
     abrirModal('modalAtividade');
 }
@@ -305,7 +396,7 @@ function copiarMarkdown(tipo, id, dados) {
     if (tipo === 'atividade') {
         markdown = `# 📝 ${dados.titulo}\n\n`;
         markdown += `**ID:** ${id}\n`;
-        markdown += `**Categoria:** ${dados.categoria || 'Não definida'}\n`;
+        markdown += `**Categoria:** ${(dados.categorias_base || [dados.categoria || 'Não definida']).join(', ')}\n`;
         markdown += `**Duração:** ${dados.duracao || 'Não definida'}\n\n`;
         markdown += `## 🎯 Objetivo\n\n${dados.objetivo || 'Não informado'}\n\n`;
         if (dados.materiais && dados.materiais.length) {
@@ -418,7 +509,7 @@ function copiarConteudoEditor() {
 let ABORDAGENS = {};
 
 async function carregarAbordagensDoGitHub() {
-    const url = `${BASE_PATH}abordagem.json?t=${Date.now()}`;  // ← CORRETO
+    const url = `${BASE_PATH}abordagem.json?t=${Date.now()}`;
     try {
         const response = await fetch(url);
         if (response.ok) {
@@ -590,6 +681,10 @@ function salvarNovaAbordagemAdmin() {
 }
 
 // ==================== ADMIN COM PESQUISA ====================
+let atividadesFiltradasAdmin = {};
+let planosAulaFiltradosAdmin = {};
+let planosCursoFiltradosAdmin = {};
+
 function buscarAtividadesAdmin() {
     const termo = document.getElementById('searchAdminAtividade').value.toLowerCase();
     const campo = document.getElementById('searchAdminAtividadeCampo').value;
@@ -710,16 +805,27 @@ function editarAtividadeAdmin(id) {
     const ativ = ATIVIDADES[id];
     if (!ativ) { alert('Atividade não encontrada'); return; }
     
-    // Preparar categorias_base para exibição (array para texto)
     const categoriasBaseStr = (ativ.categorias_base || [ativ.categoria || '']).join(', ');
+    
+    // Obter categorias disponíveis para o datalist
+    const categoriasBaseOptions = CATEGORIAS_BASE.map(c => `<option value="${c}">`).join('');
+    const categoriasPedagogicasOptions = CATEGORIAS_PEDAGOGICAS.map(c => `<option value="${c}">`).join('');
+    const categoriasTipoAtividadeOptions = CATEGORIAS_TIPO_ATIVIDADE.map(c => `<option value="${c}">`).join('');
+    const categoriasInteracaoOptions = CATEGORIAS_INTERACAO.map(c => `<option value="${c}">`).join('');
+    const categoriasCognitivasOptions = CATEGORIAS_COGNITIVAS.map(c => `<option value="${c}">`).join('');
+    const categoriasElementoOptions = CATEGORIAS_ELEMENTO_MUSICAL.map(c => `<option value="${c}">`).join('');
+    const categoriasConteudoOptions = CATEGORIAS_CONTEUDO.map(c => `<option value="${c}">`).join('');
+    const categoriasPedagogosOptions = CATEGORIAS_PEDAGOGOS.map(c => `<option value="${c}">`).join('');
+    const categoriasPrincipiosOptions = CATEGORIAS_PRINCIPIOS.map(c => `<option value="${c}">`).join('');
     
     document.getElementById('editorTitulo').innerHTML = `✏️ Editar Atividade ID ${id}`;
     document.getElementById('editorConteudo').innerHTML = `
         <div class="form-row"><label>ID:</label><input type="number" id="editId" value="${id}" readonly></div>
         <div class="form-row"><label>Título:</label><input type="text" id="editTitulo" value="${escapeHtml(ativ.titulo || '')}"></div>
         <div class="form-row"><label>Categorias Base (separadas por vírgula):</label>
-            <input type="text" id="editCategoriasBase" value="${escapeHtml(categoriasBaseStr)}" placeholder="Ex: Percepção, Escrita, Memória">
-            <small>Digite as categorias separadas por vírgula (ex: Percepção, Escrita, Memória)</small>
+            <input type="text" id="editCategoriasBase" value="${escapeHtml(categoriasBaseStr)}" list="categoriasBaseList" placeholder="Ex: Percepção, Escrita, Memória">
+            <datalist id="categoriasBaseList">${categoriasBaseOptions}</datalist>
+            <small>Opções disponíveis: ${CATEGORIAS_BASE.join(', ')}</small>
         </div>
         <div class="form-row"><label>Objetivo:</label><textarea id="editObjetivo" rows="3">${escapeHtml(ativ.objetivo || '')}</textarea></div>
         <div class="form-row"><label>Materiais (um por linha):</label><textarea id="editMateriais" rows="3">${(ativ.materiais || []).join('\n')}</textarea></div>
@@ -728,15 +834,39 @@ function editarAtividadeAdmin(id) {
         <div class="form-row"><label>Nível:</label><select id="editNivel">${[1,2,3,4,5].map(n => `<option value="${n}" ${ativ.nivel===n?'selected':''}>Nível ${n}</option>`).join('')}</select></div>
         <div class="form-row"><label>IDs das Ações (separados por vírgula):</label><input type="text" id="editAcoesIds" value="${(ativ.acoes_ids || []).join(', ')}"></div>
         
-        <details><summary>🏷️ Tags Avançadas (opcional)</summary>
-            <div class="form-row"><label>Pedagógico (separados por vírgula):</label><input type="text" id="editPedagogico" value="${(ativ.tags_avancadas?.pedagogico || []).join(', ')}"></div>
-            <div class="form-row"><label>Tipo de Atividade:</label><input type="text" id="editTipoAtividade" value="${(ativ.tags_avancadas?.tipo_atividade || []).join(', ')}"></div>
-            <div class="form-row"><label>Interação Social:</label><input type="text" id="editInteracao" value="${(ativ.tags_avancadas?.interacao || []).join(', ')}"></div>
-            <div class="form-row"><label>Cognitivo:</label><input type="text" id="editCognitivo" value="${(ativ.tags_avancadas?.cognitivo || []).join(', ')}"></div>
-            <div class="form-row"><label>Elemento Musical:</label><input type="text" id="editElemento" value="${(ativ.tags_avancadas?.elemento_musical || []).join(', ')}"></div>
-            <div class="form-row"><label>Conteúdo:</label><input type="text" id="editConteudo" value="${(ativ.tags_avancadas?.conteudo || []).join(', ')}"></div>
-            <div class="form-row"><label>Pedagogos:</label><input type="text" id="editPedagogos" value="${(ativ.tags_avancadas?.pedagogos || []).join(', ')}"></div>
-            <div class="form-row"><label>Princípios:</label><input type="text" id="editPrincipios" value="${(ativ.tags_avancadas?.principios || []).join(', ')}"></div>
+        <details open><summary>🏷️ Tags Avançadas (opcional)</summary>
+            <div class="form-row"><label>Pedagógico (separados por vírgula):</label>
+                <input type="text" id="editPedagogico" value="${(ativ.tags_avancadas?.pedagogico || []).join(', ')}" list="pedagogicoList">
+                <datalist id="pedagogicoList">${categoriasPedagogicasOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Tipo de Atividade (separados por vírgula):</label>
+                <input type="text" id="editTipoAtividade" value="${(ativ.tags_avancadas?.tipo_atividade || []).join(', ')}" list="tipoAtividadeList">
+                <datalist id="tipoAtividadeList">${categoriasTipoAtividadeOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Interação Social (separados por vírgula):</label>
+                <input type="text" id="editInteracao" value="${(ativ.tags_avancadas?.interacao || []).join(', ')}" list="interacaoList">
+                <datalist id="interacaoList">${categoriasInteracaoOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Cognitivo (separados por vírgula):</label>
+                <input type="text" id="editCognitivo" value="${(ativ.tags_avancadas?.cognitivo || []).join(', ')}" list="cognitivoList">
+                <datalist id="cognitivoList">${categoriasCognitivasOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Elemento Musical (separados por vírgula):</label>
+                <input type="text" id="editElemento" value="${(ativ.tags_avancadas?.elemento_musical || []).join(', ')}" list="elementoList">
+                <datalist id="elementoList">${categoriasElementoOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Conteúdo (separados por vírgula):</label>
+                <input type="text" id="editConteudo" value="${(ativ.tags_avancadas?.conteudo || []).join(', ')}" list="conteudoList">
+                <datalist id="conteudoList">${categoriasConteudoOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Pedagogos (separados por vírgula):</label>
+                <input type="text" id="editPedagogos" value="${(ativ.tags_avancadas?.pedagogos || []).join(', ')}" list="pedagogosList">
+                <datalist id="pedagogosList">${categoriasPedagogosOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Princípios (separados por vírgula):</label>
+                <input type="text" id="editPrincipios" value="${(ativ.tags_avancadas?.principios || []).join(', ')}" list="principiosList">
+                <datalist id="principiosList">${categoriasPrincipiosOptions}</datalist>
+            </div>
         </details>
         
         <button onclick="salvarAtividadeAdmin()" class="success">💾 Salvar</button>
@@ -810,26 +940,34 @@ function editarPlanoCursoAdmin(id) {
 function salvarAtividadeAdmin() {
     const id = parseInt(document.getElementById('editId').value);
     
-    // Processar categorias_base (array)
     const categoriasBaseStr = document.getElementById('editCategoriasBase').value;
     const categoriasBase = categoriasBaseStr ? categoriasBaseStr.split(',').map(s => s.trim()).filter(s => s) : [];
     
-    // Processar tags avançadas
-    const tags_avancadas = {
-        pedagogico: document.getElementById('editPedagogico')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
-        tipo_atividade: document.getElementById('editTipoAtividade')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
-        interacao: document.getElementById('editInteracao')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
-        cognitivo: document.getElementById('editCognitivo')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
-        elemento_musical: document.getElementById('editElemento')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
-        conteudo: document.getElementById('editConteudo')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
-        pedagogos: document.getElementById('editPedagogos')?.value.split(',').map(s=>s.trim()).filter(s=>s) || [],
-        principios: document.getElementById('editPrincipios')?.value.split(',').map(s=>s.trim()).filter(s=>s) || []
-    };
+    const tags_avancadas = {};
     
-    // Remover grupos vazios
-    Object.keys(tags_avancadas).forEach(key => {
-        if (tags_avancadas[key].length === 0) delete tags_avancadas[key];
-    });
+    const pedagogico = document.getElementById('editPedagogico')?.value.split(',').map(s=>s.trim()).filter(s=>s);
+    if (pedagogico && pedagogico.length) tags_avancadas.pedagogico = pedagogico;
+    
+    const tipo_atividade = document.getElementById('editTipoAtividade')?.value.split(',').map(s=>s.trim()).filter(s=>s);
+    if (tipo_atividade && tipo_atividade.length) tags_avancadas.tipo_atividade = tipo_atividade;
+    
+    const interacao = document.getElementById('editInteracao')?.value.split(',').map(s=>s.trim()).filter(s=>s);
+    if (interacao && interacao.length) tags_avancadas.interacao = interacao;
+    
+    const cognitivo = document.getElementById('editCognitivo')?.value.split(',').map(s=>s.trim()).filter(s=>s);
+    if (cognitivo && cognitivo.length) tags_avancadas.cognitivo = cognitivo;
+    
+    const elemento_musical = document.getElementById('editElemento')?.value.split(',').map(s=>s.trim()).filter(s=>s);
+    if (elemento_musical && elemento_musical.length) tags_avancadas.elemento_musical = elemento_musical;
+    
+    const conteudo = document.getElementById('editConteudo')?.value.split(',').map(s=>s.trim()).filter(s=>s);
+    if (conteudo && conteudo.length) tags_avancadas.conteudo = conteudo;
+    
+    const pedagogos = document.getElementById('editPedagogos')?.value.split(',').map(s=>s.trim()).filter(s=>s);
+    if (pedagogos && pedagogos.length) tags_avancadas.pedagogos = pedagogos;
+    
+    const principios = document.getElementById('editPrincipios')?.value.split(',').map(s=>s.trim()).filter(s=>s);
+    if (principios && principios.length) tags_avancadas.principios = principios;
     
     const acoesIdsStr = document.getElementById('editAcoesIds').value;
     const acoesIds = acoesIdsStr ? acoesIdsStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)) : [];
@@ -846,7 +984,6 @@ function salvarAtividadeAdmin() {
         acoes_ids: acoesIds
     };
     
-    // Adicionar tags_avancadas se não estiver vazio
     if (Object.keys(tags_avancadas).length > 0) {
         ATIVIDADES[id].tags_avancadas = tags_avancadas;
     }
@@ -859,13 +996,13 @@ function salvarAtividadeAdmin() {
     atualizarAcoes();
     mostrarToast('✅ Atividade salva!');
 }
+
 function salvarPlanoAulaAdmin() {
     const id = parseInt(document.getElementById('editId').value);
     
     const atividadesIdsStr = document.getElementById('editAtividadesIds').value;
     const atividadesIds = atividadesIdsStr ? atividadesIdsStr.split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n)) : [];
     
-    // Processar campos de texto (arrays)
     const objetivosEspecificos = document.getElementById('editObjetivosEspecificos')?.value.split('\n').filter(l => l.trim()) || [];
     const conteudo = document.getElementById('editConteudo')?.value.split('\n').filter(l => l.trim()) || [];
     const recursosDidaticos = document.getElementById('editRecursosDidaticos')?.value.split('\n').filter(l => l.trim()) || [];
@@ -899,7 +1036,6 @@ function salvarPlanoAulaAdmin() {
     mostrarToast('✅ Plano de aula salvo!');
 }
 
-
 function salvarPlanoCursoAdmin() {
     const id = parseInt(document.getElementById('editId').value);
     const planosAulaIdsStr = document.getElementById('editPlanosAulaIds').value;
@@ -921,13 +1057,24 @@ function salvarPlanoCursoAdmin() {
 }
 
 function novaAtividadeAdmin() {
+    const categoriasBaseOptions = CATEGORIAS_BASE.map(c => `<option value="${c}">`).join('');
+    const categoriasPedagogicasOptions = CATEGORIAS_PEDAGOGICAS.map(c => `<option value="${c}">`).join('');
+    const categoriasTipoAtividadeOptions = CATEGORIAS_TIPO_ATIVIDADE.map(c => `<option value="${c}">`).join('');
+    const categoriasInteracaoOptions = CATEGORIAS_INTERACAO.map(c => `<option value="${c}">`).join('');
+    const categoriasCognitivasOptions = CATEGORIAS_COGNITIVAS.map(c => `<option value="${c}">`).join('');
+    const categoriasElementoOptions = CATEGORIAS_ELEMENTO_MUSICAL.map(c => `<option value="${c}">`).join('');
+    const categoriasConteudoOptions = CATEGORIAS_CONTEUDO.map(c => `<option value="${c}">`).join('');
+    const categoriasPedagogosOptions = CATEGORIAS_PEDAGOGOS.map(c => `<option value="${c}">`).join('');
+    const categoriasPrincipiosOptions = CATEGORIAS_PRINCIPIOS.map(c => `<option value="${c}">`).join('');
+    
     document.getElementById('editorTitulo').innerHTML = '✏️ Nova Atividade';
     document.getElementById('editorConteudo').innerHTML = `
         <div class="form-row"><label>ID da Atividade:</label><input type="number" id="editId"></div>
         <div class="form-row"><label>Título:</label><input type="text" id="editTitulo"></div>
         <div class="form-row"><label>Categorias Base (separadas por vírgula):</label>
-            <input type="text" id="editCategoriasBase" placeholder="Ex: Percepção, Escrita, Memória">
-            <small>Opções: ${CATEGORIAS.join(', ')}</small>
+            <input type="text" id="editCategoriasBase" list="categoriasBaseList" placeholder="Ex: Percepção, Escrita, Memória">
+            <datalist id="categoriasBaseList">${categoriasBaseOptions}</datalist>
+            <small>Opções: ${CATEGORIAS_BASE.join(', ')}</small>
         </div>
         <div class="form-row"><label>Objetivo:</label><textarea id="editObjetivo" rows="3"></textarea></div>
         <div class="form-row"><label>Materiais (um por linha):</label><textarea id="editMateriais" rows="3"></textarea></div>
@@ -936,15 +1083,39 @@ function novaAtividadeAdmin() {
         <div class="form-row"><label>Nível:</label><select id="editNivel"><option value="1">Nível 1</option><option value="2">Nível 2</option><option value="3">Nível 3</option><option value="4">Nível 4</option><option value="5">Nível 5</option></select></div>
         <div class="form-row"><label>IDs das Ações (separados por vírgula):</label><input type="text" id="editAcoesIds"></div>
         
-        <details><summary>🏷️ Tags Avançadas (opcional)</summary>
-            <div class="form-row"><label>Pedagógico (separados por vírgula):</label><input type="text" id="editPedagogico" placeholder="Ex: Alfabetização Musical, Ritmo"></div>
-            <div class="form-row"><label>Tipo de Atividade:</label><input type="text" id="editTipoAtividade" placeholder="Ex: Jogo, Exercício, Desafio"></div>
-            <div class="form-row"><label>Interação Social:</label><input type="text" id="editInteracao" placeholder="Ex: Individual, Dupla, Grupo"></div>
-            <div class="form-row"><label>Cognitivo:</label><input type="text" id="editCognitivo" placeholder="Ex: Memória, Percepção, Raciocínio"></div>
-            <div class="form-row"><label>Elemento Musical:</label><input type="text" id="editElemento" placeholder="Ex: Altura, Duração, Timbre"></div>
-            <div class="form-row"><label>Conteúdo:</label><input type="text" id="editConteudo" placeholder="Ex: Escala, Acorde, Intervalo"></div>
-            <div class="form-row"><label>Pedagogos:</label><input type="text" id="editPedagogos" placeholder="Ex: Kodály, Orff, Suzuki"></div>
-            <div class="form-row"><label>Princípios:</label><input type="text" id="editPrincipios" placeholder="Ex: Movimento corporal, Criatividade"></div>
+        <details open><summary>🏷️ Tags Avançadas (opcional)</summary>
+            <div class="form-row"><label>Pedagógico (separados por vírgula):</label>
+                <input type="text" id="editPedagogico" list="pedagogicoList" placeholder="Ex: Alfabetização Musical, Ritmo">
+                <datalist id="pedagogicoList">${categoriasPedagogicasOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Tipo de Atividade:</label>
+                <input type="text" id="editTipoAtividade" list="tipoAtividadeList" placeholder="Ex: Jogo, Exercício, Desafio">
+                <datalist id="tipoAtividadeList">${categoriasTipoAtividadeOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Interação Social:</label>
+                <input type="text" id="editInteracao" list="interacaoList" placeholder="Ex: Individual, Dupla, Grupo">
+                <datalist id="interacaoList">${categoriasInteracaoOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Cognitivo:</label>
+                <input type="text" id="editCognitivo" list="cognitivoList" placeholder="Ex: Memória, Percepção, Raciocínio">
+                <datalist id="cognitivoList">${categoriasCognitivasOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Elemento Musical:</label>
+                <input type="text" id="editElemento" list="elementoList" placeholder="Ex: Altura, Duração, Timbre">
+                <datalist id="elementoList">${categoriasElementoOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Conteúdo:</label>
+                <input type="text" id="editConteudo" list="conteudoList" placeholder="Ex: Escala, Acorde, Intervalo">
+                <datalist id="conteudoList">${categoriasConteudoOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Pedagogos:</label>
+                <input type="text" id="editPedagogos" list="pedagogosList" placeholder="Ex: Kodály, Orff, Suzuki">
+                <datalist id="pedagogosList">${categoriasPedagogosOptions}</datalist>
+            </div>
+            <div class="form-row"><label>Princípios:</label>
+                <input type="text" id="editPrincipios" list="principiosList" placeholder="Ex: Movimento corporal, Criatividade">
+                <datalist id="principiosList">${categoriasPrincipiosOptions}</datalist>
+            </div>
         </details>
         
         <button onclick="salvarAtividadeAdmin()" class="success">💾 Salvar</button>
@@ -990,7 +1161,6 @@ function novoPlanoAulaAdmin() {
     document.getElementById('formEditor').style.display = 'block';
     window.editandoAdminTipo = 'planoAula';
 }
-
 
 function novoPlanoCursoAdmin() {
     document.getElementById('editorTitulo').innerHTML = '✏️ Novo Plano de Curso';
@@ -1047,7 +1217,60 @@ function atualizarListasAdmin() {
     atualizarListaAbordagensAdmin();
 }
 
-// ==================== EXPORTAÇÃO ESPECÍFICA ====================
+// ==================== EXPORTAÇÃO ====================
+function baixarArquivo(conteudo, nome) { 
+    const blob = new Blob([conteudo], {type:'application/json'}); 
+    const a = document.createElement('a'); 
+    a.href = URL.createObjectURL(blob); 
+    a.download = nome; 
+    a.click(); 
+    URL.revokeObjectURL(blob); 
+}
+
+function exportarAtividades() { 
+    baixarArquivo(JSON.stringify(ATIVIDADES, null, 2), `atividades_completo_${new Date().toISOString().split('T')[0]}.json`); 
+}
+
+function exportarAtividadesPorBloco(inicio, fim) {
+    const bloco = {};
+    for (let i = inicio; i <= fim; i++) {
+        if (ATIVIDADES[i]) {
+            bloco[i] = ATIVIDADES[i];
+        }
+    }
+    baixarArquivo(JSON.stringify(bloco, null, 2), `atividades${inicio}_${fim}.json`);
+}
+
+function exportarTodosBlocos() {
+    const blocos = [
+        { inicio: 1, fim: 100 },
+        { inicio: 101, fim: 200 },
+        { inicio: 201, fim: 300 },
+        { inicio: 301, fim: 400 },
+        { inicio: 401, fim: 500 }
+    ];
+    for (const bloco of blocos) {
+        exportarAtividadesPorBloco(bloco.inicio, bloco.fim);
+    }
+    mostrarToast('✅ Blocos exportados! Verifique a pasta de downloads.');
+}
+
+function exportarPlanosAula() { 
+    baixarArquivo(JSON.stringify(PLANOS_AULA, null, 2), `planos_aula.json`); 
+}
+
+function exportarPlanosCurso() { 
+    baixarArquivo(JSON.stringify(PLANOS_CURSO, null, 2), `planos_curso.json`); 
+}
+
+function exportarTudo() { 
+    baixarArquivo(JSON.stringify({ 
+        atividades: ATIVIDADES, 
+        planosAula: PLANOS_AULA, 
+        planosCurso: PLANOS_CURSO 
+    }, null, 2), `backup_completo_${new Date().toISOString().split('T')[0]}.json`); 
+}
+
 function exportarAtividadesEspecificas() {
     const input = document.getElementById('exportarIdsAtividades').value;
     if (!input.trim()) {
@@ -1174,65 +1397,6 @@ function exportarPlanosCursoEspecificos() {
     mostrarToast(msg);
 }
 
-// ==================== EXPORTAÇÃO ====================
-function baixarArquivo(conteudo, nome) { 
-    const blob = new Blob([conteudo], {type:'application/json'}); 
-    const a = document.createElement('a'); 
-    a.href = URL.createObjectURL(blob); 
-    a.download = nome; 
-    a.click(); 
-    URL.revokeObjectURL(blob); 
-}
-
-// EXPORTAR ATIVIDADES COMPLETAS (para backup)
-function exportarAtividades() { 
-    baixarArquivo(JSON.stringify(ATIVIDADES, null, 2), `atividades_completo_${new Date().toISOString().split('T')[0]}.json`); 
-}
-
-// EXPORTAR POR BLOCOS (para manter a estrutura)
-function exportarAtividadesPorBloco(inicio, fim) {
-    const bloco = {};
-    for (let i = inicio; i <= fim; i++) {
-        if (ATIVIDADES[i]) {
-            bloco[i] = ATIVIDADES[i];
-        }
-    }
-    baixarArquivo(JSON.stringify(bloco, null, 2), `atividades${inicio}_${fim}.json`);
-}
-
-// EXPORTAR TODOS OS BLOCOS (compactado em ZIP não é possível nativamente, então criamos múltiplos downloads)
-function exportarTodosBlocos() {
-    const blocos = [
-        { inicio: 1, fim: 100 },
-        { inicio: 101, fim: 200 },
-        { inicio: 201, fim: 300 },
-        { inicio: 301, fim: 400 },
-        { inicio: 401, fim: 500 }
-    ];
-    
-    for (const bloco of blocos) {
-        exportarAtividadesPorBloco(bloco.inicio, bloco.fim);
-    }
-    mostrarToast('✅ Blocos exportados! Verifique a pasta de downloads.');
-}
-
-function exportarPlanosAula() { 
-    baixarArquivo(JSON.stringify(PLANOS_AULA, null, 2), `planos_aula.json`); 
-}
-
-function exportarPlanosCurso() { 
-    baixarArquivo(JSON.stringify(PLANOS_CURSO, null, 2), `planos_curso.json`); 
-}
-
-function exportarTudo() { 
-    baixarArquivo(JSON.stringify({ 
-        atividades: ATIVIDADES, 
-        planosAula: PLANOS_AULA, 
-        planosCurso: PLANOS_CURSO 
-    }, null, 2), `backup_completo_${new Date().toISOString().split('T')[0]}.json`); 
-}
-
-// IMPORTAR DADOS - mantém a estrutura de blocos
 function importarDados() { 
     const file = document.getElementById('arquivoImport').files[0]; 
     if(!file) return; 
@@ -1241,14 +1405,11 @@ function importarDados() {
         try { 
             const dados = JSON.parse(e.target.result); 
             
-            // Se for backup completo (com atividades, planosAula, planosCurso)
             if(dados.atividades) ATIVIDADES = dados.atividades; 
             if(dados.planosAula) PLANOS_AULA = dados.planosAula; 
             if(dados.planosCurso) PLANOS_CURSO = dados.planosCurso; 
             
-            // Se for apenas um bloco de atividades (objeto com IDs)
             else if(dados && typeof dados === 'object') {
-                // Verifica se parece ser um bloco de atividades (contém IDs numéricos)
                 const primeiraChave = Object.keys(dados)[0];
                 if(primeiraChave && !isNaN(parseInt(primeiraChave))) {
                     ATIVIDADES = { ...ATIVIDADES, ...dados };
@@ -1265,7 +1426,6 @@ function importarDados() {
     reader.readAsText(file); 
 }
 
-// FUNÇÃO PARA RECARREGAR UM BLOCO ESPECÍFICO DO GITHUB
 async function recarregarBlocoAtividades(inicio, fim) {
     const arquivo = `atividades${inicio}_${fim}.json`;
     const url = `${BASE_PATH}data/atividades/${arquivo}?t=${Date.now()}`;
@@ -1274,21 +1434,15 @@ async function recarregarBlocoAtividades(inicio, fim) {
         const response = await fetch(url);
         if (response.ok) {
             const dados = await response.json();
-            
-            // Remover atividades antigas do bloco
             for (let i = inicio; i <= fim; i++) {
                 delete ATIVIDADES[i];
             }
-            
-            // Adicionar as novas
             ATIVIDADES = { ...ATIVIDADES, ...dados };
-            
             salvarTodosDados();
             atividadesFiltradasAdmin = { ...ATIVIDADES };
             TODAS_ACOES = gerarAcoesAPartirDasAtividades();
             atualizarAcoes();
             atualizarListasAdmin();
-            
             mostrarToast(`✅ Bloco ${inicio}-${fim} recarregado!`);
         } else {
             mostrarToast(`⚠️ Bloco ${inicio}-${fim} não encontrado no GitHub`);
@@ -1298,6 +1452,7 @@ async function recarregarBlocoAtividades(inicio, fim) {
         mostrarToast(`❌ Erro ao recarregar bloco ${inicio}-${fim}`);
     }
 }
+
 // ==================== INICIALIZAÇÃO ====================
 function atualizarTudo() {
     atualizarFiltros();
