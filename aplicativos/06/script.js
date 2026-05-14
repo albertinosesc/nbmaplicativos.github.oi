@@ -10,7 +10,8 @@ const ARQUIVOS_ATIVIDADES = [
     'atividades/atividades101_200.json',
     'atividades/atividades201_300.json',
     'atividades/atividades301_400.json',
-    'atividades/atividades401_500.json'
+    'atividades/atividades401_500.json',
+    'atividades/atividades501_600.json'
 ];
 
 // ==================== DADOS ====================
