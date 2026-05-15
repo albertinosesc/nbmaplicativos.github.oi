@@ -133,13 +133,154 @@ const FORMAS_INFINITAS = {
 '92': { nome: '7(5+)', cordaBase: 4, cordas: [-1, -1, 2, 2, 2, 1], dedos: ['', '', '2', '3', '4', '1'], pestana: false },
 '93': { nome: 'm(7+)', cordaBase: 4, cordas: [-1, -1, 2, 1, 1, 1], dedos: ['', '', '4', '1', '2', '3'], pestana: false },
 
-// outros musica wave
+
 '94': { nome: '7(b9)', cordaBase: 5, cordas: [-1, 2, 1, 2, 1, -1], dedos: ['', '3', '1', '4', '2', ''], pestana: false },
 '95': { nome: 'm6', cordaBase: 6, cordas: [3, -1, 2, 3, 3, -1], dedos: ['2', '', '1', '3', '4', ''], pestana: false },
 '96': { nome: '7(13)', cordaBase: 6, cordas: [2, -1, 2, 3, 4, -1], dedos: ['1', '', '2', '3', '4', ''], pestana: false },
 '97': { nome: '7(b13)', cordaBase: 6, cordas: [2, -1, 2, 3, 3, -1], dedos: ['2', '', '1', '3', '4', ''], pestana: false },
 '98': { nome: '7(9)', cordaBase: 5, cordas: [-1, 2, 1, 2, 2, -1], dedos: ['', '2', '1', '3', '4', ''], pestana: false },
 '99': { nome: '7(9)', cordaBase: 4, cordas: [-1, -1, 2, 1, 3, 2], dedos: ['', '', '2', '1', '4', '3'], pestana: false },
+
+// fazer
+'100': { nome: 'C', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '101': { nome: 'G', cordas: [3,2,0,0,0,3], dedos: ['2','1','','','','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '102': { nome: 'G', cordas: [3,2,0,0,3,3], dedos: ['2','1','','','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '103': { nome: 'D', cordas: [-1,-1,0,2,3,2], dedos: ['','','','1','3','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '104': { nome: 'A', cordas: [-1,0,2,2,2,0], dedos: ['','','1','2','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '105': { nome: 'E', cordas: [0,2,2,1,0,0], dedos: ['','2','3','1','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Menor ==========
+    '106': { nome: 'Dm', cordas: [-1,-1,0,2,3,1], dedos: ['','','','2','3','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '107': { nome: 'Em', cordas: [0,2,2,0,0,0], dedos: ['','2','3','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '108': { nome: 'Am', cordas: [-1,0,2,2,1,0], dedos: ['','','2','3','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '109': { nome: 'Cm', cordas: [-1,3,1,0,1,-1], dedos: ['','4','1','','2',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    //========== Maior 7 ==========
+    '110': { nome: 'C7', cordas: [-1,3,2,3,1,0], dedos: ['','3','2','4','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '111': { nome: 'G7', cordas: [3,2,0,0,0,1], dedos: ['3','2','','','','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '112': { nome: 'D7', cordas: [-1,-1,0,2,1,2], dedos: ['','','','2','1','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '113': { nome: 'A7', cordas: [-1,0,2,0,2,0], dedos: ['','','2','','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '114': { nome: 'E7', cordas: [0,2,0,1,0,0], dedos: ['','2','0','1','0',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '115': { nome: 'E7', cordas: [0,2,2,1,3,0], dedos: ['','2','3','1','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '116': { nome: 'B7', cordas: [-1,2,1,2,0,2], dedos: ['','2','1','3','','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Menor 7 ==========
+    '117': { nome: 'Dm7', cordas: [-1,-1,0,2,1,1], dedos: ['','','','3','1','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '118': { nome: 'Em7', cordas: [0,2,0,0,0,0], dedos: ['','2','','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '119': { nome: 'Am7', cordas: [-1,0,2,0,1,0], dedos: ['','','2','0','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== add9 ==========
+    '120': { nome: 'Cadd9', cordas: [-1,3,2,0,3,0], dedos: ['','2','1','','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Sus2 ==========
+    '121': { nome: 'A2', cordas: [-1,0,2,2,0,0], dedos: ['','','1','2','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '122': { nome: 'D2', cordas: [-1,-1,0,2,3,0], dedos: ['','','','1','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '123': { nome: 'G2', cordas: [3,-1,0,2,3,3], dedos: ['2','','','1','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Sus4 ==========
+    '124': { nome: 'A4', cordas: [-1,0,2,2,3,0], dedos: ['','','1','2','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '125': { nome: 'C4', cordas: [-1,3,3,0,1,-1], dedos: ['','3','4','','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '126': { nome: 'D4', cordas: [-1,-1,0,2,3,3], dedos: ['','','','1','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '127': { nome: 'E4', cordas: [0,2,2,2,0,0], dedos: ['','2','3','4','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '128': { nome: 'G4', cordas: [3,-1,0,0,1,3], dedos: ['2','','','','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Maior 6 ==========
+    '129': { nome: 'A6', cordas: [-1,0,2,2,2,2], dedos: ['','','1','1','1','1'], pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
+    '130': { nome: 'B6', cordas: [-1,2,1,1,0,-1], dedos: ['','3','1','2','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '131': { nome: 'C6', cordas: [-1,3,2,2,1,0], dedos: ['','4','2','3','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '132': { nome: 'D6', cordas: [-1,-1,0,2,0,2], dedos: ['','','','2','','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '133': { nome: 'E6', cordas: [0,2,2,1,2,0], dedos: ['','2','3','1','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '134': { nome: 'G6', cordas: [3,-1,2,0,3,3], dedos: ['2','','1','','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Maior 6(9) ==========
+    '135': { nome: 'C6(9)', cordas: [-1,4,2,2,4,4], dedos: ['','2','1','1','3','4'], pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
+
+    // ========== Maior 7+ ==========
+    '136': { nome: 'A7+', cordas: [-1,0,2,1,2,0], dedos: ['','','2','1','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '137': { nome: 'C7+', cordas: [-1,3,2,0,0,0], dedos: ['','3','2','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '138': { nome: 'D7+', cordas: [-1,-1,0,2,2,2], dedos: ['','','','1','1','1'], pestana: true, pestanaCordas: [3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
+    '139': { nome: 'E7+', cordas: [0,2,1,1,0,0], dedos: ['','3','1','2','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '140': { nome: 'F7+', cordas: [-1,-1,3,2,1,0], dedos: ['','','3','2','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '141': { nome: 'G7+', cordas: [3,-1,0,0,0,2], dedos: ['2','','','','','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== 7(4) ==========
+    '142': { nome: 'A7(4)', cordas: [-1,0,2,0,3,0], dedos: ['','','2','','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '143': { nome: 'C7(4)', cordas: [-1,3,3,3,1,-1], dedos: ['','2','3','4','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '144': { nome: 'D7(4)', cordas: [-1,-1,0,2,1,3], dedos: ['','','','2','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '145': { nome: 'E7(4)', cordas: [0,2,0,2,0,0], dedos: ['','2','','3','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '146': { nome: 'G7(4)', cordas: [3,-1,3,0,1,3], dedos: ['2','','3','','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Maior 11 ==========
+    '147': { nome: 'A11', cordas: [-1,0,0,0,0,0], dedos: ['','','','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '148': { nome: 'B11', cordas: [-1,2,2,2,2,2], dedos: ['','1','1','1','1','1'], pestana: true, pestanaCordas: [1,2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
+    '149': { nome: 'C11', cordas: [-1,3,-1,3,4,1], dedos: ['','2','','3','4','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Maior 5+ ==========
+    '150': { nome: 'A5+', cordas: [-1,0,-1,2,2,1], dedos: ['','','','2','3','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '151': { nome: 'Bb5+', cordas: [-1,1,-1,1,3,2], dedos: ['','1','','2','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '152': { nome: 'C5+', cordas: [-1,3,2,1,1,-1], dedos: ['','3','2','1','1',''], pestana: true, pestanaCordas: [3,4], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
+
+    // ========== Menor 6 ==========
+    '153': { nome: 'Am6', cordas: [-1,0,2,0,1,2], dedos: ['','','2','0','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '154': { nome: 'Bm6', cordas: [-1,0,2,0,1,2], dedos: ['','','2','0','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '155': { nome: 'Cm6', cordas: [-1,3,-1,2,4,3], dedos: ['','2','','1','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '156': { nome: 'Dm6', cordas: [-1,-1,0,2,0,1], dedos: ['','','','2','','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '157': { nome: 'Em6', cordas: [0,2,2,0,2,0], dedos: ['','2','3','','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Maior 7(5+) ==========
+    '158': { nome: 'D7(5+)', cordas: [-1,-1,0,3,1,2], dedos: ['','','','3','1','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Maior 7(b5) ==========
+    '159': { nome: 'D7(b5)', cordas: [-1,-1,0,1,1,2], dedos: ['','','','1','2','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Menor 7(b5) ==========
+    '160': { nome: 'Am7(b5)', cordas: [-1,0,1,2,1,3], dedos: ['','','1','2','1','4'], pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
+    '161': { nome: 'Bbm7(b5)', cordas: [-1,2,0,1,4,2], dedos: ['','2','','1','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '162': { nome: 'Bm7(b5)', cordas: [-1,2,3,2,3,-1], dedos: ['','1','3','2','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '163': { nome: 'Dm7(b5)', cordas: [-1,-1,0,1,1,1], dedos: ['','','','1','1','1'], pestana: true, pestanaCordas: [3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
+
+    // ========== Menor 7+ ==========
+    '164': { nome: 'Cm7+', cordas: [-1,3,1,0,0,-1], dedos: ['','3','1','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Menor 9 ==========
+    '165': { nome: 'Am9', cordas: [-1,0,2,4,1,3], dedos: ['','','2','4','1','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '166': { nome: 'Bm9', cordas: [-1,2,0,2,2,2], dedos: ['','1','','2','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '167': { nome: 'Em9', cordas: [0,2,2,0,3,2], dedos: ['','1','2','','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Menor 7+ ==========
+    '168': { nome: 'Am7+', cordas: [-1,0,2,1,1,0], dedos: ['','','3','1','2','0'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '169': { nome: 'Bm7+', cordas: [-1,2,-1,3,3,2], dedos: ['','1','','3','4','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '170': { nome: 'Dm7+', cordas: [-1,-1,0,2,2,1], dedos: ['','','','2','3','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '171': { nome: 'Em7+', cordas: [0,2,1,0,0,0], dedos: ['','2','1','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Menor 11 ==========
+    '172': { nome: 'Am11', cordas: [-1,0,0,0,1,0], dedos: ['','','','','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '173': { nome: 'Bm11', cordas: [-1,2,2,2,4,2], dedos: ['','1','1','1','2','1'], pestana: true, pestanaCordas: [1,2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
+    '174': { nome: 'Cm11', cordas: [-1,3,0,3,3,1], dedos: ['','2','0','3','4','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '175': { nome: 'Dm11', cordas: [-1,-1,0,0,1,1], dedos: ['','','','','1','1'], pestana: true, pestanaCordas: [4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
+
+    // ========== Maior 7(#9) ==========
+    '176': { nome: 'Bb7(#9)', cordas: [-1,1,0,1,2,0], dedos: ['','1','','2','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '177': { nome: 'B7(#9)', cordas: [-1,2,1,2,4,-1], dedos: ['','2','1','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '178': { nome: 'C7(#9)', cordas: [-1,3,2,2,4,-1], dedos: ['','2','1','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Maior 9 ==========
+    '179': { nome: 'Bb9', cordas: [-1,1,0,1,1,0], dedos: ['','2','','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '180': { nome: 'B9', cordas: [-1,2,1,2,2,-1], dedos: ['','2','1','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '181': { nome: 'C9', cordas: [-1,3,2,3,3,-1], dedos: ['','2','1','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Maior 7(b9) ==========
+    '182': { nome: 'C7(b9)', cordas: [-1,3,2,3,2,-1], dedos: ['','3','1','4','2',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== Maior 13(b9) ==========
+    '183': { nome: 'C13(b9)', cordas: [-1,4,2,4,2,6], dedos: ['','2','1','3','1','4'], pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
+
+    // ========== °7 ==========
+    '184': { nome: 'Bb°7', cordas: [-1,1,2,0,2,-1], dedos: ['','2','3','0','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '185': { nome: 'B°7', cordas: [-1,1,2,0,2,-1], dedos: ['','2','3','0','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+
+    // ========== ° ==========
+    '186': { nome: 'D°', cordas: [-1,-1,0,1,3,1], dedos: ['','','','1','4','1'], pestana: true, pestanaCordas: [3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
 
 
 
