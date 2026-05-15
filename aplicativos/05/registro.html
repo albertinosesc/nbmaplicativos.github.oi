@@ -177,11 +177,11 @@
                 renderizarTabela();
                 
                 if (webAppUrl) {
-                    const salvou = await enviarRequisicao(dadosProcessados);
+                    const salvou = await enviarRequisicaoSalvar(dadosProcessados);
                     if (salvou) {
                         mostrarMensagem('✅ Dados salvos na planilha em ordem crescente!', 'success');
                     } else {
-                        mostrarMensagem('⚠️ Dados salvos localmente. Erro ao conectar com planilha.', 'error');
+                        mostrarMensagem('⚠️ Erro ao salvar na planilha, mas dados salvos localmente.', 'error');
                     }
                 } else {
                     mostrarMensagem('💾 Dados salvos localmente', 'success');
@@ -196,6 +196,21 @@
             }
         }
 
+        async function enviarRequisicaoSalvar(dados) {
+            if (!webAppUrl) return false;
+            
+            try {
+                const dadosJson = JSON.stringify(dados);
+                const url = `${webAppUrl}?acao=salvar&aba=${currentSheet}&dados=${encodeURIComponent(dadosJson)}&t=${Date.now()}`;
+                const response = await fetch(url);
+                const resultado = await response.json();
+                return resultado.success;
+            } catch (error) {
+                console.error('Erro na requisição:', error);
+                return false;
+            }
+        }
+
         async function carregarDados() {
             if (!webAppUrl) {
                 mostrarMensagem('Configure a URL do Web App primeiro!', 'error');
@@ -205,7 +220,7 @@
             mostrarLoading(true);
             
             try {
-                const url = `${webAppUrl}?aba=${currentSheet}&t=${Date.now()}`;
+                const url = `${webAppUrl}?acao=buscar&aba=${currentSheet}&t=${Date.now()}`;
                 const response = await fetch(url);
                 const resultado = await response.json();
                 
@@ -216,7 +231,8 @@
                         sheetData[currentSheet] = ordenarPorNumero(resultado.dados);
                     }
                     renderizarTabela();
-                    mostrarMensagem(`✅ ${resultado.dados.length - 1} registros carregados da planilha!`, 'success');
+                    const qtd = resultado.dados.length - 1;
+                    mostrarMensagem(`✅ ${qtd} registros carregados da planilha!`, 'success');
                 } else {
                     throw new Error(resultado.error || 'Erro ao buscar dados');
                 }
@@ -300,7 +316,7 @@
             
             const dadosAtuais = sheetData[currentSheet];
             for (let i = 1; i < dadosAtuais.length; i++) {
-                await enviarRequisicao(dadosAtuais[i]);
+                await enviarRequisicaoSalvar(dadosAtuais[i]);
             }
         }
 
@@ -329,32 +345,10 @@
                 mostrarMensagem('Checklist atualizado!', 'success');
                 
                 if (webAppUrl) {
-                    await enviarRequisicao(sheetData[currentSheet][rowIndex + 1]);
+                    await enviarRequisicaoSalvar(sheetData[currentSheet][rowIndex + 1]);
                 }
             }
         };
-
-        async function enviarRequisicao(dados) {
-            if (!webAppUrl) return false;
-            
-            try {
-                const response = await fetch(webAppUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        aba: currentSheet, 
-                        dados: dados 
-                    })
-                });
-                
-                const resultado = await response.json();
-                return resultado.success;
-                
-            } catch (error) {
-                console.error('Erro na requisição:', error);
-                return false;
-            }
-        }
 
         window.fecharModal = function() {
             document.getElementById('modal').classList.remove('active');
@@ -413,7 +407,7 @@
                                                                    class="checklist-checkbox"
                                                                    ${cell === '✓' ? 'checked' : ''}
                                                                    onchange="atualizarChecklist(${index}, this.checked)">
-                                                        </tr>
+                                                        </td>
                                                     `;
                                                 }
                                                 return `<td>${cell || '-'}</td>`;
@@ -442,8 +436,8 @@
                     </div>
                     
                     <div class="info-box">
-                        📌 <strong>Ordem Automática:</strong> Os dados são sempre ordenados pelo número (Nº) em ordem crescente, tanto no navegador quanto na planilha do Google Sheets!
-                        ${webAppUrl ? '<br>✅ <strong>Conectado à planilha:</strong> Os dados são sincronizados automaticamente.' : '<br>⚠️ <strong>Modo offline:</strong> Configure a URL para sincronizar com a planilha.'}
+                        📌 <strong>Ordem Automática:</strong> Os dados são sempre ordenados pelo número (Nº) em ordem crescente.
+                        ${webAppUrl ? '<br>✅ <strong>Conectado à planilha:</strong> Os dados são sincronizados.' : '<br>⚠️ <strong>Modo offline:</strong> Configure a URL para sincronizar.'}
                     </div>
                 </div>
             `;
