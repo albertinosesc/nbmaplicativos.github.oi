@@ -67,39 +67,53 @@
         .delete-btn { background: #e74c3c; color: white; padding: 5px 8px; }
     </style>
 </head>
+
+
 <body>
     <div class="container">
         <div class="header">
             <h1>⚡ Sistema de Estudo Musical</h1>
             <p>Sincronização Direta com Google Sheets</p>
         </div>
+        
+        <!-- Barra de Configuração da URL -->
         <div class="config-bar">
             <span>🔗 <strong>URL do Web App:</strong></span>
             <input type="text" id="webAppUrl" placeholder="https://script.google.com/macros/s/.../exec">
-            <button onclick="salvarUrl()">💾 Salvar URL</button>
+            <button type="button" onclick="salvarUrl()">💾 Salvar URL</button>
         </div>
+
+        <!-- Barra de Status -->
         <div class="status-bar">
             <span><span class="status-dot"></span> Status: <span id="statusModo">Local</span></span>
             <span id="lastUpdate">Aguardando conexão...</span>
         </div>
+
+        <!-- Abas de Navegação -->
         <div class="tabs" id="tabs"></div>
+
+        <!-- Conteúdo Principal -->
         <div class="content" id="mainContent">
-            <!-- Conteúdo gerado via JS -->
+            <!-- O JavaScript vai preencher este espaço através da função renderizarInterface() -->
         </div>
     </div>
 
+    <!-- Overlay de Carregamento (usado apenas em buscas pesadas) -->
     <div id="loading" class="loading">
         <div class="spinner"></div>
-        <p>Sincronizando com a Planilha...</p>
+        <p id="loadingText">Sincronizando com a Planilha...</p>
     </div>
 
+    <!-- Modal de Edição -->
     <div id="modal" class="modal">
         <div class="modal-content">
-            <div style="display:flex; justify-content:space-between; margin-bottom:20px;">
-                <h2 id="modalTitle">✏️ Editar</h2>
-                <span style="cursor:pointer; font-size:24px;" onclick="fecharModal()">&times;</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h2 id="modalTitle">✏️ Editar Registro</h2>
+                <span style="cursor:pointer; font-size:28px; color:#7f8c8d;" onclick="fecharModal()">&times;</span>
             </div>
-            <div id="modalBody"></div>
+            <div id="modalBody">
+                <!-- Formulário de edição gerado via JS -->
+            </div>
         </div>
     </div>
 
@@ -117,7 +131,6 @@
         let sheetData = {};
         let webAppUrl = localStorage.getItem('webAppUrl') || '';
 
-        // --- INICIALIZAÇÃO ---
         function init() {
             if (webAppUrl) {
                 document.getElementById('webAppUrl').value = webAppUrl;
@@ -128,7 +141,6 @@
             renderizarInterface();
         }
 
-        // --- FUNÇÕES DE NAVEGAÇÃO ---
         function renderizarAbas() {
             document.getElementById('tabs').innerHTML = Object.keys(SHEETS_CONFIG).map(k => 
                 `<button class="tab-btn ${k === currentSheet ? 'active' : ''}" onclick="mudarAba('${k}')">${SHEETS_CONFIG[k].nome}</button>`
@@ -141,167 +153,34 @@
             renderizarInterface();
         }
 
-        // --- COMUNICAÇÃO COM O GOOGLE ---
-        async function salvarNaPlanilha(dadosLinha) {
-            if (!webAppUrl) return false;
-            try {
-                const url = `${webAppUrl}?acao=salvar&aba=${currentSheet}&dados=${encodeURIComponent(JSON.stringify(dadosLinha))}`;
-                const response = await fetch(url);
-                const result = await response.json();
-                return result.success;
-            } catch (e) {
-                console.error("Erro ao salvar:", e);
-                return false;
-            }
-        }
-
-        async function buscarDaPlanilha() {
-            if (!webAppUrl) return;
-            mostrarLoading(true);
-            try {
-                const response = await fetch(`${webAppUrl}?acao=buscar&aba=${currentSheet}&t=${Date.now()}`);
-                const result = await response.json();
-                if (result.success) {
-                    sheetData[currentSheet] = ordenarDados(result.dados);
-                    renderizarInterface();
-                    mostrarMensagem("Dados sincronizados!", "success");
-                    document.getElementById('lastUpdate').textContent = "Última atualização: " + new Date().toLocaleTimeString();
-                }
-            } catch (e) {
-                mostrarMensagem("Erro ao carregar dados.", "error");
-            } finally {
-                mostrarLoading(false);
-            }
-        }
-
-        // --- LÓGICA DE DADOS ---
-        function ordenarDados(dados) {
-            if (!dados || dados.length <= 1) return dados;
-            const headers = dados[0];
-            const rows = dados.slice(1).sort((a, b) => (parseInt(a[0]) || 0) - (parseInt(b[0]) || 0));
-            return [headers, ...rows];
-        }
-
-        window.enviarDado = function() {
-    const config = SHEETS_CONFIG[currentSheet];
-    const valores = config.fields.map(f => {
-        if (f.type === 'checkbox') return document.getElementById(f.name).checked ? '✓' : '✗';
-        return document.getElementById(f.name).value;
-    });
-
-    if (!valores[0]) {
-        mostrarMensagem("Número é obrigatório!", "error");
-        return;
-    }
-
-    // --- ATUALIZAÇÃO LOCAL IMEDIATA (Adeus lentidão!) ---
-    if (!sheetData[currentSheet]) sheetData[currentSheet] = [config.headers];
-    const indexExistente = sheetData[currentSheet].findIndex(r => parseInt(r[0]) === parseInt(valores[0]));
-    
-    if (indexExistente !== -1) {
-        sheetData[currentSheet][indexExistente] = valores;
-    } else {
-        sheetData[currentSheet].push(valores);
-    }
-    
-    // Ordena na tela imediatamente
-    sheetData[currentSheet] = ordenarDados(sheetData[currentSheet]);
-    renderizarInterface();
-    
-    // Limpa o formulário e joga o foco de volta para o campo Número
-    document.getElementById('formDados').reset();
-    const campoNumero = document.getElementById(config.fields[0].name);
-    if (campoNumero) campoNumero.focus();
-    
-    mostrarMensagem("Item adicionado à lista!", "info");
-
-    // --- ENVIA PARA O GOOGLE EM SEGUNDO PLANO (Não trava a tela) ---
-    salvarNaPlanilha(valores).then(ok => {
-        if (ok) {
-            document.getElementById('lastUpdate').textContent = "Nuvem atualizada: " + new Date().toLocaleTimeString();
-        } else {
-            mostrarMensagem("Aviso: Falha ao sincronizar com a nuvem.", "error");
-        }
-    });
-};
-
-        window.atualizarChecklist = async function(rowIndex, checked) {
-            const checkboxValue = checked ? '✓' : '✗';
-            const rowData = sheetData[currentSheet][rowIndex + 1];
-            rowData[rowData.length - 1] = checkboxValue;
-            
-            // Feedback instantâneo local, salva em background
-            salvarNaPlanilha(rowData);
-            mostrarMensagem("Checklist atualizado", "info");
-        };
-
-        window.editarRegistro = function(idx) {
-            const registro = sheetData[currentSheet][idx + 1];
-            const config = SHEETS_CONFIG[currentSheet];
-            
-            let html = `<form id="editForm">`;
-            config.fields.forEach((f, i) => {
-                html += `<div class="form-group">
-                    <label>${f.label}</label>
-                    ${f.type === 'checkbox' ? 
-                        `<input type="checkbox" id="edit_${f.name}" ${registro[i] === '✓' ? 'checked' : ''} style="width:20px; height:20px;">` :
-                        `<input type="${f.type}" id="edit_${f.name}" value="${registro[i]}" ${i===0 ? 'readonly style="background:#eee"' : ''}>`
-                    }
-                </div>`;
-            });
-            html += `<button type="button" onclick="confirmarEdicao(${idx})" class="btn-enviar" style="width:100%">Salvar Alterações</button></form>`;
-            
-            document.getElementById('modalBody').innerHTML = html;
-            document.getElementById('modal').classList.add('active');
-        };
-
-        window.confirmarEdicao = async function(idx) {
-            const config = SHEETS_CONFIG[currentSheet];
-            const novosValores = config.fields.map(f => {
-                if (f.type === 'checkbox') return document.getElementById(`edit_${f.name}`).checked ? '✓' : '✗';
-                return document.getElementById(`edit_${f.name}`).value;
-            });
-
-            fecharModal();
-            mostrarLoading(true);
-            
-            sheetData[currentSheet][idx + 1] = novosValores;
-            renderizarInterface();
-            
-            await salvarNaPlanilha(novosValores);
-            mostrarLoading(false);
-            mostrarMensagem("Editado com sucesso!", "success");
-        };
-
-        // --- INTERFACE ---
         function renderizarInterface() {
             const config = SHEETS_CONFIG[currentSheet];
             if (!sheetData[currentSheet]) sheetData[currentSheet] = [config.headers];
-            const dados = sheetData[currentSheet];
-            const rows = dados.slice(1);
+            const rows = sheetData[currentSheet].slice(1);
 
             let html = `
-                <h2>📝 Adicionar ${config.nome}</h2>
-                <form id="formDados" onsubmit="event.preventDefault();">
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px;">
+                <h2>📝 Gerenciar ${config.nome}</h2>
+                <!-- O onsubmit="return false;" evita o erro de cancelamento de envio -->
+                <form id="formDados" onsubmit="return false;">
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 15px;">
                         ${config.fields.map(f => `
                             <div class="form-group">
                                 <label>${f.label}</label>
                                 ${f.type === 'checkbox' ? 
                                     `<input type="checkbox" id="${f.name}" class="checklist-checkbox">` : 
-                                    `<input type="${f.type}" id="${f.name}" placeholder="${f.label}">`
+                                    `<input type="${f.type}" id="${f.name}" placeholder="Digite o ${f.label.toLowerCase()}">`
                                 }
                             </div>
                         `).join('')}
                     </div>
                     <div class="button-group">
-                        <button class="btn-enviar" onclick="enviarDado()">➕ Salvar Item</button>
-                        <button class="btn-buscar" onclick="buscarDaPlanilha()">📥 Atualizar Lista</button>
-                        <button class="btn-limpar" onclick="document.getElementById('formDados').reset()">🗑️ Limpar</button>
+                        <button type="button" class="btn-enviar" onclick="enviarDado()">➕ Salvar Item</button>
+                        <button type="button" class="btn-buscar" onclick="buscarDaPlanilha()">📥 Atualizar Lista</button>
+                        <button type="button" class="btn-limpar" onclick="document.getElementById('formDados').reset()">🗑️ Limpar</button>
                     </div>
                 </form>
 
-                <div style="overflow-x: auto; margin-top: 20px; border-radius: 8px; border: 1px solid #ddd;">
+                <div style="overflow-x: auto; margin-top: 25px; border-radius: 10px; border: 1px solid #eee; max-height: 600px;">
                     <table>
                         <thead>
                             <tr>${config.headers.map(h => `<th>${h}</th>`).join('')} <th>Ações</th></tr>
@@ -315,11 +194,11 @@
                                     ).join('')}
                                     <td>
                                         <div class="action-buttons">
-                                            <button class="edit-btn" onclick="editarRegistro(${idx})">✏️</button>
+                                            <button type="button" class="edit-btn" onclick="editarRegistro(${idx})">✏️</button>
                                         </div>
                                     </td>
                                 </tr>
-                            `).join('') : '<tr><td colspan="100%" style="text-align:center">Nenhum dado encontrado</td></tr>'}
+                            `).join('') : '<tr><td colspan="100%" style="text-align:center; padding: 20px;">Nenhum dado encontrado</td></tr>'}
                         </tbody>
                     </table>
                 </div>
@@ -327,9 +206,124 @@
             document.getElementById('mainContent').innerHTML = html;
         }
 
-        // --- UTILITÁRIOS ---
+        // --- LÓGICA DE ENVIO E ATUALIZAÇÃO ---
+        window.enviarDado = function() {
+            const config = SHEETS_CONFIG[currentSheet];
+            const valores = config.fields.map(f => {
+                if (f.type === 'checkbox') return document.getElementById(f.name).checked ? '✓' : '✗';
+                return document.getElementById(f.name).value;
+            });
+
+            if (!valores[0]) {
+                mostrarMensagem("O Número é obrigatório!", "error");
+                return;
+            }
+
+            // ATUALIZAÇÃO LOCAL INSTANTÂNEA
+            if (!sheetData[currentSheet]) sheetData[currentSheet] = [config.headers];
+            const indexExistente = sheetData[currentSheet].findIndex((r, i) => i > 0 && parseInt(r[0]) === parseInt(valores[0]));
+            
+            if (indexExistente !== -1) {
+                sheetData[currentSheet][indexExistente] = valores;
+            } else {
+                sheetData[currentSheet].push(valores);
+            }
+            
+            sheetData[currentSheet] = ordenarDados(sheetData[currentSheet]);
+            renderizarInterface();
+            
+            // Limpa formulário e foca no primeiro campo
+            document.getElementById('formDados').reset();
+            document.getElementById(config.fields[0].name).focus();
+            
+            mostrarMensagem("Item adicionado à lista!", "info");
+
+            // ENVIO PARA O GOOGLE EM BACKGROUND
+            salvarNaPlanilha(valores).then(ok => {
+                if (ok) document.getElementById('lastUpdate').textContent = "Nuvem atualizada: " + new Date().toLocaleTimeString();
+            });
+        };
+
+        window.atualizarChecklist = function(rowIndex, checked) {
+            const checkboxValue = checked ? '✓' : '✗';
+            const rowData = sheetData[currentSheet][rowIndex + 1];
+            rowData[rowData.length - 1] = checkboxValue;
+            
+            salvarNaPlanilha(rowData);
+            mostrarMensagem("Checklist atualizado", "info");
+        };
+
+        window.editarRegistro = function(idx) {
+            const registro = sheetData[currentSheet][idx + 1];
+            const config = SHEETS_CONFIG[currentSheet];
+            
+            let html = `<form id="editForm" onsubmit="return false;">`;
+            config.fields.forEach((f, i) => {
+                html += `<div class="form-group">
+                    <label>${f.label}</label>
+                    ${f.type === 'checkbox' ? 
+                        `<input type="checkbox" id="edit_${f.name}" ${registro[i] === '✓' ? 'checked' : ''} style="width:25px; height:25px;">` :
+                        `<input type="${f.type}" id="edit_${f.name}" value="${registro[i]}" ${i===0 ? 'readonly style="background:#f5f5f5; color:#888;"' : ''}>`
+                    }
+                </div>`;
+            });
+            html += `<button type="button" onclick="confirmarEdicao(${idx})" class="btn-enviar" style="width:100%; margin-top:10px;">💾 Salvar Alterações</button></form>`;
+            
+            document.getElementById('modalBody').innerHTML = html;
+            document.getElementById('modal').classList.add('active');
+        };
+
+        window.confirmarEdicao = async function(idx) {
+            const config = SHEETS_CONFIG[currentSheet];
+            const novosValores = config.fields.map(f => {
+                if (f.type === 'checkbox') return document.getElementById(`edit_${f.name}`).checked ? '✓' : '✗';
+                return document.getElementById(`edit_${f.name}`).value;
+            });
+
+            fecharModal();
+            sheetData[currentSheet][idx + 1] = novosValores;
+            renderizarInterface();
+            
+            const ok = await salvarNaPlanilha(novosValores);
+            if (ok) mostrarMensagem("Alteração salva na nuvem!", "success");
+        };
+
+        // --- FUNÇÕES AUXILIARES ---
+        async function salvarNaPlanilha(dadosLinha) {
+            if (!webAppUrl) return false;
+            try {
+                const url = `${webAppUrl}?acao=salvar&aba=${currentSheet}&dados=${encodeURIComponent(JSON.stringify(dadosLinha))}`;
+                const response = await fetch(url);
+                const result = await response.json();
+                return result.success;
+            } catch (e) { return false; }
+        }
+
+        async function buscarDaPlanilha() {
+            if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro!", "error"); return; }
+            mostrarLoading(true);
+            try {
+                const response = await fetch(`${webAppUrl}?acao=buscar&aba=${currentSheet}&t=${Date.now()}`);
+                const result = await response.json();
+                if (result.success) {
+                    sheetData[currentSheet] = ordenarDados(result.dados);
+                    renderizarInterface();
+                    mostrarMensagem("Sincronizado com a planilha!", "success");
+                    document.getElementById('lastUpdate').textContent = "Última atualização: " + new Date().toLocaleTimeString();
+                }
+            } catch (e) { mostrarMensagem("Erro na conexão.", "error"); }
+            finally { mostrarLoading(false); }
+        }
+
+        function ordenarDados(dados) {
+            if (!dados || dados.length <= 1) return dados;
+            const headers = dados[0];
+            const rows = dados.slice(1).sort((a, b) => (parseInt(a[0]) || 0) - (parseInt(b[0]) || 0));
+            return [headers, ...rows];
+        }
+
         function salvarUrl() {
-            webAppUrl = document.getElementById('webAppUrl').value;
+            webAppUrl = document.getElementById('webAppUrl').value.trim();
             localStorage.setItem('webAppUrl', webAppUrl);
             document.getElementById('statusModo').textContent = webAppUrl ? 'Online' : 'Local';
             if (webAppUrl) buscarDaPlanilha();
@@ -349,7 +343,11 @@
 
         window.onclick = (e) => { if (e.target.className === 'modal active') fecharModal(); };
 
+        // Inicia o sistema
         init();
     </script>
 </body>
+
+
+
 </html>
