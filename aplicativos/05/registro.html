@@ -45,6 +45,10 @@
         input:focus, textarea:focus, select:focus { outline: none; border-color: #667eea; }
         button { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; transition: transform 0.2s; }
         button:hover { transform: translateY(-2px); }
+        .button-group { display: flex; gap: 15px; margin-top: 20px; flex-wrap: wrap; }
+        .btn-enviar { background: linear-gradient(135deg, #27ae60 0%, #2ecc71 100%); }
+        .btn-buscar { background: linear-gradient(135deg, #3498db 0%, #2980b9 100%); }
+        .btn-limpar { background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%); }
         .checkbox-group { display: flex; align-items: center; gap: 10px; }
         .checkbox-group input { width: 20px; height: 20px; }
         table { width: 100%; border-collapse: collapse; margin-top: 20px; }
@@ -56,6 +60,7 @@
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         .message.success { background: #d4edda; color: #155724; border-left: 4px solid #28a745; }
         .message.error { background: #f8d7da; color: #721c24; border-left: 4px solid #dc3545; }
+        .message.info { background: #d1ecf1; color: #0c5460; border-left: 4px solid #17a2b8; }
         .loading { display: none; position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 999; justify-content: center; align-items: center; }
         .loading.active { display: flex; }
         .spinner { border: 4px solid #f3f3f3; border-top: 4px solid #667eea; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; background: white; }
@@ -86,12 +91,11 @@
         </div>
         <div class="config-bar">
             <span style="font-weight: bold;">🔗 URL do Web App:</span>
-            <input type="text" id="webAppUrl" placeholder="Cole a URL do Google Apps Script aqui" value="https://script.google.com/macros/s/AKfycbwNxpYvTshuE5ni4UoS6iDWzSFS80CCt4-yedqDjXFMtSDVs1DGAzDC7Y2PEZuIFDAP/exec">
+            <input type="text" id="webAppUrl" placeholder="Cole a URL do Google Apps Script aqui">
             <button onclick="salvarUrl()">💾 Salvar URL</button>
-            <button onclick="carregarDados()" style="background: #27ae60;">🔄 Buscar Dados</button>
         </div>
         <div class="status-bar">
-            <span><span class="status-dot"></span> Modo: <span id="statusModo">Online</span></span>
+            <span><span class="status-dot"></span> Modo: <span id="statusModo">Local</span></span>
             <span>✅ Números únicos e ordenação crescente</span>
         </div>
         <div class="tabs" id="tabs"></div>
@@ -127,7 +131,7 @@
         let currentSheet = 'musica';
         let sheetData = {};
         let editIndex = null;
-        let webAppUrl = localStorage.getItem('webAppUrl') || 'https://script.google.com/macros/s/AKfycbwNxpYvTshuE5ni4UoS6iDWzSFS80CCt4-yedqDjXFMtSDVs1DGAzDC7Y2PEZuIFDAP/exec';
+        let webAppUrl = localStorage.getItem('webAppUrl') || '';
 
         if (webAppUrl) {
             document.getElementById('webAppUrl').value = webAppUrl;
@@ -139,7 +143,7 @@
             localStorage.setItem('webAppUrl', webAppUrl);
             if (webAppUrl) {
                 document.getElementById('statusModo').textContent = 'Online (Google Sheets)';
-                mostrarMensagem('URL salva! Clique em "Buscar Dados" para carregar.', 'success');
+                mostrarMensagem('URL salva! Use os botões para enviar/buscar dados.', 'success');
             } else {
                 document.getElementById('statusModo').textContent = 'Local';
                 mostrarMensagem('Modo local ativado', 'success');
@@ -170,23 +174,40 @@
             return true;
         }
 
-        async function adicionarDados(dados) {
-            const numeroDigitado = parseInt(dados[0]);
+        // FUNÇÃO PARA ENVIAR DADOS PARA A PLANILHA
+        window.enviarParaPlanilha = async function() {
+            if (!webAppUrl) {
+                mostrarMensagem('Configure a URL do Web App primeiro!', 'error');
+                return;
+            }
+            
+            const form = document.getElementById('formDados');
+            if (!form) return;
+            
+            const config = SHEETS_CONFIG[currentSheet];
+            const valores = config.fields.map(field => {
+                if (field.type === 'checkbox') {
+                    return document.getElementById(field.name).checked;
+                }
+                return document.getElementById(field.name).value;
+            });
+            
+            const numeroDigitado = parseInt(valores[0]);
             
             if (isNaN(numeroDigitado) || numeroDigitado <= 0) {
                 mostrarMensagem('❌ Digite um número válido (maior que 0)!', 'error');
-                return false;
+                return;
             }
             
             if (!validarNumeroUnico(numeroDigitado)) {
                 mostrarMensagem(`❌ Número ${numeroDigitado} já existe! Use um número diferente.`, 'error');
-                return false;
+                return;
             }
             
             mostrarLoading(true);
             
             try {
-                const dadosProcessados = dados.map(valor => {
+                const dadosProcessados = valores.map(valor => {
                     if (valor === true) return '✓';
                     if (valor === false) return '✗';
                     return valor || '';
@@ -200,47 +221,24 @@
                 sheetData[currentSheet] = ordenarPorNumero(sheetData[currentSheet]);
                 renderizarTabela();
                 
-                if (webAppUrl) {
-                    const salvou = await enviarRequisicaoSalvar(dadosProcessados);
-                    if (salvou) {
-                        mostrarMensagem('✅ Dados salvos na planilha!', 'success');
-                    } else {
-                        mostrarMensagem('⚠️ Erro ao salvar na planilha, mas dados salvos localmente.', 'error');
-                    }
+                const salvou = await enviarRequisicaoSalvar(dadosProcessados);
+                if (salvou) {
+                    mostrarMensagem('✅ Dados enviados para a planilha com sucesso!', 'success');
+                    form.reset();
+                    document.getElementById('numero')?.focus();
                 } else {
-                    mostrarMensagem('💾 Dados salvos localmente', 'success');
+                    mostrarMensagem('⚠️ Erro ao enviar para planilha, mas dados salvos localmente.', 'error');
                 }
                 
-                return true;
             } catch (error) {
-                mostrarMensagem('Erro ao salvar dados', 'error');
-                return false;
+                mostrarMensagem('Erro ao enviar dados', 'error');
             } finally {
                 mostrarLoading(false);
             }
-        }
+        };
 
-        async function enviarRequisicaoSalvar(dados) {
-            if (!webAppUrl) return false;
-            
-            try {
-                const dadosJson = JSON.stringify(dados);
-                const url = `${webAppUrl}?acao=salvar&aba=${currentSheet}&dados=${encodeURIComponent(dadosJson)}&t=${Date.now()}`;
-                const response = await fetch(url);
-                const resultado = await response.json();
-                
-                if (!resultado.success && resultado.error) {
-                    mostrarMensagem(resultado.error, 'error');
-                    return false;
-                }
-                return resultado.success;
-            } catch (error) {
-                console.error('Erro na requisição:', error);
-                return false;
-            }
-        }
-
-        async function carregarDados() {
+        // FUNÇÃO PARA BUSCAR DADOS DA PLANILHA
+        window.buscarDaPlanilha = async function() {
             if (!webAppUrl) {
                 mostrarMensagem('Configure a URL do Web App primeiro!', 'error');
                 return;
@@ -261,20 +259,45 @@
                     }
                     renderizarTabela();
                     const qtd = resultado.dados.length - 1;
-                    mostrarMensagem(`✅ ${qtd} registros carregados da planilha!`, 'success');
+                    mostrarMensagem(`✅ ${qtd} registros buscados da planilha!`, 'success');
                 } else {
                     throw new Error(resultado.error || 'Erro ao buscar dados');
                 }
             } catch (error) {
                 console.error('Erro:', error);
-                mostrarMensagem('⚠️ Erro ao buscar dados. Verifique a URL.', 'error');
-                
-                if (!sheetData[currentSheet]) {
-                    sheetData[currentSheet] = [SHEETS_CONFIG[currentSheet].headers];
-                    renderizarTabela();
-                }
+                mostrarMensagem('⚠️ Erro ao buscar dados da planilha.', 'error');
             } finally {
                 mostrarLoading(false);
+            }
+        };
+
+        // FUNÇÃO PARA LIMPAR FORMULÁRIO
+        window.limparFormulario = function() {
+            const form = document.getElementById('formDados');
+            if (form) {
+                form.reset();
+                document.getElementById('numero')?.focus();
+                mostrarMensagem('Formulário limpo!', 'info');
+            }
+        };
+
+        async function enviarRequisicaoSalvar(dados) {
+            if (!webAppUrl) return false;
+            
+            try {
+                const dadosJson = JSON.stringify(dados);
+                const url = `${webAppUrl}?acao=salvar&aba=${currentSheet}&dados=${encodeURIComponent(dadosJson)}&t=${Date.now()}`;
+                const response = await fetch(url);
+                const resultado = await response.json();
+                
+                if (!resultado.success && resultado.error) {
+                    mostrarMensagem(resultado.error, 'error');
+                    return false;
+                }
+                return resultado.success;
+            } catch (error) {
+                console.error('Erro na requisição:', error);
+                return false;
             }
         }
 
@@ -302,7 +325,9 @@
                             `}
                         </div>
                     `).join('')}
-                    <button type="submit">💾 Salvar Alterações</button>
+                    <div class="button-group">
+                        <button type="submit">💾 Salvar Alterações</button>
+                    </div>
                 </form>
             `;
             
@@ -379,7 +404,7 @@
                 const lastIndex = sheetData[currentSheet][rowIndex + 1].length - 1;
                 sheetData[currentSheet][rowIndex + 1][lastIndex] = checkboxValue;
                 renderizarTabela();
-                mostrarMensagem('Checklist atualizado!', 'success');
+                mostrarMensagem('Checklist atualizado!', 'info');
                 
                 if (webAppUrl) {
                     await enviarRequisicaoSalvar(sheetData[currentSheet][rowIndex + 1]);
@@ -420,8 +445,13 @@
                                 `}
                             </div>
                         `).join('')}
-                        <button type="submit">💾 Salvar (números únicos)</button>
                     </form>
+                    
+                    <div class="button-group">
+                        <button class="btn-enviar" onclick="enviarParaPlanilha()">📤 Enviar para Planilha</button>
+                        <button class="btn-buscar" onclick="buscarDaPlanilha()">📥 Buscar da Planilha</button>
+                        <button class="btn-limpar" onclick="limparFormulario()">🗑️ Limpar Formulário</button>
+                    </div>
                     
                     <div style="margin-top: 40px;">
                         <h3>📋 Lista de ${config.nome} (Ordenado por Nº)</h3>
@@ -463,7 +493,7 @@
                                     `).join('') : `
                                         <tr>
                                             <td colspan="${headers.length + 1}" style="text-align: center;">
-                                                Nenhum dado encontrado. Adicione seu primeiro registro!
+                                                Nenhum dado encontrado.
                                             </td>
                                         </tr>
                                     `}
@@ -473,32 +503,17 @@
                     </div>
                     
                     <div class="info-box">
-                        📌 <strong>Números Únicos:</strong> Cada número deve ser único. O sistema não permite números repetidos.<br>
-                        📌 <strong>Ordem Crescente:</strong> Os dados são automaticamente ordenados pelo número (Nº).
-                        ${webAppUrl ? '<br>✅ <strong>Conectado à planilha:</strong> Os dados são sincronizados.' : '<br>⚠️ <strong>Modo offline:</strong> Configure a URL para sincronizar.'}
+                        📌 <strong>Como usar:</strong><br>
+                        1. Preencha o formulário acima<br>
+                        2. Clique em <strong>"Enviar para Planilha"</strong> para salvar<br>
+                        3. Clique em <strong>"Buscar da Planilha"</strong> para carregar os dados salvos<br>
+                        4. Números devem ser únicos (não pode repetir)<br>
+                        5. A ordem é automática crescente pelo número
                     </div>
                 </div>
             `;
             
             document.getElementById('tab-contents').innerHTML = html;
-            
-            const form = document.getElementById('formDados');
-            if (form) {
-                form.addEventListener('submit', async (e) => {
-                    e.preventDefault();
-                    
-                    const valores = config.fields.map(field => {
-                        if (field.type === 'checkbox') {
-                            return document.getElementById(field.name).checked;
-                        }
-                        return document.getElementById(field.name).value;
-                    });
-                    
-                    await adicionarDados(valores);
-                    form.reset();
-                    document.getElementById('numero')?.focus();
-                });
-            }
         }
 
         function renderizarAbas() {
@@ -518,12 +533,7 @@
             if (!sheetData[currentSheet]) {
                 sheetData[currentSheet] = [SHEETS_CONFIG[currentSheet].headers];
             }
-            
-            if (webAppUrl) {
-                await carregarDados();
-            } else {
-                renderizarTabela();
-            }
+            renderizarTabela();
         };
 
         function mostrarLoading(mostrar) {
@@ -538,7 +548,7 @@
         function mostrarMensagem(mensagem, tipo) {
             const messageDiv = document.createElement('div');
             messageDiv.className = `message ${tipo}`;
-            messageDiv.innerHTML = `<strong>${tipo === 'success' ? '✓' : '⚠️'}</strong> ${mensagem}`;
+            messageDiv.innerHTML = `<strong>${tipo === 'success' ? '✓' : (tipo === 'error' ? '⚠️' : 'ℹ️')}</strong> ${mensagem}`;
             document.body.appendChild(messageDiv);
             setTimeout(() => messageDiv.remove(), 3000);
         }
@@ -553,12 +563,6 @@
             });
             
             renderizarTabela();
-            
-            if (webAppUrl) {
-                setTimeout(() => {
-                    carregarDados();
-                }, 500);
-            }
         }
 
         init();
