@@ -182,44 +182,48 @@
             return [headers, ...rows];
         }
 
-        window.enviarDado = async function() {
-            const config = SHEETS_CONFIG[currentSheet];
-            const valores = config.fields.map(f => {
-                if (f.type === 'checkbox') return document.getElementById(f.name).checked ? '✓' : '✗';
-                return document.getElementById(f.name).value;
-            });
+        window.enviarDado = function() {
+    const config = SHEETS_CONFIG[currentSheet];
+    const valores = config.fields.map(f => {
+        if (f.type === 'checkbox') return document.getElementById(f.name).checked ? '✓' : '✗';
+        return document.getElementById(f.name).value;
+    });
 
-            if (!valores[0]) {
-                mostrarMensagem("Número é obrigatório!", "error");
-                return;
-            }
+    if (!valores[0]) {
+        mostrarMensagem("Número é obrigatório!", "error");
+        return;
+    }
 
-            mostrarLoading(true);
-            
-            // Atualização Local
-            if (!sheetData[currentSheet]) sheetData[currentSheet] = [config.headers];
-            const indexExistente = sheetData[currentSheet].findIndex(r => r[0].toString() === valores[0].toString());
-            
-            if (indexExistente !== -1) {
-                sheetData[currentSheet][indexExistente] = valores;
-            } else {
-                sheetData[currentSheet].push(valores);
-            }
-            
-            sheetData[currentSheet] = ordenarDados(sheetData[currentSheet]);
-            renderizarInterface();
+    // --- ATUALIZAÇÃO LOCAL IMEDIATA (Adeus lentidão!) ---
+    if (!sheetData[currentSheet]) sheetData[currentSheet] = [config.headers];
+    const indexExistente = sheetData[currentSheet].findIndex(r => parseInt(r[0]) === parseInt(valores[0]));
+    
+    if (indexExistente !== -1) {
+        sheetData[currentSheet][indexExistente] = valores;
+    } else {
+        sheetData[currentSheet].push(valores);
+    }
+    
+    // Ordena na tela imediatamente
+    sheetData[currentSheet] = ordenarDados(sheetData[currentSheet]);
+    renderizarInterface();
+    
+    // Limpa o formulário e joga o foco de volta para o campo Número
+    document.getElementById('formDados').reset();
+    const campoNumero = document.getElementById(config.fields[0].name);
+    if (campoNumero) campoNumero.focus();
+    
+    mostrarMensagem("Item adicionado à lista!", "info");
 
-            // Sincronizar
-            const ok = await salvarNaPlanilha(valores);
-            mostrarLoading(false);
-            
-            if (ok) {
-                mostrarMensagem("Salvo com sucesso!", "success");
-                document.getElementById('formDados').reset();
-            } else {
-                mostrarMensagem("Erro ao salvar na nuvem.", "error");
-            }
-        };
+    // --- ENVIA PARA O GOOGLE EM SEGUNDO PLANO (Não trava a tela) ---
+    salvarNaPlanilha(valores).then(ok => {
+        if (ok) {
+            document.getElementById('lastUpdate').textContent = "Nuvem atualizada: " + new Date().toLocaleTimeString();
+        } else {
+            mostrarMensagem("Aviso: Falha ao sincronizar com a nuvem.", "error");
+        }
+    });
+};
 
         window.atualizarChecklist = async function(rowIndex, checked) {
             const checkboxValue = checked ? '✓' : '✗';
