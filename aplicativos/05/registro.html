@@ -86,13 +86,13 @@
         </div>
         <div class="config-bar">
             <span style="font-weight: bold;">🔗 URL do Web App:</span>
-            <input type="text" id="webAppUrl" placeholder="Cole a URL do Google Apps Script aqui">
+            <input type="text" id="webAppUrl" placeholder="Cole a URL do Google Apps Script aqui" value="https://script.google.com/macros/s/AKfycbwNxpYvTshuE5ni4UoS6iDWzSFS80CCt4-yedqDjXFMtSDVs1DGAzDC7Y2PEZuIFDAP/exec">
             <button onclick="salvarUrl()">💾 Salvar URL</button>
             <button onclick="carregarDados()" style="background: #27ae60;">🔄 Buscar Dados</button>
         </div>
         <div class="status-bar">
-            <span><span class="status-dot"></span> Modo: <span id="statusModo">Local</span></span>
-            <span>✅ Ordenação automática por Nº</span>
+            <span><span class="status-dot"></span> Modo: <span id="statusModo">Online</span></span>
+            <span>✅ Números únicos e ordenação crescente</span>
         </div>
         <div class="tabs" id="tabs"></div>
         <div class="content"><div id="tab-contents"></div></div>
@@ -127,7 +127,7 @@
         let currentSheet = 'musica';
         let sheetData = {};
         let editIndex = null;
-        let webAppUrl = localStorage.getItem('webAppUrl') || '';
+        let webAppUrl = localStorage.getItem('webAppUrl') || 'https://script.google.com/macros/s/AKfycbwNxpYvTshuE5ni4UoS6iDWzSFS80CCt4-yedqDjXFMtSDVs1DGAzDC7Y2PEZuIFDAP/exec';
 
         if (webAppUrl) {
             document.getElementById('webAppUrl').value = webAppUrl;
@@ -158,7 +158,31 @@
             return [headers, ...rows];
         }
 
+        function validarNumeroUnico(numero, ignorarIndex = -1) {
+            if (!sheetData[currentSheet]) return true;
+            
+            const dados = sheetData[currentSheet];
+            for (let i = 1; i < dados.length; i++) {
+                if (i - 1 !== ignorarIndex && parseInt(dados[i][0]) === numero) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
         async function adicionarDados(dados) {
+            const numeroDigitado = parseInt(dados[0]);
+            
+            if (isNaN(numeroDigitado) || numeroDigitado <= 0) {
+                mostrarMensagem('❌ Digite um número válido (maior que 0)!', 'error');
+                return false;
+            }
+            
+            if (!validarNumeroUnico(numeroDigitado)) {
+                mostrarMensagem(`❌ Número ${numeroDigitado} já existe! Use um número diferente.`, 'error');
+                return false;
+            }
+            
             mostrarLoading(true);
             
             try {
@@ -179,7 +203,7 @@
                 if (webAppUrl) {
                     const salvou = await enviarRequisicaoSalvar(dadosProcessados);
                     if (salvou) {
-                        mostrarMensagem('✅ Dados salvos na planilha em ordem crescente!', 'success');
+                        mostrarMensagem('✅ Dados salvos na planilha!', 'success');
                     } else {
                         mostrarMensagem('⚠️ Erro ao salvar na planilha, mas dados salvos localmente.', 'error');
                     }
@@ -204,6 +228,11 @@
                 const url = `${webAppUrl}?acao=salvar&aba=${currentSheet}&dados=${encodeURIComponent(dadosJson)}&t=${Date.now()}`;
                 const response = await fetch(url);
                 const resultado = await response.json();
+                
+                if (!resultado.success && resultado.error) {
+                    mostrarMensagem(resultado.error, 'error');
+                    return false;
+                }
                 return resultado.success;
             } catch (error) {
                 console.error('Erro na requisição:', error);
@@ -291,6 +320,14 @@
                         }
                         return document.getElementById(`edit_${field.name}`).value;
                     });
+                    
+                    const numeroEditado = parseInt(valores[0]);
+                    const numeroOriginal = parseInt(registro[0]);
+                    
+                    if (numeroEditado !== numeroOriginal && !validarNumeroUnico(numeroEditado, index)) {
+                        mostrarMensagem(`❌ Número ${numeroEditado} já existe!`, 'error');
+                        return;
+                    }
                     
                     const dadosProcessados = valores.map(valor => {
                         if (valor === true) return '✓';
@@ -383,7 +420,7 @@
                                 `}
                             </div>
                         `).join('')}
-                        <button type="submit">💾 Salvar (ordem crescente automática)</button>
+                        <button type="submit">💾 Salvar (números únicos)</button>
                     </form>
                     
                     <div style="margin-top: 40px;">
@@ -436,7 +473,8 @@
                     </div>
                     
                     <div class="info-box">
-                        📌 <strong>Ordem Automática:</strong> Os dados são sempre ordenados pelo número (Nº) em ordem crescente.
+                        📌 <strong>Números Únicos:</strong> Cada número deve ser único. O sistema não permite números repetidos.<br>
+                        📌 <strong>Ordem Crescente:</strong> Os dados são automaticamente ordenados pelo número (Nº).
                         ${webAppUrl ? '<br>✅ <strong>Conectado à planilha:</strong> Os dados são sincronizados.' : '<br>⚠️ <strong>Modo offline:</strong> Configure a URL para sincronizar.'}
                     </div>
                 </div>
