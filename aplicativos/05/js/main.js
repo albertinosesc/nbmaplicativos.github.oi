@@ -608,6 +608,163 @@ function processarABCComEspacamento(id, code, tipo) {
     }
 }
 
+
+
+// ============================================
+// FUNÇÃO PARA RENDERIZAR ABC COM SUPORTE A TABLATURA
+// ============================================
+function processarABCComTablatura(id, code, tipo) {
+    const elemento = document.getElementById(id);
+    if (!elemento) return;
+    
+    // Extrai opções de transposição
+    const opcoesTransposicao = extrairOpcoesTransposicao(code);
+    
+    // Verifica se tem tablatura e extrai o instrumento
+    const tablaturaMatch = code.match(/%%tablatura(?:\s+instrument=(\w+))?(?:\s+label="([^"]+)")?(?:\s+hideTabSymbol)?/);
+    const temTablatura = !!tablaturaMatch;
+    
+    let instrumento = "guitar";  // padrão
+    let labelPersonalizada = null;
+    let hideTabSymbol = false;
+    
+    if (temTablatura) {
+        if (tablaturaMatch[1]) instrumento = tablaturaMatch[1];
+        if (tablaturaMatch[2]) labelPersonalizada = tablaturaMatch[2];
+        if (code.includes('hideTabSymbol')) hideTabSymbol = true;
+    }
+    
+    // Remove comandos especiais do código
+    let codigoLimpo = code.replace(/%%transpose\s+[+-]?\d+\s*\n?/g, '');
+    codigoLimpo = codigoLimpo.replace(/%%visualtranspose\s+[+-]?\d+\s*\n?/g, '');
+    codigoLimpo = codigoLimpo.replace(/%%tablatura\s+(?:instrument=\w+\s*)?(?:label="[^"]+"\s*)?(?:hideTabSymbol\s*)?\n?/g, '');
+    
+    const staffsep = document.getElementById("staffsepRange")?.value || 60;
+    const sysstaffsep = document.getElementById("sysstaffsepRange")?.value || 80;
+    
+    let linhas = codigoLimpo.split('\n');
+    let novasLinhas = [];
+    let hasStaffsep = false, hasSysstaffsep = false;
+    
+    for (let linha of linhas) {
+        if (linha.trim().startsWith('%%staffsep')) {
+            novasLinhas.push(`%%staffsep ${staffsep}`);
+            hasStaffsep = true;
+        } else if (linha.trim().startsWith('%%sysstaffsep')) {
+            novasLinhas.push(`%%sysstaffsep ${sysstaffsep}`);
+            hasSysstaffsep = true;
+        } else {
+            novasLinhas.push(linha);
+        }
+    }
+    
+    if (!hasStaffsep && linhas.length > 0) novasLinhas.unshift(`%%staffsep ${staffsep}`);
+    if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
+    
+    let codigoProcessado = novasLinhas.join('\n');
+    
+    try {
+        elemento.innerHTML = "";
+        
+        // Configurações base
+        const opcoesRender = { 
+            add_classes: true, 
+            staffwidth: 800, 
+            responsive: 'resize'
+        };
+        
+        // Se tem tablatura, adiciona a configuração
+        if (temTablatura) {
+            // Mapeamento de instrumentos para afinações personalizadas
+            const afinacoes = {
+                guitar: ["E,", "A,", "D", "G", "B", "e"],
+                violin: ["G,", "D", "A", "e"],
+                mandolin: ["G,", "D", "A", "e"],
+                fiddle: ["G,", "D", "A", "e"],
+                fiveString: ["G,,", "D,", "A", "e", "b"],
+                bass: ["E,,", "A,,", "D,", "G,"],
+                ukulele: ["G", "C", "E", "A"],
+                cavaquinho: ["D", "G", "B", "D"]
+            };
+            
+            const tuning = afinacoes[instrumento] || afinacoes.guitar;
+            
+            // Nome do instrumento para exibição
+            const nomesInstrumentos = {
+                guitar: "Violão/Guitarra",
+                violin: "Violino",
+                mandolin: "Bandolim",
+                fiddle: "Fiddle",
+                fiveString: "Violino 5 Cordas",
+                bass: "Baixo",
+                ukulele: "Ukulele",
+                cavaquinho: "Cavaquinho"
+            };
+            
+            const nomeExibicao = labelPersonalizada || nomesInstrumentos[instrumento] || instrumento;
+            
+            opcoesRender.tablature = [
+                {
+                    instrument: instrumento === 'guitar' || instrumento === 'bass' ? instrumento : 'violin',
+                    tuning: tuning,
+                    label: `${nomeExibicao} (%T)`,
+                    hideTabSymbol: hideTabSymbol
+                }
+            ];
+            
+            opcoesRender.format = {
+                tablabelfont: "Arial 12",
+                tabnumberfont: "Courier 14 bold"
+            };
+        }
+        
+        // Adiciona transposição se existir
+        if (opcoesTransposicao.visualTranspose !== undefined) {
+            opcoesRender.visualTranspose = opcoesTransposicao.visualTranspose;
+        }
+        if (opcoesTransposicao.audioTranspose !== undefined) {
+            opcoesRender.audioTranspose = opcoesTransposicao.audioTranspose;
+        }
+        
+        ABCJS.renderAbc(id, codigoProcessado, opcoesRender);
+        
+        // Se for tablatura, adiciona CSS para esconder a pauta padrão
+        if (temTablatura && tipo !== 'infantil') {
+            const styleId = `tablatura-style-${id}`;
+            if (!document.getElementById(styleId)) {
+                const style = document.createElement('style');
+                style.id = styleId;
+                style.textContent = `
+                    #${id} .abcjs-staff {
+                        display: none;
+                    }
+                    #${id} .abcjs-tablature-staff {
+                        display: block;
+                        margin-top: 10px;
+                    }
+                    #${id} .abcjs-tablature-staff svg {
+                        background: #f9f9f9;
+                        border-radius: 5px;
+                    }
+                `;
+                document.head.appendChild(style);
+            }
+        }
+        
+        if (tipo === 'infantil') {
+            setTimeout(() => {
+                aplicarCoresAcordesLetras();
+                if (coresAtivas) aplicarCoresNasNotas();
+                ajustarAcordes();
+                ajustarLetras();
+                ajustarLetrasX();
+            }, 200);
+        }
+    } catch(e) {
+        elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
+    }
+}
+
 // ============================================
 // RENDERIZAR LISTA DE AULAS (SIDEBAR)
 // ============================================
@@ -1294,14 +1451,14 @@ function renderizar() {
         });
         
         abcNormais.forEach(a => {
-            const el = document.getElementById(a.id);
-            if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'normal');
-        });
-        
-        abcInfantis.forEach(a => {
-            const el = document.getElementById(a.id);
-            if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'infantil');
-        });
+    const el = document.getElementById(a.id);
+    if (el && typeof ABCJS !== 'undefined') processarABCComTablatura(a.id, a.code, 'normal');
+});
+
+abcInfantis.forEach(a => {
+    const el = document.getElementById(a.id);
+    if (el && typeof ABCJS !== 'undefined') processarABCComTablatura(a.id, a.code, 'infantil');
+});
         
     } catch (e) {
         console.error("Erro na renderização:", e);
