@@ -138,6 +138,7 @@
         }
         .btn-enviar { background: #27ae60; color: white; }
         .btn-buscar { background: #3498db; color: white; }
+        .btn-atualizar-tudo { background: #9b59b6; color: white; font-weight: bold; }
         
         .table-scroll {
             overflow-x: auto;
@@ -204,27 +205,6 @@
             padding-top: 200px;
         }
         .loading.active { display: block; }
-        .modal {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.7);
-            z-index: 5000;
-        }
-        .modal.active { display: block; }
-        .modal-content {
-            background: white;
-            margin: 50px auto;
-            padding: 20px;
-            width: 90%;
-            max-width: 500px;
-            border-radius: 10px;
-        }
-        .small-note {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
     </style>
 </head>
 <body>
@@ -256,11 +236,7 @@
 </div>
 
 <div id="loading" class="loading">
-    <p>Sincronizando...</p>
-</div>
-
-<div id="modal" class="modal">
-    <div class="modal-content" id="modalContent"></div>
+    <p id="loadingText">Sincronizando...</p>
 </div>
 
 <script>
@@ -316,6 +292,41 @@
             }
         } catch(e) { console.log(e); }
         return false;
+    }
+
+    async function enviarTabelaCompletaParaGoogle() {
+        if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
+        const tab = customTabs.find(t => t.id === currentTabId);
+        const todasAsLinhas = sheetData[currentTabId];
+        
+        if (!todasAsLinhas || todasAsLinhas.length === 0) {
+            mostrarMensagem("Não há dados para enviar", "error");
+            return;
+        }
+
+        mostrarLoading(true, "Enviando todos os dados para o Google Sheets...");
+        let erros = 0;
+
+        try {
+            // Envia o cabeçalho primeiro para garantir a estrutura correta das tonalidades
+            await enviarMusicaParaGoogle(todasAsLinhas[0]);
+
+            // Envia cada uma das linhas sequencialmente
+            for (let i = 1; i < todasAsLinhas.length; i++) {
+                const sucesso = await enviarMusicaParaGoogle(todasAsLinhas[i]);
+                if (!sucesso) erros++;
+            }
+
+            if (erros === 0) {
+                mostrarMensagem("📋 Planilha totalmente atualizada!", "success");
+            } else {
+                mostrarMensagem(`Sincronizado com ${erros} falhas. Tente novamente.`, "error");
+            }
+        } catch (e) {
+            mostrarMensagem("Erro crítico ao enviar dados.", "error");
+            console.error(e);
+        }
+        mostrarLoading(false);
     }
 
     async function buscarDoGoogle() {
@@ -404,7 +415,8 @@
                 </div>
                 <div class="button-group">
                     <button class="btn-enviar" onclick="adicionarMusica()">✅ Salvar Música</button>
-                    <button class="btn-buscar" onclick="sincronizarDoGoogle()">📥 Sincronizar (Google → App)</button>
+                    <button class="btn-buscar" onclick="sincronizarDoGoogle()">📥 Puxar Dados (Google → App)</button>
+                    <button class="btn-atualizar-tudo" onclick="enviarTabelaCompletaParaGoogle()">📤 Atualizar Planilha (Enviar Tudo)</button>
                 </div>
             </div>
             
@@ -555,7 +567,7 @@
 
     window.sincronizarDoGoogle = async function() {
         if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
-        mostrarLoading(true);
+        mostrarLoading(true, "Buscando dados do Google Sheets...");
         const sucesso = await buscarDoGoogle();
         mostrarLoading(false);
         if (sucesso) {
@@ -568,7 +580,7 @@
 
     window.testarConexao = async function() {
         if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
-        mostrarLoading(true);
+        mostrarLoading(true, "Testando conexão...");
         try {
             const response = await fetch(`${webAppUrl}?acao=teste&t=${Date.now()}`);
             const result = await response.json();
@@ -591,7 +603,12 @@
         if (webAppUrl) testarConexao();
     };
 
-    function mostrarLoading(show) { document.getElementById('loading').classList.toggle('active', show); }
+    function mostrarLoading(show, texto = "Sincronizando...") { 
+        const loadingDiv = document.getElementById('loading');
+        const loadingText = document.getElementById('loadingText');
+        if (loadingText) loadingText.textContent = texto;
+        loadingDiv.classList.toggle('active', show); 
+    }
     
     function mostrarMensagem(msg, tipo) {
         const div = document.createElement('div');
