@@ -279,9 +279,9 @@
         saveAllToLocal();
     }
 
-    // ENVIAR UMA MÚSICA ESPECÍFICA PARA GOOGLE (APENAS ATUALIZAÇÃO)
-    async function enviarMusicaParaGoogle(musicaId, linhaCompleta) {
-        if (!webAppUrl || sincronizando) return;
+    // ENVIAR UMA MÚSICA ESPECÍFICA PARA GOOGLE
+    async function enviarMusicaParaGoogle(linhaCompleta) {
+        if (!webAppUrl || sincronizando) return false;
         
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
@@ -291,8 +291,12 @@
             const result = await response.json();
             if (result.success) {
                 document.getElementById('lastUpdate').innerHTML = "☁️ Salvo: " + new Date().toLocaleTimeString();
+                return true;
             }
-        } catch(e) {}
+        } catch(e) {
+            console.log("Erro ao enviar:", e);
+        }
+        return false;
     }
 
     // BUSCAR DO GOOGLE
@@ -440,7 +444,7 @@
                                     <button onclick="editarMusica(${rowIdx})" style="background:#3498db; color:white; border:none; padding:5px 10px;">✏️</button>
                                     <button onclick="excluirMusica(${rowIdx})" style="background:#e74c3c; color:white; border:none; padding:5px 10px;">🗑️</button>
                                 </td>
-                            `,
+                            </tr>
                         `).join('')}
                     </tbody>
                 </table>
@@ -457,14 +461,12 @@
                 const colIdx = parseInt(this.dataset.col);
                 const newValue = this.checked ? "✓" : "";
                 
-                // ATUALIZAR APENAS O CHECKBOX, NÃO CRIA NOVA MÚSICA
                 if (sheetData[currentTabId] && sheetData[currentTabId][rowIdx + 1]) {
                     sheetData[currentTabId][rowIdx + 1][colIdx + 1] = newValue;
                     saveAllToLocal();
                     
-                    // Enviar atualização para o Google (apenas esta música)
                     const linhaCompleta = sheetData[currentTabId][rowIdx + 1];
-                    await enviarMusicaParaGoogle(rowIdx, linhaCompleta);
+                    await enviarMusicaParaGoogle(linhaCompleta);
                     
                     mostrarMensagem(`${newValue ? '✓ Marcado' : '✗ Desmarcado'}`, "info");
                 }
@@ -476,7 +478,6 @@
         const nome = document.getElementById('novaMusicaNome')?.value.trim();
         if (!nome) { mostrarMensagem("Digite o número ou nome da música", "error"); return; }
         
-        // Verificar se já existe
         const rows = sheetData[currentTabId].slice(1);
         const existe = rows.some(row => row[0].toLowerCase() === nome.toLowerCase());
         
@@ -496,8 +497,7 @@
         document.getElementById('novaMusicaNome').value = "";
         mostrarMensagem(`"${nome}" adicionado!`, "success");
         
-        // Enviar para o Google
-        await enviarMusicaParaGoogle(null, novaRow);
+        await enviarMusicaParaGoogle(novaRow);
     };
 
     window.editarMusica = async function(rowIdx) {
@@ -510,20 +510,18 @@
             renderizarInterface();
             mostrarMensagem("Atualizado!", "success");
             
-            const linhaCompleta = sheetData[currentTabId].find(row => row[0] === novoNome);
-            if (linhaCompleta) await enviarMusicaParaGoogle(null, linhaCompleta);
+            const linhaCompleta = sheetData[currentTabId][rowIdx + 1];
+            await enviarMusicaParaGoogle(linhaCompleta);
         }
     };
 
     window.excluirMusica = async function(rowIdx) {
         if (confirm("Remover esta música?")) {
-            const musicaRemovida = sheetData[currentTabId][rowIdx + 1];
             sheetData[currentTabId].splice(rowIdx + 1, 1);
             saveAllToLocal();
             renderizarInterface();
             mostrarMensagem("Música removida", "info");
             
-            // Não precisa enviar exclusão, apenas recarregar do Google depois
             if (webAppUrl) await buscarDoGoogle();
         }
     };
@@ -535,7 +533,13 @@
             tab.checklists.push(nova.trim());
             const newHeaders = ["🎵 Música", ...tab.checklists];
             const oldRows = sheetData[currentTabId].slice(1);
-            const newRows = oldRows.map(row => [row[0], ...tab.checklists.map(() => row[colIdx+1] || "")]);
+            const newRows = oldRows.map(row => {
+                const newRow = [row[0]];
+                for (let i = 0; i < tab.checklists.length; i++) {
+                    newRow.push(row[i+1] || "");
+                }
+                return newRow;
+            });
             sheetData[currentTabId] = [newHeaders, ...newRows];
             ordenarMusicas(currentTabId);
             saveAllToLocal();
