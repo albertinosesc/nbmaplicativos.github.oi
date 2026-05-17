@@ -610,8 +610,12 @@ function processarABCComEspacamento(id, code, tipo) {
 
 
 
+
+
+
+
 // ============================================
-// FUNÇÃO PARA RENDERIZAR ABC COM SUPORTE A TABLATURA
+// FUNÇÃO PARA RENDERIZAR ABC COM TABLATURA (3 MODOS)
 // ============================================
 function processarABCComTablatura(id, code, tipo) {
     const elemento = document.getElementById(id);
@@ -620,24 +624,26 @@ function processarABCComTablatura(id, code, tipo) {
     // Extrai opções de transposição
     const opcoesTransposicao = extrairOpcoesTransposicao(code);
     
-    // Verifica se tem tablatura e extrai o instrumento
-    const tablaturaMatch = code.match(/%%tablatura(?:\s+instrument=(\w+))?(?:\s+label="([^"]+)")?(?:\s+hideTabSymbol)?/);
+    // Verifica configuração da tablatura: modo e instrumento
+    const tablaturaMatch = code.match(/%%tablatura(?:\s+mode=(\w+))?(?:\s+instrument=(\w+))?(?:\s+label="([^"]+)")?(?:\s+hideTabSymbol)?/);
     const temTablatura = !!tablaturaMatch;
     
-    let instrumento = "guitar";  // padrão
+    let modo = "both";  // padrão: mostra os dois
+    let instrumento = "guitar";
     let labelPersonalizada = null;
     let hideTabSymbol = false;
     
     if (temTablatura) {
-        if (tablaturaMatch[1]) instrumento = tablaturaMatch[1];
-        if (tablaturaMatch[2]) labelPersonalizada = tablaturaMatch[2];
+        if (tablaturaMatch[1]) modo = tablaturaMatch[1];
+        if (tablaturaMatch[2]) instrumento = tablaturaMatch[2];
+        if (tablaturaMatch[3]) labelPersonalizada = tablaturaMatch[3];
         if (code.includes('hideTabSymbol')) hideTabSymbol = true;
     }
     
     // Remove comandos especiais do código
     let codigoLimpo = code.replace(/%%transpose\s+[+-]?\d+\s*\n?/g, '');
     codigoLimpo = codigoLimpo.replace(/%%visualtranspose\s+[+-]?\d+\s*\n?/g, '');
-    codigoLimpo = codigoLimpo.replace(/%%tablatura\s+(?:instrument=\w+\s*)?(?:label="[^"]+"\s*)?(?:hideTabSymbol\s*)?\n?/g, '');
+    codigoLimpo = codigoLimpo.replace(/%%tablatura\s+(?:mode=\w+\s*)?(?:instrument=\w+\s*)?(?:label="[^"]+"\s*)?(?:hideTabSymbol\s*)?\n?/g, '');
     
     const staffsep = document.getElementById("staffsepRange")?.value || 60;
     const sysstaffsep = document.getElementById("sysstaffsepRange")?.value || 80;
@@ -673,9 +679,8 @@ function processarABCComTablatura(id, code, tipo) {
             responsive: 'resize'
         };
         
-        // Se tem tablatura, adiciona a configuração
-        if (temTablatura) {
-            // Mapeamento de instrumentos para afinações personalizadas
+        // Configura tablatura apenas se modo não for "onlyStaff"
+        if (temTablatura && modo !== 'onlyStaff') {
             const afinacoes = {
                 guitar: ["E,", "A,", "D", "G", "B", "e"],
                 violin: ["G,", "D", "A", "e"],
@@ -689,7 +694,6 @@ function processarABCComTablatura(id, code, tipo) {
             
             const tuning = afinacoes[instrumento] || afinacoes.guitar;
             
-            // Nome do instrumento para exibição
             const nomesInstrumentos = {
                 guitar: "Violão/Guitarra",
                 violin: "Violino",
@@ -728,13 +732,14 @@ function processarABCComTablatura(id, code, tipo) {
         
         ABCJS.renderAbc(id, codigoProcessado, opcoesRender);
         
-        // Se for tablatura, adiciona CSS para esconder a pauta padrão
+        // Aplica CSS conforme o modo escolhido
         if (temTablatura && tipo !== 'infantil') {
             const styleId = `tablatura-style-${id}`;
-            if (!document.getElementById(styleId)) {
-                const style = document.createElement('style');
-                style.id = styleId;
-                style.textContent = `
+            let styleContent = '';
+            
+            if (modo === 'onlyTab') {
+                // Modo 1: Só Tablatura (esconde o pentagrama)
+                styleContent = `
                     #${id} .abcjs-staff {
                         display: none;
                     }
@@ -742,13 +747,38 @@ function processarABCComTablatura(id, code, tipo) {
                         display: block;
                         margin-top: 10px;
                     }
-                    #${id} .abcjs-tablature-staff svg {
-                        background: #f9f9f9;
-                        border-radius: 5px;
+                `;
+            } else if (modo === 'onlyStaff') {
+                // Modo 2: Só Pentagrama (esconde a tablatura)
+                styleContent = `
+                    #${id} .abcjs-tablature-staff {
+                        display: none;
+                    }
+                    #${id} .abcjs-staff {
+                        display: block;
                     }
                 `;
-                document.head.appendChild(style);
+            } else {
+                // Modo 3: Both (mostra os dois - padrão)
+                styleContent = `
+                    #${id} .abcjs-staff {
+                        display: block;
+                    }
+                    #${id} .abcjs-tablature-staff {
+                        display: block;
+                        margin-top: 10px;
+                    }
+                `;
             }
+            
+            // Remove estilo anterior se existir
+            const oldStyle = document.getElementById(styleId);
+            if (oldStyle) oldStyle.remove();
+            
+            const style = document.createElement('style');
+            style.id = styleId;
+            style.textContent = styleContent;
+            document.head.appendChild(style);
         }
         
         if (tipo === 'infantil') {
