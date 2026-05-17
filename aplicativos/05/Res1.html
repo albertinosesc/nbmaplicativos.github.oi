@@ -122,6 +122,7 @@
         .btn-buscar { background: #3498db; color: white; }
         .btn-enviar-nuvem { background: #e67e22; color: white; }
         .btn-limpar { background: #95a5a6; color: white; }
+        .btn-ordenar { background: #9b59b6; color: white; }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -195,6 +196,12 @@
             max-width: 500px;
             border-radius: 10px;
         }
+        .ordenar-buttons {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            justify-content: flex-end;
+        }
     </style>
 </head>
 <body>
@@ -256,6 +263,59 @@
         ];
     }
 
+    // FUNÇÃO DE ORDENAÇÃO ALFABÉTICA
+    function ordenarMusicasAlfabeticamente(tabId) {
+        if (!sheetData[tabId] || sheetData[tabId].length <= 1) return;
+        
+        const headers = sheetData[tabId][0];
+        const rows = sheetData[tabId].slice(1);
+        
+        // Ordenar pelo nome da música (primeira coluna)
+        rows.sort((a, b) => {
+            const nomeA = (a[0] || '').toLowerCase();
+            const nomeB = (b[0] || '').toLowerCase();
+            return nomeA.localeCompare(nomeB, 'pt-br');
+        });
+        
+        sheetData[tabId] = [headers, ...rows];
+        saveAllToLocal();
+    }
+
+    // ORDENAR E ENVIAR PARA GOOGLE SHEETS
+    async function ordenarESincronizar() {
+        if (!currentTabId) return;
+        
+        // Ordenar localmente
+        ordenarMusicasAlfabeticamente(currentTabId);
+        renderizarInterface();
+        mostrarMensagem("📋 Lista ordenada alfabeticamente!", "success");
+        
+        // Se tiver URL, enviar ordenado para o Google
+        if (webAppUrl) {
+            mostrarLoading(true);
+            try {
+                const tab = customTabs.find(t => t.id === currentTabId);
+                const nomeAba = tab.nome;
+                const allRows = sheetData[currentTabId].slice(1);
+                let sucessos = 0;
+                
+                for (const row of allRows) {
+                    const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(nomeAba)}&dados=${encodeURIComponent(JSON.stringify(row))}`;
+                    const response = await fetch(url);
+                    const result = await response.json();
+                    if (result.success) sucessos++;
+                    await new Promise(r => setTimeout(r, 100));
+                }
+                mostrarMensagem(`✅ Ordenação salva na nuvem! ${sucessos}/${allRows.length} itens`, "success");
+                document.getElementById('lastUpdate').innerHTML = "🔄 Ordenado: " + new Date().toLocaleTimeString();
+            } catch(e) {
+                mostrarMensagem("Erro ao salvar ordenação na nuvem", "error");
+            } finally {
+                mostrarLoading(false);
+            }
+        }
+    }
+
     function loadFromLocalStorage() {
         const stored = localStorage.getItem("musical_customTabs");
         if (stored) {
@@ -275,6 +335,9 @@
             if (!sheetData[tab.id]) {
                 const headers = ["🎵 Música", ...tab.checklists];
                 sheetData[tab.id] = [headers];
+            } else {
+                // Garantir que os dados estão ordenados ao carregar
+                ordenarMusicasAlfabeticamente(tab.id);
             }
         });
         saveAllToLocal();
@@ -305,6 +368,10 @@
     function renderizarInterface() {
         const tab = customTabs.find(t => t.id === currentTabId);
         if (!tab) return;
+        
+        // Garantir que está ordenado antes de exibir
+        ordenarMusicasAlfabeticamente(currentTabId);
+        
         const headers = sheetData[tab.id] ? sheetData[tab.id][0] : ["🎵 Música", ...tab.checklists];
         const rows = sheetData[tab.id] ? sheetData[tab.id].slice(1) : [];
         
@@ -323,16 +390,17 @@
                 </div>
             </div>
             
-            <div style="display:flex; justify-content:space-between; margin:15px 0;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin:15px 0; flex-wrap:wrap; gap:10px;">
                 <h3>📋 ${tab.nome} - Repertório</h3>
-                <div>
+                <div class="ordenar-buttons">
+                    <button class="btn-ordenar" onclick="ordenarESincronizar()">🔤 Ordenar A-Z (App + Nuvem)</button>
                     <button onclick="abrirModalRenomearColunas()" style="background:#e67e22; color:white; padding:5px 10px;">✏️ Renomear Tonalidades</button>
                     <button onclick="adicionarTonalidade()" style="background:#27ae60; color:white; padding:5px 10px;">➕ Adicionar Tonalidade</button>
                 </div>
             </div>
             
             <div style="overflow-x: auto;">
-                <table>
+                <table border="1">
                     <thead>
                         <tr>
                             ${headers.map(h => `<th>${h}</th>`).join('')}
@@ -394,20 +462,44 @@
         for (let i = 0; i < tab.checklists.length; i++) novaRow.push("");
         
         sheetData[currentTabId].push(novaRow);
+        
+        // Ordenar após adicionar
+        ordenarMusicasAlfabeticamente(currentTabId);
+        
         saveAllToLocal();
         renderizarInterface();
         document.getElementById('novaMusicaNome').value = "";
-        mostrarMensagem(`"${nome}" adicionado!`, "success");
+        mostrarMensagem(`"${nome}" adicionado e ordenado!`, "success");
+        
+        // Se tiver URL, enviar para o Google também
+        if (webAppUrl) {
+            enviarMusicaParaGoogle(novaRow);
+        }
     };
+
+    async function enviarMusicaParaGoogle(linhaDados) {
+        if (!webAppUrl) return;
+        const tab = customTabs.find(t => t.id === currentTabId);
+        const nomeAba = tab.nome;
+        
+        try {
+            const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(nomeAba)}&dados=${encodeURIComponent(JSON.stringify(linhaDados))}`;
+            await fetch(url);
+        } catch(e) {}
+    }
 
     window.editarMusica = function(rowIdx) {
         const nomeAtual = sheetData[currentTabId][rowIdx + 1][0];
         const novoNome = prompt("Editar nome da música:", nomeAtual);
         if (novoNome && novoNome.trim()) {
             sheetData[currentTabId][rowIdx + 1][0] = novoNome.trim();
+            
+            // Reordenar após editar
+            ordenarMusicasAlfabeticamente(currentTabId);
+            
             saveAllToLocal();
             renderizarInterface();
-            mostrarMensagem("Nome atualizado!", "success");
+            mostrarMensagem("Nome atualizado e reordenado!", "success");
         }
     };
 
@@ -429,6 +521,10 @@
             const oldRows = sheetData[currentTabId].slice(1);
             const newRows = oldRows.map(row => [row[0], ...tab.checklists.map(() => "")]);
             sheetData[currentTabId] = [newHeaders, ...newRows];
+            
+            // Manter ordenação
+            ordenarMusicasAlfabeticamente(currentTabId);
+            
             saveAllToLocal();
             renderizarInterface();
             mostrarMensagem(`Tonalidade "${nova}" adicionada`, "success");
@@ -452,6 +548,10 @@
                     return newRow;
                 });
                 sheetData[currentTabId] = [newHeaders, ...newRows];
+                
+                // Manter ordenação
+                ordenarMusicasAlfabeticamente(currentTabId);
+                
                 saveAllToLocal();
                 renderizarInterface();
                 mostrarMensagem("Tonalidades renomeadas!", "success");
@@ -465,6 +565,10 @@
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
             const nomeAba = tab.nome;
+            
+            // Garantir que está ordenado antes de enviar
+            ordenarMusicasAlfabeticamente(currentTabId);
+            
             const allRows = sheetData[currentTabId].slice(1);
             let sucessos = 0;
             
@@ -475,7 +579,7 @@
                 if (result.success) sucessos++;
                 await new Promise(r => setTimeout(r, 200));
             }
-            mostrarMensagem(`✅ Enviados ${sucessos}/${allRows.length} itens para "${nomeAba}"`, "success");
+            mostrarMensagem(`✅ Enviados ${sucessos}/${allRows.length} itens para "${nomeAba}" (ordenado)`, "success");
             document.getElementById('lastUpdate').innerHTML = "☁️ Enviado: " + new Date().toLocaleTimeString();
         } catch(e) {
             mostrarMensagem("Erro ao enviar", "error");
@@ -496,9 +600,11 @@
             
             if (result.success && result.dados) {
                 sheetData[currentTabId] = result.dados;
+                // Ordenar após sincronizar
+                ordenarMusicasAlfabeticamente(currentTabId);
                 saveAllToLocal();
                 renderizarInterface();
-                mostrarMensagem(`📥 Sincronizado! ${result.dados.length - 1} músicas`, "success");
+                mostrarMensagem(`📥 Sincronizado e ordenado! ${result.dados.length - 1} músicas`, "success");
                 document.getElementById('lastUpdate').innerHTML = "🔄 Sincronizado: " + new Date().toLocaleTimeString();
             } else {
                 mostrarMensagem("Erro ao buscar dados", "error");
