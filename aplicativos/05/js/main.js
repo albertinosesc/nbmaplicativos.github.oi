@@ -512,6 +512,102 @@ function carregarDados() {
     }
 }
 
+
+
+
+
+// ============================================
+// FUNÇÃO PARA EXTRAIR TRANSPOSIÇÃO DA TAG ABC
+// ============================================
+function extrairOpcoesTransposicao(tagContent) {
+    // Procura por %%transpose ou %%visualtranspose no conteúdo
+    const transposeMatch = tagContent.match(/%%transpose\s+([+-]?\d+)/);
+    const visualTransposeMatch = tagContent.match(/%%visualtranspose\s+([+-]?\d+)/);
+    
+    let opcoes = {};
+    
+    if (visualTransposeMatch) {
+        opcoes.visualTranspose = parseInt(visualTransposeMatch[1]);
+        opcoes.audioTranspose = parseInt(visualTransposeMatch[1]);
+    } else if (transposeMatch) {
+        opcoes.audioTranspose = parseInt(transposeMatch[1]);
+    }
+    
+    return opcoes;
+}
+
+// ============================================
+// FUNÇÃO MODIFICADA PARA ACEITAR TRANSPOSIÇÃO
+// ============================================
+function processarABCComEspacamento(id, code, tipo) {
+    const elemento = document.getElementById(id);
+    if (!elemento) return;
+    
+    // Extrai opções de transposição do código
+    const opcoesTransposicao = extrairOpcoesTransposicao(code);
+    
+    // Remove os comandos de transposição do código (para não quebrar)
+    let codigoLimpo = code.replace(/%%transpose\s+[+-]?\d+\s*\n?/g, '');
+    codigoLimpo = codigoLimpo.replace(/%%visualtranspose\s+[+-]?\d+\s*\n?/g, '');
+    
+    const staffsep = document.getElementById("staffsepRange")?.value || 60;
+    const sysstaffsep = document.getElementById("sysstaffsepRange")?.value || 80;
+    
+    let linhas = codigoLimpo.split('\n');
+    let novasLinhas = [];
+    let hasStaffsep = false, hasSysstaffsep = false;
+    
+    for (let linha of linhas) {
+        if (linha.trim().startsWith('%%staffsep')) {
+            novasLinhas.push(`%%staffsep ${staffsep}`);
+            hasStaffsep = true;
+        } else if (linha.trim().startsWith('%%sysstaffsep')) {
+            novasLinhas.push(`%%sysstaffsep ${sysstaffsep}`);
+            hasSysstaffsep = true;
+        } else {
+            novasLinhas.push(linha);
+        }
+    }
+    
+    if (!hasStaffsep && linhas.length > 0) novasLinhas.unshift(`%%staffsep ${staffsep}`);
+    if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
+    
+    let codigoProcessado = novasLinhas.join('\n');
+    
+    try {
+        elemento.innerHTML = "";
+        
+        // Configurações de renderização com transposição
+        const opcoesRender = { 
+            add_classes: true, 
+            staffwidth: 800, 
+            responsive: 'resize'
+        };
+        
+        // Adiciona opções de transposição se existirem
+        if (opcoesTransposicao.visualTranspose !== undefined) {
+            opcoesRender.visualTranspose = opcoesTransposicao.visualTranspose;
+        }
+        if (opcoesTransposicao.audioTranspose !== undefined) {
+            opcoesRender.audioTranspose = opcoesTransposicao.audioTranspose;
+        }
+        
+        ABCJS.renderAbc(id, codigoProcessado, opcoesRender);
+        
+        if (tipo === 'infantil') {
+            setTimeout(() => {
+                aplicarCoresAcordesLetras();
+                if (coresAtivas) aplicarCoresNasNotas();
+                ajustarAcordes();
+                ajustarLetras();
+                ajustarLetrasX();
+            }, 200);
+        }
+    } catch(e) {
+        elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
+    }
+}
+
 // ============================================
 // RENDERIZAR LISTA DE AULAS (SIDEBAR)
 // ============================================
