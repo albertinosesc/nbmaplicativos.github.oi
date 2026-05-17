@@ -613,6 +613,11 @@ function processarABCComEspacamento(id, code, tipo) {
 // ============================================
 // FUNÇÃO PARA RENDERIZAR ABC COM TABLATURA (CORRIGIDA)
 // ============================================
+
+
+// ============================================
+// FUNÇÃO PARA RENDERIZAR ABC COM TABLATURA (CSS)
+// ============================================
 function processarABCComTablatura(id, code, tipo) {
     const elemento = document.getElementById(id);
     if (!elemento) return;
@@ -730,47 +735,17 @@ function processarABCComTablatura(id, code, tipo) {
         
         ABCJS.renderAbc(id, codigoProcessado, opcoesRender);
         
-        // CSS para controlar exibição
+        // APLICA CLASSE CSS NO CONTAINER
         if (temTablatura) {
-            const styleId = `tablatura-style-${id}`;
-            const oldStyle = document.getElementById(styleId);
-            if (oldStyle) oldStyle.remove();
-            
-            const style = document.createElement('style');
-            style.id = styleId;
+            const container = document.getElementById(id);
+            container.classList.remove('only-tab', 'only-staff', 'both');
             
             if (modo === 'onlyTab') {
-                // Só tablatura: esconde TUDO que não é tablatura
-                style.textContent = `
-                    #${id} .abcjs-staff {
-                        display: none !important;
-                    }
-                    #${id} .abcjs-tablature-staff {
-                        display: block !important;
-                        margin-top: 0 !important;
-                    }
-                    /* Esconde cabeças de nota, hastes e barras do pentagrama */
-                    #${id} .abcjs-note,
-                    #${id} .abcjs-notehead,
-                    #${id} .abcjs-stem,
-                    #${id} .abcjs-bar {
-                        display: none !important;
-                    }
-                `;
+                container.classList.add('only-tab');
             } else if (modo === 'onlyStaff') {
-                // Só pentagrama: esconde a tablatura
-                style.textContent = `
-                    #${id} .abcjs-tablature-staff {
-                        display: none !important;
-                    }
-                `;
+                container.classList.add('only-staff');
             } else {
-                // both: mostra os dois, sem CSS extra
-                style.textContent = ``;
-            }
-            
-            if (style.textContent) {
-                document.head.appendChild(style);
+                container.classList.add('both');
             }
         }
         
@@ -787,6 +762,8 @@ function processarABCComTablatura(id, code, tipo) {
         elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
     }
 }
+
+                
 
 
 // ============================================
