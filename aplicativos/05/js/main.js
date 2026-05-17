@@ -610,9 +610,8 @@ function processarABCComEspacamento(id, code, tipo) {
 
 
 
-
 // ============================================
-// FUNÇÃO PARA RENDERIZAR ABC COM TABLATURA (3 MODOS)
+// FUNÇÃO PARA RENDERIZAR ABC COM TABLATURA (CORRIGIDA)
 // ============================================
 function processarABCComTablatura(id, code, tipo) {
     const elemento = document.getElementById(id);
@@ -621,7 +620,7 @@ function processarABCComTablatura(id, code, tipo) {
     // Extrai opções de transposição
     const opcoesTransposicao = extrairOpcoesTransposicao(code);
     
-    // Verifica se tem tablatura (a linha DEVE existir)
+    // Verifica se tem tablatura
     const temTablatura = code.includes('%%tablatura');
     
     let modo = "both";
@@ -629,7 +628,6 @@ function processarABCComTablatura(id, code, tipo) {
     let labelPersonalizada = null;
     let hideTabSymbol = false;
     
-    // Só processa opções de tablatura se a linha existir
     if (temTablatura) {
         const tablaturaMatch = code.match(/%%tablatura(?:\s+mode=(\w+))?(?:\s+instrument=(\w+))?(?:\s+label="([^"]+)")?(?:\s+hideTabSymbol)?/);
         if (tablaturaMatch) {
@@ -679,7 +677,7 @@ function processarABCComTablatura(id, code, tipo) {
             responsive: 'resize'
         };
         
-        // SÓ configura tablatura se a linha %%tablatura existir
+        // Configura tablatura
         if (temTablatura && modo !== 'onlyStaff') {
             const afinacoes = {
                 guitar: ["E,", "A,", "D", "G", "B", "e"],
@@ -722,7 +720,7 @@ function processarABCComTablatura(id, code, tipo) {
             };
         }
         
-        // Adiciona transposição se existir
+        // Adiciona transposição
         if (opcoesTransposicao.visualTranspose !== undefined) {
             opcoesRender.visualTranspose = opcoesTransposicao.visualTranspose;
         }
@@ -732,43 +730,46 @@ function processarABCComTablatura(id, code, tipo) {
         
         ABCJS.renderAbc(id, codigoProcessado, opcoesRender);
         
-        // SÓ aplica CSS de tablatura se a linha %%tablatura existir
-        if (temTablatura && tipo !== 'infantil') {
+        // CSS para controlar exibição
+        if (temTablatura) {
             const styleId = `tablatura-style-${id}`;
-            let styleContent = '';
+            const oldStyle = document.getElementById(styleId);
+            if (oldStyle) oldStyle.remove();
+            
+            const style = document.createElement('style');
+            style.id = styleId;
             
             if (modo === 'onlyTab') {
-                // Só Tablatura: esconde o pentagrama
-                styleContent = `
+                // Só tablatura: esconde TUDO que não é tablatura
+                style.textContent = `
                     #${id} .abcjs-staff {
                         display: none !important;
                     }
                     #${id} .abcjs-tablature-staff {
                         display: block !important;
-                        margin-top: 10px;
+                        margin-top: 0 !important;
+                    }
+                    /* Esconde cabeças de nota, hastes e barras do pentagrama */
+                    #${id} .abcjs-note,
+                    #${id} .abcjs-notehead,
+                    #${id} .abcjs-stem,
+                    #${id} .abcjs-bar {
+                        display: none !important;
                     }
                 `;
             } else if (modo === 'onlyStaff') {
-                // Só Pentagrama: esconde a tablatura
-                styleContent = `
+                // Só pentagrama: esconde a tablatura
+                style.textContent = `
                     #${id} .abcjs-tablature-staff {
                         display: none !important;
                     }
                 `;
             } else {
-                // Both: mostra os dois (não precisa de CSS)
-                styleContent = ``;
+                // both: mostra os dois, sem CSS extra
+                style.textContent = ``;
             }
             
-            // Remove estilo anterior se existir
-            const oldStyle = document.getElementById(styleId);
-            if (oldStyle) oldStyle.remove();
-            
-            // Só adiciona CSS se necessário
-            if (styleContent) {
-                const style = document.createElement('style');
-                style.id = styleId;
-                style.textContent = styleContent;
+            if (style.textContent) {
                 document.head.appendChild(style);
             }
         }
