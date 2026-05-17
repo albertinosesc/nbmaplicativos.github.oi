@@ -120,7 +120,6 @@
         }
         .btn-enviar { background: #27ae60; color: white; }
         .btn-buscar { background: #3498db; color: white; }
-        .btn-enviar-nuvem { background: #e67e22; color: white; }
         table {
             width: 100%;
             border-collapse: collapse;
@@ -206,13 +205,14 @@
 <div class="container">
     <div class="header">
         <h1>🎵 Meu Diário de Execuções Musicais</h1>
-        <p>Use números ou nomes para identificar suas músicas (ex: 01, 02, Asa Branca)</p>
+        <p>Marque as tonalidades - sincroniza automaticamente</p>
     </div>
     
     <div class="config-bar">
         <span>🔗 Google Sheets URL:</span>
         <input type="text" id="webAppUrl" placeholder="https://script.google.com/macros/s/.../exec">
-        <button onclick="salvarUrl()">💾 Conectar</button>
+        <button onclick="testarConexao()">🔌 Testar</button>
+        <button onclick="salvarUrl()">💾 Salvar URL</button>
     </div>
     
     <div class="status-bar">
@@ -242,55 +242,79 @@
     let sheetData = {};
     let currentTabId = null;
     let webAppUrl = localStorage.getItem('webAppUrl') || '';
-    let enviando = false;
+    let sincronizando = false;
 
-    // 🔥 FUNÇÃO DE ORDENAÇÃO NUMÉRICA (CORRIGIDA) 🔥
-    function ordenarMusicasAlfabeticamente(tabId) {
+    // EXTRAIR NÚMERO DO INÍCIO DO TEXTO
+    function extrairNumero(texto) {
+        if (!texto) return null;
+        const match = texto.toString().match(/^(\d+)/);
+        if (match) return parseInt(match[1], 10);
+        return null;
+    }
+
+    // ORDENAÇÃO NUMÉRICA
+    function ordenarMusicas(tabId) {
         if (!sheetData[tabId] || sheetData[tabId].length <= 1) return;
         
         const headers = sheetData[tabId][0];
         const rows = sheetData[tabId].slice(1);
         
-        // ORDENAR POR NÚMERO (se começar com número) ou por texto
         rows.sort((a, b) => {
             const nomeA = a[0] || '';
             const nomeB = b[0] || '';
             
-            // Extrair números do início do texto
-            const numeroA = extrairNumero(nomeA);
-            const numeroB = extrairNumero(nomeB);
+            const numA = extrairNumero(nomeA);
+            const numB = extrairNumero(nomeB);
             
-            // Se ambos têm números no início
-            if (numeroA !== null && numeroB !== null) {
-                // Comparar como número
-                if (numeroA !== numeroB) {
-                    return numeroA - numeroB;
-                }
-                // Se números iguais, comparar o texto completo
+            if (numA !== null && numB !== null) {
+                if (numA !== numB) return numA - numB;
                 return nomeA.localeCompare(nomeB, 'pt-br');
             }
-            
-            // Se só um tem número no início, número vem primeiro
-            if (numeroA !== null) return -1;
-            if (numeroB !== null) return 1;
-            
-            // Se nenhum tem número, ordenar por texto normal
+            if (numA !== null) return -1;
+            if (numB !== null) return 1;
             return nomeA.localeCompare(nomeB, 'pt-br');
         });
         
         sheetData[tabId] = [headers, ...rows];
         saveAllToLocal();
     }
-    
-    // 🔥 FUNÇÃO PARA EXTRAIR NÚMERO DO INÍCIO DO TEXTO 🔥
-    function extrairNumero(texto) {
-        if (!texto) return null;
-        // Pega números no início (ex: "123 - Musica" ou "45")
-        const match = texto.toString().match(/^(\d+)/);
-        if (match) {
-            return parseInt(match[1], 10);
-        }
-        return null;
+
+    // ENVIAR UMA MÚSICA ESPECÍFICA PARA GOOGLE (APENAS ATUALIZAÇÃO)
+    async function enviarMusicaParaGoogle(musicaId, linhaCompleta) {
+        if (!webAppUrl || sincronizando) return;
+        
+        try {
+            const tab = customTabs.find(t => t.id === currentTabId);
+            const nomeAba = tab.nome;
+            const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(nomeAba)}&dados=${encodeURIComponent(JSON.stringify(linhaCompleta))}`;
+            const response = await fetch(url);
+            const result = await response.json();
+            if (result.success) {
+                document.getElementById('lastUpdate').innerHTML = "☁️ Salvo: " + new Date().toLocaleTimeString();
+            }
+        } catch(e) {}
+    }
+
+    // BUSCAR DO GOOGLE
+    async function buscarDoGoogle() {
+        if (!webAppUrl) return false;
+        
+        try {
+            const tab = customTabs.find(t => t.id === currentTabId);
+            const nomeAba = tab.nome;
+            const url = `${webAppUrl}?acao=buscar&aba=${encodeURIComponent(nomeAba)}&t=${Date.now()}`;
+            const response = await fetch(url);
+            const result = await response.json();
+            
+            if (result.success && result.dados) {
+                sheetData[currentTabId] = result.dados;
+                ordenarMusicas(currentTabId);
+                saveAllToLocal();
+                renderizarInterface();
+                return true;
+            }
+        } catch(e) {}
+        return false;
     }
 
     function initDefaultTabs() {
@@ -328,7 +352,7 @@
                 const headers = ["🎵 Música", ...tab.checklists];
                 sheetData[tab.id] = [headers];
             } else {
-                ordenarMusicasAlfabeticamente(tab.id);
+                ordenarMusicas(tab.id);
             }
         });
         saveAllToLocal();
@@ -360,7 +384,7 @@
         const tab = customTabs.find(t => t.id === currentTabId);
         if (!tab) return;
         
-        ordenarMusicasAlfabeticamente(currentTabId);
+        ordenarMusicas(currentTabId);
         
         const headers = sheetData[tab.id] ? sheetData[tab.id][0] : ["🎵 Música", ...tab.checklists];
         const rows = sheetData[tab.id] ? sheetData[tab.id].slice(1) : [];
@@ -376,7 +400,6 @@
                 <div class="button-group">
                     <button class="btn-enviar" onclick="adicionarMusica()">✅ Salvar Música</button>
                     <button class="btn-buscar" onclick="sincronizarDoGoogle()">📥 Sincronizar (Google → App)</button>
-                    <button class="btn-enviar-nuvem" onclick="enviarTudoParaGoogle()">☁️ Enviar para Nuvem (App → Google)</button>
                 </div>
             </div>
             
@@ -417,7 +440,7 @@
                                     <button onclick="editarMusica(${rowIdx})" style="background:#3498db; color:white; border:none; padding:5px 10px;">✏️</button>
                                     <button onclick="excluirMusica(${rowIdx})" style="background:#e74c3c; color:white; border:none; padding:5px 10px;">🗑️</button>
                                 </td>
-                            </tr>
+                            `,
                         `).join('')}
                     </tbody>
                 </table>
@@ -429,42 +452,31 @@
 
     function attachCheckboxEvents() {
         document.querySelectorAll('.check-musical').forEach(cb => {
-            cb.onchange = function() {
+            cb.onchange = async function() {
                 const rowIdx = parseInt(this.dataset.row);
                 const colIdx = parseInt(this.dataset.col);
                 const newValue = this.checked ? "✓" : "";
+                
+                // ATUALIZAR APENAS O CHECKBOX, NÃO CRIA NOVA MÚSICA
                 if (sheetData[currentTabId] && sheetData[currentTabId][rowIdx + 1]) {
                     sheetData[currentTabId][rowIdx + 1][colIdx + 1] = newValue;
                     saveAllToLocal();
                     
-                    if (webAppUrl && !enviando) {
-                        enviarMusicaAtualizada(rowIdx);
-                    }
+                    // Enviar atualização para o Google (apenas esta música)
+                    const linhaCompleta = sheetData[currentTabId][rowIdx + 1];
+                    await enviarMusicaParaGoogle(rowIdx, linhaCompleta);
+                    
+                    mostrarMensagem(`${newValue ? '✓ Marcado' : '✗ Desmarcado'}`, "info");
                 }
             };
         });
-    }
-
-    async function enviarMusicaAtualizada(rowIdx) {
-        if (!webAppUrl || enviando) return;
-        
-        enviando = true;
-        try {
-            const tab = customTabs.find(t => t.id === currentTabId);
-            const nomeAba = tab.nome;
-            const linhaCompleta = sheetData[currentTabId][rowIdx + 1];
-            
-            const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(nomeAba)}&dados=${encodeURIComponent(JSON.stringify(linhaCompleta))}`;
-            await fetch(url);
-        } catch(e) {}
-        finally { enviando = false; }
     }
 
     window.adicionarMusica = async function() {
         const nome = document.getElementById('novaMusicaNome')?.value.trim();
         if (!nome) { mostrarMensagem("Digite o número ou nome da música", "error"); return; }
         
-        // Verificar se já existe (comparação normal)
+        // Verificar se já existe
         const rows = sheetData[currentTabId].slice(1);
         const existe = rows.some(row => row[0].toLowerCase() === nome.toLowerCase());
         
@@ -478,63 +490,59 @@
         for (let i = 0; i < tab.checklists.length; i++) novaRow.push("");
         
         sheetData[currentTabId].push(novaRow);
-        
-        // ORDENAR NUMERICAMENTE
-        ordenarMusicasAlfabeticamente(currentTabId);
-        
+        ordenarMusicas(currentTabId);
         saveAllToLocal();
         renderizarInterface();
         document.getElementById('novaMusicaNome').value = "";
-        mostrarMensagem(`"${nome}" adicionado e ordenado numericamente!`, "success");
+        mostrarMensagem(`"${nome}" adicionado!`, "success");
         
-        if (webAppUrl && !enviando) {
-            enviando = true;
-            try {
-                const tabNome = customTabs.find(t => t.id === currentTabId).nome;
-                const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(tabNome)}&dados=${encodeURIComponent(JSON.stringify(novaRow))}`;
-                await fetch(url);
-            } catch(e) {}
-            finally { enviando = false; }
-        }
+        // Enviar para o Google
+        await enviarMusicaParaGoogle(null, novaRow);
     };
 
-    window.editarMusica = function(rowIdx) {
+    window.editarMusica = async function(rowIdx) {
         const nomeAtual = sheetData[currentTabId][rowIdx + 1][0];
         const novoNome = prompt("Editar número ou nome da música:", nomeAtual);
         if (novoNome && novoNome.trim() && novoNome !== nomeAtual) {
             sheetData[currentTabId][rowIdx + 1][0] = novoNome.trim();
-            ordenarMusicasAlfabeticamente(currentTabId);
+            ordenarMusicas(currentTabId);
             saveAllToLocal();
             renderizarInterface();
-            mostrarMensagem("Atualizado e reordenado numericamente!", "success");
+            mostrarMensagem("Atualizado!", "success");
             
-            if (webAppUrl) enviarTudoParaGoogle();
+            const linhaCompleta = sheetData[currentTabId].find(row => row[0] === novoNome);
+            if (linhaCompleta) await enviarMusicaParaGoogle(null, linhaCompleta);
         }
     };
 
-    window.excluirMusica = function(rowIdx) {
+    window.excluirMusica = async function(rowIdx) {
         if (confirm("Remover esta música?")) {
+            const musicaRemovida = sheetData[currentTabId][rowIdx + 1];
             sheetData[currentTabId].splice(rowIdx + 1, 1);
             saveAllToLocal();
             renderizarInterface();
             mostrarMensagem("Música removida", "info");
-            if (webAppUrl) enviarTudoParaGoogle();
+            
+            // Não precisa enviar exclusão, apenas recarregar do Google depois
+            if (webAppUrl) await buscarDoGoogle();
         }
     };
 
-    window.adicionarTonalidade = function() {
+    window.adicionarTonalidade = async function() {
         const tab = customTabs.find(t => t.id === currentTabId);
         const nova = prompt("Nova tonalidade/nota:", "Ex: F#");
         if (nova && nova.trim()) {
             tab.checklists.push(nova.trim());
             const newHeaders = ["🎵 Música", ...tab.checklists];
             const oldRows = sheetData[currentTabId].slice(1);
-            const newRows = oldRows.map(row => [row[0], ...tab.checklists.map(() => "")]);
+            const newRows = oldRows.map(row => [row[0], ...tab.checklists.map(() => row[colIdx+1] || "")]);
             sheetData[currentTabId] = [newHeaders, ...newRows];
-            ordenarMusicasAlfabeticamente(currentTabId);
+            ordenarMusicas(currentTabId);
             saveAllToLocal();
             renderizarInterface();
             mostrarMensagem(`Tonalidade "${nova}" adicionada`, "success");
+            
+            if (webAppUrl) await sincronizarDoGoogle();
         }
     };
 
@@ -555,7 +563,7 @@
                     return newRow;
                 });
                 sheetData[currentTabId] = [newHeaders, ...newRows];
-                ordenarMusicasAlfabeticamente(currentTabId);
+                ordenarMusicas(currentTabId);
                 saveAllToLocal();
                 renderizarInterface();
                 mostrarMensagem("Tonalidades renomeadas!", "success");
@@ -563,62 +571,39 @@
         }
     };
 
-    window.enviarTudoParaGoogle = async function() {
-        if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
-        if (enviando) { mostrarMensagem("Já está enviando...", "info"); return; }
-        
-        mostrarLoading(true);
-        enviando = true;
-        
-        try {
-            const tab = customTabs.find(t => t.id === currentTabId);
-            const nomeAba = tab.nome;
-            ordenarMusicasAlfabeticamente(currentTabId);
-            const allRows = sheetData[currentTabId].slice(1);
-            let sucessos = 0;
-            
-            for (const row of allRows) {
-                const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(nomeAba)}&dados=${encodeURIComponent(JSON.stringify(row))}`;
-                const response = await fetch(url);
-                const result = await response.json();
-                if (result.success) sucessos++;
-                await new Promise(r => setTimeout(r, 100));
-            }
-            mostrarMensagem(`✅ Enviados ${sucessos}/${allRows.length} itens (ordenado numericamente)`, "success");
-            document.getElementById('lastUpdate').innerHTML = "☁️ Enviado: " + new Date().toLocaleTimeString();
-        } catch(e) {
-            mostrarMensagem("Erro ao enviar", "error");
-        } finally {
-            enviando = false;
-            mostrarLoading(false);
-        }
-    };
-
     window.sincronizarDoGoogle = async function() {
         if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
+        
+        mostrarLoading(true);
+        const sucesso = await buscarDoGoogle();
+        if (sucesso) {
+            mostrarMensagem("Sincronizado com sucesso!", "success");
+            document.getElementById('lastUpdate').innerHTML = "🔄 Sincronizado: " + new Date().toLocaleTimeString();
+        } else {
+            mostrarMensagem("Erro ao sincronizar", "error");
+        }
+        mostrarLoading(false);
+    };
+
+    window.testarConexao = async function() {
+        if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
+        
         mostrarLoading(true);
         try {
-            const tab = customTabs.find(t => t.id === currentTabId);
-            const nomeAba = tab.nome;
-            const url = `${webAppUrl}?acao=buscar&aba=${encodeURIComponent(nomeAba)}&t=${Date.now()}`;
+            const url = `${webAppUrl}?acao=teste&t=${Date.now()}`;
             const response = await fetch(url);
             const result = await response.json();
-            
-            if (result.success && result.dados) {
-                sheetData[currentTabId] = result.dados;
-                ordenarMusicasAlfabeticamente(currentTabId);
-                saveAllToLocal();
-                renderizarInterface();
-                mostrarMensagem(`📥 Sincronizado! ${result.dados.length - 1} músicas`, "success");
-                document.getElementById('lastUpdate').innerHTML = "🔄 Sincronizado: " + new Date().toLocaleTimeString();
+            if (result.success) {
+                mostrarMensagem("✅ Conexão OK! Planilha conectada.", "success");
+                document.getElementById('statusModo').textContent = 'Online ✓';
             } else {
-                mostrarMensagem("Erro ao buscar dados", "error");
+                mostrarMensagem("Erro na conexão", "error");
             }
         } catch(e) {
-            mostrarMensagem("Erro: " + e.message, "error");
-        } finally {
-            mostrarLoading(false);
+            mostrarMensagem("❌ Falha na conexão", "error");
+            document.getElementById('statusModo').textContent = 'Offline';
         }
+        mostrarLoading(false);
     };
 
     window.abrirModalNovaAba = function() {
@@ -666,6 +651,7 @@
         localStorage.setItem('webAppUrl', webAppUrl);
         document.getElementById('statusModo').textContent = webAppUrl ? 'Online' : 'Local';
         mostrarMensagem("URL salva!", "success");
+        if (webAppUrl) testarConexao();
     };
 
     function mostrarLoading(show) {
@@ -685,6 +671,7 @@
         document.getElementById('modal').classList.remove('active');
     };
 
+    // INICIALIZAÇÃO
     loadFromLocalStorage();
     if (customTabs.length) currentTabId = customTabs[0].id;
     renderTabs();
