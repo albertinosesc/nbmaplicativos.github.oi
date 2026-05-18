@@ -276,16 +276,16 @@ const FORMAS_INFINITAS = {
     '183': { nome: 'C13(b9)', cordas: [-1,4,2,4,2,6], dedos: ['','2','1','3','1','4'], pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
 
     // ========== °7 ==========
-    '184': { nome: 'Bb°7', cordas: [-1,1,2,0,2,-1], dedos: ['','2','3','0','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '184': { nome: 'Bb°7', cordas: [-1,1,2,0,2,-1], dedos: ['','1','2','0','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
     '185': { nome: 'B°7', cordas: [-1,1,2,0,2,-1], dedos: ['','2','3','0','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
 
     // ========== ° ==========
     '186': { nome: 'D°', cordas: [-1,-1,0,1,3,1], dedos: ['','','','1','4','1'], pestana: true, pestanaCordas: [3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
 
-    // ========== ° ==========
+    // ========== outros  ==========
     '187': { nome: 'm7', cordas: [-1,2,-1,2,3,2], dedos: ['','1','','2','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-
+  '188': { nome: 'm7+', cordas: [-1,2,-1,3,3,2], dedos: ['','1','','3','4','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
+  '189': { nome: 'm6', cordas: [-1,2,-1,1,3,2], dedos: ['','2','','1','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
 
 };
 
