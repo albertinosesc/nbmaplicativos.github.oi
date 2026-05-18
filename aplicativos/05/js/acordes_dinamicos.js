@@ -282,6 +282,9 @@ const FORMAS_INFINITAS = {
     // ========== ° ==========
     '186': { nome: 'D°', cordas: [-1,-1,0,1,3,1], dedos: ['','','','1','4','1'], pestana: true, pestanaCordas: [3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
 
+    // ========== ° ==========
+    '187': { nome: 'm7', cordas: [-1,2,-1,2,3,2], dedos: ['','1','','2','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+
 
 
 };
