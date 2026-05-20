@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Treino Musical Adaptativo Avançado</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <style>
+        :root {
+            --bg-main: #121214;
+            --bg-card: #1a1a1e;
+            --bg-item: #29292e;
+            --primary: #2d88ff;
+            --success: #00aa55;
+            --danger: #cc3333;
+            --accent: #ffaa00;
+            --text: #e1e1e6;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            background: var(--bg-main);
+            color: var(--text);
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+
+        h1, h2 {
+            text-align: center;
+            margin-top: 0;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: auto;
+        }
+
+        .tab-menu {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            background: var(--bg-card);
+            padding: 8px;
+            border-radius: 12px;
+        }
+
+        .tab-btn {
+            flex: 1;
+            background: transparent;
+            color: #888;
+            border: none;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .tab-btn.active {
+            background: var(--primary);
+            color: white;
+        }
+
+        .box {
+            background: var(--bg-card);
+            padding: 24px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        }
+
+        .hidden {
+            display: none !important;
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+
+        .shortcut-btn {
+            background: transparent;
+            border: 1px solid var(--primary);
+            color: var(--primary);
+            padding: 4px 8px;
+            font-size: 12px;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .shortcut-btn:hover {
+            background: var(--primary);
+            color: white;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .grid-intervalos-foco {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(85px, 1fr));
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            background: var(--bg-item);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+            user-select: none;
+            transition: background 0.2s;
+        }
+
+        label:has(input:checked) {
+            background: var(--primary);
+            color: white;
+        }
+
+        label input {
+            cursor: pointer;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 10px;
+        }
+
+        select, input[type="number"] {
+            width: 100%;
+            padding: 12px;
+            background: var(--bg-item);
+            color: var(--text);
+            border: 1px solid #333;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: bold;
+            box-sizing: border-box;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+            gap: 10px;
+        }
+
+        .sliders-container {
+            grid-column: 1 / -1;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 600px) {
+            .sliders-container { grid-template-columns: 1fr; }
+        }
+
+        .speed-control {
+            background: var(--bg-item);
+            padding: 12px 16px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        .speed-control input[type="range"] {
+            flex: 1;
+            cursor: pointer;
+        }
+
+        button {
+            border: none;
+            border-radius: 8px;
+            padding: 14px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: bold;
+            transition: opacity 0.2s, transform 0.1s;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        #novo { background: var(--accent); color: #000; }
+        #repetir { background: var(--primary); color: white; }
+        #btnAuto { background: #555; color: white; }
+        #btnInfinito { background: #444; color: #ffaa00; border: 1px solid #ffaa00; }
+
+        #respostas-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            gap: 10px;
+        }
+
+        .intervaloBtn {
+            background: var(--bg-item);
+            color: var(--text);
+            border: 1px solid #333;
+        }
+
+        .intervaloBtn:not(:disabled):hover {
+            background: #3a3a40;
+        }
+
+        .intervaloBtn.correto {
+            background: var(--success) !important;
+            color: white;
+        }
+
+        .intervaloBtn.errado {
+            background: var(--danger) !important;
+            color: white;
+        }
+
+        .intervaloBtn:disabled {
+            opacity: 0.15;
+            cursor: not-allowed;
+            display: none;
+        }
+
+        #info {
+            margin-top: 20px;
+            text-align: center;
+            font-size: 20px;
+            min-height: 80px;
+            line-height: 1.5;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            margin-top: 8px;
+            background: transparent;
+            padding: 0;
+        }
+        .checkbox-container input {
+            width: auto;
+            cursor: pointer;
+        }
+        .container-progressivo-opcoes {
+            background: rgba(255,255,255,0.03);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 8px;
+            border: 1px dashed #444;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Treino Musical Adaptativo Avançado</h1>
+
+    <div class="tab-menu">
+        <button id="tab-tonica" class="tab-btn active" onclick="mudarModo('tonica')">Modo 1: Foco por Tônicas</button>
+        <button id="tab-nota" class="tab-btn" onclick="mudarModo('nota')">Modo 2: Seleção de Notas (C4 - C6)</button>
+    </div>
+
+    <!-- PAINEL DE CONFIGURAÇÕES DE FLUXO -->
+    <div class="box">
+        <div class="config-grid">
+            <div>
+                <label style="background:transparent; justify-content:flex-start; padding:0 0 8px 0; font-weight:bold;">Tipo de Som:</label>
+                <select id="tipoSom" onchange="ajustarFluxoInterface()">
+                    <option value="harmonico">Harmônico (Notas Juntas)</option>
+                    <option value="melodico" selected>Melódico (Uma de cada vez)</option>
+                </select>
+            </div>
+            <div>
+                <label style="background:transparent; justify-content:flex-start; padding:0 0 8px 0; font-weight:bold;">Quantidade de Notas:</label>
+                <input type="number" id="qtdNotasInput" min="1" max="100" value="2" onchange="validarEAtualizarQtd()">
+            </div>
+            <div>
+                <label style="background:transparent; justify-content:flex-start; padding:0 0 8px 0; font-weight:bold;">Modo Desafio:</label>
+                <div class="checkbox-container">
+                    <input type="checkbox" id="chkProgressivo" onchange="alternarPainelProgressivo()">
+                    <label for="chkProgressivo" style="background:transparent; padding:0; cursor:pointer; justify-content:flex-start;">Aumentar notas progressivamente</label>
+                </div>
+                
+                <!-- Sub-painel que aparece ao ativar o modo progressivo -->
+                <div id="painelGatilhoProgressivo" class="container-progressivo-opcoes hidden">
+                    <label style="background:transparent; justify-content:flex-start; padding:0 0 4px 0; font-size:12px;">Aumentar +1 nota a cada:</label>
+                    <input type="number" id="gatilhoNotasInput" min="1" max="100" value="10" onchange="resetContadorProgressivo()" style="padding:6px; font-size:12px;">
+                    <span style="font-size:11px; color:#888; display:block; margin-top:4px;" id="txtContadorRodadas">Rodada atual: 0 / 10</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= SISTEMA 1: POR TÔNICA ================= -->
+    <div id="sistema-tonica" class="box">
+        <div class="section-header" id="header-intervalos-alvo">
+            <h2>1. Escolha os Intervalos para Estudo</h2>
+            <div>
+                <button class="shortcut-btn" onclick="marcarTodos('.foco-intervalo', true)">Tudo</button>
+                <button class="shortcut-btn" onclick="marcarTodos('.foco-intervalo', false)">Nenhum</button>
+            </div>
+        </div>
+        <div class="grid-intervalos-foco" id="foco-intervalos-grid"></div>
+
+        <div class="section-header">
+            <h2 id="titulo-tonicas">2. Escolha as Tônicas (Notas de Partida)</h2>
+            <div>
+                <button class="shortcut-btn" onclick="marcarTodos('.foco-tonica', true)">Tudo</button>
+                <button class="shortcut-btn" onclick="marcarTodos('.foco-tonica', false)">Nenhum</button>
+            </div>
+        </div>
+        <div class="grid" id="tonicas-grid"></div>
+    </div>
+
+    <!-- ================= SISTEMA 2: SELEÇÃO DE NOTAS ================= -->
+    <div id="sistema-nota" class="box hidden">
+        <div class="section-header" id="header-grave">
+            <h2>1. Nota 1 (Mais Grave)</h2>
+            <div>
+                <button class="shortcut-btn" onclick="marcarTodos('.grave', true)">Tudo</button>
+                <button class="shortcut-btn" onclick="marcarTodos('.grave', false)">Nenhum</button>
+            </div>
+        </div>
+        <div class="grid" id="graves"></div>
+
+        <div class="section-header">
+            <h2>2. Nota 2 (Mais Aguda)</h2>
+            <div>
+                <button class="shortcut-btn" onclick="marcarTodos('.aguda', true)">Tudo</button>
+                <button class="shortcut-btn" onclick="marcarTodos('.aguda', false)">Nenhum</button>
+            </div>
+        </div>
+        <div class="grid" id="agudas"></div>
+    </div>
+
+    <!-- CONTROLES GERAIS -->
+    <div class="box">
+        <div class="controls">
+            <button id="novo" onclick="novoExercicio()">Novo Exercício</button>
+            <button id="repetir" onclick="repetirSom()">Ouvir Novamente</button>
+            <button id="btnAuto" onclick="alternarAutomatico()">AUTO: OFF</button>
+            <button id="btnInfinito" onclick="alternarInfinito()">INFINITO: OFF</button>
+            
+            <div class="sliders-container">
+                <div class="speed-control">
+                    <label for="tempoSlider" style="background:transparent; padding:0; width:auto;">Tempo da Questão:</label>
+                    <input type="range" id="tempoSlider" min="2" max="20" value="6" oninput="atualizarTextoTempo(this.value)">
+                    <span id="tempoValor">6s</span>
+                </div>
+                <div class="speed-control" id="container-bpm-slider">
+                    <label for="bpmSlider" style="background:transparent; padding:0; width:auto;">Velocidade Melodia:</label>
+                    <input type="range" id="bpmSlider" min="60" max="300" value="130" step="10" oninput="atualizarTextoBPM(this.value)">
+                    <span id="bpmValor">130 BPM</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- PAINEL DE RESPOSTAS -->
+    <div class="box" id="painel-respostas-box">
+        <h2 id="titulo-resposta-box">Qual é o intervalo?</h2>
+        <div id="respostas-container"></div>
+        <div id="info"></div>
+    </div>
+</div>
+
+<script>
+const notasC4C6 = [
+    "C4","C#4","D4","D#4","E4","F4","F#4","G4","G#4","A4","A#4","B4",
+    "C5","C#5","D5","D#5","E5","F5","F#5","G5","G#5","A5","A#5","B5",
+    "C6"
+];
+
+const listaTonicas = ["C4","C#4","D4","D#4","E4","F4","F#4","G4","G#4","A4","A#4","B4"];
+
+const nomes = {
+    0:"Uníssono", 1:"2m", 2:"2M", 3:"3m", 4:"3M", 5:"4J", 6:"Tritono",
+    7:"5J", 8:"6m", 9:"6M", 10:"7m", 11:"7M", 12:"8J", 13:"9m", 14:"9M",
+    15:"10m", 16:"10M", 17:"11J", 18:"#11", 19:"12J", 20:"13m", 21:"13M",
+    22:"14m", 23:"14M", 24:"15J"
+};
+
+const notasMidiInversas = {
+    60:"C4", 61:"C#4", 62:"D4", 63:"D#4", 64:"E4", 65:"F4", 66:"F#4", 67:"G4", 68:"G#4", 69:"A4", 70:"A#4", 71:"B4",
+    72:"C5", 73:"C#5", 74:"D5", 75:"D#5", 76:"E5", 77:"F5", 78:"F#5", 79:"G5", 80:"G#5", 81:"A5", 82:"A#5", 83:"B5",
+    84:"C6"
+};
+
+let modoAtivo = "tonica"; 
+let atual = null; 
+let automatico = false;
+let infinito = false;
+let esperando = false;
+let audioIniciado = false;
+let infinitoTimeout = null;
+
+let rodadasContadas = 0;
+
+const piano = new Tone.Sampler({
+    urls: {
+        A0:"A0.mp3", C1:"C1.mp3", "D#1":"Ds1.mp3", "F#1":"Fs1.mp3",
+        A1:"A1.mp3", C2:"C2.mp3", "D#2":"Ds2.mp3", "F#2":"Fs2.mp3",
+        A2:"A2.mp3", C3:"C3.mp3", "D#3":"Ds3.mp3", "F#3":"Fs3.mp3",
+        A3:"A3.mp3", C4:"C4.mp3", "D#4":"Ds4.mp3", "F#4":"Fs4.mp3",
+        A4:"A4.mp3", C5:"C5.mp3", "D#5":"Ds5.mp3", "F#5":"Fs5.mp3",
+        A5:"A5.mp3", C6:"C6.mp3", "D#6":"Ds6.mp3", "F#6":"Fs6.mp3",
+        A6:"A6.mp3", C7:"C7.mp3", "D#7":"Ds7.mp3", "F#7":"Fs7.mp3",
+        A7:"A7.mp3", C8:"C8.mp3"
+    },
+    release: 1.2,
+    baseUrl: "https://tonejs.github.io/audio/salamander/"
+}).toDestination();
+
+function ajustarFluxoInterface() {
+    const qtd = parseInt(document.getElementById("qtdNotasInput").value) || 2;
+    const tipo = document.getElementById("tipoSom").value;
+    
+    if (qtd !== 2 && tipo === "harmonico") {
+        document.getElementById("tipoSom").value = "melodico";
+    }
+
+    if (document.getElementById("tipoSom").value === "harmonico") {
+        document.getElementById("container-bpm-slider").style.opacity = "0.3";
+        document.getElementById("container-bpm-slider").style.pointerEvents = "none";
+    } else {
+        document.getElementById("container-bpm-slider").style.opacity = "1";
+        document.getElementById("container-bpm-slider").style.pointerEvents = "auto";
+    }
+
+    if (qtd !== 2) {
+        document.getElementById("titulo-resposta-box").innerText = `Frase Musical (${qtd} notas)`;
+        document.getElementById("respostas-container").classList.add("hidden");
+        document.getElementById("header-intervalos-alvo").classList.add("hidden");
+        document.getElementById("foco-intervalos-grid").classList.add("hidden");
+        document.getElementById("header-grave").classList.add("hidden");
+        document.getElementById("graves").classList.add("hidden");
+        document.getElementById("titulo-tonicas").innerText = "Escolha as Notas Disponíveis para a Melodia";
+    } else {
+        document.getElementById("titulo-resposta-box").innerText = "Qual é o intervalo?";
+        document.getElementById("respostas-container").classList.remove("hidden");
+        document.getElementById("header-intervalos-alvo").classList.remove("hidden");
+        document.getElementById("foco-intervalos-grid").classList.remove("hidden");
+        document.getElementById("header-grave").classList.remove("hidden");
+        document.getElementById("graves").classList.remove("hidden");
+        document.getElementById("titulo-tonicas").innerText = "2. Escolha as Tônicas (Notas de Partida)";
+    }
+    pararLoops();
+    document.getElementById("info").innerHTML = "";
+}
+
+function validarEAtualizarQtd() {
+    let el = document.getElementById("qtdNotasInput");
+    if(!el.value || parseInt(el.value) < 1) el.value = 1;
+    resetContadorProgressivo();
+    ajustarFluxoInterface();
+}
+
+function alternarPainelProgressivo() {
+    const chk = document.getElementById("chkProgressivo").checked;
+    const painel = document.getElementById("painelGatilhoProgressivo");
+    if(chk) {
+        painel.classList.remove("hidden");
+    } else {
+        painel.classList.add("hidden");
+    }
+    resetContadorProgressivo();
+}
+
+function resetContadorProgressivo() {
+    rodadasContadas = 0;
+    atualizarLabelContador();
+}
+
+function atualizarLabelContador() {
+    const gatilho = parseInt(document.getElementById("gatilhoNotasInput").value) || 10;
+    document.getElementById("txtContadorRodadas").innerText = `Rodada atual: ${rodadasContadas} / ${gatilho}`;
+}
+
+function mudarModo(modo) {
+    pararLoops();
+    modoAtivo = modo;
+    atual = null;
+    esperando = false;
+    document.getElementById("info").innerHTML = "";
+
+    document.getElementById("tab-tonica").classList.remove("active");
+    document.getElementById("tab-nota").classList.remove("active");
+    document.getElementById("sistema-tonica").classList.add("hidden");
+    document.getElementById("sistema-nota").classList.add("hidden");
+
+    if (modo === "tonica") {
+        document.getElementById("tab-tonica").classList.add("active");
+        document.getElementById("sistema-tonica").classList.remove("hidden");
+    } else {
+        document.getElementById("tab-nota").classList.add("active");
+        document.getElementById("sistema-nota").classList.remove("hidden");
+    }
+    ajustarFluxoInterface();
+}
+
+function criarInterface(){
+    Object.keys(nomes).forEach(i => {
+        document.getElementById("foco-intervalos-grid").innerHTML += `
+            <label><input type="checkbox" class="foco-intervalo" value="${i}"> ${nomes[i]}</label>
+        `;
+    });
+    listaTonicas.forEach(t => {
+        document.getElementById("tonicas-grid").innerHTML += `
+            <label><input type="checkbox" class="foco-tonica" value="${t}"> ${t.replace("4", "")}</label>
+        `;
+    });
+
+    notasC4C6.forEach(n => {
+        document.getElementById("graves").innerHTML += `<label><input type="checkbox" class="grave" value="${n}"> ${n}</label>`;
+        document.getElementById("agudas").innerHTML += `<label><input type="checkbox" class="aguda" value="${n}"> ${n}</label>`;
+    });
+
+    document.querySelector('.foco-intervalo[value="2"]').checked = true; 
+    document.querySelector('.foco-intervalo[value="5"]').checked = true; 
+    document.querySelector('.foco-intervalo[value="7"]').checked = true; 
+    document.querySelector('.foco-tonica[value="C4"]').checked = true;
+    document.querySelector('.foco-tonica[value="G4"]').checked = true;
+
+    document.querySelectorAll('.grave').forEach((el, idx) => { if(idx < 12) el.checked = true; });
+    document.querySelectorAll('.aguda').forEach((el, idx) => { if(idx >= 12 && idx < 25) el.checked = true; });
+
+    Object.keys(nomes).forEach(i => {
+        const btn = document.createElement("button");
+        btn.className = "intervaloBtn";
+        btn.id = `btn-int-${i}`;
+        btn.innerText = nomes[i];
+        btn.onclick = () => responder(parseInt(i), btn);
+        document.getElementById("respostas-container").appendChild(btn);
+    });
+    ajustarFluxoInterface();
+}
+
+function marcarTodos(classe, status) {
+    document.querySelectorAll(classe).forEach(el => el.checked = status);
+}
+
+function notaMidi(nota){
+    const mapa = { "C":0, "C#":1, "D":2, "D#":3, "E":4, "F":5, "F#":6, "G":7, "G#":8, "A":9, "A#":10, "B":11 };
+    const m = nota.match(/^([A-G]#?)(\d)$/);
+    return mapa[m[1]] + ((parseInt(m[2]) + 1) * 12);
+}
+
+async function tocarMelodia(arrayNotas) {
+    if (!audioIniciado) {
+        await Tone.start();
+        audioIniciado = true;
+    }
+    const tipo = document.getElementById("tipoSom").value;
+
+    if (tipo === "harmonico") {
+        piano.triggerAttackRelease(arrayNotas, "1.5");
+    } else {
+        const bpm = parseInt(document.getElementById("bpmSlider").value);
+        const espacamentoSegundos = 60 / bpm; 
+        
+        let agora = Tone.now();
+        arrayNotas.forEach((nota, i) => {
+            piano.triggerAttackRelease(nota, "0.4", agora + (i * espacamentoSegundos));
+        });
+    }
+}
+
+function repetirSom(){
+    if(atual) tocarMelodia(atual.notasSorteadas);
+}
+
+function atualizarTextoTempo(val) {
+    document.getElementById("tempoValor").innerText = val + "s";
+}
+
+function atualizarTextoBPM(val) {
+    document.getElementById("bpmValor").innerText = val + " BPM";
+}
+
+function pararLoops() {
+    clearTimeout(infinitoTimeout);
+}
+
+function calcularDuracaoMelodia() {
+    const tipo = document.getElementById("tipoSom").value;
+    if (tipo === "harmonico") {
+        return 1500;
+    } else {
+        const bpm = parseInt(document.getElementById("bpmSlider").value);
+        const espacamentoSegundos = 60 / bpm;
+        const qtdNotas = atual.notasSorteadas.length;
+        return (qtdNotas * espacamentoSegundos) * 1000;
+    }
+}
+
+function verificarProgressaoMelodica() {
+    const progressivoAtivo = document.getElementById("chkProgressivo").checked;
+    if (progressivoAtivo) {
+        rodadasContadas++;
+        const gatilhoMaximo = parseInt(document.getElementById("gatilhoNotasInput").value) || 10;
+        
+        if (rodadasContadas >= gatilhoMaximo) {
+            rodadasContadas = 0;
+            let campoQtd = document.getElementById("qtdNotasInput");
+            let novaQtd = (parseInt(campoQtd.value) || 2) + 1;
+            campoQtd.value = novaQtd;
+            
+            setTimeout(() => {
+                document.getElementById("info").innerHTML += `<br><span style="color:var(--accent); font-weight:bold; font-size:16px;">📈 Dificuldade aumentada! Nova sequência: ${novaQtd} notas.</span>`;
+            }, 10);
+            
+            ajustarFluxoInterface();
+        }
+        atualizarLabelContador();
+    }
+}
+
+function novoExercicio(){
+    pararLoops();
+    const qtd = parseInt(document.getElementById("qtdNotasInput").value) || 2;
+
+    if (qtd !== 2) {
+        gerarSequenciaLivre(qtd);
+        return;
+    }
+
+    if (modoAtivo === "tonica") {
+        gerarExercicioTonica();
+    } else {
+        gerarExercicioNotaLivre();
+    }
+}
+
+function gerarSequenciaLivre(tamanho) {
+    let poolNotas = [];
+    if (modoAtivo === "tonica") {
+        poolNotas = [...document.querySelectorAll(".foco-tonica:checked")].map(e => e.value);
+    } else {
+        poolNotas = [...document.querySelectorAll(".aguda:checked")].map(e => e.value);
+    }
+
+    if (poolNotas.length === 0) {
+        alert("Selecione notas/tônicas nos campos abaixo para servir de base à melodia.");
+        return;
+    }
+
+    let escolhidas = [];
+    for (let i = 0; i < tamanho; i++) {
+        let randNota = poolNotas[Math.floor(Math.random() * poolNotas.length)];
+        escolhidas.push(randNota);
+    }
+
+    atual = { notasSorteadas: escolhidas, intervalo: null };
+    
+    document.getElementById("info").innerHTML = "<i>Ouvindo Sequência...</i>";
+    tocarMelodia(atual.notasSorteadas);
+    esperando = true;
+
+    if (infinito || automatico) {
+        const tempoConfiguradoMs = parseInt(document.getElementById("tempoSlider").value) * 1000;
+        const duracaoMelodiaMs = calcularDuracaoMelodia();
+        
+        infinitoTimeout = setTimeout(() => {
+            revelarRespostaMelodiaLivre();
+        }, tempoConfiguradoMs + duracaoMelodiaMs);
+    } else {
+        document.getElementById("info").innerHTML += `<br><button id='novo' style='padding:6px 12px; margin-top:10px; font-size:13px;' onclick='revelarRespostaMelodiaLivre()'>Revelar Notas</button>`;
+    }
+}
+
+function revelarRespostaMelodiaLivre() {
+    if(!esperando) return;
+    esperando = false;
+    const sequenciaLimpa = atual.notasSorteadas.map(n => n.replace(/\d/, "")).join(" ➔ ");
+    
+    document.getElementById("info").innerHTML = `
+        <span style="color:var(--accent)">🎵 Sequência Gerada:</span><br>
+        <strong style="font-size:24px; letter-spacing:1px;">${sequenciaLimpa}</strong>
+    `;
+
+    verificarProgressaoMelodica();
+
+    if (infinito || automatico) {
+        const tempoConfiguradoMs = parseInt(document.getElementById("tempoSlider").value) * 1000;
+        infinitoTimeout = setTimeout(() => { novoExercicio(); }, tempoConfiguradoMs);
+    }
+}
+
+function gerarExercicioTonica() {
+    const intervalosEscolhidos = [...document.querySelectorAll(".foco-intervalo:checked")].map(e => parseInt(e.value));
+    const tonicasEscolhidas = [...document.querySelectorAll(".foco-tonica:checked")].map(e => e.value);
+
+    if(intervalosEscolhidos.length === 0 || tonicasEscolhidas.length === 0){
+        alert("Selecione pelo menos um intervalo e uma tônica.");
+        return;
+    }
+
+    let possibilidades = [];
+    tonicasEscolhidas.forEach(t => {
+        intervalosEscolhidos.forEach(intv => {
+            const midiGrave = notaMidi(t);
+            const midiAgudo = midiGrave + intv;
+            if(notasMidiInversas[midiAgudo]) {
+                possibilidades.push({ grave: t, aguda: notasMidiInversas[midiAgudo], intervalo: intv });
+            }
+        });
+    });
+
+    if(possibilidades.length === 0) return;
+    let sorteio = possibilidades[Math.floor(Math.random() * possibilidades.length)];
+    
+    atual = { notasSorteadas: [sorteio.grave, sorteio.aguda], intervalo: sorteio.intervalo };
+    dispararExercicio(intervalosEscolhidos);
+}
+
+function gerarExercicioNotaLivre() {
+    const graves = [...document.querySelectorAll(".grave:checked")].map(e=>e.value);
+    const agudas = [...document.querySelectorAll(".aguda:checked")].map(e=>e.value);
+
+    if(graves.length === 0 || agudas.length === 0){
+        alert("Selecione notas nos campos.");
+        return;
+    }
+
+    let possibilidades = [];
+    graves.forEach(g => {
+        agudas.forEach(a => {
+            const intv = notaMidi(a) - notaMidi(g);
+            if(intv >= 0) {
+                possibilidades.push({ grave: g, aguda: a, intervalo: intv });
+            }
+        });
+    });
+
+    let sorteio = possibilidades[Math.floor(Math.random() * possibilidades.length)];
+    atual = { notasSorteadas: [sorteio.grave, sorteio.aguda], intervalo: sorteio.intervalo };
+    
+    const intervalosPossiveis = [...new Set(possibilidades.map(p => p.intervalo))];
+    dispararExercicio(intervalosPossiveis);
+}
+
+function dispararExercicio(ativos) {
+    Object.keys(nomes).forEach(i => {
+        const btn = document.getElementById(`btn-int-${i}`);
+        btn.classList.remove("correto", "errado");
+        
+        if(ativos.includes(parseInt(i))) {
+            btn.disabled = false;
+            btn.style.display = "block";
+        } else {
+            btn.disabled = true;
+            btn.style.display = "none";
+        }
+    });
+
+    document.getElementById("info").innerHTML = "<i>Ouvindo...</i>";
+    tocarMelodia(atual.notasSorteadas);
+    esperando = true;
+
+    if (infinito) {
+        const tempoConfiguradoMs = parseInt(document.getElementById("tempoSlider").value) * 1000;
+        const duracaoMelodiaMs = calcularDuracaoMelodia();
+        
+        infinitoTimeout = setTimeout(() => { revelarRespostaAutomatica(); }, tempoConfiguradoMs + duracaoMelodiaMs);
+    }
+}
+
+function responder(valor, botao){
+    if(!esperando) return;
+    esperando = false;
+    pararLoops();
+
+    const gTxt = atual.notasSorteadas[0].replace(/\d/,"");
+    const aTxt = atual.notasSorteadas[1].replace(/\d/,"");
+
+    if(valor === atual.intervalo){
+        botao.classList.add("correto");
+        document.getElementById("info").innerHTML = `
+            <span style="color:var(--success)">✅ Correto!</span><br>
+            Notas: <b>${gTxt}</b> + <b>${aTxt}</b><br>
+            Intervalo: <strong>${nomes[atual.intervalo]}</strong>
+        `;
+    } else {
+        botao.classList.add("errado");
+        document.getElementById(`btn-int-${atual.intervalo}`).classList.add("correto");
+        
+        document.getElementById("info").innerHTML = `
+            <span style="color:var(--danger)">❌ Errado!</span><br>
+            Era: <b>${gTxt}</b> ➔ <b>${aTxt}</b><br>
+            Intervalo correto: <strong>${nomes[atual.intervalo]}</strong>
+        `;
+    }
+
+    verificarProgressaoMelodica();
+
+    if(automatico && !infinito){
+        setTimeout(() => { novoExercicio(); }, 2000);
+    } else if (infinito) {
+        const tempoConfiguradoMs = parseInt(document.getElementById("tempoSlider").value) * 1000;
+        infinitoTimeout = setTimeout(() => { novoExercicio(); }, tempoConfiguradoMs);
+    }
+}
+
+function revelarRespostaAutomatica() {
+    esperando = false;
+    const gTxt = atual.notasSorteadas[0].replace(/\d/,"");
+    const aTxt = atual.notasSorteadas[1].replace(/\d/,"");
+
+    document.getElementById(`btn-int-${atual.intervalo}`).classList.add("correto");
+
+    document.getElementById("info").innerHTML = `
+        <span style="color:var(--accent)">⏱️ Tempo Esgotado!</span><br>
+        Resposta: <b>${gTxt}</b> ➔ <b>${aTxt}</b><br>
+        Intervalo: <strong>${nomes[atual.intervalo]}</strong>
+    `;
+
+    verificarProgressaoMelodica();
+
+    const tempoConfiguradoMs = parseInt(document.getElementById("tempoSlider").value) * 1000;
+    infinitoTimeout = setTimeout(() => { novoExercicio(); }, tempoConfiguradoMs);
+}
+
+function toggleAutoState(state) {
+    automatico = state;
+    const btn = document.getElementById("btnAuto");
+    if(automatico){
+        btn.innerText = "AUTO: ON";
+        btn.style.background = "var(--success)";
+    } else {
+        btn.innerText = "AUTO: OFF";
+        btn.style.background = "#555";
+    }
+}
+
+function toggleInfinitoState(state) {
+    infinito = state;
+    const btn = document.getElementById("btnInfinito");
+    if(infinito) {
+        btn.innerText = "INFINITO: ON";
+        btn.style.background = "var(--success)";
+        btn.style.color = "white";
+    } else {
+        btn.innerText = "INFINITO: OFF";
+        btn.style.background = "#444";
+        btn.style.color = "#ffaa00";
+    }
+}
+
+function alternarAutomatico(){
+    if (infinito) {
+        toggleInfinitoState(false);
+        pararLoops();
+    }
+    toggleAutoState(!automatico);
+}
+
+function alternarInfinito() {
+    if (automatico) {
+        toggleAutoState(false);
+    }
+    
+    const novoEstado = !infinito;
+    toggleInfinitoState(novoEstado);
+    
+    if(novoEstado) {
+        novoExercicio();
+    } else {
+        pararLoops();
+    }
+}
+
+criarInterface();
+</script>
+</body>
+</html>
