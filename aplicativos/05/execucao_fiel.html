@@ -94,13 +94,35 @@
             border-radius: 5px;
             font-weight: bold;
         }
+        .tab-actions {
+            display: flex;
+            gap: 5px;
+        }
         .add-tab-btn {
             background: #e67e22;
             color: white;
             border: none;
-            padding: 8px 15px;
+            padding: 8px 12px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
+            border-radius: 5px;
+        }
+        .edit-tab-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            border-radius: 5px;
+        }
+        .del-tab-btn {
+            background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
             border-radius: 5px;
         }
         .content {
@@ -249,7 +271,11 @@
         
     <div class="tabs-wrapper">
         <div class="tabs" id="tabsContainer"></div>
-        <button class="add-tab-btn" onclick="abrirModalNovaAba()">➕ Novo Livro / Método</button>
+        <div class="tab-actions">
+            <button class="add-tab-btn" onclick="abrirModalNovaAba()">➕ Novo Livro</button>
+            <button class="edit-tab-btn" onclick="renomearLivroAtual()">✏️ Renomear Atual</button>
+            <button class="del-tab-btn" onclick="excluirLivroAtual()">🗑️ Deletar Atual</button>
+        </div>
     </div>
         
     <div class="content" id="mainContent"></div>
@@ -298,20 +324,17 @@
         saveAllToLocal();
     }
 
-    // Função ajustada: no-cors causa um "erro" controlado no JS, mas salva no Google. Capturamos isso no catch.
-    async function enviarMusicaParaGoogle(linhaCompleta) {
+    async function enviarMusicaParaGoogle(linhaCompleta, nomeAbaAlternativo = null) {
         if (!webAppUrl) return false;
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
-            const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(tab.nome)}&dados=${encodeURIComponent(JSON.stringify(linhaCompleta))}`;
+            const nomeAba = nomeAbaAlternativo || tab.nome;
+            const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(nomeAba)}&dados=${encodeURIComponent(JSON.stringify(linhaCompleta))}`;
             
             await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-cache' });
-            
-            // Se chegou aqui sem dar erro crítico de rede, assumimos sucesso por causa do no-cors
             document.getElementById('lastUpdate').innerHTML = "☁️ Enviado: " + new Date().toLocaleTimeString();
             return true;
         } catch(e) { 
-            // no-cors cai aqui na maioria dos navegadores (TypeError), mas o dado foi gravado!
             document.getElementById('lastUpdate').innerHTML = "☁️ Enviado (no-cors): " + new Date().toLocaleTimeString();
             return true; 
         }
@@ -329,10 +352,7 @@
 
         mostrarLoading(true, "Enviando dados ao Google Sheets...");
         try {
-            // Garante o envio do cabeçalho primeiro
             await enviarMusicaParaGoogle(todasAsLinhas[0]);
-            
-            // Envia o resto das linhas
             for (let i = 1; i < todasAsLinhas.length; i++) {
                 await enviarMusicaParaGoogle(todasAsLinhas[i]);
             }
@@ -347,15 +367,13 @@
         if (!webAppUrl) return false;
         return new Promise((resolve) => {
             const tab = customTabs.find(t => t.id === currentTabId);
+            if (!tab) return resolve(false);
             const callbackName = "jsonp_callback_" + Date.now();
                         
             window[callbackName] = function(result) {
                 if (result && result.dados && result.dados.length > 0) {
                     sheetData[currentTabId] = result.dados;
-                    
-                    // Sincroniza os nomes das colunas locais com o que veio do Google
                     tab.colunas = [...result.dados[0]];
-                    
                     ordenarMusicas(currentTabId);
                     saveAllToLocal();
                     renderizarInterface();
@@ -364,7 +382,7 @@
                     resolve(false);
                 }
                 document.body.removeChild(script);
-                delete window[window];
+                delete window[callbackName];
             };
 
             const url = `${webAppUrl}?acao=buscar&aba=${encodeURIComponent(tab.nome)}&callback=${callbackName}&t=${Date.now()}`;
@@ -403,6 +421,7 @@
                 ordenarMusicas(tab.id);
             }
         });
+        if (customTabs.length > 0) currentTabId = customTabs[0].id;
         saveAllToLocal();
     }
 
@@ -419,7 +438,6 @@
                 📘 ${tab.nome}
             </button>
         `).join('');
-        if (customTabs.length > 0 && !currentTabId) currentTabId = customTabs[0].id;
     }
 
     function mudarAba(tabId) {
@@ -430,7 +448,10 @@
 
     function renderizarInterface() {
         const tab = customTabs.find(t => t.id === currentTabId);
-        if (!tab) return;
+        if (!tab) {
+            document.getElementById('mainContent').innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:40px;">Nenhum livro selecionado. Crie ou selecione um acima.</p>`;
+            return;
+        }
                 
         const headers = sheetData[tab.id] && sheetData[tab.id][0] ? sheetData[tab.id][0] : [...tab.colunas];
         const rows = sheetData[tab.id] ? sheetData[tab.id].slice(1) : [];
@@ -533,7 +554,7 @@
                 
         if (indexExistente !== -1) {
             sheetData[currentTabId][indexExistente + 1] = novaRow;
-            mostrarMensagem("Item atualizado!", "success");
+            mostrarMensagem("Item updated!", "success");
         } else {
             sheetData[currentTabId].push(novaRow);
             mostrarMensagem("Item adicionado!", "success");
@@ -570,27 +591,66 @@
         }
     };
 
-    // Nova funcionalidade: Adiciona coluna e salva imediatamente o novo layout de cabeçalho no Google
+    // Novas Funcionalidades de gerenciamento de Abas/Livros
+    window.renomearLivroAtual = async function() {
+        const tab = customTabs.find(t => t.id === currentTabId);
+        if (!tab) { mostrarMensagem("Nenhum livro selecionado!", "error"); return; }
+        
+        const novoNome = prompt(`Digite o novo nome para o livro "${tab.nome}":`, tab.nome);
+        if (novoNome && novoNome.trim() && novoNome.trim() !== tab.nome) {
+            const nomeAntigo = tab.nome;
+            tab.nome = novoNome.trim();
+            saveAllToLocal();
+            renderTabs();
+            renderizarInterface();
+            mostrarMensagem("Livro renomeado localmente! Sincronizando com o Sheets...", "info");
+            
+            // Força a re-gravação estrutural enviando o cabeçalho para a "nova aba" no Google Sheets
+            if (webAppUrl) {
+                await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
+                mostrarMensagem(`Nova aba "${tab.nome}" iniciada no Google Sheets!`, "success");
+            }
+        }
+    };
+
+    window.excluirLivroAtual = function() {
+        const tab = customTabs.find(t => t.id === currentTabId);
+        if (!tab) { mostrarMensagem("Nenhum livro selecionado!", "error"); return; }
+        
+        if (confirm(`⚠️ ATENÇÃO: Deseja realmente excluir permanentemente o livro "${tab.nome}" e TODOS os seus dados salvos?`)) {
+            // Remove dos arrays estruturais
+            customTabs = customTabs.filter(t => t.id !== currentTabId);
+            delete sheetData[currentTabId];
+            
+            saveAllToLocal();
+            
+            // Define a próxima aba ativa disponível se houver
+            if (customTabs.length > 0) {
+                currentTabId = customTabs[0].id;
+            } else {
+                currentTabId = null;
+            }
+            
+            renderTabs();
+            renderizarInterface();
+            mostrarMensagem("Livro removido do aplicativo!", "error");
+        }
+    };
+
     window.adicionarNovaColuna = async function() {
         const nomeColuna = prompt("Digite o nome da nova coluna (Ex: Observação, Página):");
         if (nomeColuna && nomeColuna.trim()) {
             const tab = customTabs.find(t => t.id === currentTabId);
-            
             sheetData[currentTabId][0].push(nomeColuna.trim());
             tab.colunas.push(nomeColuna.trim());
-            
             sheetData[currentTabId].slice(1).forEach(r => r.push(""));
-            
             saveAllToLocal();
             renderizarInterface();
-            mostrarMensagem(`Coluna "${nomeColuna}" criada! Atualizando planilha...`, "info");
-            
-            // Envia o novo cabeçalho modificado imediatamente para o Google Sheets
+            mostrarMensagem(`Coluna "${nomeColuna}" criada!`, "info");
             await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
         }
     };
 
-    // Nova funcionalidade: Permite editar os nomes de qualquer cabeçalho da tabela
     window.editarCabecalhos = async function() {
         const tab = customTabs.find(t => t.id === currentTabId);
         const headers = sheetData[currentTabId][0];
@@ -608,16 +668,11 @@
             if (novoNome && novoNome.trim()) {
                 headers[idxEscolhido] = novoNome.trim();
                 tab.colunas[idxEscolhido] = novoNome.trim();
-                
                 saveAllToLocal();
                 renderizarInterface();
-                mostrarMensagem("Cabeçalho alterado! Atualizando planilha...", "info");
-                
-                // Envia a linha do cabeçalho corrigida para a planilha
+                mostrarMensagem("Cabeçalho alterado!", "info");
                 await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
             }
-        } else if (escolha !== null) {
-            mostrarMensagem("Seleção inválida. A primeira coluna não pode ser renomeada.", "error");
         }
     };
 
@@ -633,9 +688,7 @@
             tab.colunas.pop();
             saveAllToLocal();
             renderizarInterface();
-            mostrarMensagem("Coluna removida! Sincronizando estrutura...", "info");
-            
-            // Atualiza a planilha avisando que a última coluna sumiu
+            mostrarMensagem("Coluna removida!", "info");
             await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
         }
     };
@@ -656,7 +709,6 @@
     window.testarConexao = async function() {
         if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
         mostrarLoading(true, "Testando envio...");
-        // Em no-cors o fetch gera erro estrutural no JS mas envia o dado. Consideramos sucesso se a rota responder.
         const url = `${webAppUrl}?acao=teste&t=${Date.now()}`;
         await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-cache' });
         mostrarMensagem("🔌 Transmissão Iniciada! Conectado.", "success");
@@ -673,11 +725,11 @@
     };
 
     function mostrarLoading(show, texto = "Sincronizando...") { 
-         const loadingDiv = document.getElementById('loading');
+        const loadingDiv = document.getElementById('loading');
         const loadingText = document.getElementById('loadingText');
         if (loadingText) loadingText.textContent = texto;
         loadingDiv.classList.toggle('active', show); 
-     }
+    }
     
     function mostrarMensagem(msg, tipo) {
         const div = document.createElement('div');
