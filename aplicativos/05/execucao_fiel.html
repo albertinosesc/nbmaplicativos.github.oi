@@ -232,6 +232,11 @@
             border-radius: 5px;
             color: white;
             z-index: 3000;
+            animation: slideIn 0.3s ease;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
         }
         .success { background: #27ae60; }
         .error { background: #e74c3c; }
@@ -329,14 +334,19 @@
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
             const nomeAba = nomeAbaAlternativo || tab.nome;
-            const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(nomeAba)}&dados=${encodeURIComponent(JSON.stringify(linhaCompleta))}`;
+            const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(nomeAba)}&dados=${encodeURIComponent(JSON.stringify(linhaCompleta))}&t=${Date.now()}`;
             
-            await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-cache' });
-            document.getElementById('lastUpdate').innerHTML = "☁️ Enviado: " + new Date().toLocaleTimeString();
-            return true;
+            const response = await fetch(url);
+            const result = await response.json();
+            
+            if (result.success) {
+                document.getElementById('lastUpdate').innerHTML = "☁️ Enviado: " + new Date().toLocaleTimeString();
+                return true;
+            }
+            return false;
         } catch(e) { 
-            document.getElementById('lastUpdate').innerHTML = "☁️ Enviado (no-cors): " + new Date().toLocaleTimeString();
-            return true; 
+            console.error("Erro ao enviar:", e);
+            return false; 
         }
     }
 
@@ -351,50 +361,62 @@
         }
 
         mostrarLoading(true, "Enviando dados ao Google Sheets...");
+        let sucessos = 0;
+        
         try {
-            await enviarMusicaParaGoogle(todasAsLinhas[0]);
-            for (let i = 1; i < todasAsLinhas.length; i++) {
-                await enviarMusicaParaGoogle(todasAsLinhas[i]);
+            for (let i = 0; i < todasAsLinhas.length; i++) {
+                const enviou = await enviarMusicaParaGoogle(todasAsLinhas[i]);
+                if (enviou) sucessos++;
             }
-            mostrarMensagem("📋 Sincronização executada com sucesso!", "success");
+            mostrarMensagem(`✅ ${sucessos} de ${todasAsLinhas.length} itens sincronizados!`, "success");
         } catch (e) {
-            mostrarMensagem("Concluído com avisos de rede.", "info");
+            mostrarMensagem("Erro na sincronização: " + e.message, "error");
         }
         mostrarLoading(false);
     }
 
     async function buscarDoGoogle() {
-        if (!webAppUrl) return false;
-        return new Promise((resolve) => {
+        if (!webAppUrl) {
+            mostrarMensagem("Configure a URL do Google Sheets primeiro!", "error");
+            return false;
+        }
+        
+        mostrarLoading(true, "Buscando dados do Google Sheets...");
+        
+        try {
             const tab = customTabs.find(t => t.id === currentTabId);
-            if (!tab) return resolve(false);
-            const callbackName = "jsonp_callback_" + Date.now();
-                        
-            window[callbackName] = function(result) {
-                if (result && result.dados && result.dados.length > 0) {
+            if (!tab) return false;
+            
+            // Usando fetch normal (mais confiável que JSONP)
+            const url = `${webAppUrl}?acao=buscar&aba=${encodeURIComponent(tab.nome)}&t=${Date.now()}`;
+            const response = await fetch(url);
+            const result = await response.json();
+            
+            if (result.success && result.dados) {
+                if (result.dados.length > 0) {
                     sheetData[currentTabId] = result.dados;
                     tab.colunas = [...result.dados[0]];
                     ordenarMusicas(currentTabId);
                     saveAllToLocal();
                     renderizarInterface();
-                    resolve(true);
+                    mostrarMensagem(`✅ ${result.dados.length - 1} itens carregados do Google!`, "success");
+                    document.getElementById('lastUpdate').innerHTML = "🔄 Sincronizado: " + new Date().toLocaleTimeString();
+                    return true;
                 } else {
-                    resolve(false);
+                    mostrarMensagem("Nenhum dado encontrado no Google Sheets", "info");
+                    return false;
                 }
-                document.body.removeChild(script);
-                delete window[callbackName];
-            };
-
-            // Fix aplicado: adicionado o cachebuster para ignorar dados antigos cacheados pelo navegador
-            const url = `${webAppUrl}?acao=buscar&aba=${encodeURIComponent(tab.nome)}&callback=${callbackName}&cachebuster=${Date.now()}`;
-            const script = document.createElement('script');
-            script.src = url;
-            script.onerror = () => {
-                resolve(false);
-                try { document.body.removeChild(script); } catch(e){}
-            };
-            document.body.appendChild(script);
-        });
+            } else {
+                mostrarMensagem("Erro ao carregar dados", "error");
+                return false;
+            }
+        } catch (error) {
+            console.error("Erro na busca:", error);
+            mostrarMensagem("Erro ao conectar: " + error.message, "error");
+            return false;
+        } finally {
+            mostrarLoading(false);
+        }
     }
 
     function initDefaultTabs() {
@@ -497,7 +519,7 @@
                     </thead>
                     <tbody>
                         ${rows.length === 0 ? `
-                            <tr><td colspan="${headers.length + 1}" style="text-align:center;">Nenhuma lição ou música cadastrada</td></tr>
+                            <tr><td colspan="${headers.length + 1}" style="text-align:center;">Nenhuma lição ou música cadastrada</td></td>
                         ` : rows.map((row, rowIdx) => {
                             if (!row || row.length === 0) return '';
                             return `
@@ -507,7 +529,7 @@
                                     const val = row[colIdx+1] || '';
                                     return `
                                         <td>
-                                            <input type="text" class="input-celula" value="${val}"
+                                            <input type="text" class="input-celula" value="${val.replace(/"/g, '&quot;')}"
                                                  onchange="atualizarValorInput(${rowIdx}, ${colIdx+1}, this.value)"
                                                  placeholder="-">
                                         </td>
@@ -598,16 +620,14 @@
         
         const novoNome = prompt(`Digite o novo nome para o livro "${tab.nome}":`, tab.nome);
         if (novoNome && novoNome.trim() && novoNome.trim() !== tab.nome) {
-            const nomeAntigo = tab.nome;
             tab.nome = novoNome.trim();
             saveAllToLocal();
             renderTabs();
             renderizarInterface();
-            mostrarMensagem("Livro renomeado localmente! Sincronizando com o Sheets...", "info");
+            mostrarMensagem("Livro renomeado localmente!", "success");
             
             if (webAppUrl) {
                 await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
-                mostrarMensagem(`Nova aba "${tab.nome}" iniciada no Google Sheets!`, "success");
             }
         }
     };
@@ -692,31 +712,33 @@
 
     window.sincronizarDoGoogle = async function() {
         if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
-        mostrarLoading(true, "Buscando dados do Google Sheets...");
-        const sucesso = await buscarDoGoogle();
-        mostrarLoading(false);
-        if (sucesso) {
-            mostrarMensagem("Sincronizado com sucesso!", "success");
-            document.getElementById('lastUpdate').innerHTML = "🔄 Sincronizado: " + new Date().toLocaleTimeString();
-        } else {
-            mostrarMensagem("Erro ao sincronizar dados. Verifique a aba e o script.", "error");
-        }
+        await buscarDoGoogle();
     };
 
     window.testarConexao = async function() {
         if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
-        mostrarLoading(true, "Testando envio...");
-        const url = `${webAppUrl}?acao=teste&t=${Date.now()}`;
-        await fetch(url, { method: 'GET', mode: 'no-cors', cache: 'no-cache' });
-        mostrarMensagem("🔌 Transmissão Iniciada! Conectado.", "success");
-        document.getElementById('statusModo').textContent = 'Conectado ✓';
+        mostrarLoading(true, "Testando conexão...");
+        try {
+            const url = `${webAppUrl}?acao=teste&t=${Date.now()}`;
+            const response = await fetch(url);
+            const result = await response.json();
+            
+            if (result.success) {
+                mostrarMensagem("✅ Conexão OK! Google Sheets respondendo.", "success");
+                document.getElementById('statusModo').textContent = 'Conectado ✓';
+            } else {
+                mostrarMensagem("❌ Erro na conexão", "error");
+            }
+        } catch (error) {
+            mostrarMensagem("❌ Erro ao conectar: " + error.message, "error");
+        }
         mostrarLoading(false);
     };
 
     window.salvarUrl = function() {
         webAppUrl = document.getElementById('webAppUrl').value.trim();
         localStorage.setItem('webAppUrl', webAppUrl);
-        document.getElementById('statusModo').textContent = webAppUrl ? 'Pronto' : 'Local';
+        document.getElementById('statusModo').textContent = webAppUrl ? 'Conectado' : 'Local';
         mostrarMensagem("URL salva com sucesso!", "success");
         if (webAppUrl) testarConexao();
     };
@@ -733,10 +755,10 @@
         div.className = `message ${tipo}`;
         div.textContent = msg;
         document.body.appendChild(div);
-        setTimeout(() => div.remove(), 2500);
+        setTimeout(() => div.remove(), 3000);
     }
 
-    window.abrirModalNovaAba = function() {
+    window.abrirModalNovaAba = async function() {
         const nome = prompt("Nome do novo Livro / Método:");
         if(nome && nome.trim()){
             const newId = "tab_" + Date.now();
@@ -747,15 +769,21 @@
             renderTabs();
             renderizarInterface();
             mostrarMensagem(`Livro "${nome}" criado!`, "success");
+            
+            if (webAppUrl) {
+                await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
+            }
         }
     };
 
+    // Inicialização
     loadFromLocalStorage();
     renderTabs();
     renderizarInterface();
+    
     if (webAppUrl) {
         document.getElementById('webAppUrl').value = webAppUrl;
-        testarConexao();
+        setTimeout(() => testarConexao(), 500);
     }
 </script>
 </body>
