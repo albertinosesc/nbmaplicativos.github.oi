@@ -385,7 +385,8 @@
                 delete window[callbackName];
             };
 
-            const url = `${webAppUrl}?acao=buscar&aba=${encodeURIComponent(tab.nome)}&callback=${callbackName}&t=${Date.now()}`;
+            // Fix aplicado: adicionado o cachebuster para ignorar dados antigos cacheados pelo navegador
+            const url = `${webAppUrl}?acao=buscar&aba=${encodeURIComponent(tab.nome)}&callback=${callbackName}&cachebuster=${Date.now()}`;
             const script = document.createElement('script');
             script.src = url;
             script.onerror = () => {
@@ -554,7 +555,7 @@
                 
         if (indexExistente !== -1) {
             sheetData[currentTabId][indexExistente + 1] = novaRow;
-            mostrarMensagem("Item updated!", "success");
+            mostrarMensagem("Item atualizado!", "success");
         } else {
             sheetData[currentTabId].push(novaRow);
             mostrarMensagem("Item adicionado!", "success");
@@ -591,7 +592,6 @@
         }
     };
 
-    // Novas Funcionalidades de gerenciamento de Abas/Livros
     window.renomearLivroAtual = async function() {
         const tab = customTabs.find(t => t.id === currentTabId);
         if (!tab) { mostrarMensagem("Nenhum livro selecionado!", "error"); return; }
@@ -605,7 +605,6 @@
             renderizarInterface();
             mostrarMensagem("Livro renomeado localmente! Sincronizando com o Sheets...", "info");
             
-            // Força a re-gravação estrutural enviando o cabeçalho para a "nova aba" no Google Sheets
             if (webAppUrl) {
                 await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
                 mostrarMensagem(`Nova aba "${tab.nome}" iniciada no Google Sheets!`, "success");
@@ -618,13 +617,11 @@
         if (!tab) { mostrarMensagem("Nenhum livro selecionado!", "error"); return; }
         
         if (confirm(`⚠️ ATENÇÃO: Deseja realmente excluir permanentemente o livro "${tab.nome}" e TODOS os seus dados salvos?`)) {
-            // Remove dos arrays estruturais
             customTabs = customTabs.filter(t => t.id !== currentTabId);
             delete sheetData[currentTabId];
             
             saveAllToLocal();
             
-            // Define a próxima aba ativa disponível se houver
             if (customTabs.length > 0) {
                 currentTabId = customTabs[0].id;
             } else {
@@ -702,7 +699,7 @@
             mostrarMensagem("Sincronizado com sucesso!", "success");
             document.getElementById('lastUpdate').innerHTML = "🔄 Sincronizado: " + new Date().toLocaleTimeString();
         } else {
-            mostrarMensagem("Erro ao sincronizar dados.", "error");
+            mostrarMensagem("Erro ao sincronizar dados. Verifique a aba e o script.", "error");
         }
     };
 
