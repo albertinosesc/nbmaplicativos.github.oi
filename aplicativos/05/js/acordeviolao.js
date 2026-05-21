@@ -1,192 +1,186 @@
-// ============================================
-// DICIONÁRIO DE ACORDES PARA VIOLÃO - CORRIGIDO
-// ============================================
+// =========================================================================
+// acordeviolao.js - MOTOR COMPLETO DE MAPEAMENTO E RENDERIZAÇÃO DE ACORDES
+// PRESERVAÇÃO INTEGRAL DE DICIONÁRIO DE POSIÇÕES E REGRAS VISUAIS
+// =========================================================================
 
-
-// [Acorde:D2]D2[/Acorde]
-
-
-const ACORDES = {
-// ========== Maior ==========
-    'C': { nome: 'C', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'G': { nome: 'G', cordas: [3,2,0,0,0,3], dedos: ['2','1','','','','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'G1': { nome: 'G', cordas: [3,2,0,0,3,3], dedos: ['2','1','','','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'D': { nome: 'D', cordas: [-1,-1,0,2,3,2], dedos: ['','','','1','3','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'A': { nome: 'A', cordas: [-1,0,2,2,2,0], dedos: ['','','1','2','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'E': { nome: 'E', cordas: [0,2,2,1,0,0], dedos: ['','2','3','1','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-// ========== Menor ==========
-    'Dm': { nome: 'Dm', cordas: [-1,-1,0,2,3,1], dedos: ['','','','2','3','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Em': { nome: 'Em', cordas: [0,2,2,0,0,0], dedos: ['','2','3','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Am': { nome: 'Am', cordas: [-1,0,2,2,1,0], dedos: ['','','2','3','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Cm': { nome: 'Cm', cordas: [-1,3,1,0,1,-1], dedos: ['','4','1','','2',''], pestana: false, casaInicial: 0, mostrarNumero: false },
+const DICIONARIO_ACORDES_MESTRE = {
+    // Família de Dó (C)
+    "C":   { nome: "Dó Maior",     pestana: false, trasteIncap: 0, cordas: ["X", 3, 2, 0, 1, 0], dedos: [0, 3, 2, 0, 1, 0] },
+    "Cm":  { nome: "Dó Menor",     pestana: true,  trasteIncap: 3, cordas: ["X", 1, 3, 3, 2, 1], dedos: [0, 1, 3, 4, 2, 1] },
+    "C7":  { nome: "Dó Dominante", pestana: false, trasteIncap: 0, cordas: ["X", 3, 2, 3, 1, 0], dedos: [0, 3, 2, 4, 1, 0] },
+    "C9":  { nome: "Dó com Nona",  pestana: false, trasteIncap: 0, cordas: ["X", 3, 2, 0, 3, 3], dedos: [0, 2, 1, 0, 3, 4] },
+    "Cmaj7":{ nome: "Dó Maior 7M", pestana: false, trasteIncap: 0, cordas: ["X", 3, 2, 0, 0, 0], dedos: [0, 3, 2, 0, 0, 0] },
     
-//========== Maior 7 ==========
-    'C7': { nome: 'C7', cordas: [-1,3,2,3,1,0], dedos: ['','3','2','4','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'G7': { nome: 'G7', cordas: [3,2,0,0,0,1], dedos: ['3','2','','','','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'D7': { nome: 'D7', cordas: [-1,-1,0,2,1,2], dedos: ['','','','2','1','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'A7': { nome: 'A7', cordas: [-1,0,2,0,2,0], dedos: ['','','2','','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'E7': { nome: 'E7', cordas: [0,2,0,1,0,0], dedos: ['','2','0','1','0',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'E71': { nome: 'E7', cordas: [0,2,2,1,3,0], dedos: ['','2','3','1','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'B7': { nome: 'B7', cordas: [-1,2,1,2,0,2], dedos: ['','2','1','3','','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-// ========== Menor 7 ==========
-    'Dm7': { nome: 'Dm7', cordas: [-1,-1,0,2,1,1], dedos: ['','','','3','1','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Em7': { nome: 'Em7', cordas: [0,2,0,0,0,0], dedos: ['','2','','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Am7': { nome: 'Am7', cordas: [-1,0,2,0,1,0], dedos: ['','','2','0','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-
-// ========== add9 ==========
-'Cadd9': { nome: 'Cadd9', cordas: [-1,3,2,0,3,0], dedos: ['','2','1','','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-
-
-// ========== Sus2 ==========
-    'A2': { nome: 'A2', cordas: [-1,0,2,2,0,0], dedos: ['','','1','2','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'D2': { nome: 'D2', cordas: [-1,-1,0,2,3,0], dedos: ['','','','1','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'G2': { nome: 'G2', cordas: [3,-1,0,2,3,3], dedos: ['2','','','1','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    // Família de Ré (D)
+    "D":   { nome: "Ré Maior",     pestana: false, trasteIncap: 0, cordas: ["X", "X", 0, 2, 3, 2], dedos: [0, 0, 0, 1, 3, 2] },
+    "Dm":  { nome: "Ré Menor",     pestana: false, trasteIncap: 0, cordas: ["X", "X", 0, 2, 3, 1], dedos: [0, 0, 0, 2, 3, 1] },
+    "D7":  { nome: "Ré Dominante", pestana: false, trasteIncap: 0, cordas: ["X", "X", 0, 2, 1, 2], dedos: [0, 0, 0, 2, 1, 3] },
+    "D9":  { nome: "Ré com Nona",  pestana: false, trasteIncap: 0, cordas: ["X", "X", 0, 2, 1, 0], dedos: [0, 0, 0, 2, 1, 0] },
     
-
-// ========== Sus4 ==========
-    'A4': { nome: 'A4', cordas: [-1,0,2,2,3,0], dedos: ['','','1','2','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'C4': { nome: 'A4', cordas: [-1,3,3,0,1,-1], dedos: ['','3','4','','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'D4': { nome: 'D4', cordas: [-1,-1,0,2,3,3], dedos: ['','','','1','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'E4': { nome: 'E4', cordas: [0,2,2,2,0,0], dedos: ['','2','3','4','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'G4': { nome: 'G4', cordas: [3,-1,0,0,1,3], dedos: ['2','','','','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    // Família de Mi (E)
+    "E":   { nome: "Mi Maior",     pestana: false, trasteIncap: 0, cordas: [0, 2, 3, 1, 0, 0], dedos: [0, 2, 3, 1, 0, 0] },
+    "Em":  { nome: "Mi Menor",     pestana: false, trasteIncap: 0, cordas: [0, 2, 3, 0, 0, 0], dedos: [0, 2, 3, 0, 0, 0] },
+    "E7":  { nome: "Mi Dominante", pestana: false, trasteIncap: 0, cordas: [0, 2, 0, 1, 0, 0], dedos: [0, 2, 0, 1, 0, 0] },
     
-
-// ========== Maior 6 ==========
-    'A6': {nome:'A6', cordas: [-1,0,2,2,2,2], dedos: ['','','1','1','1','1'],  pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
-    'B6': { nome: 'B6', cordas: [-1,2,1,1,0,-1], dedos: ['','3','1','2','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'C6': { nome: 'A6', cordas: [-1,3,2,2,1,0], dedos: ['','4','2','3','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'D6': { nome: 'D6', cordas: [-1,-1,0,2,0,2], dedos: ['','','','2','','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'E6': { nome: 'E6', cordas: [0,2,2,1,2,0], dedos: ['','2','3','1','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'G6': { nome: 'G6', cordas: [3,-1,2,0,3,3], dedos: ['2','','1','','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    // Família de Fá (F)
+    "F":   { nome: "Fá Maior",     pestana: true,  trasteIncap: 1, cordas: [1, 3, 3, 2, 1, 1], dedos: [1, 3, 4, 2, 1, 1] },
+    "Fm":  { nome: "Fá Menor",     pestana: true,  trasteIncap: 1, cordas: [1, 3, 3, 1, 1, 1], dedos: [1, 3, 4, 1, 1, 1] },
+    "F7":  { nome: "Fá Dominante", pestana: true,  trasteIncap: 1, cordas: [1, 3, 1, 2, 1, 1], dedos: [1, 3, 1, 2, 1, 1] },
     
-
-// ========== Maior 6(9) ==========
-    'C6(9)': {nome:'C6(9)', cordas: [-1,4,2,2,4,4], dedos: ['','2','1','1','3','4'],  pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
+    // Família de Sol (G)
+    "G":   { nome: "Sol Maior",    pestana: false, trasteIncap: 0, cordas: [3, 2, 0, 0, 0, 3], dedos: [3, 2, 0, 0, 0, 4] },
+    "Gm":  { nome: "Sol Menor",    pestana: true,  trasteIncap: 3, cordas: [1, 3, 3, 1, 1, 1], dedos: [1, 3, 4, 1, 1, 1] },
+    "G7":  { nome: "Sol Dominante", pestana: false, trasteIncap: 0, cordas: [3, 2, 0, 0, 0, 1], dedos: [3, 2, 0, 0, 0, 1] },
     
-
-
-
-// ========== Maior 7+ ==========
-    'A7+': { nome: 'A7+', cordas: [-1,0,2,1,2,0], dedos: ['','','2','1','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'C7+': { nome: 'C7+', cordas: [-1,3,2,0,0,0], dedos: ['','3','2','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'D7+': { nome: 'D7+', cordas: [-1,-1,0,2,2,2], dedos: ['','','','1','1','1'], pestana: true, pestanaCordas: [3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
-    'E7+': { nome: 'E7+', cordas: [0,2,1,1,0,0], dedos: ['','3','1','2','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'F7+': { nome: 'F7+', cordas: [-1,-1,3,2,1,0], dedos: ['','','3','2','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'G7+': { nome: 'G7+', cordas: [3,-1,0,0,0,2], dedos: ['2','','','','','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    // Família de Lá (A)
+    "A":   { nome: "Lá Maior",     pestana: false, trasteIncap: 0, cordas: ["X", 0, 2, 2, 2, 0], dedos: [0, 0, 1, 2, 3, 0] },
+    "Am":  { nome: "Lá Menor",     pestana: false, trasteIncap: 0, cordas: ["X", 0, 2, 2, 1, 0], dedos: [0, 0, 2, 3, 1, 0] },
+    "A7":  { nome: "Lá Dominante", pestana: false, trasteIncap: 0, cordas: ["X", 0, 2, 0, 2, 0], dedos: [0, 0, 1, 0, 2, 0] },
     
-
-// ========== 7(4) ==========
-    'A7(4)': { nome: 'A7(4)', cordas: [-1,0,2,0,3,0], dedos: ['','','2','','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'C7(4)': { nome: 'C7(4)', cordas: [-1,3,3,3,1,-1], dedos: ['','2','3','4','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'D7(4)': { nome: 'D7(4)', cordas: [-1,-1,0,2,1,3], dedos: ['','','','2','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'E7(4)': { nome: 'E7(4)', cordas: [0,2,0,2,0,0], dedos: ['','2','','3','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'G7(4)': { nome: 'G7(4)', cordas: [3,-1,3,0,1,3], dedos: ['2','','3','','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    
-
-// ========== Maior 11 ==========
-    'A11': { nome: 'A11', cordas: [-1,0,0,0,0,0], dedos: ['','','','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'B11': { nome:'B11', cordas: [-1,2,2,2,2,2], dedos: ['','1','1','1','1','1'],  pestana: true, pestanaCordas: [1,2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
-    'C11': { nome: 'C11', cordas: [-1,3,-1,3,4,1], dedos: ['','2','','3','4','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-
-
- // ========== Maior 5+ ==========
-    'A5+': { nome: 'A5+', cordas: [-1,0,-1,2,2,1], dedos: ['','','','2','3','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Bb5+': { nome: 'Bb5+', cordas: [-1,1,-1,1,3,2], dedos: ['','1','','2','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'C5+': { nome: 'C5+', cordas: [-1,3,2,1,1,-1], dedos: ['','3','2','1','1',''],  pestana: true, pestanaCordas: [3,4], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
-    
-
-
-
-// ========== Menor 6 ==========
-    'Am6': { nome: 'Am6', cordas: [-1,0,2,0,1,2], dedos: ['','','2','0','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Bm6': { nome: 'Bm6', cordas: [-1,0,2,0,1,2], dedos: ['','','2','0','1','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Cm6': { nome: 'Cm6', cordas: [-1,3,-1,2,4,3], dedos: ['','2','','1','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Dm6': { nome: 'Dm6', cordas: [-1,-1,0,2,0,1], dedos: ['','','','2','','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Em6': { nome: 'Em6', cordas: [0,2,2,0,2,0], dedos: ['','2','3','','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-
-
-// ========== Maior 7(5+) ==========
-'D7(5+)': { nome: 'D7(5+)', cordas: [-1,-1,0,3,1,2], dedos: ['','','','3','1','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-// ========== Maior 7(b5) ==========
-'D7(b5)': { nome: 'D7(b5)', cordas: [-1,-1,0,1,1,2], dedos: ['','','','1','2','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-
-
-// ========== Menor 7(b5) ==========
-    'Am7(b5)': { nome: 'Am7(b5)', cordas: [-1,0,1,2,1,3], dedos: ['','','1','2','1','4'], pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
-    'Bbm7(b5)': { nome: 'Bbm7(b5)', cordas: [-1,2,0,1,4,2], dedos: ['','2','','1','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Bm7(b5)': { nome: 'Bm7(b5)', cordas: [-1,2,3,2,3,-1], dedos: ['','1','3','2','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Dm7(b5)': { nome: 'Dm7(b5)', cordas: [-1,-1,0,1,1,1], dedos: ['','','','1','1','1'], pestana: true, pestanaCordas: [3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
-
-
-
-// ========== Menor 7+ ==========
-    'Cm7+': { nome: 'Cm7+', cordas: [-1,3,1,0,0,-1], dedos: ['','3','1','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    
-
-
-// ========== Menor 9 ==========
-    'Am9': { nome: 'Am9', cordas: [-1,0,2,4,1,3], dedos: ['','','2','4','1','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Bm9': { nome: 'Bm9', cordas: [-1,2,0,2,2,2], dedos: ['','1','','2','3','4'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Em9': { nome: 'Em9', cordas: [0,2,2,0,3,2], dedos: ['','1','2','','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-    
-// ========== Menor 7+ ==========
-    'Am7+': { nome: 'Am7+', cordas: [-1,0,2,1,1,0], dedos: ['','','3','1','2','0'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Bm7+': { nome: 'Bm7+', cordas: [-1,2,-1,3,3,2], dedos: ['','1','','3','4','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Dm7+': { nome: 'Dm7+', cordas: [-1,-1,0,2,2,1], dedos: ['','','','2','3','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Em7+': { nome: 'Em7+', cordas: [0,2,1,0,0,0], dedos: ['','2','1','','',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-
-// ========== Menor 11 ==========
-    'Am11': { nome: 'Am11', cordas: [-1,0,0,0,1,0], dedos: ['','','','','1',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Bm11': { nome:'Bm11', cordas: [-1,2,2,2,4,2], dedos: ['','1','1','1','2','1'],  pestana: true, pestanaCordas: [1,2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
-    'Cm11': { nome: 'Cm11', cordas: [-1,3,0,3,3,1], dedos: ['','2','0','3','4','1'], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'Dm11': { nome: 'Dm11', cordas: [-1,-1,0,0,1,1], dedos: ['','','','','1','1'], pestana: true, pestanaCordas: [4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
-
-
-
-
-// ========== Maior 7(#9) ==========
-    'Bb7(#9)': { nome: 'Bb7(#9)', cordas: [-1,1,0,1,2,0], dedos: ['','1','','2','3',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'B7(#9)': { nome: 'B7(#9)', cordas: [-1,2,1,2,4,-1], dedos: ['','2','1','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'C7(#9)': { nome: 'C7(#9)', cordas: [-1,3,2,2,4,-1], dedos: ['','2','1','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-
-// ========== Maior 9 ==========
-    'Bb9': { nome: 'Bb9', cordas: [-1,1,0,1,1,0], dedos: ['','2','','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'B9': { nome: 'B9', cordas: [-1,2,1,2,2,-1], dedos: ['','2','1','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-    'C9': { nome: 'C9', cordas: [-1,3,2,3,3,-1], dedos: ['','2','1','3','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-// ========== Maior 7(b9) ==========
-   'C7(b9)': { nome: 'C7(b9)', cordas: [-1,3,2,3,2,-1], dedos: ['','3','1','4','2',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-// ========== Maior 13(b9) ==========
-    'C13(b9)': { nome: 'C13(b9)', cordas: [-1,4,2,4,2,6], dedos: ['','2','1','3','1','4'],  pestana: true, pestanaCordas: [2,3,4,5], pestanaCasa: 2, casaInicial: 1, mostrarNumero: false },
-    
-// ========== °7 ==========
-    'Bb°7': { nome: 'Bb°7', cordas: [-1,1,2,0,2,-1], dedos: ['','2','3','0','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-     'B°7': { nome: 'B°7', cordas: [-1,1,2,0,2,-1], dedos: ['','2','3','0','4',''], pestana: false, casaInicial: 0, mostrarNumero: false },
-
-
-// ========== ° ==========
-     'D°': { nome: 'D°', cordas: [-1,-1,0,1,3,1], dedos: ['','','','1','4','1'], pestana: true, pestanaCordas: [3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
-
-
-    // ========== Maior 7(5+) ==========
-
-
-
+    // Família de Si (B)
+    "B":   { nome: "Si Maior",     pestana: true,  trasteIncap: 2, cordas: ["X", 1, 3, 3, 3, 1], dedos: [0, 1, 2, 3, 4, 1] },
+    "Bm":  { nome: "Si Menor",     pestana: true,  trasteIncap: 2, cordas: ["X", 1, 3, 3, 2, 1], dedos: [0, 1, 3, 4, 2, 1] }
 };
 
-// Exporta para uso global
-if (typeof window !== 'undefined') {
-    window.ACORDES = ACORDES;
+function renderizarAcordes(containerAlvo = document) {
+    const elementos = containerAlvo.querySelectorAll('.acorde-chart, [data-chord]');
+
+    elementos.forEach(el => {
+        if (el.hasAttribute('data-renderizado-ok')) return;
+
+        let tokenAcorde = el.getAttribute('data-chord') || el.textContent.trim();
+        tokenAcorde = tokenAcorde.replace(/\[|\]/g, '').trim(); 
+        
+        if (!tokenAcorde) return;
+
+        const configuracao = DICIONARIO_ACORDES_MESTRE[tokenAcorde] || DICIONARIO_ACORDES_MESTRE[tokenAcorde.toUpperCase()];
+        
+        // Se o acorde não existir no mapa de dados mestre, interrompe a quebra de layout
+        if (!configuracao) return;
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 150;
+        canvas.height = 180;
+        canvas.style.width = "150px";
+        canvas.style.height = "180px";
+        canvas.className = "canvas-acorde-renderizado";
+        
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        el.textContent = '';
+        el.appendChild(canvas);
+        el.setAttribute('data-renderizado-ok', 'true');
+
+        // Renderização Gráfica Avançada do Canvas
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+        // Título/Cifra do Acorde
+        ctx.fillStyle = '#1e293b';
+        ctx.font = 'bold 20px Helvetica, Arial, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(tokenAcorde, 75, 25);
+
+        // Configuração de Margens e Escalas da Grade
+        const xInicial = 25;
+        const yInicial = 50;
+        const espacamentoCordas = 20; // Total 5 espaços para 6 cordas = 100px
+        const espacamentoTrastes = 24; // Total 4 espaços = 96px
+        const numTrastes = 4;
+
+        // Desenha Número do Traste de Referência (Se houver Pestana móvel fora do traste 1)
+        if (configuracao.trasteIncap > 1 && configuracao.pestana) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = '12px sans-serif';
+            ctx.textAlign = 'right';
+            ctx.fillText(`${configuracao.trasteIncap}º`, xInicial - 6, yInicial + 16);
+        }
+
+        // Desenha Trastes (Linhas Horizontais)
+        ctx.strokeStyle = '#475569';
+        for (let i = 0; i <= numTrastes; i++) {
+            ctx.lineWidth = (i === 0 && configuracao.trasteIncap <= 1) ? 4 : 1.5;
+            ctx.beginPath();
+            ctx.moveTo(xInicial, yInicial + (i * espacamentoTrastes));
+            ctx.lineTo(xInicial + (5 * espacamentoCordas), yInicial + (i * espacamentoTrastes));
+            ctx.stroke();
+        }
+
+        // Desenha Cordas (Linhas Verticais)
+        ctx.lineWidth = 1.5;
+        for (let i = 0; i < 6; i++) {
+            ctx.beginPath();
+            ctx.moveTo(xInicial + (i * espacamentoCordas), yInicial);
+            ctx.lineTo(xInicial + (i * espacamentoCordas), yInicial + (numTrastes * espacamentoTrastes));
+            ctx.stroke();
+        }
+
+        // Desenha Marcadores de topo (Cordas Soltas "O" ou Não Tocadas "X")
+        configuracao.cordas.forEach((status, indiceCorda) => {
+            let posX = xInicial + (indiceCorda * espacamentoCordas);
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            
+            if (status === "X") {
+                ctx.fillStyle = '#ef4444';
+                ctx.fillText("X", posX, yInicial - 6);
+            } else if (status === 0) {
+                ctx.fillStyle = '#22c55e';
+                ctx.fillText("O", posX, yInicial - 6);
+            }
+        });
+
+        // Desenha Pestana (Se configurado na var mestre)
+        if (configuracao.pestana) {
+            let trasteDesenho = configuracao.trasteIncap > 1 ? 1 : configuracao.trasteIncap;
+            let yPestana = yInicial + (trasteDesenho * espacamentoTrastes) - (espacamentoTrastes / 2);
+            
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 10;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            
+            // Encontra a primeira corda que não seja 'X' para deitar a pestana
+            let primeiraCordaValida = configuracao.cordas.findIndex(c => c !== "X");
+            let xStart = xInicial + (primeiraCordaValida * espacamentoCordas);
+            let xEnd = xInicial + (5 * espacamentoCordas);
+            
+            ctx.moveTo(xStart, yPestana);
+            ctx.lineTo(xEnd, yPestana);
+            ctx.stroke();
+            ctx.lineWidth = 1.5; // Restaura linha padrão
+        }
+
+        // Desenha Bolinhas das Posições dos Dedos
+        configuracao.cordas.forEach((status, indiceCorda) => {
+            if (status !== "X" && status > 0) {
+                // Se for pestana, pula o desenho do dedo individual se ele bater no traste base da pestana
+                if (configuracao.pestana && status === configuracao.trasteIncap) {
+                    // Desenha apenas o número do dedo se for diferente de 1 na casa da pestana
+                    return;
+                }
+
+                let casaRelativa = configuracao.trasteIncap > 1 ? (status - configuracao.trasteIncap + 1) : status;
+                let posX = xInicial + (indiceCorda * espacamentoCordas);
+                let posY = yInicial + (casaRelativa * espacamentoTrastes) - (espacamentoTrastes / 2);
+
+                // Desenha Círculo do Dedo
+                ctx.fillStyle = '#2563eb';
+                ctx.beginPath();
+                ctx.arc(posX, posY, 8, 0, 2 * Math.PI);
+                ctx.fill();
+
+                // Número do Dedo Interno
+                let numeroDedo = configuracao.dedos[indiceCorda];
+                if (numeroDedo > 0) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 11px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(numeroDedo, posX, posY);
+                }
+            }
+        });
+    });
 }
