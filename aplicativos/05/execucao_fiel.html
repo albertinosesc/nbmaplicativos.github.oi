@@ -25,35 +25,6 @@
             padding: 20px;
             text-align: center;
         }
-        .config-bar {
-            background: #f39c12;
-            padding: 10px 20px;
-            display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            align-items: center;
-        }
-        .config-bar span {
-            font-size: 14px;
-            font-weight: bold;
-        }
-        .config-bar input {
-            flex: 1;
-            padding: 8px;
-            min-width: 250px;
-            font-size: 14px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-        }
-        .config-bar button {
-            background: #2c3e50;
-            color: white;
-            border: none;
-            padding: 8px 15px;
-            cursor: pointer;
-            font-size: 14px;
-            border-radius: 4px;
-        }
         .status-bar {
             background: #27ae60;
             color: white;
@@ -61,6 +32,27 @@
             display: flex;
             justify-content: space-between;
             font-size: 14px;
+            align-items: center;
+        }
+        .sync-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .sync-indicator {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #f39c12;
+            animation: pulse 1.5s infinite;
+        }
+        @keyframes pulse {
+            0% { opacity: 0.3; transform: scale(0.8); }
+            100% { opacity: 1; transform: scale(1.2); }
+        }
+        .sync-indicator.synced {
+            background: #27ae60;
+            animation: none;
         }
         .tabs-wrapper {
             background: #1a252f;
@@ -263,16 +255,12 @@
         <p>Cadastre lições, velocidades e gerencie colunas dinamicamente</p>
     </div>
         
-    <div class="config-bar">
-        <span>🔗 Google Sheets URL:</span>
-        <input type="text" id="webAppUrl" placeholder="https://script.google.com/macros/s/.../exec">
-        <button onclick="testarConexao()">🔌 Testar</button>
-        <button onclick="salvarUrl()">💾 Salvar URL</button>
-    </div>
-        
     <div class="status-bar">
-        <span>Status: <span id="statusModo">Local</span></span>
-        <span id="lastUpdate">📁 Dados salvos localmente</span>
+        <span>Status: <span id="statusModo">Conectado ✓</span></span>
+        <div class="sync-status">
+            <div class="sync-indicator" id="syncIndicator"></div>
+            <span id="syncText">Pronto</span>
+        </div>
     </div>
         
     <div class="tabs-wrapper">
@@ -292,10 +280,13 @@
 </div>
 
 <script>
+    // URL FIXA DO GOOGLE APPS SCRIPT
+    const webAppUrl = 'https://script.google.com/macros/s/AKfycbzebjpdDz2dhkZIDG2No-tx9RUOmG6oKD6_TrQFgwu2SAlvHeGBg0U5pKLgUXQ1s7svRQ/exec';
+    
     let customTabs = [];
     let sheetData = {};
     let currentTabId = null;
-    let webAppUrl = localStorage.getItem('webAppUrl') || '';
+    let atualizandoBackground = false;
 
     function extrairNumero(texto) {
         if (!texto) return null;
@@ -331,7 +322,6 @@
     }
 
     async function enviarMusicaParaGoogle(linhaCompleta, nomeAbaAlternativo = null) {
-        if (!webAppUrl) return false;
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
             const nomeAba = nomeAbaAlternativo || tab.nome;
@@ -341,7 +331,6 @@
             const result = await response.json();
             
             if (result.success) {
-                document.getElementById('lastUpdate').innerHTML = "☁️ Enviado: " + new Date().toLocaleTimeString();
                 return true;
             }
             return false;
@@ -352,7 +341,6 @@
     }
 
     async function enviarTabelaCompletaParaGoogle() {
-        if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
         const tab = customTabs.find(t => t.id === currentTabId);
         const todasAsLinhas = sheetData[currentTabId];
                 
@@ -370,68 +358,57 @@
                 if (enviou) sucessos++;
             }
             mostrarMensagem(`✅ ${sucessos} de ${todasAsLinhas.length} itens sincronizados!`, "success");
+            atualizarStatusSync("sincronizado");
         } catch (e) {
             mostrarMensagem("Erro na sincronização: " + e.message, "error");
         }
         mostrarLoading(false);
     }
 
-    async function buscarDoGoogle() {
-        if (!webAppUrl) {
-            mostrarMensagem("Configure a URL do Google Sheets primeiro!", "error");
-            return false;
-        }
-        
-        mostrarLoading(true, "Buscando dados do Google Sheets...");
+    async function buscarDoGoogleBackground() {
+        if (atualizandoBackground) return;
+        atualizandoBackground = true;
         
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
-            if (!tab) return false;
+            if (!tab) return;
+            
+            atualizarStatusSync("atualizando");
             
             const url = `${webAppUrl}?acao=buscar&aba=${encodeURIComponent(tab.nome)}&t=${Date.now()}`;
             const response = await fetch(url);
             const result = await response.json();
             
-            if (result.success && result.dados) {
-                if (result.dados.length > 0) {
+            if (result.success && result.dados && result.dados.length > 0) {
+                const dadosAtuaisStr = JSON.stringify(sheetData[currentTabId]);
+                const novosDadosStr = JSON.stringify(result.dados);
+                
+                if (dadosAtuaisStr !== novosDadosStr) {
                     sheetData[currentTabId] = result.dados;
                     tab.colunas = [...result.dados[0]];
                     ordenarMusicas(currentTabId);
                     saveAllToLocal();
                     renderizarInterface();
-                    mostrarMensagem(`✅ ${result.dados.length - 1} itens carregados do Google!`, "success");
-                    document.getElementById('lastUpdate').innerHTML = "🔄 Sincronizado: " + new Date().toLocaleTimeString();
-                    return true;
-                } else {
-                    mostrarMensagem("Nenhum dado encontrado no Google Sheets", "info");
-                    return false;
+                    mostrarMensagem("🔄 Dados atualizados do Google!", "info", 2000);
                 }
-            } else {
-                mostrarMensagem("Erro ao carregar dados", "error");
-                return false;
             }
         } catch (error) {
-            console.error("Erro na busca:", error);
-            mostrarMensagem("Erro ao conectar: " + error.message, "error");
-            return false;
+            console.error("Erro na busca em background:", error);
         } finally {
-            mostrarLoading(false);
+            atualizandoBackground = false;
+            atualizarStatusSync("pronto");
         }
     }
 
     async function carregarAbasDoGoogle() {
-        if (!webAppUrl) return;
-        
         try {
             const response = await fetch(`${webAppUrl}?acao=listarAbas&t=${Date.now()}`);
             const data = await response.json();
             
             if (data.success && data.abas) {
-                // Sincronizar abas do Google com as locais
                 for (const abaName of data.abas) {
                     const abaExistente = customTabs.find(t => t.nome === abaName);
                     if (!abaExistente) {
-                        // Criar aba local se não existir
                         const newId = "tab_" + Date.now() + "_" + abaName;
                         customTabs.push({ 
                             id: newId, 
@@ -494,30 +471,92 @@
     }
 
     function mudarAba(tabId) {
+        if (currentTabId === tabId) return;
         currentTabId = tabId;
         renderTabs();
         renderizarInterface();
+        setTimeout(() => buscarDoGoogleBackground(), 100);
     }
 
     function renderizarInterface() {
         const tab = customTabs.find(t => t.id === currentTabId);
         if (!tab) {
-            document.getElementById('mainContent').innerHTML = `<p style="text-align:center; color:#7f8c8d; padding:40px;">Nenhum livro selecionado. Crie ou selecione um acima.</p>`;
+            document.getElementById('mainContent').innerHTML = '<p style="text-align:center; color:#7f8c8d; padding:40px;">Nenhum livro selecionado. Crie ou selecione um acima.</p>';
             return;
         }
-                
-        const headers = sheetData[tab.id] && sheetData[tab.id][0] ? sheetData[tab.id][0] : [...tab.colunas];
+        
+        // Garantir que headers existe
+        let headers = [];
+        if (sheetData[tab.id] && sheetData[tab.id][0]) {
+            headers = sheetData[tab.id][0];
+        } else {
+            headers = [...tab.colunas];
+        }
+        
         const rows = sheetData[tab.id] ? sheetData[tab.id].slice(1) : [];
-                
-        let camposCadastroHtml = headers.map((colNome, idx) => `
-            <div class="form-group">
-                <label>${colNome}:</label>
-                <input type="text" id="campo_cad_${idx}" placeholder="${idx === 0 ? 'Ex: Lição 01' : 'Digite o valor'}">
-                ${idx === 0 ? '<div class="small-note">💡 Dica: Comece com números para auto-ordenação.</div>' : ''}
-            </div>
-        `).join('');
+        
+        // Formulário de cadastro
+        let camposCadastroHtml = '';
+        for (let idx = 0; idx < headers.length; idx++) {
+            const colNome = headers[idx] || '';
+            camposCadastroHtml += `
+                <div class="form-group">
+                    <label>${colNome}:</label>
+                    <input type="text" id="campo_cad_${idx}" placeholder="${idx === 0 ? 'Ex: Lição 01' : 'Digite o valor'}">
+                    ${idx === 0 ? '<div class="small-note">💡 Dica: Comece com números para auto-ordenação.</div>' : ''}
+                </div>
+            `;
+        }
 
-        let html = `
+        // Construir tabela
+        let tabelaHtml = '';
+        if (rows.length === 0) {
+            tabelaHtml = `<tr><td colspan="${headers.length + 1}" style="text-align:center;">Nenhuma lição ou música cadastrada</td></tr>`;
+        } else {
+            for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
+                const row = rows[rowIdx];
+                if (!row || row.length === 0) continue;
+                
+                const primeiroValor = (row[0] !== undefined && row[0] !== null) ? row[0].toString() : '';
+                
+                tabelaHtml += '<tr>';
+                tabelaHtml += `<td style="text-align:left;">${primeiroValor}</td>`;
+                
+                // Colunas de dados (exceto a primeira)
+                for (let colIdx = 1; colIdx < headers.length; colIdx++) {
+                    let val = row[colIdx];
+                    if (val === undefined || val === null) val = '';
+                    const valString = val.toString();
+                    tabelaHtml += `
+                        <td>
+                            <input type="text" class="input-celula" value="${valString.replace(/"/g, '&quot;')}"
+                                 onchange="atualizarValorInput(${rowIdx}, ${colIdx}, this.value)"
+                                 placeholder="-">
+                        </td>
+                    `;
+                }
+                
+                // Coluna de ações
+                tabelaHtml += `
+                    <td>
+                        <button class="action-btn" style="background:#3498db; color:white;" onclick="preencherFormParaEditar(${rowIdx})">✏️</button>
+                        <button class="action-btn" style="background:#e74c3c; color:white;" onclick="excluirRegistro(${rowIdx})">🗑️</button>
+                    </td>
+                `;
+                tabelaHtml += '</tr>';
+            }
+        }
+
+        // Cabeçalho da tabela
+        let cabecalhoHtml = '<tr>';
+        for (let h = 0; h < headers.length; h++) {
+            cabecalhoHtml += `<th>${headers[h] || ''}</th>`;
+        }
+        cabecalhoHtml += '<th>Ações</th>';
+        cabecalhoHtml += '</tr>';
+
+        // HTML completo
+        const html = `
             <div class="form-card">
                 <h3>➕ Cadastrar / Atualizar Item</h3>
                 <div class="form-grid">
@@ -525,7 +564,7 @@
                 </div>
                 <div class="button-group">
                     <button class="btn-enviar" onclick="adicionarRegistro()">💾 Salvar Item</button>
-                    <button class="btn-buscar" onclick="sincronizarDoGoogle()">📥 Trazer do Google Sheets</button>
+                    <button class="btn-buscar" onclick="forcarAtualizacao()">📥 Forçar Atualização</button>
                     <button class="btn-atualizar-tudo" onclick="enviarTabelaCompletaParaGoogle()">📤 Enviar Tudo para Google</button>
                 </div>
             </div>
@@ -542,39 +581,15 @@
             <div class="table-scroll">
                 <table border="1">
                     <thead>
-                        <tr>
-                            ${headers.map(h => `<th>${h}</th>`).join('')}
-                            <th>Ações</th>
-                        </tr>
+                        ${cabecalhoHtml}
                     </thead>
                     <tbody>
-                        ${rows.length === 0 ? `
-                            <tr><td colspan="${headers.length + 1}" style="text-align:center;">Nenhuma lição ou música cadastrada</td></tr>
-                        ` : rows.map((row, rowIdx) => {
-                            if (!row || row.length === 0) return '';
-                            return `
-                            <tr>
-                                <td style="text-align:left;">${row[0] || ''}</td>
-                                ${headers.slice(1).map((ch, colIdx) => {
-                                    const val = row[colIdx+1] || '';
-                                    return `
-                                        <td>
-                                            <input type="text" class="input-celula" value="${val.replace(/"/g, '&quot;')}"
-                                                 onchange="atualizarValorInput(${rowIdx}, ${colIdx+1}, this.value)"
-                                                 placeholder="-">
-                                        </td>
-                                    `;
-                                }).join('')}
-                                <td>
-                                    <button class="action-btn" style="background:#3498db; color:white;" onclick="preencherFormParaEditar(${rowIdx})">✏️</button>
-                                    <button class="action-btn" style="background:#e74c3c; color:white;" onclick="excluirRegistro(${rowIdx})">🗑️</button>
-                                </td>
-                            </tr>
-                        `}).join('')}
+                        ${tabelaHtml}
                     </tbody>
                 </table>
             </div>
         `;
+        
         document.getElementById('mainContent').innerHTML = html;
     }
 
@@ -589,7 +604,7 @@
 
     window.adicionarRegistro = async function() {
         const headers = sheetData[currentTabId][0];
-        const primeiroCampo = document.getElementById('campo_cad_0')?.value.trim();
+        const primeiroCampo = document.getElementById('campo_cad_0')?.value?.trim();
                 
         if (!primeiroCampo) { 
              mostrarMensagem(`O campo "${headers[0]}" é obrigatório!`, "error"); 
@@ -598,7 +613,7 @@
                 
         const novaRow = [];
         for(let i=0; i<headers.length; i++) {
-            const val = document.getElementById(`campo_cad_${i}`)?.value.trim() || "";
+            const val = document.getElementById(`campo_cad_${i}`)?.value?.trim() || "";
             novaRow.push(val);
         }
                 
@@ -626,10 +641,13 @@
 
     window.preencherFormParaEditar = function(rowIdx) {
         const rowData = sheetData[currentTabId][rowIdx + 1];
-        rowData.forEach((val, i) => {
+        for (let i = 0; i < rowData.length; i++) {
             const el = document.getElementById(`campo_cad_${i}`);
-            if (el) el.value = val;
-        });
+            if (el) {
+                const val = rowData[i];
+                el.value = (val !== undefined && val !== null) ? val : '';
+            }
+        }
         document.getElementById('campo_cad_0').focus();
         mostrarMensagem("Dados copiados para edição!", "info");
     };
@@ -640,7 +658,7 @@
             saveAllToLocal();
             renderizarInterface();
             mostrarMensagem("Item removido", "info");
-            if (webAppUrl) await enviarTabelaCompletaParaGoogle();
+            await enviarTabelaCompletaParaGoogle();
         }
     };
 
@@ -650,16 +668,11 @@
         
         const novoNome = prompt(`Digite o novo nome para o livro "${tab.nome}":`, tab.nome);
         if (novoNome && novoNome.trim() && novoNome.trim() !== tab.nome) {
-            const nomeAntigo = tab.nome;
             tab.nome = novoNome.trim();
             
-            // Criar nova aba no Google com o novo nome
-            if (webAppUrl) {
-                await fetch(`${webAppUrl}?acao=criarAba&nomeAba=${encodeURIComponent(tab.nome)}&t=${Date.now()}`);
-                // Copiar dados para a nova aba
-                for (const row of sheetData[currentTabId]) {
-                    await enviarMusicaParaGoogle(row, tab.nome);
-                }
+            await fetch(`${webAppUrl}?acao=criarAba&nomeAba=${encodeURIComponent(tab.nome)}&t=${Date.now()}`);
+            for (const row of sheetData[currentTabId]) {
+                await enviarMusicaParaGoogle(row, tab.nome);
             }
             
             saveAllToLocal();
@@ -674,10 +687,7 @@
         if (!tab) { mostrarMensagem("Nenhum livro selecionado!", "error"); return; }
         
         if (confirm(`⚠️ ATENÇÃO: Deseja realmente excluir permanentemente o livro "${tab.nome}" e TODOS os seus dados salvos?`)) {
-            // Deletar aba no Google
-            if (webAppUrl) {
-                await fetch(`${webAppUrl}?acao=deletarAba&nomeAba=${encodeURIComponent(tab.nome)}&t=${Date.now()}`);
-            }
+            await fetch(`${webAppUrl}?acao=deletarAba&nomeAba=${encodeURIComponent(tab.nome)}&t=${Date.now()}`);
             
             customTabs = customTabs.filter(t => t.id !== currentTabId);
             delete sheetData[currentTabId];
@@ -702,7 +712,9 @@
             const tab = customTabs.find(t => t.id === currentTabId);
             sheetData[currentTabId][0].push(nomeColuna.trim());
             tab.colunas.push(nomeColuna.trim());
-            sheetData[currentTabId].slice(1).forEach(r => r.push(""));
+            for (let i = 1; i < sheetData[currentTabId].length; i++) {
+                sheetData[currentTabId][i].push("");
+            }
             saveAllToLocal();
             renderizarInterface();
             mostrarMensagem(`Coluna "${nomeColuna}" criada!`, "info");
@@ -715,9 +727,9 @@
         const headers = sheetData[currentTabId][0];
         
         let msg = "Escolha qual coluna deseja renomear:\n\n";
-        headers.forEach((h, idx) => {
-            if (idx > 0) msg += `${idx} - ${h}\n`;
-        });
+        for (let idx = 0; idx < headers.length; idx++) {
+            if (idx > 0) msg += `${idx} - ${headers[idx]}\n`;
+        }
         
         const escolha = prompt(msg + "\nDigite o número da coluna:");
         const idxEscolhido = parseInt(escolha, 10);
@@ -743,7 +755,9 @@
             return;
         }
         if (confirm(`Aviso: Remover a coluna "${headers[headers.length - 1]}" apagará os dados dela. Continuar?`)) {
-            sheetData[currentTabId].forEach(r => r.pop());
+            for (let i = 0; i < sheetData[currentTabId].length; i++) {
+                sheetData[currentTabId][i].pop();
+            }
             tab.colunas.pop();
             saveAllToLocal();
             renderizarInterface();
@@ -752,41 +766,34 @@
         }
     };
 
-    window.sincronizarDoGoogle = async function() {
-        if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
-        await buscarDoGoogle();
+    window.forcarAtualizacao = async function() {
+        mostrarLoading(true, "Forçando atualização...");
+        await buscarDoGoogleBackground();
         await carregarAbasDoGoogle();
-    };
-
-    window.testarConexao = async function() {
-        if (!webAppUrl) { mostrarMensagem("Configure a URL primeiro", "error"); return; }
-        mostrarLoading(true, "Testando conexão...");
-        try {
-            const url = `${webAppUrl}?acao=teste&t=${Date.now()}`;
-            const response = await fetch(url);
-            const result = await response.json();
-            
-            if (result.success) {
-                mostrarMensagem("✅ Conexão OK! Google Sheets respondendo.", "success");
-                document.getElementById('statusModo').textContent = 'Conectado ✓';
-                await carregarAbasDoGoogle();
-            } else {
-                mostrarMensagem("❌ Erro na conexão", "error");
-            }
-        } catch (error) {
-            mostrarMensagem("❌ Erro ao conectar: " + error.message, "error");
-            document.getElementById('statusModo').textContent = 'Erro';
-        }
         mostrarLoading(false);
+        mostrarMensagem("✅ Atualização concluída!", "success");
     };
 
-    window.salvarUrl = function() {
-        webAppUrl = document.getElementById('webAppUrl').value.trim();
-        localStorage.setItem('webAppUrl', webAppUrl);
-        document.getElementById('statusModo').textContent = webAppUrl ? 'Conectado' : 'Local';
-        mostrarMensagem("URL salva com sucesso!", "success");
-        if (webAppUrl) testarConexao();
-    };
+    function atualizarStatusSync(estado) {
+        const indicator = document.getElementById('syncIndicator');
+        const text = document.getElementById('syncText');
+        
+        if (estado === 'atualizando') {
+            indicator.className = 'sync-indicator';
+            text.innerHTML = '🔄 Sincronizando...';
+        } else if (estado === 'sincronizado') {
+            indicator.className = 'sync-indicator synced';
+            text.innerHTML = '✓ Sincronizado';
+            setTimeout(() => {
+                if (text.innerHTML === '✓ Sincronizado') {
+                    text.innerHTML = 'Pronto';
+                }
+            }, 3000);
+        } else {
+            indicator.className = 'sync-indicator synced';
+            text.innerHTML = '✓ Pronto';
+        }
+    }
 
     function mostrarLoading(show, texto = "Sincronizando...") { 
         const loadingDiv = document.getElementById('loading');
@@ -795,12 +802,12 @@
         loadingDiv.classList.toggle('active', show); 
     }
     
-    function mostrarMensagem(msg, tipo) {
+    function mostrarMensagem(msg, tipo, tempo = 3000) {
         const div = document.createElement('div');
         div.className = `message ${tipo}`;
         div.textContent = msg;
         document.body.appendChild(div);
-        setTimeout(() => div.remove(), 3000);
+        setTimeout(() => div.remove(), tempo);
     }
 
     window.abrirModalNovaAba = async function() {
@@ -815,22 +822,21 @@
             renderizarInterface();
             mostrarMensagem(`Livro "${nome}" criado!`, "success");
             
-            if (webAppUrl) {
-                await fetch(`${webAppUrl}?acao=criarAba&nomeAba=${encodeURIComponent(nome)}&t=${Date.now()}`);
-                await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
-            }
+            await fetch(`${webAppUrl}?acao=criarAba&nomeAba=${encodeURIComponent(nome)}&t=${Date.now()}`);
+            await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
         }
     };
 
-    // Inicialização
+    // INICIALIZAÇÃO
     loadFromLocalStorage();
     renderTabs();
     renderizarInterface();
     
-    if (webAppUrl) {
-        document.getElementById('webAppUrl').value = webAppUrl;
-        setTimeout(() => testarConexao(), 500);
-    }
+    setTimeout(() => {
+        carregarAbasDoGoogle();
+        buscarDoGoogleBackground();
+    }, 100);
+    
 </script>
 </body>
 </html>
