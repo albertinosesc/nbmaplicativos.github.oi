@@ -2,7 +2,7 @@
 // DICIONÁRIO DINÂMICO DE ACORDES
 // ============================================
 
-const FORMAS_INFINITAS = {
+const FORMAS_INFINITAS = window.FORMAS_INFINITAS || {
 
     // ===== CORDAS BASE 6 (Mi) =====
     '1': { nome: 'Maior', cordaBase: 6, cordas: [1, 3, 3, 2, 1, 1], dedos: ['1', '3', '4', '2', '1', '1'], pestana: [0,1,2,3,4,5] },
@@ -282,11 +282,11 @@ const FORMAS_INFINITAS = {
     // ========== ° ==========
     '186': { nome: 'D°', cordas: [-1,-1,0,1,3,1], dedos: ['','','','1','4','1'], pestana: true, pestanaCordas: [3,4,5], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false },
 
-    // ========== outros  ==========
-    '187': { nome: 'm7', cordas: [-1,2,-1,2,3,2], dedos: ['','1','','2','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
-  '188': { nome: 'm7+', cordas: [-1,2,-1,3,3,2], dedos: ['','1','','3','4','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
-  '189': { nome: 'm6', cordas: [-1,2,-1,1,3,2], dedos: ['','2','','1','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+ // ========== dicionário (exemplo) ==========
 
+    '187': { nome: 'm7', cordas: [-1,2,-1,2,3,2], dedos: ['','1','','2','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '188': { nome: 'm7+', cordas: [-1,2,-1,3,3,2], dedos: ['','1','','3','4','2'], pestana: false, casaInicial: 0, mostrarNumero: false },
+    '189': { nome: 'm6', cordas: [-1,2,-1,1,3,2], dedos: ['','2','','1','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false }
 };
 
 // Processa pestana
@@ -321,45 +321,29 @@ function processarPestana(pestanaConfig, cordas) {
 
 // Função principal USANDO o dicionário FORMAS_INFINITAS
 function processarAcordeDinamico(formato, nomePersonalizado = '') {
-    // Formato: "forma;casa;posicao;texto" 
-    // Exemplo: "2;5;5;5" (forma 2=Menor, casa 5, posição 5, texto 5)
-    
     const partes = formato.split(';').map(p => p.trim());
+    if (partes.length < 2) return null;
     
-    if (partes.length < 2) {
-        console.error('Formato inválido. Use: forma;casa');
-        return null;
-    }
-    
-    const formaId = partes[0];  // '1', '2', '3', '4', '5', '6', '7', '8', '9'
-    const casa = parseInt(partes[1]);  // casa da pestana
+    const formaId = partes[0];
+    const casa = parseInt(partes[1]);
     const posicaoMostrada = partes[2] ? parseInt(partes[2]) : null;
     const textoNumero = partes[3] ? parseInt(partes[3]) : null;
     
-    // Busca a forma no dicionário
     const formaBase = FORMAS_INFINITAS[formaId];
-    if (!formaBase) {
-        console.error(`Forma ${formaId} não encontrada no dicionário`);
-        return null;
-    }
+    if (!formaBase) return null;
     
-    // Calcula as cordas baseado na casa
     const cordas = formaBase.cordas.map(c => {
         if (c === -1) return -1;
         if (c === 0) return 0;
-        return c + casa - 1;  // Ajusta pela casa da pestana
+        return c + casa - 1;
     });
     
-    // Dedos (mantém os mesmos)
     const dedos = [...formaBase.dedos];
-    
-    // Processa a pestana
     let pestanaInfo = { temPestana: false, casa: casa, cordas: [] };
     if (formaBase.pestana) {
         pestanaInfo = processarPestana(formaBase.pestana, cordas);
     }
     
-    // Nome do acorde
     let nome = nomePersonalizado;
     if (!nome || nome === '') {
         const notas = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -378,13 +362,10 @@ function processarAcordeDinamico(formato, nomePersonalizado = '') {
         baixo: ''
     };
     
-    // Adiciona posição se tiver
     if (posicaoMostrada !== null) {
         acorde.posicao = posicaoMostrada;
         acorde.mostrarPosicao = true;
-        acorde.textoPosicao = (textoNumero !== null && !isNaN(textoNumero)) 
-            ? textoNumero + 'ª' 
-            : posicaoMostrada + 'ª';
+        acorde.textoPosicao = (textoNumero !== null && !isNaN(textoNumero)) ? textoNumero + 'ª' : posicaoMostrada + 'ª';
     }
     
     return acorde;
@@ -396,6 +377,7 @@ function desenharAcorde(container, acorde) {
     
     container.innerHTML = '';
     const wrapper = document.createElement('div');
+    wrapper.className = 'violao-wrapper';
     wrapper.style.cssText = 'display: inline-block; margin: 10px; text-align: center;';
     
     const canvas = document.createElement('canvas');
@@ -409,7 +391,6 @@ function desenharAcorde(container, acorde) {
     const startX = 28, startY = 45, stringSpacing = 18, fretSpacing = 26;
     const numFrets = 5;
     
-    // Cordas
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 6; i++) {
@@ -419,7 +400,6 @@ function desenharAcorde(container, acorde) {
         ctx.stroke();
     }
     
-    // Trastes
     for (let i = 0; i <= numFrets; i++) {
         ctx.beginPath();
         ctx.moveTo(startX, startY + i * fretSpacing);
@@ -427,14 +407,12 @@ function desenharAcorde(container, acorde) {
         ctx.stroke();
     }
     
-    // Casa inicial
     if (acorde.casaInicial > 1) {
         ctx.font = 'bold 12px Arial';
         ctx.fillStyle = '#333';
         ctx.fillText(acorde.casaInicial + 'ª', startX - 18, startY + fretSpacing / 2 + 2);
     }
     
-    // Texto da posição
     if (acorde.textoPosicao && acorde.posicao) {
         const posY = startY + (acorde.posicao - 1) * fretSpacing + fretSpacing / 2;
         ctx.font = 'bold 14px Arial';
@@ -442,7 +420,6 @@ function desenharAcorde(container, acorde) {
         ctx.fillText(acorde.textoPosicao, startX - 20, posY + 5);
     }
     
-    // Pestana
     if (acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0) {
         const pestanaY = startY + 12;
         const primeiraCorda = Math.min(...acorde.pestanaCordas);
@@ -457,7 +434,6 @@ function desenharAcorde(container, acorde) {
         ctx.lineWidth = 1.5;
     }
     
-    // Notas
     const pestanaCasa = acorde.pestanaCasa || acorde.casaInicial;
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
@@ -501,23 +477,26 @@ function desenharAcorde(container, acorde) {
     wrapper.appendChild(canvas);
     
     const nomeSpan = document.createElement('div');
+    nomeSpan.className = 'violao-titulo';
     nomeSpan.textContent = acorde.nome;
-    nomeSpan.style.cssText = 'font-size: 12px; margin-top: 8px; color: #333; font-weight: bold;';
+    nomeSpan.style.cssText = 'font-size: 14px; margin-top: 8px; color: #333; font-weight: bold;';
     wrapper.appendChild(nomeSpan);
     
     container.appendChild(wrapper);
 }
 
-// PARSER
-function renderizarAcordes() {
-    const body = document.body;
-    if (!body) return;
+// PARSER MULTI-ALVO ATUALIZADO (Suporta renderização de Pastas, App e Visualizador)
+function renderizarAcordes(alvoOpcional) {
+    // Se passarmos um elemento (ex: divTemp), usamos ele. Se não, age no body inteiro.
+    const elementoRaiz = alvoOpcional || document.body;
+    if (!elementoRaiz) return;
     
-    let html = body.innerHTML;
+    let html = elementoRaiz.innerHTML;
     const regex = /\[Acorde:([^\]]+)\]([^\[]*)\[\/Acorde\]/g;
     let match;
     let newHtml = html;
     let containers = [];
+    let contadorUnico = 0;
     
     while ((match = regex.exec(html)) !== null) {
         const formato = match[1];
@@ -525,7 +504,8 @@ function renderizarAcordes() {
         const acorde = processarAcordeDinamico(formato, nomeAcorde);
         
         if (acorde) {
-            const id = 'acorde-' + Date.now() + '-' + containers.length;
+            contadorUnico++;
+            const id = 'acorde-render-' + contadorUnico + '-' + Math.floor(Math.random() * 10000);
             const placeholder = `<div id="${id}" class="acorde-placeholder" style="display: inline-block;"></div>`;
             newHtml = newHtml.replace(match[0], placeholder);
             containers.push({ id, acorde });
@@ -533,26 +513,27 @@ function renderizarAcordes() {
     }
     
     if (newHtml !== html) {
-        body.innerHTML = newHtml;
+        elementoRaiz.innerHTML = newHtml;
         containers.forEach(container => {
-            const elemento = document.getElementById(container.id);
-            if (elemento) desenharAcorde(elemento, container.acorde);
+            const elemento = elementoRaiz.querySelector('#' + container.id) || document.getElementById(container.id);
+            if (elemento) {
+                desenharAcorde(elemento, container.acorde);
+            }
         });
     }
 }
 
-// Inicializa
+// Inicialização segura
 if (typeof window !== 'undefined') {
     if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', renderizarAcordes);
+        document.addEventListener('DOMContentLoaded', () => renderizarAcordes());
     } else {
         renderizarAcordes();
     }
 }
 
+// Vincula ao escopo global do app para o exportar.js encontrar
 window.processarAcordeDinamico = processarAcordeDinamico;
 window.desenharAcorde = desenharAcorde;
 window.renderizarAcordes = renderizarAcordes;
 window.FORMAS_INFINITAS = FORMAS_INFINITAS;
-
-console.log('✅ Sistema com dicionário carregado!');
