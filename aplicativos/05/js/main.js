@@ -512,260 +512,6 @@ function carregarDados() {
     }
 }
 
-
-
-
-
-// ============================================
-// FUNÇÃO PARA EXTRAIR TRANSPOSIÇÃO DA TAG ABC
-// ============================================
-function extrairOpcoesTransposicao(tagContent) {
-    // Procura por %%transpose ou %%visualtranspose no conteúdo
-    const transposeMatch = tagContent.match(/%%transpose\s+([+-]?\d+)/);
-    const visualTransposeMatch = tagContent.match(/%%visualtranspose\s+([+-]?\d+)/);
-    
-    let opcoes = {};
-    
-    if (visualTransposeMatch) {
-        opcoes.visualTranspose = parseInt(visualTransposeMatch[1]);
-        opcoes.audioTranspose = parseInt(visualTransposeMatch[1]);
-    } else if (transposeMatch) {
-        opcoes.audioTranspose = parseInt(transposeMatch[1]);
-    }
-    
-    return opcoes;
-}
-
-// ============================================
-// FUNÇÃO MODIFICADA PARA ACEITAR TRANSPOSIÇÃO
-// ============================================
-function processarABCComEspacamento(id, code, tipo) {
-    const elemento = document.getElementById(id);
-    if (!elemento) return;
-    
-    // Extrai opções de transposição do código
-    const opcoesTransposicao = extrairOpcoesTransposicao(code);
-    
-    // Remove os comandos de transposição do código (para não quebrar)
-    let codigoLimpo = code.replace(/%%transpose\s+[+-]?\d+\s*\n?/g, '');
-    codigoLimpo = codigoLimpo.replace(/%%visualtranspose\s+[+-]?\d+\s*\n?/g, '');
-    
-    const staffsep = document.getElementById("staffsepRange")?.value || 60;
-    const sysstaffsep = document.getElementById("sysstaffsepRange")?.value || 80;
-    
-    let linhas = codigoLimpo.split('\n');
-    let novasLinhas = [];
-    let hasStaffsep = false, hasSysstaffsep = false;
-    
-    for (let linha of linhas) {
-        if (linha.trim().startsWith('%%staffsep')) {
-            novasLinhas.push(`%%staffsep ${staffsep}`);
-            hasStaffsep = true;
-        } else if (linha.trim().startsWith('%%sysstaffsep')) {
-            novasLinhas.push(`%%sysstaffsep ${sysstaffsep}`);
-            hasSysstaffsep = true;
-        } else {
-            novasLinhas.push(linha);
-        }
-    }
-    
-    if (!hasStaffsep && linhas.length > 0) novasLinhas.unshift(`%%staffsep ${staffsep}`);
-    if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
-    
-    let codigoProcessado = novasLinhas.join('\n');
-    
-    try {
-        elemento.innerHTML = "";
-        
-        // Configurações de renderização com transposição
-        const opcoesRender = { 
-            add_classes: true, 
-            staffwidth: 800, 
-            responsive: 'resize'
-        };
-        
-        // Adiciona opções de transposição se existirem
-        if (opcoesTransposicao.visualTranspose !== undefined) {
-            opcoesRender.visualTranspose = opcoesTransposicao.visualTranspose;
-        }
-        if (opcoesTransposicao.audioTranspose !== undefined) {
-            opcoesRender.audioTranspose = opcoesTransposicao.audioTranspose;
-        }
-        
-        ABCJS.renderAbc(id, codigoProcessado, opcoesRender);
-        
-        if (tipo === 'infantil') {
-            setTimeout(() => {
-                aplicarCoresAcordesLetras();
-                if (coresAtivas) aplicarCoresNasNotas();
-                ajustarAcordes();
-                ajustarLetras();
-                ajustarLetrasX();
-            }, 200);
-        }
-    } catch(e) {
-        elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
-    }
-}
-
-
-
-// ============================================
-// FUNÇÃO PARA RENDERIZAR ABC COM TABLATURA (CORRIGIDA)
-// ============================================
-
-
-// ============================================
-// FUNÇÃO PARA RENDERIZAR ABC COM TABLATURA (CSS)
-// ============================================
-function processarABCComTablatura(id, code, tipo) {
-    const elemento = document.getElementById(id);
-    if (!elemento) return;
-    
-    // Extrai opções de transposição
-    const opcoesTransposicao = extrairOpcoesTransposicao(code);
-    
-    // Verifica se tem tablatura
-    const temTablatura = code.includes('%%tablatura');
-    
-    let modo = "both";
-    let instrumento = "guitar";
-    let labelPersonalizada = null;
-    let hideTabSymbol = false;
-    
-    if (temTablatura) {
-        const tablaturaMatch = code.match(/%%tablatura(?:\s+mode=(\w+))?(?:\s+instrument=(\w+))?(?:\s+label="([^"]+)")?(?:\s+hideTabSymbol)?/);
-        if (tablaturaMatch) {
-            if (tablaturaMatch[1]) modo = tablaturaMatch[1];
-            if (tablaturaMatch[2]) instrumento = tablaturaMatch[2];
-            if (tablaturaMatch[3]) labelPersonalizada = tablaturaMatch[3];
-            if (code.includes('hideTabSymbol')) hideTabSymbol = true;
-        }
-    }
-    
-    // Remove comandos especiais do código
-    let codigoLimpo = code.replace(/%%transpose\s+[+-]?\d+\s*\n?/g, '');
-    codigoLimpo = codigoLimpo.replace(/%%visualtranspose\s+[+-]?\d+\s*\n?/g, '');
-    codigoLimpo = codigoLimpo.replace(/%%tablatura[^\n]*\n?/g, '');
-    
-    const staffsep = document.getElementById("staffsepRange")?.value || 60;
-    const sysstaffsep = document.getElementById("sysstaffsepRange")?.value || 80;
-    
-    let linhas = codigoLimpo.split('\n');
-    let novasLinhas = [];
-    let hasStaffsep = false, hasSysstaffsep = false;
-    
-    for (let linha of linhas) {
-        if (linha.trim().startsWith('%%staffsep')) {
-            novasLinhas.push(`%%staffsep ${staffsep}`);
-            hasStaffsep = true;
-        } else if (linha.trim().startsWith('%%sysstaffsep')) {
-            novasLinhas.push(`%%sysstaffsep ${sysstaffsep}`);
-            hasSysstaffsep = true;
-        } else {
-            novasLinhas.push(linha);
-        }
-    }
-    
-    if (!hasStaffsep && linhas.length > 0) novasLinhas.unshift(`%%staffsep ${staffsep}`);
-    if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
-    
-    let codigoProcessado = novasLinhas.join('\n');
-    
-    try {
-        elemento.innerHTML = "";
-        
-        // Configurações base
-        const opcoesRender = { 
-            add_classes: true, 
-            staffwidth: 800, 
-            responsive: 'resize'
-        };
-        
-        // Configura tablatura
-        if (temTablatura && modo !== 'onlyStaff') {
-            const afinacoes = {
-                guitar: ["E,", "A,", "D", "G", "B", "e"],
-                violin: ["G,", "D", "A", "e"],
-                mandolin: ["G,", "D", "A", "e"],
-                fiddle: ["G,", "D", "A", "e"],
-                fiveString: ["G,,", "D,", "A", "e", "b"],
-                bass: ["E,,", "A,,", "D,", "G,"],
-                ukulele: ["G", "C", "E", "A"],
-                cavaquinho: ["D", "G", "B", "D"]
-            };
-            
-            const tuning = afinacoes[instrumento] || afinacoes.guitar;
-            
-            const nomesInstrumentos = {
-                guitar: "Violão/Guitarra",
-                violin: "Violino",
-                mandolin: "Bandolim",
-                fiddle: "Fiddle",
-                fiveString: "Violino 5 Cordas",
-                bass: "Baixo",
-                ukulele: "Ukulele",
-                cavaquinho: "Cavaquinho"
-            };
-            
-            const nomeExibicao = labelPersonalizada || nomesInstrumentos[instrumento] || instrumento;
-            
-            opcoesRender.tablature = [
-                {
-                    instrument: instrumento === 'guitar' || instrumento === 'bass' ? instrumento : 'violin',
-                    tuning: tuning,
-                    label: `${nomeExibicao} (%T)`,
-                    hideTabSymbol: hideTabSymbol
-                }
-            ];
-            
-            opcoesRender.format = {
-                tablabelfont: "Arial 12",
-                tabnumberfont: "Courier 14 bold"
-            };
-        }
-        
-        // Adiciona transposição
-        if (opcoesTransposicao.visualTranspose !== undefined) {
-            opcoesRender.visualTranspose = opcoesTransposicao.visualTranspose;
-        }
-        if (opcoesTransposicao.audioTranspose !== undefined) {
-            opcoesRender.audioTranspose = opcoesTransposicao.audioTranspose;
-        }
-        
-        ABCJS.renderAbc(id, codigoProcessado, opcoesRender);
-        
-        // APLICA CLASSE CSS NO CONTAINER
-        if (temTablatura) {
-            const container = document.getElementById(id);
-            container.classList.remove('only-tab', 'only-staff', 'both');
-            
-            if (modo === 'onlyTab') {
-                container.classList.add('only-tab');
-            } else if (modo === 'onlyStaff') {
-                container.classList.add('only-staff');
-            } else {
-                container.classList.add('both');
-            }
-        }
-        
-        if (tipo === 'infantil') {
-            setTimeout(() => {
-                aplicarCoresAcordesLetras();
-                if (coresAtivas) aplicarCoresNasNotas();
-                ajustarAcordes();
-                ajustarLetras();
-                ajustarLetrasX();
-            }, 200);
-        }
-    } catch(e) {
-        elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
-    }
-}
-
-                
-
-
 // ============================================
 // RENDERIZAR LISTA DE AULAS (SIDEBAR)
 // ============================================
@@ -1143,7 +889,54 @@ function aplicarCoresAcordesLetras() {
     });
 }
 
-// =======================================
+// ============================================
+// PROCESSAR ABC COM ESPAÇAMENTO
+// ============================================
+function processarABCComEspacamento(id, code, tipo) {
+    const elemento = document.getElementById(id);
+    if (!elemento) return;
+    
+    const staffsep = document.getElementById("staffsepRange")?.value || 60;
+    const sysstaffsep = document.getElementById("sysstaffsepRange")?.value || 80;
+    
+    let linhas = code.split('\n');
+    let novasLinhas = [];
+    let hasStaffsep = false, hasSysstaffsep = false;
+    
+    for (let linha of linhas) {
+        if (linha.trim().startsWith('%%staffsep')) {
+            novasLinhas.push(`%%staffsep ${staffsep}`);
+            hasStaffsep = true;
+        } else if (linha.trim().startsWith('%%sysstaffsep')) {
+            novasLinhas.push(`%%sysstaffsep ${sysstaffsep}`);
+            hasSysstaffsep = true;
+        } else {
+            novasLinhas.push(linha);
+        }
+    }
+    
+    if (!hasStaffsep && linhas.length > 0) novasLinhas.unshift(`%%staffsep ${staffsep}`);
+    if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
+    
+    let codigoProcessado = novasLinhas.join('\n');
+    
+    try {
+        elemento.innerHTML = "";
+        ABCJS.renderAbc(id, codigoProcessado, { add_classes: true, staffwidth: 800, responsive: 'resize' });
+        if (tipo === 'infantil') {
+            setTimeout(() => {
+                aplicarCoresAcordesLetras();
+                if (coresAtivas) aplicarCoresNasNotas();
+                ajustarAcordes();
+                ajustarLetras();
+                ajustarLetrasX();
+            }, 200);
+        }
+    } catch(e) {
+        elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
+    }
+}
+
 // ============================================
 // FUNÇÕES DE AJUSTE
 // ============================================
@@ -1452,19 +1245,24 @@ function renderizar() {
         });
         
         abcNormais.forEach(a => {
-    const el = document.getElementById(a.id);
-    if (el && typeof ABCJS !== 'undefined') processarABCComTablatura(a.id, a.code, 'normal');
-});
-
-abcInfantis.forEach(a => {
-    const el = document.getElementById(a.id);
-    if (el && typeof ABCJS !== 'undefined') processarABCComTablatura(a.id, a.code, 'infantil');
-});
+            const el = document.getElementById(a.id);
+            if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'normal');
+        });
+        
+        abcInfantis.forEach(a => {
+            const el = document.getElementById(a.id);
+            if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'infantil');
+        });
         
     } catch (e) {
         console.error("Erro na renderização:", e);
         preview.innerHTML = '<p style="color:red;">❌ Erro ao renderizar: ' + e.message + '</p>';
     }
+
+    // Dentro da função renderizar(), no final:
+setTimeout(() => {
+    organizarDiagramasLadoALado();
+}, 150);
 }
 
 // ============================================
@@ -1683,6 +1481,12 @@ function toast(msg, tipo) {
     setTimeout(() => t.remove(), 3000);
 }
 
+
+
+
+
+
+
 // ============================================
 // INICIALIZAÇÃO
 // ============================================
@@ -1714,3 +1518,4 @@ document.addEventListener('DOMContentLoaded', init);
 const styleToast = document.createElement('style');
 styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
 document.head.appendChild(styleToast);
+
