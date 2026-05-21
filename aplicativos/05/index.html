@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -28,8 +29,9 @@
   <div class="sidebar-content">
     <h2>🎸 Pro Maestro</h2>
     <div id="listaAulas"></div>
-       <button onclick="exportHTML()">📄 Exportar HTML</button>
-    <button onclick="exportAppHTML()">🎯 Exportar App</button>
+<button onclick="exportHTML()">📄 Exportar Aula (HTML)</button>
+<button onclick="exportarPastaAtual()">📂 Exportar Pasta (HTML)</button>
+<button onclick="exportAppHTML()">💾 Exportar App (Todas)</button>
     <button onclick="resetarAcordes()">🔄 Resetar Acordes</button>
     <button onclick="abrirEditorAcordes()">🎸 Editor de Acordes</button>
     <button onclick="abrirModalPiano()">🎹 Editor de Piano</button>
@@ -210,6 +212,8 @@
            style="width: 120px; padding: 6px; border-radius: 5px; border: 1px solid #e94560; background: #1a1a2e; color: white;"
            title="Digite o número do acorde (ex: 100, 101, 102) e pressione Enter">
     <button onclick="inserirAcordePorNumero()" style="background: #9b59b6; padding: 6px 12px;">🎸 Inserir</button>
+    <button onclick="copiarEditor()">📋 Copiar</button>
+<button onclick="colarEditor()">📄 Colar</button>
   </div>
 
   <div class="editor-container">
@@ -392,8 +396,10 @@
 <script src="js/main.js"></script>
 
 <!-- Outros scripts -->
-<script src="js/export_html.js"></script>
-<script src="js/export_app.js"></script>
+
+<script src="js/exportar.js"></script>
+
+
 <script src="js/abc_infantil.js"></script>
 
 <style>
@@ -505,7 +511,7 @@ if (globalBtn) {
 
 <script>
 // ============================================
-// FUNÇÃO PARA INSERIR ACORDE POR NÚMERO - SEM ALERTA
+// FUNÇÃO PARA INSERIR ACORDE POR NÚMERO
 // ============================================
 function inserirAcordePorNumero() {
     const inputField = document.getElementById('buscaAcordeRapida');
@@ -545,6 +551,7 @@ function inserirAcordePorNumero() {
     
     if (!nomeAcorde) {
         console.error(`❌ Acorde ${numero} não encontrado!`);
+        alert(`❌ Acorde ${numero} não encontrado!`);
         return;
     }
     
@@ -565,9 +572,121 @@ function inserirAcordePorNumero() {
     // Limpa o campo
     inputField.value = '';
     editor.focus();
-    
-
 }
+
+// ============================================
+// FUNÇÃO COPIAR EDITOR
+// ============================================
+function copiarEditor() {
+    const editor = document.getElementById('editor');
+    if (!editor) {
+        console.error('Editor não encontrado');
+        return;
+    }
+    
+    editor.select();
+    editor.setSelectionRange(0, editor.value.length);
+    
+    try {
+        const sucesso = document.execCommand('copy');
+        if (sucesso) {
+            // Feedback visual
+            const btn = event?.target;
+            if (btn) {
+                const textoOriginal = btn.textContent;
+                btn.textContent = '✅ Copiado!';
+                setTimeout(() => {
+                    btn.textContent = textoOriginal;
+                }, 1500);
+            }
+            console.log('✅ Texto copiado!');
+        } else {
+            console.error('Falha ao copiar');
+        }
+    } catch (err) {
+        console.error('Erro ao copiar:', err);
+    }
+    
+    editor.focus();
+}
+
+// ============================================
+// FUNÇÃO COLAR EDITOR (VERSÃO SIMPLES E FUNCIONAL)
+// ============================================
+function colarEditor() {
+    const editor = document.getElementById('editor');
+    if (!editor) {
+        console.error('Editor não encontrado');
+        return;
+    }
+    
+    editor.focus();
+    
+    // Método 1: Usar Clipboard API
+    if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText()
+            .then(text => {
+                if (text) {
+                    const start = editor.selectionStart;
+                    const end = editor.selectionEnd;
+                    const currentText = editor.value;
+                    editor.value = currentText.substring(0, start) + text + currentText.substring(end);
+                    
+                    if (typeof renderizar === 'function') renderizar();
+                    if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
+                    
+                    // Feedback visual
+                    const btn = event?.target;
+                    if (btn) {
+                        const textoOriginal = btn.textContent;
+                        btn.textContent = '✅ Colado!';
+                        setTimeout(() => {
+                            btn.textContent = textoOriginal;
+                        }, 1500);
+                    }
+                    
+                    console.log('✅ Texto colado!');
+                }
+            })
+            .catch(err => {
+                console.log('Clipboard API falhou, usando método alternativo:', err);
+                colarComPrompt(editor);
+            });
+    } else {
+        colarComPrompt(editor);
+    }
+}
+
+// Método alternativo usando prompt (funciona sempre)
+function colarComPrompt(editor) {
+    const textoColado = prompt('📋 Cole o texto aqui (Ctrl+V):');
+    
+    if (textoColado !== null && textoColado !== '') {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        editor.value = editor.value.substring(0, start) + textoColado + editor.value.substring(end);
+        
+        if (typeof renderizar === 'function') renderizar();
+        if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
+        
+        editor.focus();
+        
+        // Feedback visual
+        const btn = event?.target;
+        if (btn) {
+            const textoOriginal = btn.textContent;
+            btn.textContent = '✅ Colado!';
+            setTimeout(() => {
+                btn.textContent = textoOriginal;
+            }, 1500);
+        }
+        
+        console.log('✅ Texto colado via prompt!');
+    }
+}
+
+console.log('✅ Funções de Copiar/Colar carregadas!');
+</script>
 </script>
 </body>
 </html>
