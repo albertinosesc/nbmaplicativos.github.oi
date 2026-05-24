@@ -51,6 +51,12 @@ async function exportHTML() {
             }
         }
         
+        // Extrai o conteúdo do preview (já com imagens)
+        let conteudoPreview = previewClone.innerHTML;
+        
+        // Organiza os diagramas lado a lado no conteúdo
+        conteudoPreview = organizarDiagramasNoHTML(conteudoPreview);
+        
         const html = `<!DOCTYPE html>
 <html lang="pt-br">
 <head>
@@ -106,9 +112,7 @@ async function exportHTML() {
 </head>
 <body>
 <div class="aula-card">
-    <div class="diagramas-container">
-        ${previewClone.innerHTML}
-    </div>
+    ${conteudoPreview}
     <div style="text-align:center;margin-top:30px" class="no-print">
         <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false" style="background:#e94560;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block">⬆️ Voltar ao Topo</a>
     </div>
@@ -129,6 +133,44 @@ async function exportHTML() {
         console.error('Erro:', erro);
         alert('❌ Erro: ' + erro.message);
     }
+}
+
+// ============================================
+// FUNÇÃO AUXILIAR PARA ORGANIZAR DIAGRAMAS NO HTML
+// ============================================
+function organizarDiagramasNoHTML(html) {
+    // Cria um elemento temporário para manipular o HTML
+    const temp = document.createElement('div');
+    temp.innerHTML = html;
+    
+    // Encontra todos os violao-wrapper
+    const violoes = temp.querySelectorAll('.violao-wrapper');
+    if (violoes.length === 0) return html;
+    
+    // Verifica se já estão dentro de um diagramas-container
+    const primeiroPai = violoes[0].parentNode;
+    if (primeiroPai.classList && primeiroPai.classList.contains('diagramas-container')) {
+        return html;
+    }
+    
+    // Cria o container
+    const container = document.createElement('div');
+    container.className = 'diagramas-container';
+    
+    // Move todos os violoes para o container
+    violoes.forEach(violao => {
+        container.appendChild(violao.cloneNode(true));
+    });
+    
+    // Remove os violoes originais
+    violoes.forEach(violao => {
+        violao.remove();
+    });
+    
+    // Adiciona o container no lugar
+    temp.appendChild(container);
+    
+    return temp.innerHTML;
 }
 
 // ============================================
@@ -234,14 +276,16 @@ async function exportarPastaAtual() {
             });
             
             // Clona o preview com as imagens
-            const previewClone = previewOriginal.cloneNode(true);
+            let previewClone = previewOriginal.cloneNode(true);
+            
+            // Organiza os diagramas lado a lado
+            let conteudoAula = previewClone.innerHTML;
+            conteudoAula = organizarDiagramasNoHTML(conteudoAula);
             
             aulasHtml += `
             <div id="aula-pasta-${i}" class="aula-card" style="background:white;padding:30px;margin:20px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);page-break-after:always;">
                 <h1 style="color:#1a1a2e;margin-top:0;border-bottom:2px solid #e94560;padding-bottom:10px;">${tituloLimpo}</h1>
-                <div class="diagramas-container">
-                    ${previewClone.innerHTML}
-                </div>
+                ${conteudoAula}
                 <div style="text-align:center;margin-top:30px" class="no-print">
                     <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false" style="background:#e94560;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block">⬆️ Voltar ao Topo</a>
                 </div>
@@ -372,12 +416,16 @@ async function exportAppHTML() {
             });
             
             // Clona o preview com as imagens
-            const previewClone = previewOriginal.cloneNode(true);
+            let previewClone = previewOriginal.cloneNode(true);
+            
+            // Organiza os diagramas lado a lado
+            let conteudoAula = previewClone.innerHTML;
+            conteudoAula = organizarDiagramasNoHTML(conteudoAula);
 
             aulasHtml += `
             <div id="aula-app-${i}" class="aula-card" style="background:white;padding:30px;margin:20px;border-radius:10px;box-shadow:0 2px 10px rgba(0,0,0,0.1);page-break-after:always;">
                 <h1 style="color:#1a1a2e;margin-top:0;border-bottom:2px solid #e94560;padding-bottom:10px;">${tituloLimpo}</h1>
-                <div class="aula-conteudo">${previewClone.innerHTML}</div>
+                ${conteudoAula}
                 <div style="text-align:center;margin-top:30px" class="no-print">
                     <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false" style="background:#e94560;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block">⬆️ Voltar ao Topo</a>
                 </div>
@@ -416,10 +464,6 @@ async function exportAppHTML() {
     }
 }
 
-
-// ============================================
-// TEMPLATE HTML SIMPLES - COM DIAGRAMAS LADO A LADO
-// ============================================
 // ============================================
 // TEMPLATE HTML SIMPLES - COM ORGANIZAÇÃO LADO A LADO
 // ============================================
@@ -460,14 +504,17 @@ function gerarTemplateSimples(titulo, indice, aulasConteudo) {
         box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
     }
     
-    .violao-wrapper canvas {
+    .violao-wrapper canvas, .violao-wrapper img {
         max-width: 140px !important;
         height: auto !important;
     }
     
+    .abc-container { margin: 25px 0; overflow-x: auto; }
+    .abcjs-container svg { max-width: 100%; height: auto; }
+    
     @media (max-width: 768px) {
         .diagramas-container { gap: 10px !important; }
-        .violao-wrapper canvas { width: 100px !important; }
+        .violao-wrapper canvas, .violao-wrapper img { width: 100px !important; }
     }
     
     @media print {
@@ -484,36 +531,33 @@ function gerarTemplateSimples(titulo, indice, aulasConteudo) {
 </div>
 ${aulasConteudo}
 
+<div style="text-align:center;margin:30px 0" class="no-print">
+    <a href="#" onclick="window.scrollTo({top:0,behavior:'smooth'});return false" style="background:#e94560;color:white;padding:10px 20px;text-decoration:none;border-radius:5px;display:inline-block">⬆️ Voltar ao Topo</a>
+</div>
+
 <script>
 // Função para organizar diagramas lado a lado no HTML exportado
 function organizarDiagramasLadoALado() {
-    // Encontra todas as aulas
     const aulas = document.querySelectorAll('.aula-card');
     
     aulas.forEach(aula => {
-        // Encontra os wrappers de violão dentro da aula
         const violoes = aula.querySelectorAll('.violao-wrapper');
         if (violoes.length === 0) return;
         
-        // Verifica se já estão organizados
         const pai = violoes[0].parentNode;
         if (pai.classList && pai.classList.contains('diagramas-container')) return;
         
-        // Cria um container
         const container = document.createElement('div');
         container.className = 'diagramas-container';
         
-        // Move os violões para o container
         violoes.forEach(violao => {
             container.appendChild(violao);
         });
         
-        // Adiciona o container no lugar
         pai.appendChild(container);
     });
 }
 
-// Executa quando a página carregar
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', organizarDiagramasLadoALado);
 } else {
