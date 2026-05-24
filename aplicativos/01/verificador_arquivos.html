@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificador de Sequência e Análise de Arquivos</title>
+    <style>
+        :root {
+            --bg-principal: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #334155;
+            --texto-principal: #f8fafc;
+            --texto-secundario: #94a3b8;
+            --cor-accent: #10b981;
+            --cor-accent-hover: #059669;
+            --cor-danger: #ef4444;
+            --cor-warning: #f59e0b;
+            --borda: #475569;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-principal);
+            color: var(--texto-principal);
+            padding: 30px 15px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 900px;
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        h2 {
+            font-size: 24px;
+            margin-bottom: 5px;
+            text-align: center;
+            color: var(--texto-principal);
+        }
+
+        .subtitulo-pasta {
+            text-align: center;
+            font-size: 14px;
+            color: var(--cor-accent);
+            margin-bottom: 20px;
+            font-weight: 600;
+        }
+
+        .config-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        label {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--texto-secundario);
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .custom-file-upload {
+            display: inline-block;
+            padding: 12px;
+            cursor: pointer;
+            background: var(--bg-input);
+            border: 2px dashed var(--borda);
+            border-radius: 8px;
+            text-align: center;
+            transition: all 0.3s;
+            color: var(--texto-principal);
+            font-weight: bold;
+        }
+
+        .custom-file-upload:hover {
+            border-color: var(--cor-accent);
+            background: #273549;
+        }
+
+        input[type="number"] {
+            background: var(--bg-input);
+            border: 1px solid var(--borda);
+            color: white;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: var(--cor-accent);
+        }
+
+        button.btn-principal {
+            width: 100%;
+            padding: 14px;
+            background: var(--cor-accent);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            margin-bottom: 25px;
+        }
+
+        button.btn-principal:hover {
+            background: var(--cor-accent-hover);
+        }
+
+        button.btn-principal:active {
+            transform: scale(0.99);
+        }
+
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: var(--bg-principal);
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border-left: 4px solid var(--borda);
+        }
+
+        .stat-card.total { border-left-color: var(--texto-secundario); }
+        .stat-card.faltantes { border-left-color: var(--cor-danger); }
+        .stat-card.duplicados { border-left-color: var(--cor-warning); }
+
+        .stat-card .numero {
+            font-size: 24px;
+            font-weight: bold;
+            margin-top: 5px;
+        }
+
+        .botoes-exportacao {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .btn-export {
+            flex: 1;
+            padding: 10px;
+            background: #475569;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+
+        .btn-export:hover {
+            background: #64748b;
+        }
+
+        .resultados-container {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 20px;
+        }
+
+        @media (min-width: 768px) {
+            .resultados-container {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+
+        .painel {
+            background: var(--bg-principal);
+            padding: 20px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .painel h3 {
+            font-size: 16px;
+            margin-bottom: 12px;
+            color: var(--texto-secundario);
+            border-bottom: 1px solid var(--borda);
+            padding-bottom: 5px;
+            position: sticky;
+            top: 0;
+            background: var(--bg-principal);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn-export-painel {
+            background: #334155;
+            color: #f8fafc;
+            border: none;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 11px;
+            cursor: pointer;
+            transition: background 0.2s;
+            font-weight: 600;
+        }
+
+        .btn-export-painel:hover {
+            background: var(--cor-accent);
+        }
+
+        .painel pre {
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .formato-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 6px 0;
+            border-bottom: 1px solid #1e293b;
+        }
+
+        .formato-item span.qtd {
+            color: var(--cor-accent);
+            font-weight: bold;
+        }
+
+        .feedback-pasta {
+            text-align: center;
+            font-size: 14px;
+            color: var(--cor-accent);
+            margin-top: -15px;
+            margin-bottom: 15px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Verificador de Sequência e Extensões</h2>
+    <div id="subtitulo-pasta" class="subtitulo-pasta">Nenhuma pasta analisada no momento</div>
+
+    <div class="config-grid">
+        <div class="form-group">
+            <label>1. Escolha a Pasta</label>
+            <label for="pasta" class="custom-file-upload" id="label-pasta">
+                📁 Selecionar Diretório
+            </label>
+            <input type="file" id="pasta" webkitdirectory multiple onchange="atualizarInfoPasta()">
+        </div>
+
+        <div class="form-group">
+            <label>2. Início do Intervalo</label>
+            <input type="number" id="inicio" value="1">
+        </div>
+
+        <div class="form-group">
+            <label>3. Fim do Intervalo</label>
+            <input type="number" id="fim" value="1000">
+        </div>
+    </div>
+
+    <div id="feedback-pasta" class="feedback-pasta"></div>
+
+    <button class="btn-principal" onclick="verificar()">Analisar Pasta e Processar Arquivos</button>
+
+    <div class="dashboard-stats">
+        <div class="stat-card total">
+            <label id="lbl-total">Total de Arquivos</label>
+            <div class="numero" id="stat-total">0</div>
+        </div>
+        <div class="stat-card faltantes">
+            <label>Números Faltantes</label>
+            <div class="numero" id="stat-faltantes" style="color: var(--cor-danger);">0</div>
+        </div>
+        <div class="stat-card duplicados">
+            <label>Números Duplicados</label>
+            <div class="numero" id="stat-duplicados" style="color: var(--cor-warning);">0</div>
+        </div>
+    </div>
+
+    <div class="botoes-exportacao">
+        <button class="btn-export" onclick="exportarTXT()">📄 Exportar Relatório Geral TXT</button>
+        <button class="btn-export" onclick="exportarCSV()">📊 Exportar Tabela Geral CSV</button>
+    </div>
+
+    <div class="resultados-container">
+        <div class="painel">
+            <h3>
+                <span>❌ Números Faltantes</span>
+                <button class="btn-export-painel" onclick="exportarFaltantes()">⬇️ Salvar TXT</button>
+            </h3>
+            <pre id="res-faltantes">Nenhuma análise executada ainda.</pre>
+        </div>
+
+        <div class="painel">
+            <h3>
+                <span>⚠️ Números Duplicados</span>
+                <button class="btn-export-painel" onclick="exportarDuplicados()">⬇️ Salvar TXT</button>
+            </h3>
+            <pre id="res-duplicados">Nenhuma análise executada ainda.</pre>
+        </div>
+
+        <div class="painel">
+            <h3>
+                <span>📂 Formatos por Qtd</span>
+                <button class="btn-export-painel" onclick="exportarFormatos()">⬇️ Salvar TXT</button>
+            </h3>
+            <div id="res-formatos">Nenhuma análise executada ainda.</div>
+        </div>
+
+        <div class="painel">
+            <h3>
+                <span>📋 Lista de Arquivos</span>
+                <button class="btn-export-painel" onclick="exportarTodosNomes()">⬇️ Salvar TXT</button>
+            </h3>
+            <pre id="res-nomes" style="font-size: 12px; color: var(--texto-secundario);">Nenhuma análise executada ainda.</pre>
+        </div>
+    </div>
+</div>
+
+<script>
+let dadosGlobais = {
+    nomePasta: "",
+    totalArquivos: 0,
+    faltantes: [],
+    duplicados: [],
+    formatosOrdenados: [],
+    todosNomes: []
+};
+
+function atualizarInfoPasta() {
+    const arquivos = document.getElementById("pasta").files;
+    const feedback = document.getElementById("feedback-pasta");
+    if(arquivos.length > 0) {
+        // Captura o nome da pasta raiz selecionada
+        let caminhoCompleto = arquivos[0].webkitRelativePath;
+        dadosGlobais.nomePasta = caminhoCompleto.split('/')[0] || "Pasta Selecionada";
+        
+        feedback.innerText = `📂 ${arquivos.length} arquivos carregados da pasta "${dadosGlobais.nomePasta}" prontos para análise.`;
+        feedback.style.display = "block";
+    }
+}
+
+function verificar() {
+    const arquivos = document.getElementById("pasta").files;
+    const inicio = parseInt(document.getElementById("inicio").value) || 1;
+    const fim = parseInt(document.getElementById("fim").value) || 1000;
+
+    if (arquivos.length === 0) {
+        alert("Por favor, selecione uma pasta primeiro!");
+        return;
+    }
+
+    // Garante que o nome esteja atualizado se o usuário clicar direto em verificar
+    if(!dadosGlobais.nomePasta && arquivos[0].webkitRelativePath) {
+        dadosGlobais.nomePasta = arquivos[0].webkitRelativePath.split('/')[0];
+    } else if (!dadosGlobais.nomePasta) {
+        dadosGlobais.nomePasta = "Diretório Desconhecido";
+    }
+
+    // Atualiza subtítulo do HTML
+    document.getElementById("subtitulo-pasta").innerText = `Pasta em Análise: "${dadosGlobais.nomePasta}"`;
+
+    let encontradosMap = new Map(); 
+    let formatosContador = {};
+    dadosGlobais.todosNomes = [];
+
+    for (let arquivo of arquivos) {
+        let nomeCompleto = arquivo.name;
+        dadosGlobais.todosNomes.push(nomeCompleto);
+
+        let ultimaPosicaoPonto = nomeCompleto.lastIndexOf('.');
+        let extensao = "";
+        let apenasNome = nomeCompleto;
+
+        if (ultimaPosicaoPonto !== -1 && ultimaPosicaoPonto !== 0) {
+            extensao = nomeCompleto.substring(ultimaPosicaoPonto + 1).toLowerCase();
+            apenasNome = nomeCompleto.substring(0, ultimaPosicaoPonto);
+        } else {
+            extensao = "Sem Extensão";
+        }
+
+        formatosContador[extensao] = (formatosContador[extensao] || 0) + 1;
+
+        let casamentoNumero = apenasNome.match(/\d+/);
+        if (casamentoNumero) {
+            let num = parseInt(casamentoNumero[0], 10);
+            if (!encontradosMap.has(num)) {
+                encontradosMap.set(num, []);
+            }
+            encontradosMap.get(num).push(nomeCompleto);
+        }
+    }
+
+    dadosGlobais.faltantes = [];
+    dadosGlobais.duplicados = [];
+
+    for (let i = inicio; i <= fim; i++) {
+        if (!encontradosMap.has(i)) {
+            dadosGlobais.faltantes.push(i);
+        }
+    }
+
+    for (let [num, listaArquivos] of encontradosMap.entries()) {
+        if (listaArquivos.length > 1) {
+            dadosGlobais.duplicados.push({
+                numero: num,
+                arquivos: listaArquivos
+            });
+        }
+    }
+
+    dadosGlobais.formatosOrdenados = Object.keys(formatosContador).map(ext => {
+        return { formato: ext, qtd: formatosContador[ext] };
+    }).sort((a, b) => b.qtd - a.qtd);
+
+    dadosGlobais.totalArquivos = arquivos.length;
+
+    document.getElementById("stat-total").innerText = dadosGlobais.totalArquivos;
+    document.getElementById("lbl-total").innerText = `Arquivos em "${dadosGlobais.nomePasta}"`;
+    document.getElementById("stat-faltantes").innerText = dadosGlobais.faltantes.length;
+    document.getElementById("stat-duplicados").innerText = dadosGlobais.duplicados.length;
+
+    const preFaltantes = document.getElementById("res-faltantes");
+    preFaltantes.innerHTML = dadosGlobais.faltantes.length === 0 ? "✅ Nenhum número faltando no intervalo!" : dadosGlobais.faltantes.join(", ");
+
+    const preDuplicados = document.getElementById("res-duplicados");
+    if (dadosGlobais.duplicados.length === 0) {
+        preDuplicados.innerHTML = "✅ Nenhuma duplicidade numérica detectada.";
+    } else {
+        let txtDup = "";
+        dadosGlobais.duplicados.forEach(d => {
+            txtDup += `• Número [${d.numero}]:\n  └─ ${d.arquivos.join('\n  └─ ')}\n\n`;
+        });
+        preDuplicados.innerHTML = txtDup;
+    }
+
+    const divFormatos = document.getElementById("res-formatos");
+    divFormatos.innerHTML = "";
+    dadosGlobais.formatosOrdenados.forEach(f => {
+        let item = document.createElement("div");
+        item.className = "formato-item";
+        item.innerHTML = `<span>.${f.formato}</span><span class="qtd">${f.qtd} arquivo(s)</span>`;
+        divFormatos.appendChild(item);
+    });
+
+    document.getElementById("res-nomes").innerHTML = dadosGlobais.todosNomes.join("\n");
+}
+
+function baixarArquivoTXT(conteudo, nomeArquivo) {
+    const blob = new Blob([conteudo], { type: "text/plain;charset=utf-8" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = nomeArquivo;
+    link.click();
+    URL.revokeObjectURL(link.href);
+}
+
+// --- LOGICAS DE EXPORTAÇÃO INDIVIDUAIS COM ADIÇÃO DO NOME DA PASTA ---
+function exportarFaltantes() {
+    if (dadosGlobais.totalArquivos === 0) { alert("Execute uma verificação antes de exportar."); return; }
+    let conteudo = `PASTA ANALISADA: "${dadosGlobais.nomePasta}"\r\n`;
+    conteudo += "--- NÚMEROS FALTANTES NO INTERVALO ---\r\n\r\n";
+    conteudo += dadosGlobais.faltantes.length ? dadosGlobais.faltantes.join(", ") : "Nenhum número faltando.";
+    baixarArquivoTXT(conteudo, `faltantes_${dadosGlobais.nomePasta}.txt`);
+}
+
+function exportarDuplicados() {
+    if (dadosGlobais.totalArquivos === 0) { alert("Execute uma verificação antes de exportar."); return; }
+    let conteudo = `PASTA ANALISADA: "${dadosGlobais.nomePasta}"\r\n`;
+    conteudo += "--- NÚMEROS DUPLICADOS DETECTADOS ---\r\n\r\n";
+    if (dadosGlobais.duplicados.length) {
+        dadosGlobais.duplicados.forEach(d => {
+            conteudo += `Número [${d.numero}]:\r\n  └─ ${d.arquivos.join('\r\n  └─ ')}\r\n\r\n`;
+        });
+    } else {
+        conteudo += "Nenhuma duplicidade detectada.";
+    }
+    baixarArquivoTXT(conteudo, `duplicados_${dadosGlobais.nomePasta}.txt`);
+}
+
+function exportarFormatos() {
+    if (dadosGlobais.totalArquivos === 0) { alert("Execute uma verificação antes de exportar."); return; }
+    let conteudo = `PASTA ANALISADA: "${dadosGlobais.nomePasta}"\r\n`;
+    conteudo += "--- FORMATOS DE ARQUIVOS (ORDENADO POR QUANTIDADE) ---\r\n\r\n";
+    dadosGlobais.formatosOrdenados.forEach(f => {
+        conteudo += `.${f.formato}: ${f.qtd} arquivo(s)\r\n`;
+    });
+    baixarArquivoTXT(conteudo, `formatos_${dadosGlobais.nomePasta}.txt`);
+}
+
+function exportarTodosNomes() {
+    if (dadosGlobais.totalArquivos === 0) { alert("Execute uma verificação antes de exportar."); return; }
+    let conteudo = `PASTA ANALISADA: "${dadosGlobais.nomePasta}"\r\n`;
+    conteudo += "--- LISTA COMPLETA DOS ARQUIVOS ANALISADOS ---\r\n\r\n";
+    conteudo += dadosGlobais.todosNomes.join("\r\n");
+    baixarArquivoTXT(conteudo, `lista_arquivos_${dadosGlobais.nomePasta}.txt`);
+}
+
+// --- RELATÓRIOS GERAIS ---
+function exportarTXT() {
+    if (dadosGlobais.totalArquivos === 0) { alert("Execute uma verificação antes de exportar."); return; }
+
+    let conteudo = "=== RELATÓRIO DE VERIFICAÇÃO DE ARQUIVOS ===\r\n";
+    conteudo += `Pasta Analisada: ${dadosGlobais.nomePasta}\r\n\r\n`;
+    conteudo += `Total de arquivos na pasta: ${dadosGlobais.totalArquivos}\r\n`;
+    conteudo += `Total de números faltantes: ${dadosGlobais.faltantes.length}\r\n`;
+    conteudo += `Total de números duplicados: ${dadosGlobais.duplicados.length}\r\n\r\n`;
+
+    conteudo += "--- NÚMEROS FALTANTES ---\r\n";
+    conteudo += (dadosGlobais.faltantes.length ? dadosGlobais.faltantes.join(", ") : "Nenhum") + "\r\n\r\n";
+
+    conteudo += "--- DUPLICIDADES DETECTADAS ---\r\n";
+    if(dadosGlobais.duplicados.length) {
+        dadosGlobais.duplicados.forEach(d => {
+            conteudo += `Número [${d.numero}]:\r\n  ${d.arquivos.join('\r\n  ')}\r\n`;
+        });
+    } else {
+        conteudo += "Nenhuma duplicidade\r\n";
+    }
+    conteudo += "\r\n";
+
+    conteudo += "--- QUANTIDADE POR FORMATO (MAIOR -> MENOR) ---\r\n";
+    dadosGlobais.formatosOrdenados.forEach(f => {
+        conteudo += `.${f.formato}: ${f.qtd} arquivo(s)\r\n`;
+    });
+    conteudo += "\r\n";
+
+    conteudo += "--- LISTA COMPLETA DOS ARQUIVOS ---\r\n";
+    conteudo += dadosGlobais.todosNomes.join("\r\n");
+
+    baixarArquivoTXT(conteudo, `relatorio_geral_${dadosGlobais.nomePasta}.txt`);
+}
+
+function exportarCSV() {
+    if (dadosGlobais.totalArquivos === 0) { alert("Execute uma verificação antes de exportar."); return; }
+
+    let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+    csvContent += `Pasta Analisada;${dadosGlobais.nomePasta}\r\n`;
+    csvContent += "Métrica;Valor\r\n";
+    csvContent += `Total de Arquivos;${dadosGlobais.totalArquivos}\r\n`;
+    csvContent += `Faltantes no Intervalo;${dadosGlobais.faltantes.length}\r\n`;
+    csvContent += `Total Duplicados;${dadosGlobais.duplicados.length}\r\n\r\n`;
+
+    csvContent += "Formato;Quantidade\r\n";
+    dadosGlobais.formatosOrdenados.forEach(f => {
+        csvContent += `.${f.formato};${f.qtd}\r\n`;
+    });
+    csvContent += "\r\n";
+
+    csvContent += "Numeros Faltantes\r\n";
+    csvContent += dadosGlobais.faltantes.join(";") + "\r\n\r\n";
+
+    csvContent += "Lista de Todos os Arquivos\r\n";
+    dadosGlobais.todosNomes.forEach(n => {
+        csvContent += `"${n}"\r\n`;
+    });
+
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement("a");
+    link.setAttribute("href", encodedUri);
+    link.setAttribute("download", `relatorio_${dadosGlobais.nomePasta}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+}
+</script>
+</body>
+</html>
