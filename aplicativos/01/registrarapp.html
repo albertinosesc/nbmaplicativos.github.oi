@@ -307,6 +307,7 @@
         .google-buttons {
             display: flex;
             gap: 0.8rem;
+            flex-wrap: wrap;
         }
 
         footer {
@@ -337,12 +338,10 @@
 
     <!-- Integração Google Sheets -->
     <div class="google-integration">
-        <span>📤 <strong>Google Sheets sincronizado</strong> — Seus dados são salvos na nuvem!</span>
+        <span>📤 <strong>Google Sheets sincronizado</strong> — Envie e busque dados da planilha!</span>
         <div class="google-buttons">
             <button id="syncToSheetsBtn" class="btn-success">🔄 Enviar para Planilha</button>
-            <button id="exportBackupBtn" class="btn-warning">📁 Exportar Backup</button>
-            <button id="importBackupBtn" class="btn-secondary">📂 Importar Backup</button>
-            <input type="file" id="importFile" accept=".json" style="display:none">
+            <button id="loadFromSheetsBtn" class="btn-primary">📥 Buscar Dados da Planilha</button>
         </div>
     </div>
 
@@ -358,6 +357,9 @@
         <div class="btn-group">
             <button id="addBtn" class="btn-primary">➕ Adicionar / Atualizar</button>
             <button id="clearFormBtn" class="btn-secondary">🗑️ Limpar</button>
+            <button id="exportJsonBtn" class="btn-warning">📁 Exportar Backup</button>
+            <button id="importJsonBtn" class="btn-secondary">📂 Importar Backup</button>
+            <input type="file" id="importFile" accept=".json" style="display:none">
         </div>
     </div>
 
@@ -379,12 +381,12 @@
             <tbody id="tableBody"></tbody>
         </table>
     </div>
-    <footer>✅ Dados salvos automaticamente no navegador. Use "Exportar Backup" para salvar cópia.</footer>
+    <footer>✅ Dados salvos automaticamente. Use "Buscar Dados da Planilha" para recuperar dados enviados anteriormente.</footer>
 </div>
 
 <script>
     // ========== CONFIGURAÇÃO ==========
-    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbySeG06gYwybSi-IPIAfO-QulQvUNppt8-9z2ddlYP0cmXiLe9q4JwN_D_rycR126U4/exec";
+    const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby7p9qvIE0D7CPZkvSGaJxKBksVJneSR1cPaihQH3qzWmGgkCp0CjOdhXm60EH4gdMq/exec";
     
     let apps = [];
     let currentEditId = null;
@@ -393,24 +395,20 @@
 
     // Carregar dados do LocalStorage
     function loadFromStorage() {
-        const stored = localStorage.getItem("appkeeper_apps_v5");
+        const stored = localStorage.getItem("appkeeper_apps_v6");
         if(stored) {
             try { apps = JSON.parse(stored); } catch(e) { apps = []; }
         }
+        // SEM EXEMPLOS PADRÃO - começa vazio
         if(!apps || apps.length === 0) {
-            apps = [
-                { id: Date.now()+1, name: "Spotify", what: "Streaming de música e podcasts", objective: "Entretenimento musical com playlists personalizadas", features: "Playlists inteligentes · Modo offline · Descoberta semanal", example: "Baixar músicas para ouvir durante uma viagem sem internet." },
-                { id: Date.now()+2, name: "Notion", what: "Produtividade e organização", objective: "Centralizar notas, tarefas e databases", features: "Banco de dados relacional · Templates · IA integrada", example: "Equipe gerencia um roadmap de produto com checklists e calendários." },
-                { id: Date.now()+3, name: "Google Maps", what: "Navegação e trânsito", objective: "Ajudar deslocamentos e exploração local", features: "Trânsito ao vivo · Street View · Avaliações", example: "Motorista evita congestionamento com rota alternativa." },
-                { id: Date.now()+4, name: "Photoshop", what: "Edição profissional de imagens", objective: "Criar e editar gráficos e fotos com alta qualidade", features: "Camadas · Máscaras · Pincéis personalizáveis · IA Generativa", example: "Designer cria arte para redes sociais com textos e efeitos." }
-            ];
+            apps = [];
             saveToLocalStorage();
         }
         renderAll();
     }
 
     function saveToLocalStorage() { 
-        localStorage.setItem("appkeeper_apps_v5", JSON.stringify(apps)); 
+        localStorage.setItem("appkeeper_apps_v6", JSON.stringify(apps)); 
         updateStats(); 
     }
 
@@ -448,7 +446,7 @@
 
     function renderCards(list) {
         const grid = document.getElementById("cardsGrid");
-        if(!list.length) { grid.innerHTML = `<div class="empty-message">✨ Nenhum app cadastrado ✨</div>`; return; }
+        if(!list.length) { grid.innerHTML = `<div class="empty-message">✨ Nenhum app cadastrado. Adicione seu primeiro app acima! ✨</div>`; return; }
         grid.innerHTML = list.map(app => `
             <div class="app-card" data-id="${app.id}">
                 <div class="card-header"><span class="app-name">${escapeHtml(app.name)}</span></div>
@@ -475,7 +473,7 @@
 
     function renderTable(list) {
         const tbody = document.getElementById("tableBody");
-        if(!list.length) { tbody.innerHTML = `<td><td colspan="6" class="empty-message">📭 Nenhum resultado encontrado</td></tr>`; return; }
+        if(!list.length) { tbody.innerHTML = `<td><td colspan="6" class="empty-message">📭 Nenhum resultado encontrado. Adicione seu primeiro app!</td></tr>`; return; }
         tbody.innerHTML = list.map(app => `
             <tr data-id="${app.id}" style="cursor:pointer">
                 <td><strong>${escapeHtml(app.name)}</strong></td>
@@ -487,7 +485,7 @@
                     <button class="edit-table" data-id="${app.id}" style="margin-right:5px">✏️</button>
                     <button class="delete-table" data-id="${app.id}">🗑️</button>
                   </td>
-              </tr>
+              <tr>
         `).join("");
         document.querySelectorAll(".edit-table").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); editAppById(parseInt(btn.dataset.id)); });
         document.querySelectorAll(".delete-table").forEach(btn => btn.onclick = (e) => { e.stopPropagation(); deleteAppById(parseInt(btn.dataset.id)); });
@@ -551,12 +549,13 @@
         document.getElementById("addBtn").innerHTML = "➕ Adicionar / Atualizar";
     }
 
-    // ========== GOOGLE SHEETS - ENVIO (funciona) ==========
+    // ========== GOOGLE SHEETS - ENVIO ==========
     async function syncToGoogleSheets() {
         const dataToSend = apps.map(a => ([a.name, a.what || "", a.objective || "", a.features || "", a.example || ""]));
         if(dataToSend.length === 0) { alert("Nenhum app para enviar"); return; }
         
         document.getElementById("syncStatus").innerHTML = "⏳ Enviando para Google Sheets...";
+        document.getElementById("syncStatus").style.color = "#f59e0b";
         
         try {
             await fetch(GOOGLE_SCRIPT_URL, {
@@ -567,29 +566,83 @@
             });
             
             document.getElementById("syncStatus").innerHTML = "✅ Enviado para Google Sheets!";
+            document.getElementById("syncStatus").style.color = "white";
             showToast("📤 Dados enviados para planilha! Verifique sua planilha.", "#10b981");
             
         } catch(e) {
             document.getElementById("syncStatus").innerHTML = "⚠️ Erro no envio";
             showToast("❌ Erro ao enviar: " + e.message, "#ef4444");
         }
-        setTimeout(() => { document.getElementById("syncStatus").innerHTML = "💾 Salvamento local ativo"; }, 3000);
+        setTimeout(() => { 
+            document.getElementById("syncStatus").innerHTML = "💾 Salvamento local ativo";
+            document.getElementById("syncStatus").style.color = "white";
+        }, 3000);
     }
 
-    // Exportar Backup (JSON)
-    function exportBackup() {
+    // ========== GOOGLE SHEETS - BUSCA (JSONP) ==========
+    function loadFromGoogleSheets() {
+        if(!GOOGLE_SCRIPT_URL) { alert("URL do Google Script não configurada"); return; }
+        
+        document.getElementById("syncStatus").innerHTML = "⏳ Buscando dados da planilha...";
+        document.getElementById("syncStatus").style.color = "#f59e0b";
+        
+        const callbackName = 'jsonp_callback_' + Date.now();
+        
+        window[callbackName] = function(response) {
+            delete window[callbackName];
+            if(document.head.contains(script)) document.head.removeChild(script);
+            
+            if(response && response.status === 'success' && response.data) {
+                const loadedApps = response.data.filter(row => row[0] && row[0].trim() !== '' && row[0] !== 'Nome do App').map((row, idx) => ({
+                    id: Date.now() + idx,
+                    name: row[0] || "Sem nome",
+                    what: row[1] || "",
+                    objective: row[2] || "",
+                    features: row[3] || "",
+                    example: row[4] || ""
+                }));
+                
+                if(loadedApps.length > 0) {
+                    apps = loadedApps;
+                    saveToLocalStorage();
+                    renderAll();
+                    showToast(`📥 ${loadedApps.length} apps carregados da planilha!`, "#3b82f6");
+                    document.getElementById("syncStatus").innerHTML = "✅ Dados carregados da planilha!";
+                } else {
+                    showToast("📭 Nenhum dado encontrado na planilha", "#f59e0b");
+                    document.getElementById("syncStatus").innerHTML = "⚠️ Nenhum dado na planilha";
+                }
+            } else {
+                showToast("❌ Erro ao carregar: " + (response?.message || "Resposta inválida"), "#ef4444");
+                document.getElementById("syncStatus").innerHTML = "⚠️ Erro ao carregar";
+            }
+            
+            setTimeout(() => { 
+                document.getElementById("syncStatus").innerHTML = "💾 Salvamento local ativo";
+                document.getElementById("syncStatus").style.color = "white";
+            }, 3000);
+        };
+        
+        const script = document.createElement('script');
+        script.src = `${GOOGLE_SCRIPT_URL}?callback=${callbackName}&t=${Date.now()}`;
+        script.onerror = function() {
+            window[callbackName]({ status: 'error', message: 'Falha na conexão' });
+        };
+        document.head.appendChild(script);
+    }
+
+    // Exportar/Importar JSON
+    function exportJson() {
         const dataStr = JSON.stringify(apps, null, 2);
         const blob = new Blob([dataStr], {type: "application/json"});
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
-        a.href = url; 
-        a.download = `appkeeper_backup_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
-        a.click(); 
-        URL.revokeObjectURL(url);
-        showToast("📁 Backup exportado com sucesso!", "#f59e0b");
+        a.href = url; a.download = `appkeeper_backup_${new Date().toISOString().slice(0,19)}.json`;
+        a.click(); URL.revokeObjectURL(url);
+        showToast("📁 Backup exportado!", "#f59e0b");
     }
     
-    function importBackup(file) {
+    function importJson(file) {
         const reader = new FileReader();
         reader.onload = (e) => {
             try {
@@ -598,8 +651,8 @@
                     apps = imported; 
                     saveToLocalStorage(); 
                     renderAll(); 
-                    showToast(`📂 Importado ${imported.length} apps com sucesso!`, "#10b981"); 
-                } else alert("Arquivo inválido - não é um array de apps");
+                    showToast(`📂 Importado ${imported.length} apps!`, "#10b981"); 
+                } else alert("Arquivo inválido");
             } catch(err) { alert("Erro no JSON: " + err.message); }
         };
         reader.readAsText(file);
@@ -626,14 +679,14 @@
     document.getElementById("cardViewBtn").onclick = () => { currentView = "cards"; renderAll(); };
     document.getElementById("tableViewBtn").onclick = () => { currentView = "table"; renderAll(); };
     document.getElementById("syncToSheetsBtn").onclick = syncToGoogleSheets;
-    document.getElementById("exportBackupBtn").onclick = exportBackup;
-    document.getElementById("importBackupBtn").onclick = () => document.getElementById("importFile").click();
-    document.getElementById("importFile").onchange = (e) => { if(e.target.files.length) importBackup(e.target.files[0]); e.target.value = ''; };
+    document.getElementById("loadFromSheetsBtn").onclick = loadFromGoogleSheets;
+    document.getElementById("exportJsonBtn").onclick = exportJson;
+    document.getElementById("importJsonBtn").onclick = () => document.getElementById("importFile").click();
+    document.getElementById("importFile").onchange = (e) => { if(e.target.files.length) importJson(e.target.files[0]); e.target.value = ''; };
 
     // Inicializar
     loadFromStorage();
 
-    // Animação fadeOut
     const style = document.createElement('style');
     style.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; } 100% { opacity: 0; transform: translateX(100px); visibility: hidden; } }`;
     document.head.appendChild(style);
