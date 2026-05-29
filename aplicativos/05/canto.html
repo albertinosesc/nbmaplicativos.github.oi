@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Detector de Notas Musicais em Sequência | Cante e veja as notas</title>
+    <script src="https://cdn.jsdelivr.net/npm/pitchy@4.0.8/lib/pitchy.min.js"></script>
+    <style>
+        * {
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+            background: linear-gradient(145deg, #1a1e2c 0%, #0f121c 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 650px;
+            width: 100%;
+            background: rgba(22, 26, 38, 0.8);
+            backdrop-filter: blur(12px);
+            border-radius: 56px;
+            padding: 28px 24px 36px;
+            box-shadow: 0 25px 45px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            transition: all 0.2s;
+        }
+
+        h1 {
+            font-size: 1.9rem;
+            font-weight: 700;
+            margin: 0 0 8px 0;
+            background: linear-gradient(135deg, #f0f3ff, #b9c7ff);
+            -webkit-background-clip: text;
+            background-clip: text;
+            color: transparent;
+            letter-spacing: -0.3px;
+            text-align: center;
+        }
+
+        .sub {
+            text-align: center;
+            color: #b9c7e6;
+            margin-bottom: 28px;
+            font-size: 0.9rem;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.2);
+            display: inline-block;
+            width: auto;
+            margin-left: auto;
+            margin-right: auto;
+            padding-bottom: 8px;
+        }
+
+        .card-pitch {
+            background: #0b0e16;
+            border-radius: 48px;
+            padding: 16px 20px;
+            margin-bottom: 28px;
+            text-align: center;
+            box-shadow: inset 0 2px 5px rgba(0,0,0,0.4), 0 8px 20px rgba(0,0,0,0.2);
+            border: 1px solid #2a2f3f;
+        }
+
+        .current-note {
+            font-size: 3.6rem;
+            font-weight: 800;
+            font-family: 'Courier New', 'Fira Code', monospace;
+            letter-spacing: 2px;
+            background: #00000055;
+            border-radius: 60px;
+            padding: 12px 20px;
+            display: inline-block;
+            min-width: 160px;
+            color: #ffdb8e;
+            text-shadow: 0 0 6px #ffa500;
+        }
+
+        .label {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            font-weight: 500;
+            letter-spacing: 2px;
+            color: #9aa5c6;
+            margin-bottom: 10px;
+        }
+
+        .freq-info {
+            margin-top: 12px;
+            font-size: 0.8rem;
+            color: #aab2d1;
+            font-family: monospace;
+        }
+
+        .sequence-area {
+            background: #04060c;
+            border-radius: 32px;
+            padding: 18px 20px;
+            margin: 20px 0;
+            border: 1px solid #2b3040;
+        }
+
+        .sequence-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            flex-wrap: wrap;
+            margin-bottom: 14px;
+        }
+
+        .sequence-title span {
+            font-weight: 600;
+            color: #cad2ff;
+        }
+
+        .clear-btn {
+            background: #2a2f44;
+            border: none;
+            color: #ffb347;
+            padding: 6px 14px;
+            border-radius: 40px;
+            font-size: 0.75rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: 0.1s linear;
+        }
+
+        .clear-btn:active {
+            background: #3f4564;
+            transform: scale(0.96);
+        }
+
+        .notes-list {
+            background: #0f111c;
+            border-radius: 28px;
+            min-height: 100px;
+            padding: 16px 20px;
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 12px 18px;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            font-size: 1.6rem;
+            overflow-x: auto;
+        }
+
+        .note-badge {
+            background: #1e243b;
+            color: #ffdf9c;
+            padding: 8px 18px;
+            border-radius: 48px;
+            font-size: 1.5rem;
+            font-weight: 700;
+            box-shadow: inset 0 -1px 0 #3a405e, 0 3px 8px rgba(0,0,0,0.3);
+            transition: 0.05s linear;
+            letter-spacing: 1px;
+        }
+
+        .empty-sequence {
+            color: #5e6b8b;
+            font-size: 1rem;
+            font-weight: normal;
+            font-style: italic;
+        }
+
+        .controls {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin: 20px 0 10px;
+        }
+
+        button {
+            background: #2d334f;
+            border: none;
+            font-weight: 600;
+            font-size: 1rem;
+            padding: 12px 26px;
+            border-radius: 44px;
+            color: white;
+            cursor: pointer;
+            transition: 0.1s linear;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            backdrop-filter: blur(4px);
+        }
+
+        button:active {
+            transform: scale(0.97);
+        }
+
+        .btn-primary {
+            background: #6c5ce7;
+            box-shadow: 0 4px 12px #6c5ce780;
+        }
+
+        .btn-primary:active {
+            background: #5541cf;
+        }
+
+        .btn-stop {
+            background: #c44545;
+            box-shadow: 0 4px 12px #c4454580;
+        }
+
+        .status {
+            text-align: center;
+            font-size: 0.8rem;
+            margin-top: 15px;
+            padding: 6px;
+            border-radius: 60px;
+            background: #00000030;
+            color: #bcceff;
+        }
+
+        footer {
+            font-size: 0.7rem;
+            text-align: center;
+            margin-top: 24px;
+            color: #5f6a8a;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 0.6; text-shadow: 0 0 0px #ffb347; }
+            100% { opacity: 1; text-shadow: 0 0 6px #ffb347; }
+        }
+
+        .pulse-note {
+            animation: pulse 0.3s ease-out;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>🎤 Detector de Notas em Sequência</h1>
+    <div style="text-align: center;">
+        <div class="sub">Cante ou toque uma melodia → veja as notas em ordem</div>
+    </div>
+
+    <div class="card-pitch">
+        <div class="label">🎵 NOTA ATUAL</div>
+        <div class="current-note" id="currentNoteDisplay">—</div>
+        <div class="freq-info" id="freqInfo">Frequência: — Hz | Clareza: —</div>
+    </div>
+
+    <div class="sequence-area">
+        <div class="sequence-title">
+            <span>📜 SEQUÊNCIA DE NOTAS (na ordem cantada)</span>
+            <button id="clearSequenceBtn" class="clear-btn">🗑️ LIMPAR</button>
+        </div>
+        <div class="notes-list" id="notesListContainer">
+            <div class="empty-sequence">Nenhuma nota registrada ainda. Comece a cantar!</div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button id="startBtn" class="btn-primary">🎙️ INICIAR ESCUTA</button>
+        <button id="stopBtn" class="btn-stop">⏹️ PARAR</button>
+    </div>
+    <div class="status" id="statusMsg">⚪ Aguardando início. Conceda permissão ao microfone.</div>
+    <footer>🔊 Cante uma nota por pelo menos ~0.5s para registrar cada nota. O sistema identifica a sequência em tempo real.</footer>
+</div>
+
+<script>
+    // ---------- CONFIGURAÇÕES ----------
+    const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    const A4_FREQ = 440.0;
+    const A4_MIDI = 69;
+    
+    // Limiar de clareza (confiança da detecção, pitchy retorna de 0 a 1)
+    const CLARITY_THRESHOLD = 0.80; // Aumentado levemente para evitar falsos positivos de ruído ambiente
+    // Número de frames consecutivos com a mesma nota para estabilizar e adicionar à sequência
+    const STABILITY_FRAMES = 3;
+    // Intervalo de análise (ms)
+    const PITCH_DETECTION_INTERVAL_MS = 100;
+    
+    // Variáveis globais
+    let audioContext = null;
+    let mediaStream = null;
+    let sourceNode = null;
+    let analyserNode = null;
+    let pitchDetector = null;
+    let isListening = false;
+    let detectionIntervalId = null;
+    
+    // Controle de estabilidade de notas
+    let candidateNote = null;          
+    let stabilityCounter = 0;
+    let lastCommittedNote = null;       
+    
+    // Sequência de notas
+    let noteSequence = [];              
+    
+    // Elementos DOM
+    const currentNoteDisplay = document.getElementById('currentNoteDisplay');
+    const freqInfoSpan = document.getElementById('freqInfo');
+    const notesListContainer = document.getElementById('notesListContainer');
+    const startBtn = document.getElementById('startBtn');
+    const stopBtn = document.getElementById('stopBtn');
+    const clearSequenceBtn = document.getElementById('clearSequenceBtn');
+    const statusMsg = document.getElementById('statusMsg');
+    
+    // Frequência -> Nome da nota
+    function frequencyToNote(freq) {
+        if (freq <= 0 || !isFinite(freq)) return null;
+        let midi = 12 * Math.log2(freq / A4_FREQ) + A4_MIDI;
+        let roundedMidi = Math.round(midi);
+        roundedMidi = Math.min(107, Math.max(36, roundedMidi));
+        const octave = Math.floor(roundedMidi / 12) - 1;
+        const noteIndex = roundedMidi % 12;
+        const baseNote = NOTE_NAMES[noteIndex];
+        const noteWithOctave = baseNote + octave;
+        return { noteWithOctave, baseNote, midi: roundedMidi, freqActual: freq };
+    }
+    
+    // Atualiza interface da sequência (renderiza badges)
+    function renderSequence() {
+        notesListContainer.innerHTML = '';
+        if (!noteSequence.length) {
+            const emptyDiv = document.createElement('div');
+            emptyDiv.className = 'empty-sequence';
+            emptyDiv.innerText = 'Nenhuma nota registrada ainda. Comece a cantar!';
+            notesListContainer.appendChild(emptyDiv);
+            return;
+        }
+        
+        for (let i = 0; i < noteSequence.length; i++) {
+            const note = noteSequence[i];
+            const badge = document.createElement('div');
+            badge.className = 'note-badge';
+            badge.textContent = note;
+            notesListContainer.appendChild(badge);
+        }
+        notesListContainer.scrollLeft = notesListContainer.scrollWidth;
+    }
+    
+    // Adiciona uma nova nota à sequência
+    function addNoteToSequence(noteBaseName) {
+        if (!noteBaseName) return false;
+        const lastNote = noteSequence.length > 0 ? noteSequence[noteSequence.length - 1] : null;
+        if (lastNote === noteBaseName) return false;
+        
+        noteSequence.push(noteBaseName);
+        renderSequence();
+        
+        if (currentNoteDisplay) {
+            currentNoteDisplay.classList.add('pulse-note');
+            setTimeout(() => currentNoteDisplay.classList.remove('pulse-note'), 250);
+        }
+        return true;
+    }
+    
+    // Limpa toda a sequência
+    function clearSequence() {
+        noteSequence = [];
+        lastCommittedNote = null;
+        renderSequence();
+        statusMsg.innerHTML = '内外 Sequência limpa. Continue cantando para registrar novas notas.';
+        setTimeout(() => {
+            if (isListening) statusMsg.innerHTML = '🎤 Escutando... Cante uma melodia contínua.';
+        }, 1500);
+    }
+    
+    // Processa detecção de pitch
+    function performPitchDetection() {
+        if (!isListening || !audioContext || !analyserNode || !pitchDetector) return;
+        
+        const inputBuffer = new Float32Array(analyserNode.fftSize);
+        analyserNode.getFloatTimeDomainData(inputBuffer);
+        
+        try {
+            // Correção da chamada da biblioteca Pitchy de acordo com sua API padrão distribuída via CDN
+            const [frequency, clarity] = pitchDetector.findPitch(inputBuffer, audioContext.sampleRate);
+            
+            if (frequency && frequency > 70 && frequency < 1800) {
+                freqInfoSpan.innerHTML = `Frequência: ${frequency.toFixed(1)} Hz | Clareza: ${(clarity * 100).toFixed(0)}%`;
+            } else {
+                freqInfoSpan.innerHTML = `Frequência: — Hz | Clareza: ${(clarity * 100).toFixed(0)}%`;
+            }
+            
+            if (clarity >= CLARITY_THRESHOLD && frequency > 75 && frequency < 1400) {
+                const noteObj = frequencyToNote(frequency);
+                if (noteObj) {
+                    const detectedBaseNote = noteObj.baseNote;    
+                    const detectedFullNote = noteObj.noteWithOctave; 
+                    
+                    currentNoteDisplay.innerText = detectedFullNote;
+                    
+                    if (candidateNote === detectedFullNote) {
+                        stabilityCounter++;
+                    } else {
+                        candidateNote = detectedFullNote;
+                        stabilityCounter = 1;
+                    }
+                    
+                    if (stabilityCounter >= STABILITY_FRAMES) {
+                        if (lastCommittedNote !== detectedBaseNote) {
+                            const success = addNoteToSequence(detectedBaseNote);
+                            if (success) {
+                                lastCommittedNote = detectedBaseNote;
+                                statusMsg.innerHTML = `🎶 Nota registrada: ${detectedBaseNote} (${detectedFullNote})`;
+                            }
+                        }
+                    } else {
+                        if (currentNoteDisplay) currentNoteDisplay.style.opacity = '0.8';
+                    }
+                    return;
+                }
+            }
+            
+            resetStability();
+            currentNoteDisplay.innerText = '🎵 —';
+            
+        } catch (err) {
+            resetStability();
+            currentNoteDisplay.innerText = '🔇 —';
+        }
+    }
+    
+    function resetStability() {
+        candidateNote = null;
+        stabilityCounter = 0;
+        if (currentNoteDisplay) currentNoteDisplay.style.opacity = '1';
+    }
+    
+    // Parar captura e limpar buffers
+    async function stopListening() {
+        if (detectionIntervalId) {
+            clearInterval(detectionIntervalId);
+            detectionIntervalId = null;
+        }
+        isListening = false;
+        
+        if (audioContext) {
+            await audioContext.close();
+            audioContext = null;
+        }
+        if (mediaStream) {
+            mediaStream.getTracks().forEach(track => track.stop());
+            mediaStream = null;
+        }
+        sourceNode = null;
+        analyserNode = null;
+        pitchDetector = null;
+        
+        statusMsg.innerHTML = '⏸️ Captura encerrada. Clique em "INICIAR ESCUTA" para cantar novamente.';
+        currentNoteDisplay.innerText = '—';
+        freqInfoSpan.innerHTML = 'Frequência: — Hz | Clareza: —';
+        resetStability();
+    }
+    
+    // Inicializar microfone e o detector de Pitch
+    async function startListening() {
+        if (isListening) {
+            await stopListening();
+        }
+        
+        try {
+            statusMsg.innerHTML = '🎤 Solicitando acesso ao microfone...';
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: {
+                echoCancellation: false,
+                noiseSuppression: false,
+                autoGainControl: false
+            } });
+            mediaStream = stream;
+            
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            await audioContext.resume(); 
+            
+            sourceNode = audioContext.createMediaStreamSource(stream);
+            analyserNode = audioContext.createAnalyser();
+            analyserNode.fftSize = 2048;
+            analyserNode.smoothingTimeConstant = 0.1; // Menor amortecimento para respostas mais rápidas em tempo real
+            
+            sourceNode.connect(analyserNode);
+            
+            // CORREÇÃO ESSENCIAL: Instanciação estática correta da biblioteca Pitchy via Node Builder
+            pitchDetector = Pitchy.PitchDetector.forAnalyserNode(analyserNode);
+            
+            isListening = true;
+            
+            if (detectionIntervalId) clearInterval(detectionIntervalId);
+            detectionIntervalId = setInterval(() => {
+                if (isListening && audioContext && audioContext.state === 'running') {
+                    performPitchDetection();
+                } else if (isListening && audioContext && audioContext.state !== 'running') {
+                    audioContext.resume().catch(e=>console.warn);
+                }
+            }, PITCH_DETECTION_INTERVAL_MS);
+            
+            statusMsg.innerHTML = '✅ Microfone ativo! Cante uma melodia (ex: C - F - E - G - D). As notas serão registradas em sequência.';
+            resetStability();
+            lastCommittedNote = null;
+            candidateNote = null;
+            stabilityCounter = 0;
+            currentNoteDisplay.innerText = '🎤 ouvindo...';
+            
+        } catch (err) {
+            console.error('Erro microfone:', err);
+            statusMsg.innerHTML = '❌ Erro ao acessar microfone. Verifique as permissões.';
+            isListening = false;
+            if (audioContext) await audioContext.close();
+            audioContext = null;
+        }
+    }
+    
+    // Event listeners
+    startBtn.addEventListener('click', async () => {
+        await startListening();
+    });
+    
+    stopBtn.addEventListener('click', async () => {
+        if (isListening) {
+            await stopListening();
+        } else {
+            statusMsg.innerHTML = '⚠️ Nenhuma captura ativa. Clique em "INICIAR ESCUTA".';
+        }
+    });
+    
+    clearSequenceBtn.addEventListener('click', () => {
+        clearSequence();
+        lastCommittedNote = null;
+    });
+    
+    window.addEventListener('beforeunload', (event) => {
+        if (isListening) {
+            event.preventDefault();
+            event.returnValue = 'A captura de áudio está activa. Tem a certeza?';
+        }
+    });
+    
+    renderSequence();
+    console.log('App pronto. Clique em Iniciar Escuta e cante notas sustentadas.');
+</script>
+</body>
+</html>
