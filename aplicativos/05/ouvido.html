@@ -126,7 +126,7 @@
             gap: 15px;
             margin-bottom: 10px;
         }
-        select, input[type="number"] {
+        select, input[type="number"], input[type="text"] {
             width: 100%;
             padding: 12px;
             background: var(--bg-item);
@@ -137,6 +137,10 @@
             font-weight: bold;
             box-sizing: border-box;
             outline: none;
+        }
+        input[type="text"]::placeholder {
+            color: #666;
+            font-weight: normal;
         }
         .controls {
             display: grid;
@@ -344,7 +348,7 @@
         <h2>Configuração de Expansão Cromática Linear</h2>
         <p style="text-align:center; font-size:13px; color:#aaa; margin-bottom:20px;">O sistema começará com apenas 1 nota e expandirá automaticamente de acordo com o gatilho.</p>
         
-        <div class="config-grid">
+        <div class="config-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));">
             <div>
                 <label style="background:transparent; justify-content:flex-start; padding:0 0 6px 0; font-weight:bold;">Nota Raiz Inicial:</label>
                 <select id="jpRaizSelect" onchange="inicializarMetodoJapones()">
@@ -371,15 +375,19 @@
                 </select>
             </div>
             <div>
-                <label style="background:transparent; justify-content:flex-start; padding:0 0 6px 0; font-weight:bold;">Mudar de Nível a cada:</label>
+                <label style="background:transparent; justify-content:flex-start; padding:0 0 6px 0; font-weight:bold;">Mudar Nível a cada:</label>
                 <input type="number" id="jpGatilhoInput" min="1" max="50" value="3" onchange="inicializarMetodoJapones()">
+            </div>
+            <div style="grid-column: span 2;">
+                <label style="background:transparent; justify-content:flex-start; padding:0 0 6px 0; font-weight:bold;">Sequência Customizada (Opcional):</label>
+                <input type="text" id="jpCustomSequencia" placeholder="Ex: C F A G (Deixe vazio para o padrão)" oninput="inicializarMetodoJapones()">
             </div>
         </div>
 
         <div style="margin-top:15px; border-top: 1px dashed #333; padding-top:15px;">
             <div class="jp-status-txt">
                 Nível do Método: <strong id="jpNivelTxt" style="color:var(--accent)">1</strong> | 
-                Notas Liberadas: <strong id="jpQtdTxt" style="color:var(--success)">1</strong> / 12 | 
+                Notas Liberadas: <strong id="jpQtdTxt" style="color:var(--success)">1</strong> / <span id="jpTotalNotasDisponiveisTxt">12</span> | 
                 Progresso: <strong id="jpProgressoTxt">0</strong> / <span id="jpGatilhoMostra">3</span>
             </div>
             <div class="jp-pool-container" id="jpPoolDisplay"></div>
@@ -436,7 +444,8 @@ const notasMidiInversas = {
 
 // Variáveis de Controle de Regras do Método Japonês (Modo 3)
 const ESCALA_CROMATICA = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-const PATRAO_INTERVALOS_JP = [0, 7, 4, 9, 5, 2, 11, 6, 1, 8, 3, 10]; // Sequência oficial do método
+const DICIONARIO_TRADUCAO = { "DO":"C", "RE":"D", "MI":"E", "FA":"F", "SOL":"G", "LA":"A", "SI":"B" };
+const PATRAO_INTERVALOS_JP = [0, 7, 4, 9, 5, 2, 11, 6, 1, 8, 3, 10]; 
 let jpSequenciaCompleta = [];
 let jpPoolAtivo = [];
 let jpNivelAtual = 1;
@@ -517,15 +526,50 @@ function ajustarFluxoInterface() {
     resetarEstilosBotoes();
 }
 
-function inicializarMetodoJapones() {
-    const raiz = document.getElementById("jpRaizSelect").value;
-    const oitava = document.getElementById("jpOitavaSelect").value;
-    const idxRaiz = ESCALA_CROMATICA.indexOf(raiz);
-
-    jpSequenciaCompleta = PATRAO_INTERVALOS_JP.map(semitons => {
-        let idxCalculado = (idxRaiz + semitons) % 12;
-        return `${ESCALA_CROMATICA[idxCalculado]}${oitava}`;
+function parsearSequenciaCustomizada(texto, oitava) {
+    let bruto = texto.toUpperCase()
+                     .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+                     .replace(/,/g, " ")
+                     .split(/\s+/);
+    
+    let notasValidas = [];
+    bruto.forEach(token => {
+        if(!token) return;
+        // Traduz Dó, Ré, Mi para C, D, E se necessário
+        if (DICIONARIO_TRADUCAO[token]) {
+            token = DICIONARIO_TRADUCAO[token];
+        }
+        if (ESCALA_CROMATICA.includes(token)) {
+            notasValidas.push(`${token}${oitava}`);
+        } else {
+            // Tenta verificar se tem sustenido colado ex: C#
+            let match = token.match(/^([A-G]#?)$/);
+            if (match && ESCALA_CROMATICA.includes(match[1])) {
+                notasValidas.push(`${match[1]}${oitava}`);
+            }
+        }
     });
+    return notasValidas;
+}
+
+function inicializarMetodoJapones() {
+    const oitava = document.getElementById("jpOitavaSelect").value;
+    const inputCustom = document.getElementById("jpCustomSequencia").value;
+    
+    let customNotas = parsearSequenciaCustomizada(inputCustom, oitava);
+
+    if (customNotas.length > 0) {
+        // Usa a sequência customizada inserida pelo usuário
+        jpSequenciaCompleta = customNotas;
+    } else {
+        // Usa o padrão algorítmico do método clássico
+        const raiz = document.getElementById("jpRaizSelect").value;
+        const idxRaiz = ESCALA_CROMATICA.indexOf(raiz);
+        jpSequenciaCompleta = PATRAO_INTERVALOS_JP.map(semitons => {
+            let idxCalculado = (idxRaiz + semitons) % 12;
+            return `${ESCALA_CROMATICA[idxCalculado]}${oitava}`;
+        });
+    }
 
     jpPoolAtivo = [jpSequenciaCompleta[0]];
     jpNivelAtual = 1;
@@ -539,6 +583,7 @@ function atualizarInterfaceJaponesa() {
     
     document.getElementById("jpNivelTxt").innerText = jpNivelAtual;
     document.getElementById("jpQtdTxt").innerText = jpPoolAtivo.length;
+    document.getElementById("jpTotalNotasDisponiveisTxt").innerText = jpSequenciaCompleta.length;
     document.getElementById("jpProgressoTxt").innerText = jpRodadasExecutadas;
     
     const gatilho = parseInt(document.getElementById("jpGatilhoInput").value) || 3;
@@ -718,7 +763,7 @@ function verificarProgressaoMelodica() {
                 }, 10);
                 ajustarFluxoInterface();
             } else {
-                jpRodadasExecutadas = gatilho;
+                jpRodadasExecutadas = gatilho; // Trava no teto máximo
             }
         }
         atualizarInterfaceJaponesa();
@@ -769,7 +814,11 @@ function novoExercicio(){
 }
 
 function gerarExercicioMetodoJapones() {
-    // REGRA DE OURO ATUALIZADA: Sorteia SEMPRE 1 única nota por rodada, de dentro do pool ativo!
+    if (jpPoolAtivo.length === 0) {
+        document.getElementById("info").innerHTML = "<span style='color:var(--danger)'>Adicione notas válidas para jogar!</span>";
+        return;
+    }
+    // Regra Imutável: Escolhe 1 única nota aleatória do conjunto que já foi liberado até o nível atual
     let notaSorteadaUnica = jpPoolAtivo[Math.floor(Math.random() * jpPoolAtivo.length)];
     let escolhidas = [notaSorteadaUnica];
 
@@ -779,7 +828,6 @@ function gerarExercicioMetodoJapones() {
     tocarMelodia(atual.notasSorteadas);
     esperando = true;
 
-    // Fluxo estruturado por revelação textual/mental direta (Gabarito)
     if (infinito || automatico) {
         const tempoConfiguradoMs = parseInt(document.getElementById("tempoSlider").value) * 1000;
         const duracaoMelodiaMs = calcularDuracaoMelodia();
@@ -805,7 +853,6 @@ function gerarExercicioTonica() {
     let midiAgudo = midiGrave + intervaloEscolhido;
 
     if (!notasMidiInversas[midiAgudo]) {
-        // Fallback rápido se extrapolar o teto C6
         midiAgudo = midiGrave - intervaloEscolhido;
     }
 
@@ -944,9 +991,9 @@ function revelarRespostaMelodiaLivre() {
     verificarProgressaoMelodica();
 
     if (infinito) {
-        setTimeout(() => { novoExercicio(); }, 2500); 
+        setTimeout(() => { novoExercicio(); }, 2500);
     }
-} 
+}
 
 function alternarAutomatico() {
     automatico = !automatico;
