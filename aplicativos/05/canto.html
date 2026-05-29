@@ -239,7 +239,7 @@
 </head>
 <body>
 <div class="container">
-    <h1>🎤 Detector de Notas em Sequência</h1>
+    <h1>🎤 Detector de Notas</h1>
     <div style="text-align: center;">
         <div class="sub">Cante ou toque uma melodia → veja as notas em ordem</div>
     </div>
@@ -274,14 +274,14 @@
     const A4_FREQ = 440.0;
     const A4_MIDI = 69;
     
-    // Limiar de clareza (confiança da detecção, pitchy retorna de 0 a 1)
-    const CLARITY_THRESHOLD = 0.80; // Aumentado levemente para evitar falsos positivos de ruído ambiente
-    // Número de frames consecutivos com a mesma nota para estabilizar e adicionar à sequência
+    // Limiar de clareza (confiança da detecção, vai de 0 a 1)
+    const CLARITY_THRESHOLD = 0.80; 
+    // Número de análises consecutivas estáveis para validar a nota na lista
     const STABILITY_FRAMES = 3;
-    // Intervalo de análise (ms)
+    // Intervalo de análise em milissegundos
     const PITCH_DETECTION_INTERVAL_MS = 100;
     
-    // Variáveis globais
+    // Variáveis de controle de áudio
     let audioContext = null;
     let mediaStream = null;
     let sourceNode = null;
@@ -290,15 +290,15 @@
     let isListening = false;
     let detectionIntervalId = null;
     
-    // Controle de estabilidade de notas
+    // Variáveis de estabilização da nota cantada
     let candidateNote = null;          
     let stabilityCounter = 0;
     let lastCommittedNote = null;       
     
-    // Sequência de notas
+    // Armazenamento da sequência
     let noteSequence = [];              
     
-    // Elementos DOM
+    // Elementos do DOM
     const currentNoteDisplay = document.getElementById('currentNoteDisplay');
     const freqInfoSpan = document.getElementById('freqInfo');
     const notesListContainer = document.getElementById('notesListContainer');
@@ -307,7 +307,7 @@
     const clearSequenceBtn = document.getElementById('clearSequenceBtn');
     const statusMsg = document.getElementById('statusMsg');
     
-    // Frequência -> Nome da nota
+    // Conversor matemático de Frequência para Nota Musical
     function frequencyToNote(freq) {
         if (freq <= 0 || !isFinite(freq)) return null;
         let midi = 12 * Math.log2(freq / A4_FREQ) + A4_MIDI;
@@ -320,7 +320,7 @@
         return { noteWithOctave, baseNote, midi: roundedMidi, freqActual: freq };
     }
     
-    // Atualiza interface da sequência (renderiza badges)
+    // Atualiza a listagem de Badges visuais na tela
     function renderSequence() {
         notesListContainer.innerHTML = '';
         if (!noteSequence.length) {
@@ -341,7 +341,7 @@
         notesListContainer.scrollLeft = notesListContainer.scrollWidth;
     }
     
-    // Adiciona uma nova nota à sequência
+    // Adiciona uma nova nota sem gerar repetições seguidas na sequência
     function addNoteToSequence(noteBaseName) {
         if (!noteBaseName) return false;
         const lastNote = noteSequence.length > 0 ? noteSequence[noteSequence.length - 1] : null;
@@ -357,18 +357,18 @@
         return true;
     }
     
-    // Limpa toda a sequência
+    // Limpa o histórico de notas
     function clearSequence() {
         noteSequence = [];
         lastCommittedNote = null;
         renderSequence();
-        statusMsg.innerHTML = '内外 Sequência limpa. Continue cantando para registrar novas notas.';
+        statusMsg.innerHTML = '🧹 Sequência limpa. Continue cantando para registrar novas notas.';
         setTimeout(() => {
             if (isListening) statusMsg.innerHTML = '🎤 Escutando... Cante uma melodia contínua.';
         }, 1500);
     }
     
-    // Processa detecção de pitch
+    // Loop principal de processamento de áudio do microfone
     function performPitchDetection() {
         if (!isListening || !audioContext || !analyserNode || !pitchDetector) return;
         
@@ -376,7 +376,7 @@
         analyserNode.getFloatTimeDomainData(inputBuffer);
         
         try {
-            // Correção da chamada da biblioteca Pitchy de acordo com sua API padrão distribuída via CDN
+            // Processamento do buffer direto pelo detector global da biblioteca Pitchy
             const [frequency, clarity] = pitchDetector.findPitch(inputBuffer, audioContext.sampleRate);
             
             if (frequency && frequency > 70 && frequency < 1800) {
@@ -430,7 +430,7 @@
         if (currentNoteDisplay) currentNoteDisplay.style.opacity = '1';
     }
     
-    // Parar captura e limpar buffers
+    // Desliga os streams de áudio do hardware
     async function stopListening() {
         if (detectionIntervalId) {
             clearInterval(detectionIntervalId);
@@ -456,7 +456,7 @@
         resetStability();
     }
     
-    // Inicializar microfone e o detector de Pitch
+    // Inicialização segura da API WebAudio e injeção do detector de pitch
     async function startListening() {
         if (isListening) {
             await stopListening();
@@ -477,12 +477,12 @@
             sourceNode = audioContext.createMediaStreamSource(stream);
             analyserNode = audioContext.createAnalyser();
             analyserNode.fftSize = 2048;
-            analyserNode.smoothingTimeConstant = 0.1; // Menor amortecimento para respostas mais rápidas em tempo real
+            analyserNode.smoothingTimeConstant = 0.1; 
             
             sourceNode.connect(analyserNode);
             
-            // CORREÇÃO ESSENCIAL: Instanciação estática correta da biblioteca Pitchy via Node Builder
-            pitchDetector = Pitchy.PitchDetector.forAnalyserNode(analyserNode);
+            // CHAMADA CORRIGIDA: Usa o construtor global direto exposto pela CDN no window
+            pitchDetector = PitchDetector.forAnalyserNode(analyserNode);
             
             isListening = true;
             
@@ -511,7 +511,7 @@
         }
     }
     
-    // Event listeners
+    // Mapeamento de Eventos de Cliques
     startBtn.addEventListener('click', async () => {
         await startListening();
     });
@@ -532,12 +532,13 @@
     window.addEventListener('beforeunload', (event) => {
         if (isListening) {
             event.preventDefault();
-            event.returnValue = 'A captura de áudio está activa. Tem a certeza?';
+            event.returnValue = 'A captura de áudio está ativa. Tem certeza?';
         }
     });
     
+    // Renderização inicial padrão
     renderSequence();
-    console.log('App pronto. Clique em Iniciar Escuta e cante notas sustentadas.');
+    console.log('App pronto. Abra via servidor local, clique em Iniciar Escuta e cante.');
 </script>
 </body>
 </html>
