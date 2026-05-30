@@ -67,6 +67,7 @@
             gap: 5px;
             flex-wrap: wrap;
             flex: 1;
+            align-items: center;
         }
         .tab-btn {
             background: transparent;
@@ -110,6 +111,15 @@
         }
         .del-tab-btn {
             background: #e74c3c;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            cursor: pointer;
+            font-size: 13px;
+            border-radius: 5px;
+        }
+        .sort-tab-btn {
+            background: #16a085;
             color: white;
             border: none;
             padding: 8px 12px;
@@ -273,6 +283,7 @@
             <button class="add-tab-btn" onclick="abrirModalNovaAba()">➕ Novo Livro</button>
             <button class="edit-tab-btn" onclick="renomearLivroAtual()">✏️ Renomear Atual</button>
             <button class="del-tab-btn" onclick="excluirLivroAtual()">🗑️ Deletar Atual</button>
+            <button class="sort-tab-btn" onclick="ordenarTodosOsLivros()">🔄 Ordenar Livros</button>
         </div>
     </div>
         
@@ -292,11 +303,108 @@
     let currentTabId = null;
     let atualizandoBackground = false;
 
+    // Função para extrair número do início do texto
     function extrairNumero(texto) {
         if (!texto) return null;
         const match = texto.toString().match(/^(\d+)/);
         if (match) return parseInt(match[1], 10);
         return null;
+    }
+
+    // Função para ordenar livros (alfabética e numericamente)
+    function ordenarLivros(books) {
+        return books.sort((a, b) => {
+            const nomeA = a.nome || '';
+            const nomeB = b.nome || '';
+            
+            // Extrair números do início dos nomes
+            const numA = extrairNumero(nomeA);
+            const numB = extrairNumero(nomeB);
+            
+            // Se ambos têm números no início, ordenar numericamente
+            if (numA !== null && numB !== null) {
+                if (numA !== numB) return numA - numB;
+                // Se os números são iguais, ordenar pelo resto do texto
+                return nomeA.localeCompare(nomeB, 'pt-br');
+            }
+            
+            // Se apenas um tem número, o que tem número vem primeiro
+            if (numA !== null) return -1;
+            if (numB !== null) return 1;
+            
+            // Ordenação alfabética padrão
+            return nomeA.localeCompare(nomeB, 'pt-br');
+        });
+    }
+
+    // Ordenar músicas dentro da aba
+    function ordenarMusicas(tabId) {
+        if (!sheetData[tabId] || sheetData[tabId].length <= 1) return;
+                
+        const headers = sheetData[tabId][0];
+        const rows = sheetData[tabId].slice(1);
+                
+        rows.sort((a, b) => {
+            const nomeA = a && a[0] ? a[0].toString() : '';
+            const nomeB = b && b[0] ? b[0].toString() : '';
+                        
+            const numA = extrairNumero(nomeA);
+            const numB = extrairNumero(nomeB);
+                        
+            if (numA !== null && numB !== null) {
+                if (numA !== numB) return numA - numB;
+                return nomeA.localeCompare(nomeB, 'pt-br');
+            }
+            if (numA !== null) return -1;
+            if (numB !== null) return 1;
+            return nomeA.localeCompare(nomeB, 'pt-br');
+        });
+                
+        sheetData[tabId] = [headers, ...rows];
+        saveAllToLocal();
+    }
+
+    // Ordenar todos os livros
+    window.ordenarTodosOsLivros = function() {
+        if (customTabs.length === 0) {
+            mostrarMensagem("Nenhum livro para ordenar!", "info");
+            return;
+        }
+        
+        const tabIdAtual = currentTabId;
+        customTabs = ordenarLivros(customTabs);
+        
+        // Atualizar currentTabId para o mesmo livro após ordenação
+        if (tabIdAtual) {
+            const tabAindaExiste = customTabs.find(t => t.id === tabIdAtual);
+            if (tabAindaExiste) {
+                currentTabId = tabIdAtual;
+            } else {
+                currentTabId = customTabs[0]?.id || null;
+            }
+        }
+        
+        saveAllToLocal();
+        renderTabs();
+        renderizarInterface();
+        mostrarMensagem("✅ Livros ordenados com sucesso!", "success");
+    };
+
+    // Função para ordenar livros automaticamente após qualquer alteração
+    function ordenarLivrosAutomaticamente() {
+        const tabIdAtual = currentTabId;
+        customTabs = ordenarLivros(customTabs);
+        
+        // Manter a aba atual selecionada
+        if (tabIdAtual) {
+            const tabAindaExiste = customTabs.find(t => t.id === tabIdAtual);
+            if (tabAindaExiste) {
+                currentTabId = tabIdAtual;
+            }
+        }
+        
+        saveAllToLocal();
+        renderTabs();
     }
 
     function ordenarMusicas(tabId) {
@@ -327,7 +435,6 @@
 
     // ========== FUNÇÕES DE EXPORTAR E IMPORTAR ==========
     
-    // Exportar TUDO (todos os livros)
     window.exportarTudoJSON = function() {
         try {
             const dadosCompletos = {
@@ -355,7 +462,6 @@
         }
     };
     
-    // Exportar livro ATUAL individualmente (JSON)
     window.exportarLivroAtualJSON = function() {
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
@@ -390,7 +496,6 @@
         }
     };
     
-    // Exportar TXT do livro atual (CORRIGIDO COM UTF-8)
     window.exportarLivroAtualTXT = function() {
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
@@ -419,7 +524,6 @@
                 txtConteudo += "(Nenhum dado cadastrado)\n";
             }
             
-            // CORREÇÃO: Usar Blob com UTF-8 explícito e BOM (Byte Order Mark)
             const blob = new Blob(["\uFEFF" + txtConteudo], { type: "text/plain;charset=utf-8" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
@@ -436,7 +540,6 @@
         }
     };
     
-    // Importar arquivo (detecta automaticamente se é individual ou completo)
     window.importarArquivo = function() {
         const input = document.createElement("input");
         input.type = "file";
@@ -451,7 +554,6 @@
                     let conteudo = e.target.result;
                     const extensao = file.name.split('.').pop().toLowerCase();
                     
-                    // Remover BOM se existir (para arquivos UTF-8 com BOM)
                     if (conteudo.charCodeAt(0) === 0xFEFF) {
                         conteudo = conteudo.slice(1);
                     }
@@ -476,9 +578,7 @@
         try {
             const dadosImportados = JSON.parse(conteudo);
             
-            // Verificar se é exportação completa ou individual
             if (dadosImportados.tipo === "todos_livros" || (dadosImportados.abas && dadosImportados.dados)) {
-                // Importação completa
                 if (confirm(`ATENÇÃO: Isso substituirá TODOS os dados atuais (${customTabs.length} livro(s)) pelos dados do arquivo. Deseja continuar?`)) {
                     customTabs = dadosImportados.abas;
                     sheetData = dadosImportados.dados;
@@ -490,6 +590,9 @@
                         ordenarMusicas(tab.id);
                     });
                     
+                    // Ordenar livros após importação
+                    customTabs = ordenarLivros(customTabs);
+                    
                     if (customTabs.length > 0) {
                         currentTabId = customTabs[0].id;
                     }
@@ -497,11 +600,10 @@
                     saveAllToLocal();
                     renderTabs();
                     renderizarInterface();
-                    mostrarMensagem(`✅ Importação completa! ${customTabs.length} livro(s) carregado(s).`, "success");
+                    mostrarMensagem(`✅ Importação completa! ${customTabs.length} livro(s) carregado(s) e ordenado(s).`, "success");
                 }
             } 
             else if (dadosImportados.tipo === "livro_individual" && dadosImportados.nome && dadosImportados.dados) {
-                // Importação individual
                 const nomeLivro = dadosImportados.nome;
                 const colunas = dadosImportados.colunas || ["📚 Música/Lição", "⏱️ Andamento (M.M.)"];
                 const dados = dadosImportados.dados;
@@ -515,12 +617,15 @@
                     });
                     sheetData[newId] = dados;
                     ordenarMusicas(newId);
+                    
+                    // Ordenar livros após adicionar novo
+                    customTabs = ordenarLivros(customTabs);
                     currentTabId = newId;
                     
                     saveAllToLocal();
                     renderTabs();
                     renderizarInterface();
-                    mostrarMensagem(`✅ Livro "${nomeLivro}" importado com sucesso!`, "success");
+                    mostrarMensagem(`✅ Livro "${nomeLivro}" importado e ordenado com sucesso!`, "success");
                 }
             }
             else {
@@ -569,6 +674,9 @@
                         colunas: headers
                     });
                     sheetData[newId] = dadosCompletos;
+                    
+                    // Ordenar livros após importação
+                    customTabs = ordenarLivros(customTabs);
                     currentTabId = newId;
                     
                     saveAllToLocal();
@@ -681,6 +789,8 @@
                         sheetData[newId] = [["📚 Música/Lição", "⏱️ Andamento (M.M.)"]];
                     }
                 }
+                // Ordenar livros após carregar do Google
+                customTabs = ordenarLivros(customTabs);
                 saveAllToLocal();
                 renderTabs();
             }
@@ -690,17 +800,26 @@
     }
 
     function initDefaultTabs() {
-        return [
+        const tabs = [
             { id: "metodo_1", nome: "Beyer", colunas: ["📚 Música/Lição", "⏱️ Andamento (M.M.)"] },
             { id: "metodo_2", nome: "Czerny", colunas: ["📚 Música/Lição", "⏱️ Andamento (M.M.)"] }
         ];
+        return ordenarLivros(tabs);
     }
 
     function loadFromLocalStorage() {
         const stored = localStorage.getItem("metodos_customTabs");
         if (stored) {
-            try { customTabs = JSON.parse(stored); } catch(e) { customTabs = initDefaultTabs(); }
-        } else { customTabs = initDefaultTabs(); }
+            try { 
+                customTabs = JSON.parse(stored);
+                // Ordenar os livros ao carregar
+                customTabs = ordenarLivros(customTabs);
+            } catch(e) { 
+                customTabs = initDefaultTabs(); 
+            }
+        } else { 
+            customTabs = initDefaultTabs(); 
+        }
                 
         const storedData = localStorage.getItem("metodos_sheetData");
         if (storedData) {
@@ -731,6 +850,12 @@
                 📘 ${tab.nome}
             </button>
         `).join('');
+        
+        // Adicionar contador de livros
+        const contador = document.createElement('span');
+        contador.style.cssText = 'color: #bdc3c7; font-size: 12px; margin-left: 10px;';
+        contador.textContent = `(${customTabs.length} livro${customTabs.length !== 1 ? 's' : ''})`;
+        container.appendChild(contador);
     }
 
     function mudarAba(tabId) {
@@ -810,7 +935,7 @@
             cabecalhoHtml += `<th>${headers[h] || ''}</th>`;
         }
         cabecalhoHtml += '<th>Ações</th>';
-        cabecalhoHtml += '</tr>';
+        cabecalhoHtml += '</table>';
 
         const html = `
             <div class="form-card">
@@ -938,10 +1063,12 @@
                 await enviarMusicaParaGoogle(row, tab.nome);
             }
             
+            // Ordenar livros após renomear
+            ordenarLivrosAutomaticamente();
+            
             saveAllToLocal();
-            renderTabs();
             renderizarInterface();
-            mostrarMensagem("Livro renomeado e sincronizado!", "success");
+            mostrarMensagem("Livro renomeado e ordenado!", "success");
         }
     };
 
@@ -955,6 +1082,9 @@
             customTabs = customTabs.filter(t => t.id !== currentTabId);
             delete sheetData[currentTabId];
             
+            // Ordenar livros após excluir
+            customTabs = ordenarLivros(customTabs);
+            
             saveAllToLocal();
             
             if (customTabs.length > 0) {
@@ -965,7 +1095,7 @@
             
             renderTabs();
             renderizarInterface();
-            mostrarMensagem("Livro removido do aplicativo e do Google!", "success");
+            mostrarMensagem("Livro removido e lista reordenada!", "success");
         }
     };
 
@@ -1079,11 +1209,15 @@
             const newId = "tab_" + Date.now();
             customTabs.push({ id: newId, nome: nome.trim(), colunas: ["📚 Música/Lição", "⏱️ Andamento (M.M.)"] });
             sheetData[newId] = [["📚 Música/Lição", "⏱️ Andamento (M.M.)"]];
-            saveAllToLocal();
+            
+            // Ordenar livros após adicionar novo
+            customTabs = ordenarLivros(customTabs);
             currentTabId = newId;
+            
+            saveAllToLocal();
             renderTabs();
             renderizarInterface();
-            mostrarMensagem(`Livro "${nome}" criado!`, "success");
+            mostrarMensagem(`Livro "${nome}" criado e ordenado!`, "success");
             
             await fetch(`${webAppUrl}?acao=criarAba&nomeAba=${encodeURIComponent(nome)}&t=${Date.now()}`);
             await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
