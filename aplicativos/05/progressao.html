@@ -182,7 +182,6 @@
         .btn-buscar { background: #3498db; color: white; }
         .btn-atualizar-tudo { background: #9b59b6; color: white; font-weight: bold; }
         .btn-exportar { background: #f39c12; color: white; font-weight: bold; }
-        .btn-importar { background: #1abc9c; color: white; font-weight: bold; }
         .btn-exportar-individual { background: #e67e22; color: white; }
         .btn-importar-individual { background: #16a085; color: white; }
                 
@@ -259,13 +258,21 @@
             font-size: 18px;
         }
         .loading.active { display: block; }
+        .app-badge {
+            background: #e67e22;
+            color: white;
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            margin-left: 10px;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
     <div class="header">
-        <h1>🎵 Gestor de Progressão Harmônica</h1>
+        <h1>🎵 Gestor de Progressão Harmônica <span class="app-badge">v2 - 1 Coluna</span></h1>
     </div>
         
     <div class="status-bar">
@@ -295,7 +302,12 @@
 </div>
 
 <script>
-    // URL FIXA DO GOOGLE APPS SCRIPT
+    // CONFIGURAÇÃO - USAR CHAVES DIFERENTES DO APP ORIGINAL
+    const STORAGE_TABS = "progressao_customTabs";  // Chave diferente
+    const STORAGE_DATA = "progressao_sheetData";   // Chave diferente
+    const APP_VERSION = "2.0";
+    
+    // URL DO GOOGLE APPS SCRIPT (ATUALIZE PARA A SUA)
     const webAppUrl = 'https://script.google.com/macros/s/AKfycbyNcMgo9W74ksso3GX3aOuM8T-WmoeyKhuErkIemNB84D8Jj1YYR4uovTll_ry8ggdn/exec';
     
     let customTabs = [];
@@ -303,7 +315,6 @@
     let currentTabId = null;
     let atualizandoBackground = false;
 
-    // Função para extrair número do início do texto
     function extrairNumero(texto) {
         if (!texto) return null;
         const match = texto.toString().match(/^(\d+)/);
@@ -311,15 +322,12 @@
         return null;
     }
 
-    // Função para ordenar livros (alfabética e numericamente)
     function ordenarLivros(books) {
         return books.sort((a, b) => {
             const nomeA = a.nome || '';
             const nomeB = b.nome || '';
-            
             const numA = extrairNumero(nomeA);
             const numB = extrairNumero(nomeB);
-            
             if (numA !== null && numB !== null) {
                 if (numA !== numB) return numA - numB;
                 return nomeA.localeCompare(nomeB, 'pt-br');
@@ -330,20 +338,15 @@
         });
     }
 
-    // Ordenar músicas dentro da aba
     function ordenarMusicas(tabId) {
         if (!sheetData[tabId] || sheetData[tabId].length <= 1) return;
-                
         const headers = sheetData[tabId][0];
         const rows = sheetData[tabId].slice(1);
-                
         rows.sort((a, b) => {
             const nomeA = a && a[0] ? a[0].toString() : '';
             const nomeB = b && b[0] ? b[0].toString() : '';
-                        
             const numA = extrairNumero(nomeA);
             const numB = extrairNumero(nomeB);
-                        
             if (numA !== null && numB !== null) {
                 if (numA !== numB) return numA - numB;
                 return nomeA.localeCompare(nomeB, 'pt-br');
@@ -352,30 +355,22 @@
             if (numB !== null) return 1;
             return nomeA.localeCompare(nomeB, 'pt-br');
         });
-                
         sheetData[tabId] = [headers, ...rows];
         saveAllToLocal();
     }
 
-    // Ordenar todos os livros
     window.ordenarTodosOsLivros = function() {
         if (customTabs.length === 0) {
             mostrarMensagem("Nenhum método para ordenar!", "info");
             return;
         }
-        
         const tabIdAtual = currentTabId;
         customTabs = ordenarLivros(customTabs);
-        
         if (tabIdAtual) {
             const tabAindaExiste = customTabs.find(t => t.id === tabIdAtual);
-            if (tabAindaExiste) {
-                currentTabId = tabIdAtual;
-            } else {
-                currentTabId = customTabs[0]?.id || null;
-            }
+            if (tabAindaExiste) currentTabId = tabIdAtual;
+            else currentTabId = customTabs[0]?.id || null;
         }
-        
         saveAllToLocal();
         renderTabs();
         renderizarInterface();
@@ -385,42 +380,35 @@
     function ordenarLivrosAutomaticamente() {
         const tabIdAtual = currentTabId;
         customTabs = ordenarLivros(customTabs);
-        
         if (tabIdAtual) {
             const tabAindaExiste = customTabs.find(t => t.id === tabIdAtual);
-            if (tabAindaExiste) {
-                currentTabId = tabIdAtual;
-            }
+            if (tabAindaExiste) currentTabId = tabIdAtual;
         }
-        
         saveAllToLocal();
         renderTabs();
     }
 
-    // ========== FUNÇÕES DE EXPORTAR E IMPORTAR ==========
-    
+    // FUNÇÕES DE EXPORTAR/IMPORTAR (mantidas, mas com nomes adaptados)
     window.exportarTudoJSON = function() {
         try {
             const dadosCompletos = {
                 abas: customTabs,
                 dados: sheetData,
                 dataExportacao: new Date().toISOString(),
-                versaoApp: "1.0",
-                tipo: "todos_livros"
+                versaoApp: APP_VERSION,
+                tipo: "progressao_todos_livros"
             };
-            
             const jsonString = JSON.stringify(dadosCompletos, null, 2);
             const blob = new Blob([jsonString], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `backup_todos_metodos_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+            a.download = `backup_progressao_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
-            mostrarMensagem("✅ Todos os métodos exportados com sucesso para JSON!", "success");
+            mostrarMensagem("✅ Todos os métodos exportados com sucesso!", "success");
         } catch (error) {
             mostrarMensagem("❌ Erro ao exportar: " + error.message, "error");
         }
@@ -433,27 +421,24 @@
                 mostrarMensagem("Nenhum método selecionado!", "error");
                 return;
             }
-            
             const dadosLivro = {
                 nome: tab.nome,
                 colunas: tab.colunas,
                 dados: sheetData[currentTabId],
                 dataExportacao: new Date().toISOString(),
-                versaoApp: "1.0",
-                tipo: "livro_individual"
+                versaoApp: APP_VERSION,
+                tipo: "progressao_livro_individual"
             };
-            
             const jsonString = JSON.stringify(dadosLivro, null, 2);
             const blob = new Blob([jsonString], { type: "application/json" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `metodo_${tab.nome.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+            a.download = `progressao_${tab.nome.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
             mostrarMensagem(`✅ Método "${tab.nome}" exportado com sucesso!`, "success");
         } catch (error) {
             mostrarMensagem("❌ Erro ao exportar: " + error.message, "error");
@@ -467,37 +452,30 @@
                 mostrarMensagem("Nenhum método selecionado!", "error");
                 return;
             }
-            
-            let txtConteudo = `=== ${tab.nome} ===\n`;
+            let txtConteudo = `=== ${tab.nome} (Progressão Harmônica) ===\n`;
             txtConteudo += `Data de exportação: ${new Date().toLocaleString('pt-BR')}\n`;
             txtConteudo += "=".repeat(50) + "\n\n";
-            
             const dados = sheetData[currentTabId];
             if (dados && dados.length > 0) {
                 const headers = dados[0];
                 txtConteudo += headers.join(" | ") + "\n";
                 txtConteudo += "-".repeat(50) + "\n";
-                
                 for (let i = 1; i < dados.length; i++) {
                     const linha = dados[i];
-                    if (linha && linha.length > 0) {
-                        txtConteudo += linha.join(" | ") + "\n";
-                    }
+                    if (linha && linha.length > 0) txtConteudo += linha.join(" | ") + "\n";
                 }
             } else {
                 txtConteudo += "(Nenhum dado cadastrado)\n";
             }
-            
             const blob = new Blob(["\uFEFF" + txtConteudo], { type: "text/plain;charset=utf-8" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `metodo_${tab.nome.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.txt`;
+            a.download = `progressao_${tab.nome.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.txt`;
             document.body.appendChild(a);
             a.click();
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
-            
             mostrarMensagem(`✅ Método "${tab.nome}" exportado para TXT!`, "success");
         } catch (error) {
             mostrarMensagem("❌ Erro ao exportar TXT: " + error.message, "error");
@@ -511,24 +489,15 @@
         input.onchange = function(event) {
             const file = event.target.files[0];
             if (!file) return;
-            
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
                     let conteudo = e.target.result;
                     const extensao = file.name.split('.').pop().toLowerCase();
-                    
-                    if (conteudo.charCodeAt(0) === 0xFEFF) {
-                        conteudo = conteudo.slice(1);
-                    }
-                    
-                    if (extensao === 'json') {
-                        importarJSONInteligente(conteudo);
-                    } else if (extensao === 'txt') {
-                        importarTXT(conteudo);
-                    } else {
-                        mostrarMensagem("Formato não suportado. Use JSON ou TXT.", "error");
-                    }
+                    if (conteudo.charCodeAt(0) === 0xFEFF) conteudo = conteudo.slice(1);
+                    if (extensao === 'json') importarJSONInteligente(conteudo);
+                    else if (extensao === 'txt') importarTXT(conteudo);
+                    else mostrarMensagem("Formato não suportado. Use JSON ou TXT.", "error");
                 } catch (error) {
                     mostrarMensagem("Erro ao ler arquivo: " + error.message, "error");
                 }
@@ -541,57 +510,39 @@
     function importarJSONInteligente(conteudo) {
         try {
             const dadosImportados = JSON.parse(conteudo);
-            
-            if (dadosImportados.tipo === "todos_livros" || (dadosImportados.abas && dadosImportados.dados)) {
+            if (dadosImportados.tipo === "progressao_todos_livros" || (dadosImportados.abas && dadosImportados.dados)) {
                 if (confirm(`ATENÇÃO: Isso substituirá TODOS os dados atuais (${customTabs.length} método(s)) pelos dados do arquivo. Deseja continuar?`)) {
                     customTabs = dadosImportados.abas;
                     sheetData = dadosImportados.dados;
-                    
                     customTabs.forEach(tab => {
-                        if (!sheetData[tab.id]) {
-                            sheetData[tab.id] = [tab.colunas || ["📚 Música/Lição"]];
-                        }
+                        if (!sheetData[tab.id]) sheetData[tab.id] = [tab.colunas || ["📚 Música/Lição"]];
                         ordenarMusicas(tab.id);
                     });
-                    
                     customTabs = ordenarLivros(customTabs);
-                    
-                    if (customTabs.length > 0) {
-                        currentTabId = customTabs[0].id;
-                    }
-                    
+                    if (customTabs.length > 0) currentTabId = customTabs[0].id;
                     saveAllToLocal();
                     renderTabs();
                     renderizarInterface();
-                    mostrarMensagem(`✅ Importação completa! ${customTabs.length} método(s) carregado(s) e ordenado(s).`, "success");
+                    mostrarMensagem(`✅ Importação completa! ${customTabs.length} método(s) carregado(s).`, "success");
                 }
-            } 
-            else if (dadosImportados.tipo === "livro_individual" && dadosImportados.nome && dadosImportados.dados) {
+            } else if (dadosImportados.tipo === "progressao_livro_individual" && dadosImportados.nome && dadosImportados.dados) {
                 const nomeLivro = dadosImportados.nome;
                 const colunas = dadosImportados.colunas || ["📚 Música/Lição"];
                 const dados = dadosImportados.dados;
-                
                 if (confirm(`Deseja importar o método "${nomeLivro}" como um NOVO método?`)) {
                     const newId = "tab_" + Date.now() + "_" + nomeLivro.replace(/[^a-z0-9]/gi, '_');
-                    customTabs.push({
-                        id: newId,
-                        nome: nomeLivro,
-                        colunas: colunas
-                    });
+                    customTabs.push({ id: newId, nome: nomeLivro, colunas: colunas });
                     sheetData[newId] = dados;
                     ordenarMusicas(newId);
-                    
                     customTabs = ordenarLivros(customTabs);
                     currentTabId = newId;
-                    
                     saveAllToLocal();
                     renderTabs();
                     renderizarInterface();
-                    mostrarMensagem(`✅ Método "${nomeLivro}" importado e ordenado com sucesso!`, "success");
+                    mostrarMensagem(`✅ Método "${nomeLivro}" importado com sucesso!`, "success");
                 }
-            }
-            else {
-                throw new Error("Formato JSON não reconhecido");
+            } else {
+                throw new Error("Formato JSON não reconhecido para este app");
             }
         } catch (error) {
             mostrarMensagem("❌ Erro ao importar JSON: " + error.message, "error");
@@ -605,41 +556,31 @@
                 let headers = [];
                 let dadosLinhas = [];
                 let lendoDados = false;
-                let nomeLivro = "Metodo_Importado_" + new Date().toISOString().slice(0,19);
-                
+                let nomeLivro = "Progressao_Importada_" + new Date().toISOString().slice(0,19);
                 for (let i = 0; i < linhas.length; i++) {
                     let linha = linhas[i].trim();
-                    
                     if (linha.includes('===') && !headers.length) {
                         const match = linha.match(/=== (.+?) ===/);
                         if (match) nomeLivro = match[1];
                         continue;
                     }
-                    
                     if (linha.includes('|') && !linha.includes('===') && !linha.includes('---')) {
                         const partes = linha.split('|').map(p => p.trim());
                         if (!lendoDados && headers.length === 0) {
-                            headers = partes;
+                            headers = [partes[0]];
                             lendoDados = true;
-                        } else if (lendoDados && partes.length === headers.length) {
-                            dadosLinhas.push(partes);
+                        } else if (lendoDados && partes.length >= 1) {
+                            dadosLinhas.push([partes[0]]);
                         }
                     }
                 }
-                
                 if (headers.length > 0) {
                     const dadosCompletos = [headers, ...dadosLinhas];
                     const newId = "tab_" + Date.now();
-                    customTabs.push({
-                        id: newId,
-                        nome: nomeLivro,
-                        colunas: headers
-                    });
+                    customTabs.push({ id: newId, nome: nomeLivro, colunas: headers });
                     sheetData[newId] = dadosCompletos;
-                    
                     customTabs = ordenarLivros(customTabs);
                     currentTabId = newId;
-                    
                     saveAllToLocal();
                     renderTabs();
                     renderizarInterface();
@@ -658,14 +599,9 @@
             const tab = customTabs.find(t => t.id === currentTabId);
             const nomeAba = nomeAbaAlternativo || tab.nome;
             const url = `${webAppUrl}?acao=salvar&aba=${encodeURIComponent(nomeAba)}&dados=${encodeURIComponent(JSON.stringify(linhaCompleta))}&t=${Date.now()}`;
-            
             const response = await fetch(url);
             const result = await response.json();
-            
-            if (result.success) {
-                return true;
-            }
-            return false;
+            return result.success;
         } catch(e) { 
             console.error("Erro ao enviar:", e);
             return false; 
@@ -675,15 +611,12 @@
     async function enviarTabelaCompletaParaGoogle() {
         const tab = customTabs.find(t => t.id === currentTabId);
         const todasAsLinhas = sheetData[currentTabId];
-                
         if (!todasAsLinhas || todasAsLinhas.length === 0) {
             mostrarMensagem("Não há dados para enviar", "error");
             return;
         }
-
         mostrarLoading(true, "Enviando dados ao Google Sheets...");
         let sucessos = 0;
-        
         try {
             for (let i = 0; i < todasAsLinhas.length; i++) {
                 const enviou = await enviarMusicaParaGoogle(todasAsLinhas[i]);
@@ -700,21 +633,16 @@
     async function buscarDoGoogleBackground() {
         if (atualizandoBackground) return;
         atualizandoBackground = true;
-        
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
             if (!tab) return;
-            
             atualizarStatusSync("atualizando");
-            
             const url = `${webAppUrl}?acao=buscar&aba=${encodeURIComponent(tab.nome)}&t=${Date.now()}`;
             const response = await fetch(url);
             const result = await response.json();
-            
             if (result.success && result.dados && result.dados.length > 0) {
                 const dadosAtuaisStr = JSON.stringify(sheetData[currentTabId]);
                 const novosDadosStr = JSON.stringify(result.dados);
-                
                 if (dadosAtuaisStr !== novosDadosStr) {
                     sheetData[currentTabId] = result.dados;
                     tab.colunas = [...result.dados[0]];
@@ -736,17 +664,12 @@
         try {
             const response = await fetch(`${webAppUrl}?acao=listarAbas&t=${Date.now()}`);
             const data = await response.json();
-            
             if (data.success && data.abas) {
                 for (const abaName of data.abas) {
                     const abaExistente = customTabs.find(t => t.nome === abaName);
                     if (!abaExistente) {
                         const newId = "tab_" + Date.now() + "_" + abaName;
-                        customTabs.push({ 
-                            id: newId, 
-                            nome: abaName, 
-                            colunas: ["📚 Música/Lição"] 
-                        });
+                        customTabs.push({ id: newId, nome: abaName, colunas: ["📚 Música/Lição"] });
                         sheetData[newId] = [["📚 Música/Lição"]];
                     }
                 }
@@ -761,14 +684,15 @@
 
     function initDefaultTabs() {
         const tabs = [
-            { id: "metodo_1", nome: "Beyer", colunas: ["📚 Música/Lição"] },
-            { id: "metodo_2", nome: "Czerny", colunas: ["📚 Música/Lição"] }
+            { id: "progressao_1", nome: "Progressão I", colunas: ["📚 Música/Lição"] },
+            { id: "progressao_2", nome: "Progressão II", colunas: ["📚 Música/Lição"] }
         ];
         return ordenarLivros(tabs);
     }
 
     function loadFromLocalStorage() {
-        const stored = localStorage.getItem("metodos_customTabs");
+        // Usar chaves separadas
+        const stored = localStorage.getItem(STORAGE_TABS);
         if (stored) {
             try { 
                 customTabs = JSON.parse(stored);
@@ -779,12 +703,10 @@
         } else { 
             customTabs = initDefaultTabs(); 
         }
-                
-        const storedData = localStorage.getItem("metodos_sheetData");
+        const storedData = localStorage.getItem(STORAGE_DATA);
         if (storedData) {
             try { sheetData = JSON.parse(storedData); } catch(e) { sheetData = {}; }
         } else sheetData = {};
-                
         customTabs.forEach(tab => {
             if (!sheetData[tab.id] || !sheetData[tab.id].length) {
                 sheetData[tab.id] = [[...tab.colunas]];
@@ -797,8 +719,9 @@
     }
 
     function saveAllToLocal() {
-        localStorage.setItem("metodos_customTabs", JSON.stringify(customTabs));
-        localStorage.setItem("metodos_sheetData", JSON.stringify(sheetData));
+        // Usar chaves separadas
+        localStorage.setItem(STORAGE_TABS, JSON.stringify(customTabs));
+        localStorage.setItem(STORAGE_DATA, JSON.stringify(sheetData));
     }
 
     function renderTabs() {
@@ -809,7 +732,6 @@
                 🎵 ${tab.nome}
             </button>
         `).join('');
-        
         const contador = document.createElement('span');
         contador.style.cssText = 'color: #bdc3c7; font-size: 12px; margin-left: 10px;';
         contador.textContent = `(${customTabs.length} método${customTabs.length !== 1 ? 's' : ''})`;
@@ -830,16 +752,10 @@
             document.getElementById('mainContent').innerHTML = '<p style="text-align:center; color:#7f8c8d; padding:40px;">Nenhum método selecionado. Crie ou selecione um acima.</p>';
             return;
         }
-        
         let headers = [];
-        if (sheetData[tab.id] && sheetData[tab.id][0]) {
-            headers = sheetData[tab.id][0];
-        } else {
-            headers = [...tab.colunas];
-        }
-        
+        if (sheetData[tab.id] && sheetData[tab.id][0]) headers = sheetData[tab.id][0];
+        else headers = [...tab.colunas];
         const rows = sheetData[tab.id] ? sheetData[tab.id].slice(1) : [];
-        
         let camposCadastroHtml = '';
         for (let idx = 0; idx < headers.length; idx++) {
             const colNome = headers[idx] || '';
@@ -851,7 +767,6 @@
                 </div>
             `;
         }
-
         let tabelaHtml = '';
         if (rows.length === 0) {
             tabelaHtml = `<tr><td colspan="${headers.length + 1}" style="text-align:center;">Nenhuma lição ou música cadastrada</td></tr>`;
@@ -859,48 +774,26 @@
             for (let rowIdx = 0; rowIdx < rows.length; rowIdx++) {
                 const row = rows[rowIdx];
                 if (!row || row.length === 0) continue;
-                
                 const primeiroValor = (row[0] !== undefined && row[0] !== null) ? row[0].toString() : '';
-                
                 tabelaHtml += '<tr>';
                 tabelaHtml += `<td style="text-align:left;">${primeiroValor}</td>`;
-                
                 for (let colIdx = 1; colIdx < headers.length; colIdx++) {
                     let val = row[colIdx];
                     if (val === undefined || val === null) val = '';
                     const valString = val.toString();
-                    tabelaHtml += `
-                        <td>
-                            <input type="text" class="input-celula" value="${valString.replace(/"/g, '&quot;')}"
-                                 onchange="atualizarValorInput(${rowIdx}, ${colIdx}, this.value)"
-                                 placeholder="-">
-                        </td>
-                    `;
+                    tabelaHtml += `<td><input type="text" class="input-celula" value="${valString.replace(/"/g, '&quot;')}" onchange="atualizarValorInput(${rowIdx}, ${colIdx}, this.value)" placeholder="-"></td>`;
                 }
-                
-                tabelaHtml += `
-                    <td>
-                        <button class="action-btn" style="background:#3498db; color:white;" onclick="preencherFormParaEditar(${rowIdx})">✏️</button>
-                        <button class="action-btn" style="background:#e74c3c; color:white;" onclick="excluirRegistro(${rowIdx})">🗑️</button>
-                    </td>
-                `;
-                tabelaHtml += '<tr>';
+                tabelaHtml += `<td><button class="action-btn" style="background:#3498db; color:white;" onclick="preencherFormParaEditar(${rowIdx})">✏️</button><button class="action-btn" style="background:#e74c3c; color:white;" onclick="excluirRegistro(${rowIdx})">🗑️</button></td>`;
+                tabelaHtml += '</tr>';
             }
         }
-
         let cabecalhoHtml = '<tr>';
-        for (let h = 0; h < headers.length; h++) {
-            cabecalhoHtml += `<th>${headers[h] || ''}</th>`;
-        }
-        cabecalhoHtml += '<th>Ações</th>';
-        cabecalhoHtml += '</tr>';
-
+        for (let h = 0; h < headers.length; h++) cabecalhoHtml += `<th>${headers[h] || ''}</th>`;
+        cabecalhoHtml += '<th>Ações</th></tr>';
         const html = `
             <div class="form-card">
                 <h3>➕ Cadastrar / Atualizar Item</h3>
-                <div class="form-grid">
-                    ${camposCadastroHtml}
-                </div>
+                <div class="form-grid">${camposCadastroHtml}</div>
                 <div class="button-group">
                     <button class="btn-enviar" onclick="adicionarRegistro()">💾 Salvar Item</button>
                     <button class="btn-buscar" onclick="forcarAtualizacao()">📥 Forçar Atualização</button>
@@ -914,7 +807,6 @@
                     <button class="btn-importar-individual" onclick="importarArquivo()">📂 Importar Arquivo</button>
                 </div>
             </div>
-                        
             <div style="display:flex; justify-content:space-between; align-items:center; margin:15px 0; flex-wrap:wrap; gap:10px;">
                 <h3 style="flex:1;">📋 Conteúdo do Método: ${tab.nome}</h3>
                 <div>
@@ -923,19 +815,8 @@
                     <button onclick="deletarUltimaColuna()" style="background:#e74c3c; color:white; padding:5px 10px; font-size:12px;">🗑️ Remover Última</button>
                 </div>
             </div>
-                        
-            <div class="table-scroll">
-                <table border="1">
-                    <thead>
-                        ${cabecalhoHtml}
-                    </thead>
-                    <tbody>
-                        ${tabelaHtml}
-                    </tbody>
-                </table>
-            </div>
+            <div class="table-scroll"><table border="1"><thead>${cabecalhoHtml}</thead><tbody>${tabelaHtml}</tbody></table></div>
         `;
-        
         document.getElementById('mainContent').innerHTML = html;
     }
 
@@ -951,21 +832,14 @@
     window.adicionarRegistro = async function() {
         const headers = sheetData[currentTabId][0];
         const primeiroCampo = document.getElementById('campo_cad_0')?.value?.trim();
-                
-        if (!primeiroCampo) { 
-             mostrarMensagem(`O campo "${headers[0]}" é obrigatório!`, "error"); 
-             return; 
-         }
-                
+        if (!primeiroCampo) { mostrarMensagem(`O campo "${headers[0]}" é obrigatório!`, "error"); return; }
         const novaRow = [];
         for(let i=0; i<headers.length; i++) {
             const val = document.getElementById(`campo_cad_${i}`)?.value?.trim() || "";
             novaRow.push(val);
         }
-                
         const rows = sheetData[currentTabId].slice(1);
         const indexExistente = rows.findIndex(r => r && r[0] && r[0].toString().toLowerCase() === primeiroCampo.toLowerCase());
-                
         if (indexExistente !== -1) {
             sheetData[currentTabId][indexExistente + 1] = novaRow;
             mostrarMensagem("Item atualizado!", "success");
@@ -973,15 +847,12 @@
             sheetData[currentTabId].push(novaRow);
             mostrarMensagem("Item adicionado!", "success");
         }
-                
         ordenarMusicas(currentTabId);
         renderizarInterface();
-                
         for(let i=0; i<headers.length; i++) {
             const el = document.getElementById(`campo_cad_${i}`);
             if(el) el.value = "";
         }
-                
         await enviarMusicaParaGoogle(novaRow);
     };
 
@@ -989,10 +860,7 @@
         const rowData = sheetData[currentTabId][rowIdx + 1];
         for (let i = 0; i < rowData.length; i++) {
             const el = document.getElementById(`campo_cad_${i}`);
-            if (el) {
-                const val = rowData[i];
-                el.value = (val !== undefined && val !== null) ? val : '';
-            }
+            if (el) el.value = (rowData[i] !== undefined && rowData[i] !== null) ? rowData[i] : '';
         }
         document.getElementById('campo_cad_0').focus();
         mostrarMensagem("Dados copiados para edição!", "info");
@@ -1011,18 +879,12 @@
     window.renomearLivroAtual = async function() {
         const tab = customTabs.find(t => t.id === currentTabId);
         if (!tab) { mostrarMensagem("Nenhum método selecionado!", "error"); return; }
-        
         const novoNome = prompt(`Digite o novo nome para o método "${tab.nome}":`, tab.nome);
         if (novoNome && novoNome.trim() && novoNome.trim() !== tab.nome) {
             tab.nome = novoNome.trim();
-            
             await fetch(`${webAppUrl}?acao=criarAba&nomeAba=${encodeURIComponent(tab.nome)}&t=${Date.now()}`);
-            for (const row of sheetData[currentTabId]) {
-                await enviarMusicaParaGoogle(row, tab.nome);
-            }
-            
+            for (const row of sheetData[currentTabId]) await enviarMusicaParaGoogle(row, tab.nome);
             ordenarLivrosAutomaticamente();
-            
             saveAllToLocal();
             renderizarInterface();
             mostrarMensagem("Método renomeado e ordenado!", "success");
@@ -1032,23 +894,14 @@
     window.excluirLivroAtual = async function() {
         const tab = customTabs.find(t => t.id === currentTabId);
         if (!tab) { mostrarMensagem("Nenhum método selecionado!", "error"); return; }
-        
         if (confirm(`⚠️ ATENÇÃO: Deseja realmente excluir permanentemente o método "${tab.nome}" e TODOS os seus dados salvos?`)) {
             await fetch(`${webAppUrl}?acao=deletarAba&nomeAba=${encodeURIComponent(tab.nome)}&t=${Date.now()}`);
-            
             customTabs = customTabs.filter(t => t.id !== currentTabId);
             delete sheetData[currentTabId];
-            
             customTabs = ordenarLivros(customTabs);
-            
             saveAllToLocal();
-            
-            if (customTabs.length > 0) {
-                currentTabId = customTabs[0].id;
-            } else {
-                currentTabId = null;
-            }
-            
+            if (customTabs.length > 0) currentTabId = customTabs[0].id;
+            else currentTabId = null;
             renderTabs();
             renderizarInterface();
             mostrarMensagem("Método removido e lista reordenada!", "success");
@@ -1061,9 +914,7 @@
             const tab = customTabs.find(t => t.id === currentTabId);
             sheetData[currentTabId][0].push(nomeColuna.trim());
             tab.colunas.push(nomeColuna.trim());
-            for (let i = 1; i < sheetData[currentTabId].length; i++) {
-                sheetData[currentTabId][i].push("");
-            }
+            for (let i = 1; i < sheetData[currentTabId].length; i++) sheetData[currentTabId][i].push("");
             saveAllToLocal();
             renderizarInterface();
             mostrarMensagem(`Coluna "${nomeColuna}" criada!`, "info");
@@ -1074,15 +925,10 @@
     window.editarCabecalhos = async function() {
         const tab = customTabs.find(t => t.id === currentTabId);
         const headers = sheetData[currentTabId][0];
-        
         let msg = "Escolha qual coluna deseja renomear:\n\n";
-        for (let idx = 0; idx < headers.length; idx++) {
-            if (idx > 0) msg += `${idx} - ${headers[idx]}\n`;
-        }
-        
+        for (let idx = 0; idx < headers.length; idx++) if (idx > 0) msg += `${idx} - ${headers[idx]}\n`;
         const escolha = prompt(msg + "\nDigite o número da coluna:");
         const idxEscolhido = parseInt(escolha, 10);
-        
         if (!isNaN(idxEscolhido) && idxEscolhido > 0 && idxEscolhido < headers.length) {
             const novoNome = prompt(`Digite o novo nome para a coluna "${headers[idxEscolhido]}":`);
             if (novoNome && novoNome.trim()) {
@@ -1104,9 +950,7 @@
             return;
         }
         if (confirm(`Aviso: Remover a coluna "${headers[headers.length - 1]}" apagará os dados dela. Continuar?`)) {
-            for (let i = 0; i < sheetData[currentTabId].length; i++) {
-                sheetData[currentTabId][i].pop();
-            }
+            for (let i = 0; i < sheetData[currentTabId].length; i++) sheetData[currentTabId][i].pop();
             tab.colunas.pop();
             saveAllToLocal();
             renderizarInterface();
@@ -1126,18 +970,13 @@
     function atualizarStatusSync(estado) {
         const indicator = document.getElementById('syncIndicator');
         const text = document.getElementById('syncText');
-        
         if (estado === 'atualizando') {
             indicator.className = 'sync-indicator';
             text.innerHTML = '🔄 Sincronizando...';
         } else if (estado === 'sincronizado') {
             indicator.className = 'sync-indicator synced';
             text.innerHTML = '✓ Sincronizado';
-            setTimeout(() => {
-                if (text.innerHTML === '✓ Sincronizado') {
-                    text.innerHTML = 'Pronto';
-                }
-            }, 3000);
+            setTimeout(() => { if (text.innerHTML === '✓ Sincronizado') text.innerHTML = 'Pronto'; }, 3000);
         } else {
             indicator.className = 'sync-indicator synced';
             text.innerHTML = '✓ Pronto';
@@ -1165,15 +1004,12 @@
             const newId = "tab_" + Date.now();
             customTabs.push({ id: newId, nome: nome.trim(), colunas: ["📚 Música/Lição"] });
             sheetData[newId] = [["📚 Música/Lição"]];
-            
             customTabs = ordenarLivros(customTabs);
             currentTabId = newId;
-            
             saveAllToLocal();
             renderTabs();
             renderizarInterface();
             mostrarMensagem(`Método "${nome}" criado e ordenado!`, "success");
-            
             await fetch(`${webAppUrl}?acao=criarAba&nomeAba=${encodeURIComponent(nome)}&t=${Date.now()}`);
             await enviarMusicaParaGoogle(sheetData[currentTabId][0]);
         }
