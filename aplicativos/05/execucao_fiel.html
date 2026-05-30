@@ -249,12 +249,6 @@
             font-size: 18px;
         }
         .loading.active { display: block; }
-        
-        .separator {
-            margin: 0 10px;
-            color: #bdc3c7;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
@@ -361,7 +355,7 @@
         }
     };
     
-    // Exportar livro ATUAL individualmente
+    // Exportar livro ATUAL individualmente (JSON)
     window.exportarLivroAtualJSON = function() {
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
@@ -396,7 +390,7 @@
         }
     };
     
-    // Exportar TXT do livro atual
+    // Exportar TXT do livro atual (CORRIGIDO COM UTF-8)
     window.exportarLivroAtualTXT = function() {
         try {
             const tab = customTabs.find(t => t.id === currentTabId);
@@ -425,7 +419,8 @@
                 txtConteudo += "(Nenhum dado cadastrado)\n";
             }
             
-            const blob = new Blob([txtConteudo], { type: "text/plain;charset=utf-8" });
+            // CORREÇÃO: Usar Blob com UTF-8 explícito e BOM (Byte Order Mark)
+            const blob = new Blob(["\uFEFF" + txtConteudo], { type: "text/plain;charset=utf-8" });
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
@@ -435,7 +430,7 @@
             document.body.removeChild(a);
             URL.revokeObjectURL(url);
             
-            mostrarMensagem(`✅ Livro "${tab.nome}" exportado para TXT!`, "success");
+            mostrarMensagem(`✅ Livro "${tab.nome}" exportado para TXT (UTF-8)!`, "success");
         } catch (error) {
             mostrarMensagem("❌ Erro ao exportar TXT: " + error.message, "error");
         }
@@ -453,8 +448,13 @@
             const reader = new FileReader();
             reader.onload = function(e) {
                 try {
-                    const conteudo = e.target.result;
+                    let conteudo = e.target.result;
                     const extensao = file.name.split('.').pop().toLowerCase();
+                    
+                    // Remover BOM se existir (para arquivos UTF-8 com BOM)
+                    if (conteudo.charCodeAt(0) === 0xFEFF) {
+                        conteudo = conteudo.slice(1);
+                    }
                     
                     if (extensao === 'json') {
                         importarJSONInteligente(conteudo);
