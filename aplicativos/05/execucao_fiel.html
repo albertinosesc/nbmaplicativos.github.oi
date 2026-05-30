@@ -171,6 +171,10 @@
         .btn-enviar { background: #27ae60; color: white; }
         .btn-buscar { background: #3498db; color: white; }
         .btn-atualizar-tudo { background: #9b59b6; color: white; font-weight: bold; }
+        .btn-exportar { background: #f39c12; color: white; font-weight: bold; }
+        .btn-importar { background: #1abc9c; color: white; font-weight: bold; }
+        .btn-exportar-individual { background: #e67e22; color: white; }
+        .btn-importar-individual { background: #16a085; color: white; }
                 
         .table-scroll {
             overflow-x: auto;
@@ -245,6 +249,12 @@
             font-size: 18px;
         }
         .loading.active { display: block; }
+        
+        .separator {
+            margin: 0 10px;
+            color: #bdc3c7;
+            font-weight: bold;
+        }
     </style>
 </head>
 <body>
@@ -319,6 +329,259 @@
                 
         sheetData[tabId] = [headers, ...rows];
         saveAllToLocal();
+    }
+
+    // ========== FUNÇÕES DE EXPORTAR E IMPORTAR ==========
+    
+    // Exportar TUDO (todos os livros)
+    window.exportarTudoJSON = function() {
+        try {
+            const dadosCompletos = {
+                abas: customTabs,
+                dados: sheetData,
+                dataExportacao: new Date().toISOString(),
+                versaoApp: "1.0",
+                tipo: "todos_livros"
+            };
+            
+            const jsonString = JSON.stringify(dadosCompletos, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `backup_todos_livros_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            mostrarMensagem("✅ Todos os livros exportados com sucesso para JSON!", "success");
+        } catch (error) {
+            mostrarMensagem("❌ Erro ao exportar: " + error.message, "error");
+        }
+    };
+    
+    // Exportar livro ATUAL individualmente
+    window.exportarLivroAtualJSON = function() {
+        try {
+            const tab = customTabs.find(t => t.id === currentTabId);
+            if (!tab) {
+                mostrarMensagem("Nenhum livro selecionado!", "error");
+                return;
+            }
+            
+            const dadosLivro = {
+                nome: tab.nome,
+                colunas: tab.colunas,
+                dados: sheetData[currentTabId],
+                dataExportacao: new Date().toISOString(),
+                versaoApp: "1.0",
+                tipo: "livro_individual"
+            };
+            
+            const jsonString = JSON.stringify(dadosLivro, null, 2);
+            const blob = new Blob([jsonString], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `livro_${tab.nome.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            mostrarMensagem(`✅ Livro "${tab.nome}" exportado com sucesso!`, "success");
+        } catch (error) {
+            mostrarMensagem("❌ Erro ao exportar livro: " + error.message, "error");
+        }
+    };
+    
+    // Exportar TXT do livro atual
+    window.exportarLivroAtualTXT = function() {
+        try {
+            const tab = customTabs.find(t => t.id === currentTabId);
+            if (!tab) {
+                mostrarMensagem("Nenhum livro selecionado!", "error");
+                return;
+            }
+            
+            let txtConteudo = `=== ${tab.nome} ===\n`;
+            txtConteudo += `Data de exportação: ${new Date().toLocaleString('pt-BR')}\n`;
+            txtConteudo += "=".repeat(50) + "\n\n";
+            
+            const dados = sheetData[currentTabId];
+            if (dados && dados.length > 0) {
+                const headers = dados[0];
+                txtConteudo += headers.join(" | ") + "\n";
+                txtConteudo += "-".repeat(50) + "\n";
+                
+                for (let i = 1; i < dados.length; i++) {
+                    const linha = dados[i];
+                    if (linha && linha.length > 0) {
+                        txtConteudo += linha.join(" | ") + "\n";
+                    }
+                }
+            } else {
+                txtConteudo += "(Nenhum dado cadastrado)\n";
+            }
+            
+            const blob = new Blob([txtConteudo], { type: "text/plain;charset=utf-8" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `livro_${tab.nome.replace(/[^a-z0-9]/gi, '_')}_${new Date().toISOString().slice(0,19).replace(/:/g, '-')}.txt`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            
+            mostrarMensagem(`✅ Livro "${tab.nome}" exportado para TXT!`, "success");
+        } catch (error) {
+            mostrarMensagem("❌ Erro ao exportar TXT: " + error.message, "error");
+        }
+    };
+    
+    // Importar arquivo (detecta automaticamente se é individual ou completo)
+    window.importarArquivo = function() {
+        const input = document.createElement("input");
+        input.type = "file";
+        input.accept = ".json,.txt";
+        input.onchange = function(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const conteudo = e.target.result;
+                    const extensao = file.name.split('.').pop().toLowerCase();
+                    
+                    if (extensao === 'json') {
+                        importarJSONInteligente(conteudo);
+                    } else if (extensao === 'txt') {
+                        importarTXT(conteudo);
+                    } else {
+                        mostrarMensagem("Formato não suportado. Use JSON ou TXT.", "error");
+                    }
+                } catch (error) {
+                    mostrarMensagem("Erro ao ler arquivo: " + error.message, "error");
+                }
+            };
+            reader.readAsText(file, "UTF-8");
+        };
+        input.click();
+    };
+    
+    function importarJSONInteligente(conteudo) {
+        try {
+            const dadosImportados = JSON.parse(conteudo);
+            
+            // Verificar se é exportação completa ou individual
+            if (dadosImportados.tipo === "todos_livros" || (dadosImportados.abas && dadosImportados.dados)) {
+                // Importação completa
+                if (confirm(`ATENÇÃO: Isso substituirá TODOS os dados atuais (${customTabs.length} livro(s)) pelos dados do arquivo. Deseja continuar?`)) {
+                    customTabs = dadosImportados.abas;
+                    sheetData = dadosImportados.dados;
+                    
+                    customTabs.forEach(tab => {
+                        if (!sheetData[tab.id]) {
+                            sheetData[tab.id] = [tab.colunas || ["📚 Música/Lição", "⏱️ Andamento (M.M.)"]];
+                        }
+                        ordenarMusicas(tab.id);
+                    });
+                    
+                    if (customTabs.length > 0) {
+                        currentTabId = customTabs[0].id;
+                    }
+                    
+                    saveAllToLocal();
+                    renderTabs();
+                    renderizarInterface();
+                    mostrarMensagem(`✅ Importação completa! ${customTabs.length} livro(s) carregado(s).`, "success");
+                }
+            } 
+            else if (dadosImportados.tipo === "livro_individual" && dadosImportados.nome && dadosImportados.dados) {
+                // Importação individual
+                const nomeLivro = dadosImportados.nome;
+                const colunas = dadosImportados.colunas || ["📚 Música/Lição", "⏱️ Andamento (M.M.)"];
+                const dados = dadosImportados.dados;
+                
+                if (confirm(`Deseja importar o livro "${nomeLivro}" como um NOVO livro?`)) {
+                    const newId = "tab_" + Date.now() + "_" + nomeLivro.replace(/[^a-z0-9]/gi, '_');
+                    customTabs.push({
+                        id: newId,
+                        nome: nomeLivro,
+                        colunas: colunas
+                    });
+                    sheetData[newId] = dados;
+                    ordenarMusicas(newId);
+                    currentTabId = newId;
+                    
+                    saveAllToLocal();
+                    renderTabs();
+                    renderizarInterface();
+                    mostrarMensagem(`✅ Livro "${nomeLivro}" importado com sucesso!`, "success");
+                }
+            }
+            else {
+                throw new Error("Formato JSON não reconhecido");
+            }
+        } catch (error) {
+            mostrarMensagem("❌ Erro ao importar JSON: " + error.message, "error");
+        }
+    }
+    
+    function importarTXT(conteudo) {
+        if (confirm("ATENÇÃO: A importação de TXT criará um NOVO livro baseado no texto. Deseja continuar?")) {
+            try {
+                const linhas = conteudo.split('\n');
+                let headers = [];
+                let dadosLinhas = [];
+                let lendoDados = false;
+                let nomeLivro = "Livro_Importado_" + new Date().toISOString().slice(0,19);
+                
+                for (let i = 0; i < linhas.length; i++) {
+                    let linha = linhas[i].trim();
+                    
+                    if (linha.includes('===') && !headers.length) {
+                        const match = linha.match(/=== (.+?) ===/);
+                        if (match) nomeLivro = match[1];
+                        continue;
+                    }
+                    
+                    if (linha.includes('|') && !linha.includes('===') && !linha.includes('---')) {
+                        const partes = linha.split('|').map(p => p.trim());
+                        if (!lendoDados && headers.length === 0) {
+                            headers = partes;
+                            lendoDados = true;
+                        } else if (lendoDados && partes.length === headers.length) {
+                            dadosLinhas.push(partes);
+                        }
+                    }
+                }
+                
+                if (headers.length > 0) {
+                    const dadosCompletos = [headers, ...dadosLinhas];
+                    const newId = "tab_" + Date.now();
+                    customTabs.push({
+                        id: newId,
+                        nome: nomeLivro,
+                        colunas: headers
+                    });
+                    sheetData[newId] = dadosCompletos;
+                    currentTabId = newId;
+                    
+                    saveAllToLocal();
+                    renderTabs();
+                    renderizarInterface();
+                    mostrarMensagem(`✅ Livro "${nomeLivro}" importado do TXT com sucesso!`, "success");
+                } else {
+                    mostrarMensagem("Nenhum dado válido encontrado no arquivo TXT.", "error");
+                }
+            } catch (error) {
+                mostrarMensagem("Erro ao importar TXT: " + error.message, "error");
+            }
+        }
     }
 
     async function enviarMusicaParaGoogle(linhaCompleta, nomeAbaAlternativo = null) {
@@ -485,7 +748,6 @@
             return;
         }
         
-        // Garantir que headers existe
         let headers = [];
         if (sheetData[tab.id] && sheetData[tab.id][0]) {
             headers = sheetData[tab.id][0];
@@ -495,7 +757,6 @@
         
         const rows = sheetData[tab.id] ? sheetData[tab.id].slice(1) : [];
         
-        // Formulário de cadastro
         let camposCadastroHtml = '';
         for (let idx = 0; idx < headers.length; idx++) {
             const colNome = headers[idx] || '';
@@ -508,7 +769,6 @@
             `;
         }
 
-        // Construir tabela
         let tabelaHtml = '';
         if (rows.length === 0) {
             tabelaHtml = `<tr><td colspan="${headers.length + 1}" style="text-align:center;">Nenhuma lição ou música cadastrada</td></tr>`;
@@ -522,7 +782,6 @@
                 tabelaHtml += '<tr>';
                 tabelaHtml += `<td style="text-align:left;">${primeiroValor}</td>`;
                 
-                // Colunas de dados (exceto a primeira)
                 for (let colIdx = 1; colIdx < headers.length; colIdx++) {
                     let val = row[colIdx];
                     if (val === undefined || val === null) val = '';
@@ -536,7 +795,6 @@
                     `;
                 }
                 
-                // Coluna de ações
                 tabelaHtml += `
                     <td>
                         <button class="action-btn" style="background:#3498db; color:white;" onclick="preencherFormParaEditar(${rowIdx})">✏️</button>
@@ -547,7 +805,6 @@
             }
         }
 
-        // Cabeçalho da tabela
         let cabecalhoHtml = '<tr>';
         for (let h = 0; h < headers.length; h++) {
             cabecalhoHtml += `<th>${headers[h] || ''}</th>`;
@@ -555,7 +812,6 @@
         cabecalhoHtml += '<th>Ações</th>';
         cabecalhoHtml += '</tr>';
 
-        // HTML completo
         const html = `
             <div class="form-card">
                 <h3>➕ Cadastrar / Atualizar Item</h3>
@@ -566,6 +822,13 @@
                     <button class="btn-enviar" onclick="adicionarRegistro()">💾 Salvar Item</button>
                     <button class="btn-buscar" onclick="forcarAtualizacao()">📥 Forçar Atualização</button>
                     <button class="btn-atualizar-tudo" onclick="enviarTabelaCompletaParaGoogle()">📤 Enviar Tudo para Google</button>
+                </div>
+                <div class="button-group" style="margin-top: 15px; border-top: 1px solid #ddd; padding-top: 15px;">
+                    <span style="font-weight: bold; margin-right: 10px;">📁 Importar/Exportar:</span>
+                    <button class="btn-exportar-individual" onclick="exportarLivroAtualJSON()">📄 Exportar Este Livro (JSON)</button>
+                    <button class="btn-exportar-individual" onclick="exportarLivroAtualTXT()">📝 Exportar Este Livro (TXT)</button>
+                    <button class="btn-exportar" onclick="exportarTudoJSON()">🗂️ Exportar Todos os Livros (JSON)</button>
+                    <button class="btn-importar-individual" onclick="importarArquivo()">📂 Importar Arquivo</button>
                 </div>
             </div>
                         
