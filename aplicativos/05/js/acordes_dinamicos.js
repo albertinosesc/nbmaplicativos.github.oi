@@ -289,7 +289,7 @@ const FORMAS_INFINITAS = window.FORMAS_INFINITAS || {
     '189': { nome: 'm6', cordas: [-1,2,-1,1,3,2], dedos: ['','2','','1','4','3'], pestana: false, casaInicial: 0, mostrarNumero: false },
 
     // ========== Outros ==========
- '190': { nome: 'M/3', cordas: [-1,3,1,1,1,-1], dedos: ['','3','1','1','4',''], pestana: true, pestanaCordas: [2,3,4], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false }
+ '190': { nome: 'M/3', cordaBase: 5, cordas: [-1,3,1,1,1,-1], dedos: ['','3','1','1','4',''], pestana: true, pestanaCordas: [2,3,4], pestanaCasa: 1, casaInicial: 1, mostrarNumero: false }
 };
 
 // Processa pestana
