@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculador_Piano_V2</title>
+<style>
+    body{font-family: sans-serif; background:#f0f2f5; padding:20px;}
+    .container{max-width:1400px; margin:auto; background:white; padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1)}
+    
+    /* Inputs */
+    .inputs {display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px;}
+    input, select, textarea {padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;}
+    
+    /* Botões */
+    button {padding:8px 12px; cursor:pointer; border:none; border-radius:6px; font-weight:bold; font-size:13px; transition:0.2s;}
+    button:hover {opacity:0.85; transform:scale(1.01);}
+    
+    .btn-add {background:#27ae60; color:white;}
+    .btn-copy {background:#8e44ad; color:white;}
+    .btn-csv-copy {background:#16a085; color:white;}
+    .btn-clear {background:#c0392b; color:white;}
+    .btn-save {background:#2980b9; color:white;}
+    .btn-load {background:#27ae60; color:white;}
+    .btn-import {background:#3498db; color:white; padding:10px 20px;}
+    .btn-force-all {background:#e67e22; color:white;}
+    .btn-sync-upload {background:#2c3e50; color:white;}
+    .btn-sync-download {background:#16a085; color:white;}
+    .btn-filter {background:#f39c12; color:white; margin-bottom: 10px;}
+    
+    /* Grupos de botões */
+    .btn-group {display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center;}
+    
+    /* Área de importação */
+    .import-area {display: flex; gap: 10px; margin-top: 15px; align-items: stretch;}
+    .import-area textarea {flex: 1; height: 50px; font-size:12px;}
+    
+    /* Tabela */
+    table {width:100%; border-collapse:collapse; margin-top:20px; font-size:13px;}
+    th, td {border:1px solid #ddd; padding:6px 8px; text-align:center; vertical-align:middle;}
+    th {background:#2c3e50; color:white; position:sticky; top:0; font-size:12px;}
+    .grau-val {font-weight:bold; color:#d35400; background:#fff3e0; padding:2px 6px; border-radius:4px; font-size:12px;}
+    .col-level {font-weight:bold; color:#2c3e50; background:#e8f4f8; padding:2px 6px; border-radius:4px;}
+    .forcado {background-color:#ffe0b3 !important;}
+    .btn-small {padding:4px 8px; margin:2px; font-size:11px; border-radius:4px;}
+    .btn-edit {background:#3498db; color:white;}
+    .btn-force {background:#e74c3c; color:white;}
+    .col-forcado {background:#f39c12; color:white; font-size:11px; padding:2px 6px; border-radius:10px;}
+    .wrapper-table{overflow-x:auto; max-height:550px; overflow-y:auto;}
+    
+    /* Status */
+    .status-bar {background:#ecf0f1; padding:8px 12px; border-radius:6px; margin-top:15px; text-align:center; font-size:12px; color:#2c3e50;}
+    .status-bar span {font-weight:bold; color:#27ae60;}
+    
+    hr {margin:15px 0; border:0; border-top:1px solid #ddd;}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎹 Calculador_Piano (Hierarquia por Gavetas)</h2>
+    
+    <div style="background:#e8f4f8; padding:12px; border-radius:8px; margin-bottom:15px; display: flex; gap:10px; align-items: center; justify-content: center; flex-wrap: wrap;">
+        <button id="btnSyncUpload" class="btn-sync-upload">⬆️ Enviar para Planilha Google</button>
+        <button id="btnSyncDownload" class="btn-sync-download">⬇️ Carregar da Planilha Google</button>
+    </div>
+    
+    <div class="inputs">
+        <input id="musica" placeholder="Música">
+        <input id="referencia" placeholder="Referência (ex: Livro/Página)">
+        <input id="md" placeholder="Notas MD (ex: CDEG)">
+        <input id="me" placeholder="Notas ME (ex: CB,A,)">
+        <input id="qn" type="number" placeholder="QN">
+        <input id="ritmo" placeholder="Ritmo (ex: 1,2,4)">
+    </div>
+    
+    <button class="btn-add" style="width:100%;" onclick="add()">+ Adicionar Música</button>
+    
+    <div class="import-area">
+        <textarea id="csvInput" placeholder="Cole o CSV aqui... (formato: MD;ME;QN;Ritmo)"></textarea>
+        <button class="btn-import" onclick="importar()">Importar</button>
+    </div>
+    
+    <hr>
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <button class="btn-filter" onclick="abrirModalFiltro()">🔍 Filtrar por Referência (<span id="lblFiltroAtivo">Todos</span>)</button>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn-copy" onclick="copiar()">📋 Copiar Texto</button>
+        <button class="btn-csv-copy" onclick="exportarCSV()">📄 Copiar CSV</button>
+        <button class="btn-force-all" onclick="forcarTodosExemplo()">⚡ Forçar Nível 16</button>
+        <button class="btn-save" onclick="salvarLocal()">💾 Salvar Backup (JSON)</button>
+        <button class="btn-load" onclick="carregarLocal()">📂 Carregar Backup</button>
+        <button class="btn-clear" onclick="limparTabela()">🗑️ Limpar Tudo</button>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+        ✅ Dados salvos automaticamente | <span id="contador">0</span> músicas exibidas (total: <span id="contadorTotal">0</span>)
+    </div>
+
+    <div class="wrapper-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Level</th>
+                    <th>Música</th>
+                    <th>Ref</th>
+                    <th>MD</th>
+                    <th>ME</th>
+                    <th>QN</th>
+                    <th>Ritmo</th>
+                    <th>Grau</th>
+                    <th>Forçado</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tabela"></tbody>
+        </table>
+    </div>
+</div>
+
+<pre style="
+    background-color: #ffffff; 
+    border: 1px solid #ddd; 
+    border-radius: 8px; 
+    padding: 15px; 
+    max-width: 230px; 
+    font-family: 'Courier New', Courier, monospace; 
+    font-size: 14px; 
+    line-height: 1.5;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    margin: 10px 0;
+">
+Figura Rítmica
+
+1 = Semínima
+2 = Mínima
+3 = Mínima Pontuada
+4 = Semibreve
+</pre>
+
+<script>
+// ======================== CONFIGURAÇÕES ========================
+const escalaRitmo = ["1", "2", "4", "3", "1;2", "1;4", "2;4", "1;3", "1;2;4", "1;2;3", "1;2;3;4"];
+
+const pesosMD = { "C": 1, "D": 2, "E": 3, "F": 4, "G": 5, "A": 6, "B": 7, "C'": 8 };
+const pesosME = { "C": 1, "B,": 2, "A,": 3, "G,": 4, "F Nar": 5, "F,": 5, "E,": 6, "D,": 7, "C,": 8 };
+
+const STORAGE_KEY = 'piano_calculador_gavetas_dados';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwFjxR5vb01WiVAwHfmyeRfp7BbkG1s6KVa6GuIZGK1Enh71-69s1C7CLUK6GZ5UBmRWA/exec';
+
+let linesData = [];
+let referenciasSelecionadas = null; 
+
+// ======================== FÓRMULA PEDAGÓGICA POR GAVETAS ========================
+function calcularGrauOriginal(qn, md, me, ritmo) {
+    const extrairNotasComOitava = (texto) => {
+        if (!texto) return [];
+        if (texto === "-") return [];
+        if (texto.trim() === "") return [];
+        let regex = /[A-G][',]*/gi;
+        let matches = texto.match(regex);
+        if (!matches) return [];
+        return [...new Set(matches.map(n => n.toUpperCase()))];
+    };
+
+    let notasMD = extrairNotasComOitava(md);
+    let notasME = extrairNotasComOitava(me);
+    
+    let totalNotasUnicas = [...new Set([...notasMD, ...notasME])].length;
+    if (totalNotasUnicas === 0) totalNotasUnicas = 1;
+
+    let baseGaveta = totalNotasUnicas * 100;
+    let pesoTopografico = 0;
+    
+    notasMD.forEach(n => { if (pesosMD[n]) pesoTopografico += pesosMD[n] * 0.5; });
+    notasME.forEach(n => { if (pesosME[n]) pesoTopografico += pesosME[n] * 0.5; });
+
+    let ritmoLimpo = ritmo ? ritmo.replace(/,/g, ';').trim() : "1";
+    let rIdx = escalaRitmo.indexOf(ritmoLimpo);
+    let pesoRitmo = rIdx !== -1 ? (rIdx * 0.05) : 0.00;
+
+    return (baseGaveta + pesoTopografico + pesoRitmo).toFixed(2);
+}
+
+function obtenerValorFinal(item) {
+    return item.nivelForcado !== null ? parseFloat(item.nivelForcado) : parseFloat(item.grauCalculado);
+}
+
+function obterDadosProcessados() {
+    let listaOrdenadaCompleta = [...linesData].sort((a, b) => obtenerValorFinal(a) - obtenerValorFinal(b));
+    
+    let rankAtual = 0;
+    let ultimoValor = -1;
+
+    let listaComLevels = listaOrdenadaCompleta.map((item) => {
+        let valFinal = obtenerValorFinal(item);
+        if (valFinal !== ultimoValor) {
+            rankAtual++; 
+            ultimoValor = valFinal;
+        }
+        return { ...item, levelCalculado: rankAtual };
+    });
+
+    if (referenciasSelecionadas !== null) {
+        return listaComLevels.filter(item => {
+            let refTexto = item.referencia ? item.referencia.trim() : '';
+            return referenciasSelecionadas.includes(refTexto);
+        });
+    }
+    
+    return listaComLevels;
+}
+
+// ======================== GOOGLE SHEETS SYNC ========================
+async function enviarParaPlanilha() {
+    if (!SCRIPT_URL) { alert('URL não configurada'); return; }
+    const dadosParaEnviar = linesData.map(item => ({
+        musica: item.musica, referencia: item.referencia ? item.referencia : '', execucao: 'MS',
+        md: item.md, me: item.me, qn: item.qn, ritmo: item.ritmo,
+        grauCalculado: item.grauCalculado, nivelForcado: item.nivelForcado !== null ? item.nivelForcado : ''
+    }));
+    try {
+        await fetch(SCRIPT_URL, {
+            method: 'POST', mode: 'cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+            body: JSON.stringify({ musicas: dadosParaEnviar })
+        });
+        alert(`✅ Enviado para a Planilha Google com sucesso!`);
+    } catch (err) { alert(`Processado.`); }
+}
+
+async function carregarDaPlanilha() {
+    if (!SCRIPT_URL) { alert('URL não configurada'); return; }
+    try {
+        const response = await fetch(SCRIPT_URL, { method: 'GET', mode: 'cors' });
+        const result = await response.json();
+        if (result.musicas && Array.isArray(result.musicas)) {
+            linesData = result.musicas.map(m => {
+                let m_md = m.md ? m.md : '-';
+                let m_me = m.me ? m.me : '-';
+                let m_qn = m.qn ? m.qn : '0';
+                let m_ritmo = m.ritmo ? m.ritmo : '';
+                return {
+                    id: gerarId(), musica: m.musica ? m.musica : '', referencia: m.referencia ? m.referencia : '',
+                    md: m_md, me: m_me, qn: m_qn, ritmo: m_ritmo,
+                    grauCalculado: m.grauCalculado ? m.grauCalculado : calcularGrauOriginal(m_qn, m_md, m_me, m_ritmo),
+                    nivelForcado: m.nivelForcado && m.nivelForcado !== '' ? parseFloat(m.nivelForcado).toFixed(2) : null
+                };
+            });
+            referenciasSelecionadas = null; renderizarTabela(); salvarLocalStorage();
+            alert(`✅ ${linesData.length} músicas carregadas da nuvem!`);
+        }
+    } catch (err) { alert(`Erro ao carregar: ${err.message}`); }
+}
+
+// ======================== BACKUPS E ARQUIVOS ========================
+function salvarLocalStorage() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ versao: '2.0', musicas: linesData })); atualizarStatusBar(); } catch (e) {}
+}
+
+function carregarLocalStorage() {
+    try {
+        const dadosSalvos = localStorage.getItem(STORAGE_KEY);
+        if (dadosSalvos) {
+            const parsed = JSON.parse(dadosSalvos);
+            if (parsed.musicas && Array.isArray(parsed.musicas)) { linesData = parsed.musicas; renderizarTabela(); return true; }
+        }
+    } catch (e) {}
+    return false;
+}
+
+function salvarLocal() {
+    const dadosFiltrados = obterDadosProcessados();
+    const dados = { versao: '2.0', musicas: dadosFiltrados };
+    const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `piano_gavetas_backup.json`; a.click();
+}
+
+function carregarLocal() {
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
+    input.onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const dados = JSON.parse(ev.target.result);
+                if (dados.musicas && Array.isArray(dados.musicas)) { linesData = dados.musicas; renderizarTabela(); salvarLocalStorage(); }
+            } catch (er) { alert('Arquivo JSON inválido.'); }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+function limparTabela() { if(confirm("⚠️ Deseja apagar todas as músicas do banco local?")) { linesData = []; renderizarTabela(); salvarLocalStorage(); } }
+
+// ======================== MODAL DE FILTRO ========================
+function abrirModalFiltro() {
+    let refsUnicas = [...new Set(linesData.map(item => item.referencia ? item.referencia.trim() : ''))].sort();
+    if(refsUnicas.length === 0) { alert("Nenhuma referência para filtrar."); return; }
+    
+    let checkboxesHtml = refsUnicas.map(ref => {
+        let labelExibicao = ref ? ref : '[Sem Referência]';
+        return `
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:14px; cursor:pointer;">
+                <input type="checkbox" class="chk-filtro-ref" value="${escapeHtml(ref)}" checked>
+                <span>${escapeHtml(labelExibicao)}</span>
+            </label>
+        `;
+    }).join('');
+    
+    const modalHtml = `
+        <div id="filterModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:1000;">
+            <div style="background:white; padding:20px; border-radius:8px; width: 300px; box-shadow:0 4px 10px rgba(0,0,0,0.2);">
+                <h3 style="margin-top:0;">🔍 Filtrar Referências</h3>
+                <div style="max-height:220px; overflow-y:auto; margin-bottom:15px; border:1px solid #ddd; padding:8px; background:#fafafa; border-radius:6px;">${checkboxesHtml}</div>
+                <div style="display:flex; gap:8px;">
+                    <button id="btnAplicarFiltroRapido" style="background:#f39c12; color:white; flex:1; padding:6px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Aplicar</button>
+                    <button id="btnFecharFiltroRapido" style="background:#bdc3c7; color:black; flex:1; padding:6px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Limpar</button>
+                </div>
+            </div>
+        </div>
+    `;
+    const modalDiv = document.createElement('div');
+    modalDiv.id = "wrapFilterModal";
+    modalDiv.innerHTML = modalHtml;
+    document.body.appendChild(modalDiv);
+
+    document.getElementById('btnAplicarFiltroRapido').onclick = () => {
+        const checkboxes = document.querySelectorAll('.chk-filtro-ref');
+        let selecionados = [];
+        checkboxes.forEach(chk => { if(chk.checked) selecionados.push(chk.value); });
+        referenciasSelecionadas = (selecionados.length === refsUnicas.length) ? null : selecionados;
+        document.body.removeChild(modalDiv);
+        renderizarTabela();
+    };
+
+    document.getElementById('btnFecharFiltroRapido').onclick = () => {
+        referenciasSelecionadas = null;
+        document.body.removeChild(modalDiv);
+        renderizarTabela();
+    };
+}
+
+// ======================== INTERFACE E RENDER ========================
+function renderizarTabela() {
+    const tbody = document.getElementById('tabela'); tbody.innerHTML = '';
+    const linesDataProcessadas = obterDadosProcessados();
+    
+    linesDataProcessadas.forEach((linha) => {
+        const realIndex = linesData.findIndex(l => l.id === linha.id);
+        const row = tbody.insertRow();
+        const status = linha.nivelForcado !== null ? `🔨 ${linha.nivelForcado}` : `✓ ${linha.grauCalculado}`;
+        const classeForcado = linha.nivelForcado !== null ? 'forcado' : '';
+        let refExibicao = linha.referencia ? linha.referencia : '-';
+        let forcarExibicao = linha.nivelForcado !== null ? `<span class="col-forcado">${linha.nivelForcado}</span>` : '-';
+        
+        row.innerHTML = `
+            <td class="${classeForcado}"><span class="col-level">${linha.levelCalculado}º</span></td>
+            <td class="${classeForcado}" style="text-align:left; font-weight:500;">${escapeHtml(linha.musica)}</td>
+            <td class="${classeForcado}">${escapeHtml(refExibicao)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.md)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.me)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.qn)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.ritmo)}</td>
+            <td class="${classeForcado}"><span class="grau-val">${linha.grauCalculado}</span></td>
+            <td class="${classeForcado}">${forcarExibicao}</td>
+            <td class="${classeForcado}">${status}</td>
+            <td class="${classeForcado}">
+                <button class="btn-small btn-edit" onclick="editarLinha(${realIndex})">✏️</button>
+                <button class="btn-small btn-force" onclick="forcarNivel(${realIndex})">💪</button>
+                <button class="btn-small" style="background:#95a5a6;color:white;" onclick="removerLinha(${realIndex})">🗑️</button>
+            </td>
+        `;
+    });
+    
+    const lblFiltro = document.getElementById('lblFiltroAtivo');
+    if (lblFiltro) lblFiltro.innerText = referenciasSelecionadas === null ? "Todos" : `${referenciasSelecionadas.length} Ativo(s)`;
+    atualizarStatusBar(linesDataProcessadas.length);
+}
+
+function escapeHtml(str) { return str ? String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])) : ''; }
+function gerarId() { return Date.now() + '-' + Math.random().toString(36).substr(2, 6); }
+
+function inserir(musica, referencia, md, me, qn, ritmo, grauCalculado) {
+    let i_md = md ? md : '-';
+    let i_me = me ? me : '-';
+    let i_ritmo = ritmo ? ritmo : '1';
+    linesData.push({ id: gerarId(), musica, referencia, md: i_md, me: i_me, qn, ritmo: i_ritmo, grauCalculado, nivelForcado: null });
+    renderizarTabela(); salvarLocalStorage();
+}
+
+function removerLinha(index) { if (index !== -1 && confirm('Remover esta música?')) { linesData.splice(index, 1); renderizarTabela(); salvarLocalStorage(); } }
+
+function forcarNivel(index) {
+    if (index === -1) return;
+    let nv = prompt(`Forçar nível numérico para "${linesData[index].musica}":`, linesData[index].grauCalculado);
+    if(nv && !isNaN(parseFloat(nv))) { linesData[index].nivelForcado = parseFloat(nv).toFixed(2); renderizarTabela(); salvarLocalStorage(); }
+}
+
+function editarLinha(index) {
+    if (index === -1) return;
+    const linha = linesData[index];
+    let novoMd = prompt("Notas MD:", linha.md);
+    let meNovo = prompt("Notas ME:", linha.me);
+    let ritmoNovo = prompt("Ritmo:", linha.ritmo);
+    let qnNovo = prompt("QN:", linha.qn);
+    
+    if (novoMd !== null && meNovo !== null && ritmoNovo !== null) {
+        linha.md = novoMd ? novoMd : '-';
+        linha.me = meNovo ? meNovo : '-';
+        linha.ritmo = ritmoNovo ? ritmoNovo : '1';
+        linha.qn = qnNovo ? qnNovo : 0;
+        linha.grauCalculado = calcularGrauOriginal(linha.qn, linha.md, linha.me, linha.ritmo);
+        renderizarTabela(); salvarLocalStorage();
+    }
+}
+
+function add() {
+    let m = document.getElementById('musica').value.trim();
+    if (!m) m = "Arranjo Manual";
+    let ref = document.getElementById('referencia').value;
+    let md = document.getElementById('md').value;
+    let me = document.getElementById('me').value;
+    let qn = document.getElementById('qn').value;
+    if (!qn) qn = 0;
+    let ritmo = document.getElementById('ritmo').value;
+    
+    let grau = calcularGrauOriginal(qn, md, me, ritmo);
+    inserir(m, ref, md, me, qn, ritmo, grau);
+    
+    document.getElementById('musica').value = '';
+    document.getElementById('md').value = '';
+    document.getElementById('me').value = '';
+    document.getElementById('qn').value = '';
+    document.getElementById('ritmo').value = '';
+}
+
+function importar() {
+    const csvTexto = document.getElementById('csvInput').value.trim();
+    if(!csvTexto) return;
+    const linhas = csvTexto.split(/\r?\n/);
+    let count = 0;
+    linhas.forEach(line => {
+        if(line.toLowerCase().includes("md")) return;
+        if(line.toLowerCase().includes("música")) return;
+        if(!line.trim()) return;
+        
+        let partes = line.split('\t').length > 1 ? line.split('\t') : line.split(';');
+        partes = partes.map(v => v.replace(/^"|"$/g, '').trim());
+        
+        if(partes.length >= 3) {
+            let md = partes[0] ? partes[0] : '-';
+            let me = partes[1] ? partes[1] : '-';
+            let qn = partes[2] ? partes[2] : '0';
+            let ritmo = partes[3] ? partes[3] : '1'; 
+            
+            let nomeFicticio = `Arranjo QN ${qn} (${md}/${me})`;
+            let grauCalc = calcularGrauOriginal(qn, md, me, ritmo);
+            inserir(nomeFicticio, "Importado", md, me, qn, ritmo, grauCalc);
+            count++;
+        }
+    });
+    if(count > 0) alert(`✅ ${count} arranjos importados com sucesso!`);
+    document.getElementById('csvInput').value = '';
+}
+
+// ======================== EXPORTAÇÕES ========================
+function copiar() {
+    const linesDataProcessadas = obterDadosProcessados();
+    let header = "Level | Grau | Música | MD | ME | QN | Ritmo\n";
+    let linhasStr = linesDataProcessadas.map(l => `${l.levelCalculado}º | ${l.grauCalculado} | ${l.musica} | ${l.md} | ${l.me} | ${l.qn} | ${l.ritmo}`);
+    navigator.clipboard.writeText(header + linhasStr.join("\n")).then(() => alert("Copiado com sucesso!"));
+}
+
+function exportarCSV() {
+    const linesDataProcessadas = obterDadosProcessados();
+    let csvRows = [["Level", "Música", "MD", "ME", "QN", "Ritmo", "Grau Final"]];
+    linesDataProcessadas.forEach(l => {
+        let nFinal = l.nivelForcado !== null ? l.nivelForcado : l.grauCalculado;
+        csvRows.push([`${l.levelCalculado}º`, l.musica, l.md, l.me, l.qn, l.ritmo, nFinal]);
+    });
+    let csvStr = csvRows.map(r => r.map(c => `"${c}"`).join(";")).join("\n");
+    navigator.clipboard.writeText(csvStr).then(() => alert("CSV copiado!"));
+}
+
+function forcarTodosExemplo() {
+    if(confirm("Deseja forçar todas as músicas listadas para 16.00?")) {
+        obterDadosProcessados().forEach(l => { let i = linesData.find(item => item.id === l.id); if(i) i.nivelForcado = "16.00"; });
+        renderizarTabela(); salvarLocalStorage();
+    }
+}
+
+function atualizarStatusBar(filtradosCount) {
+    document.getElementById('contador').innerText = filtradosCount !== undefined ? filtradosCount : linesData.length;
+    document.getElementById('contadorTotal').innerText = linesData.length;
+}
+
+function init() {
+    carregarLocalStorage();
+    renderizarTabela();
+    document.getElementById('btnSyncUpload').onclick = enviarParaPlanilha;
+    document.getElementById('btnSyncDownload').onclick = carregarDaPlanilha;
+}
+init();
+</script>
+</body>
+</html>
