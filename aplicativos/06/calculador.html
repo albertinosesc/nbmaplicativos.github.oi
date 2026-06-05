@@ -155,7 +155,7 @@ const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwFjxR5vb01WiVAwHfmy
 let linesData = [];
 let referenciasSelecionadas = null; 
 
-// ======================== FÓRMULA PEDAGÓGICA POR GAVETAS ========================
+// ======================== FÓRMULA PEDAGÓGICA AUTOMÁTICA ========================
 function calcularGrauOriginal(qn, md, me, ritmo) {
     const extrairNotasComOitava = (texto) => {
         if (!texto) return [];
@@ -173,17 +173,30 @@ function calcularGrauOriginal(qn, md, me, ritmo) {
     let totalNotasUnicas = [...new Set([...notasMD, ...notasME])].length;
     if (totalNotasUnicas === 0) totalNotasUnicas = 1;
 
+    // A base da gaveta continua sendo estrita pela quantidade de notas únicas
     let baseGaveta = totalNotasUnicas * 100;
-    let pesoTopografico = 0;
     
-    notasMD.forEach(n => { if (pesosMD[n]) pesoTopografico += pesosMD[n] * 0.5; });
-    notasME.forEach(n => { if (pesosME[n]) pesoTopografico += pesosME[n] * 0.5; });
+    // Diferenciação Automática por Topografia Real das Notas
+    let somaPesos = 0;
+    let divisorPesos = 0;
 
+    notasMD.forEach(n => { 
+        if (pesosMD[n]) { somaPesos += pesosMD[n]; divisorPesos++; } 
+    });
+    notasME.forEach(n => { 
+        if (pesosME[n]) { somaPesos += pesosME[n]; divisorPesos++; } 
+    });
+
+    let pesoTopografico = divisorPesos > 0 ? (somaPesos / divisorPesos) * 2 : 0;
+
+    // Desempate Rítmico Preciso e Adicional por QN
     let ritmoLimpo = ritmo ? ritmo.replace(/,/g, ';').trim() : "1";
     let rIdx = escalaRitmo.indexOf(ritmoLimpo);
-    let pesoRitmo = rIdx !== -1 ? (rIdx * 0.05) : 0.00;
+    let pesoRitmo = rIdx !== -1 ? (rIdx * 0.1) : 0.00;
+    
+    let pesoQN = parseFloat(qn) ? parseFloat(qn) * 0.01 : 0;
 
-    return (baseGaveta + pesoTopografico + pesoRitmo).toFixed(2);
+    return (baseGaveta + pesoTopografico + pesoRitmo + pesoQN).toFixed(2);
 }
 
 function obtenerValorFinal(item) {
@@ -247,7 +260,7 @@ async function carregarDaPlanilha() {
                 return {
                     id: gerarId(), musica: m.musica ? m.musica : '', referencia: m.referencia ? m.referencia : '',
                     md: m_md, me: m_me, qn: m_qn, ritmo: m_ritmo,
-                    grauCalculado: m.grauCalculado ? m.grauCalculado : calcularGrauOriginal(m_qn, m_md, m_me, m_ritmo),
+                    grauCalculado: calcularGrauOriginal(m_qn, m_md, m_me, m_ritmo),
                     nivelForcado: m.nivelForcado && m.nivelForcado !== '' ? parseFloat(m.nivelForcado).toFixed(2) : null
                 };
             });
@@ -395,6 +408,13 @@ function inserir(musica, referencia, md, me, qn, ritmo, grauCalculado) {
     renderizarTabela(); salvarLocalStorage();
 }
 
+// Recalcula todas as músicas salvas para aplicar a nova fórmula automática
+function recalcularTodoBanco() {
+    linesData.forEach(linha => {
+        linha.grauCalculado = calcularGrauOriginal(linha.qn, linha.md, linha.me, linha.ritmo);
+    });
+}
+
 function removerLinha(index) { if (index !== -1 && confirm('Remover esta música?')) { linesData.splice(index, 1); renderizarTabela(); salvarLocalStorage(); } }
 
 function forcarNivel(index) {
@@ -416,7 +436,7 @@ function editarLinha(index) {
         linha.me = meNovo ? meNovo : '-';
         linha.ritmo = ritmoNovo ? ritmoNovo : '1';
         linha.qn = qnNovo ? qnNovo : 0;
-        linha.grauCalculado = calcularGrauOriginal(linha.qn, linha.md, linha.me, linha.ritmo);
+        linha.grauCalculado = calcularGrauOriginal(linha.qn, inline.md, linha.me, linha.ritmo);
         renderizarTabela(); salvarLocalStorage();
     }
 }
@@ -503,6 +523,7 @@ function atualizarStatusBar(filtradosCount) {
 
 function init() {
     carregarLocalStorage();
+    recalcularTodoBanco(); // Roda a nova fórmula nos dados locais existentes
     renderizarTabela();
     document.getElementById('btnSyncUpload').onclick = enviarParaPlanilha;
     document.getElementById('btnSyncDownload').onclick = carregarDaPlanilha;
