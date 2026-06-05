@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Calculador_Piano</title>
+<style>
+    body{font-family: sans-serif; background:#f0f2f5; padding:20px;}
+    .container{max-width:1400px; margin:auto; background:white; padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1)}
+    
+    /* Inputs */
+    .inputs {display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px;}
+    input, select, textarea {padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;}
+    
+    /* Botões */
+    button {padding:8px 12px; cursor:pointer; border:none; border-radius:6px; font-weight:bold; font-size:13px; transition:0.2s;}
+    button:hover {opacity:0.85; transform:scale(1.01);}
+    
+    .btn-add {background:#27ae60; color:white;}
+    .btn-copy {background:#8e44ad; color:white;}
+    .btn-csv-copy {background:#16a085; color:white;}
+    .btn-clear {background:#c0392b; color:white;}
+    .btn-save {background:#2980b9; color:white;}
+    .btn-load {background:#27ae60; color:white;}
+    .btn-import {background:#3498db; color:white; padding:10px 20px;}
+    .btn-force-all {background:#e67e22; color:white;}
+    .btn-sync-upload {background:#2c3e50; color:white;}
+    .btn-sync-download {background:#16a085; color:white;}
+    .btn-filter {background:#f39c12; color:white; margin-bottom: 10px;}
+    
+    /* Grupos de botões */
+    .btn-group {display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center;}
+    
+    /* Área de importação */
+    .import-area {display: flex; gap: 10px; margin-top: 15px; align-items: stretch;}
+    .import-area textarea {flex: 1; height: 50px; font-size:12px;}
+    
+    /* Tabela */
+    table {width:100%; border-collapse:collapse; margin-top:20px; font-size:13px;}
+    th, td {border:1px solid #ddd; padding:6px 8px; text-align:center; vertical-align:middle;}
+    th {background:#2c3e50; color:white; position:sticky; top:0; font-size:12px;}
+    .grau-val {font-weight:bold; color:#d35400; background:#fff3e0; padding:2px 6px; border-radius:4px; font-size:12px;}
+    .col-level {font-weight:bold; color:#2c3e50; background:#e8f4f8; padding:2px 6px; border-radius:4px;}
+    .forcado {background-color:#ffe0b3 !important;}
+    .btn-small {padding:4px 8px; margin:2px; font-size:11px; border-radius:4px;}
+    .btn-edit {background:#3498db; color:white;}
+    .btn-force {background:#e74c3c; color:white;}
+    .col-forcado {background:#f39c12; color:white; font-size:11px; padding:2px 6px; border-radius:10px;}
+    .wrapper-table{overflow-x:auto; max-height:550px; overflow-y:auto;}
+    
+    /* Status */
+    .status-bar {background:#ecf0f1; padding:8px 12px; border-radius:6px; margin-top:15px; text-align:center; font-size:12px; color:#2c3e50;}
+    .status-bar span {font-weight:bold; color:#27ae60;}
+    
+    hr {margin:15px 0; border:0; border-top:1px solid #ddd;}
+
+    /* Modal Estilos Compartilhados */
+    .modal-backdrop {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; z-index:1000;}
+    .modal-content {background:white; padding:20px; border-radius:12px; max-width:90%; box-shadow: 0 4px 20px rgba(0,0,0,0.2);}
+</style>
+</head>
+<body>
+
+<div class="container">
+    <h2>🎹 Calculador_Piano</h2>
+    
+    <div style="background:#e8f4f8; padding:12px; border-radius:8px; margin-bottom:15px; display: flex; gap:10px; align-items: center; justify-content: center; flex-wrap: wrap;">
+        <button id="btnSyncUpload" class="btn-sync-upload">⬆️ Enviar para Planilha Google</button>
+        <button id="btnSyncDownload" class="btn-sync-download">⬇️ Carregar da Planilha Google</button>
+    </div>
+    
+    <div class="inputs">
+        <input id="musica" placeholder="Música">
+        <input id="referencia" placeholder="Referência (ex: Livro/Página)">
+        <select id="execucao">
+            <option value="MD">MD</option><option value="ME">ME</option>
+            <option value="MS">MS</option><option value="MJ">MJ</option>
+        </select>
+        <input id="md" placeholder="Notas MD">
+        <input id="me" placeholder="Notas ME">
+        <input id="qn" type="number" placeholder="QN">
+        <input id="ritmo" placeholder="Ritmo">
+    </div>
+    
+    <button class="btn-add" style="width:100%;" onclick="add()">+ Adicionar Música</button>
+    
+    <div class="import-area">
+        <textarea id="csvInput" placeholder="Cole o CSV aqui... (formato: Música;Ref;Exec;MD;ME;QN;Ritmo)"></textarea>
+        <button class="btn-import" onclick="importar()">Importar</button>
+    </div>
+    
+    <hr>
+    
+    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
+        <button class="btn-filter" onclick="abrirModalFiltro()">🔍 Filtrar por Referência (<span id="lblFiltroAtivo">Todos</span>)</button>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn-copy" onclick="copiar()">📋 Copiar Texto</button>
+        <button class="btn-csv-copy" onclick="exportarCSV()">📄 Copiar CSV</button>
+        <button class="btn-force-all" onclick="forcarTodosExemplo()">⚡ Forçar Nível 16</button>
+        <button class="btn-save" onclick="salvarLocal()">💾 Salvar Backup (JSON)</button>
+        <button class="btn-load" onclick="carregarLocal()">📂 Carregar Backup</button>
+        <button class="btn-clear" onclick="limparTabela()">🗑️ Limpar Tudo</button>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+        ✅ Dados salvos automaticamente | <span id="contador">0</span> músicas exibidas (total: <span id="contadorTotal">0</span>)
+    </div>
+
+    <div class="wrapper-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Level</th>
+                    <th>Música</th>
+                    <th>Ref</th>
+                    <th>Exec</th>
+                    <th>MD</th>
+                    <th>ME</th>
+                    <th>QN</th>
+                    <th>Ritmo</th>
+                    <th>Grau</th>
+                    <th>Forçado</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tabela"></tbody>
+        </table>
+    </div>
+</div>
+
+<pre style="
+    background-color: #ffffff; 
+    border: 1px solid #ddd; 
+    border-radius: 8px; 
+    padding: 15px; 
+    max-width: 230px; 
+    font-family: 'Courier New', Courier, monospace; 
+    font-size: 14px; 
+    line-height: 1.5;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    margin: 10px 0;
+">
+Figura Rítmica
+
+1 = Semínima
+2 = Mínima
+3 = Mínima Pontuada
+4 = Semibreve
+</pre>
+
+<script>
+// ======================== CONFIGURAÇÕES ========================
+const escalaRitmo = ["1", "2", "4", "3", "1;2", "1;4", "2;4", "1;3", "1;2;4", "1;2;3;4"];
+const escalaNotas = ["C", "D", "B,", "E", "A,", "F", "G,", "G", "F,", "A", "E,", "B", "D,", "c", "C,."];
+const STORAGE_KEY = 'piano_calculador_dados';
+
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwFjxR5vb01WiVAwHfmyeRfp7BbkG1s6KVa6GuIZGK1Enh71-69s1C7CLUK6GZ5UBmRWA/exec';
+
+let linhasData = [];
+let referenciasSelecionadas = null; // null significa "Todas as referências"
+
+// Função de cálculo
+function calcularGrauOriginal(qn, md, me, ritmo, exec) {
+    let pontos = 0;
+    const pesosMao = { "MD": 10, "ME": 10.5, "MS": 11, "MJ": 20 };
+    pontos += pesosMao[exec] || 0;
+    
+    let rIdx = escalaRitmo.indexOf(ritmo.replace(/,/g, ';').trim());
+    if (rIdx !== -1) pontos += (rIdx * 1.0); 
+    
+    const extrair = (t) => (t && t !== "-") ? t.split(/[ .;,/]+/).filter(Boolean) : [];
+    let nD = extrair(md);
+    let nE = extrair(me);
+    
+    [...nD, ...nE].forEach(n => {
+        let idx = escalaNotas.indexOf(n);
+        if (idx !== -1) pontos += (idx * 0.2);
+    });
+    
+    if (nD.length > 1 || nE.length > 1) pontos += 3.0;
+    pontos += (Number(qn) * 5.0);
+    return pontos.toFixed(2);
+}
+
+// Retorna o valor final avaliado (Prioriza Forçado, se não houver usa o Calculado)
+function obtenerValorFinal(item) {
+    return item.nivelForcado !== null ? parseFloat(item.nivelForcado) : parseFloat(item.grauCalculado);
+}
+
+// Filtra e Ordena a lista global de músicas gerando a hierarquia de Levels sem intervalos (1, 2, 3...)
+function obterDadosProcessados() {
+    // 1. Clonar e ordenar todas as músicas do menor valor final para o maior
+    let listaOrdenadaCompleta = [...linhasData].sort((a, b) => obtenerValorFinal(a) - obtenerValorFinal(b));
+    
+    // 2. Mapear e calcular os níveis (Levels) de forma estritamente contínua (1, 2, 3, 4...)
+    let rankAtual = 0;
+    let ultimoValor = -1;
+
+    let listaComLevels = listaOrdenadaCompleta.map((item) => {
+        let valFinal = obtenerValorFinal(item);
+        if (valFinal !== ultimoValor) {
+            rankAtual++; // Incrementa exatamente de 1 em 1 APENAS se o valor do grau mudou
+            ultimoValor = valFinal;
+        }
+        return { ...item, levelCalculado: rankAtual };
+    });
+
+    // 3. Aplicar o filtro de referências selecionadas se estiver ativo
+    if (referenciasSelecionadas !== null) {
+        return listaComLevels.filter(item => referenciasSelecionadas.includes(item.referencia.trim()));
+    }
+    
+    return listaComLevels;
+}
+
+// ======================== Sincronização com Google Sheets ========================
+async function enviarParaPlanilha() {
+    if (!SCRIPT_URL) {
+        alert('URL do Web App não configurada (contate o administrador)');
+        return;
+    }
+    
+    const dadosParaEnviar = linhasData.map(item => ({
+        musica: item.musica,
+        referencia: item.referencia || '',
+        execucao: item.execucao,
+        md: item.md,
+        me: item.me,
+        qn: item.qn,
+        ritmo: item.ritmo,
+        grauCalculado: item.grauCalculado,
+        nivelForcado: item.nivelForcado !== null ? item.nivelForcado : ''
+    }));
+    
+    try {
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            mode: 'cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+            body: JSON.stringify({ musicas: dadosParaEnviar })
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            alert(`✅ Enviado! ${result.total} músicas sincronizadas.`);
+        } else {
+            alert(`❌ Erro: ${result.error || 'Desconhecido'}`);
+        }
+    } catch (err) {
+        alert(`Nota: Se a planilha foi atualizada, o erro de conexão abaixo pode ser ignorado.\nErro: ${err.message}`);
+    }
+}
+
+async function carregarDaPlanilha() {
+    if (!SCRIPT_URL) {
+        alert('URL do Web App não configurada (contate o administrador)');
+        return;
+    }
+    
+    try {
+        const response = await fetch(SCRIPT_URL, { method: 'GET', mode: 'cors' });
+        const result = await response.json();
+        if (result.error) {
+            alert(`Erro: ${result.error}`);
+            return;
+        }
+        
+        if (result.musicas && Array.isArray(result.musicas)) {
+            const novasMusicas = result.musicas.map(m => ({
+                id: gerarId(),
+                musica: m.musica || '',
+                referencia: m.referencia || '',
+                execucao: m.execucao || 'MD',
+                md: m.md || '-',
+                me: m.me || '-',
+                qn: m.qn || '0',
+                ritmo: m.ritmo || '',
+                grauCalculado: m.grauCalculado || calcularGrauOriginal(m.qn || '0', m.md || '-', m.me || '-', m.ritmo || '', m.execucao || 'MD'),
+                nivelForcado: m.nivelForcado && m.nivelForcado !== '' ? parseFloat(m.nivelForcado).toFixed(2) : null
+            }));
+            
+            if (confirm(`Deseja substituir as ${linhasData.length} músicas atuais pelas ${novasMusicas.length} da planilha?`)) {
+                linhasData = novasMusicas;
+                referenciasSelecionadas = null; 
+                renderizarTabela();
+                salvarLocalStorage();
+                alert(`✅ ${novasMusicas.length} músicas carregadas da planilha!`);
+            }
+        } else {
+            alert('Nenhum dado encontrado na planilha.');
+        }
+    } catch (err) {
+        alert(`Erro de conexão: ${err.message}`);
+    }
+}
+
+// ======================== Salvamento LocalStorage ========================
+function salvarLocalStorage() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ versao: '1.0', musicas: linhasData }));
+        atualizarStatusBar();
+    } catch (e) { console.error(e); }
+}
+
+function carregarLocalStorage() {
+    try {
+        const dadosSalvos = localStorage.getItem(STORAGE_KEY);
+        if (dadosSalvos) {
+            const parsed = JSON.parse(dadosSalvos);
+            if (parsed.musicas && Array.isArray(parsed.musicas)) {
+                linhasData = parsed.musicas;
+                renderizarTabela();
+                return true;
+            }
+        }
+    } catch (e) { console.error(e); }
+    return false;
+}
+
+function salvarLocal() {
+    const dadosFiltrados = obterDadosProcessados();
+    if (dadosFiltrados.length === 0) { alert("Nenhum dado filtrado para salvar!"); return; }
+    
+    const dados = { 
+        versao: '1.0', 
+        dataExportacao: new Date().toLocaleString(), 
+        totalMusicas: dadosFiltrados.length, 
+        filtroAplicado: referenciasSelecionadas !== null ? referenciasSelecionadas : "Nenhum (Todos)",
+        musicas: dadosFiltrados 
+    };
+    const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `piano_backup_filtrado_${new Date().toISOString().slice(0,10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    alert(`Backup JSON salvo com sucesso! Contem apenas as ${dadosFiltrados.length} músicas visíveis do filtro.`);
+}
+
+function carregarLocal() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const dados = JSON.parse(ev.target.result);
+                if (dados.musicas && Array.isArray(dados.musicas)) {
+                    linhasData = dados.musicas;
+                    referenciasSelecionadas = null; 
+                    renderizarTabela();
+                    salvarLocalStorage();
+                    alert(`✅ ${linhasData.length} músicas carregadas!`);
+                } else alert('Arquivo inválido!');
+            } catch (er) { alert('Erro ao ler arquivo!'); }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+function limparTabela() {
+    if(confirm("⚠️ Remover TODAS as músicas?")) {
+        linhasData = [];
+        referenciasSelecionadas = null;
+        renderizarTabela();
+        salvarLocalStorage();
+        alert("Tabela limpa!");
+    }
+}
+
+// ======================== Modais e Filtros ========================
+function abrirModalFiltro() {
+    let refsUnicas = [...new Set(linhasData.map(item => item.referencia.trim()))].sort();
+    
+    let checkboxesHtml = refsUnicas.map(ref => {
+        let labelExibicao = ref === "" ? "[Sem Referência]" : ref;
+        let checado = (referenciasSelecionadas === null || referenciasSelecionadas.includes(ref)) ? "checked" : "";
+        return `
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:14px; cursor:pointer;">
+                <input type="checkbox" class="chk-filtro-ref" value="${escapeHtml(ref)}" ${checado}>
+                <span>${escapeHtml(labelExibicao)}</span>
+            </label>
+        `;
+    }).join('');
+
+    if(refsUnicas.length === 0) {
+        alert("Insira músicas com referências primeiro para usar filtros!");
+        return;
+    }
+
+    const modalHtml = `
+        <div id="filterModal" class="modal-backdrop">
+            <div class="modal-content" style="width: 320px;">
+                <h3 style="margin:0 0 12px 0; display:flex; align-items:center; gap:5px;">🔍 Filtrar Referências</h3>
+                <div style="margin-bottom: 10px; display:flex; gap:5px;">
+                    <button style="background:#bdc3c7; color:black; padding:4px 8px; font-size:11px;" onclick="marcarTodosFiltros(true)">Todos</button>
+                    <button style="background:#bdc3c7; color:black; padding:4px 8px; font-size:11px;" onclick="marcarTodosFiltros(false)">Nenhum</button>
+                </div>
+                <div style="max-height:240px; overflow-y:auto; border:1px solid #ddd; padding:8px; border-radius:6px; margin-bottom:15px;">
+                    ${checkboxesHtml}
+                </div>
+                <div style="display:flex; gap:10px;">
+                    <button id="applyFilterBtn" style="background:#f39c12; color:white; padding:8px; flex:1;">Aplicar Filtro</button>
+                    <button id="clearFilterBtn" style="background:#95a5a6; color:white; padding:8px; flex:1;">Limpar Filtro</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const modalDiv = document.createElement('div');
+    modalDiv.id = "wrapFilterModal";
+    modalDiv.innerHTML = modalHtml;
+    document.body.appendChild(modalDiv);
+
+    document.getElementById('applyFilterBtn').onclick = () => {
+        const checkboxes = document.querySelectorAll('.chk-filtro-ref');
+        let selecionados = [];
+        checkboxes.forEach(chk => {
+            if(chk.checked) selecionados.push(chk.value);
+        });
+
+        if(selecionados.length === 0) {
+            alert("Selecione pelo menos uma referência ou limpe o filtro!");
+            return;
+        }
+
+        if(selecionados.length === refsUnicas.length) {
+            referenciasSelecionadas = null; 
+        } else {
+            referenciasSelecionadas = selecionados;
+        }
+
+        fecharModalFiltro();
+        renderizarTabela();
+    };
+
+    document.getElementById('clearFilterBtn').onclick = () => {
+        referenciasSelecionadas = null;
+        fecharModalFiltro();
+        renderizarTabela();
+    };
+    
+    document.getElementById('filterModal').onclick = (e) => {
+        if(e.target.id === 'filterModal') fecharModalFiltro();
+    };
+}
+
+function marcarTodosFiltros(status) {
+    const checkboxes = document.querySelectorAll('.chk-filtro-ref');
+    checkboxes.forEach(chk => chk.checked = status);
+}
+
+function fecharModalFiltro() {
+    const m = document.getElementById('wrapFilterModal');
+    if(m) document.body.removeChild(m);
+}
+
+// ======================== Renderização e utilidades ========================
+function renderizarTabela() {
+    const tbody = document.getElementById('tabela');
+    tbody.innerHTML = '';
+    
+    const linhasProcessadas = obterDadosProcessados();
+    
+    linhasProcessadas.forEach((linha) => {
+        const realIndex = linhasData.findIndex(l => l.id === inline = linha.id);
+        const row = tbody.insertRow();
+        const status = linha.nivelForcado !== null ? `🔨 ${linha.nivelForcado}` : `✓ ${linha.grauCalculado}`;
+        const classeForcado = linha.nivelForcado !== null ? 'forcado' : '';
+        
+        row.innerHTML = `
+            <td class="${classeForcado}"><span class="col-level">${linha.levelCalculado}º</span></td>
+            <td class="${classeForcado}" style="font-weight:500; text-align:left;">${escapeHtml(linha.musica)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.referencia || '-')}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.execucao)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.md)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.me)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.qn)}</td>
+            <td class="${classeForcado}">${escapeHtml(linha.ritmo)}</td>
+            <td class="${classeForcado}"><span class="grau-val">${linha.grauCalculado}</span></td>
+            <td class="${classeForcado}">${linha.nivelForcado !== null ? `<span class="col-forcado">${linha.nivelForcado}</span>` : '-'}</td>
+            <td class="${classeForcado}">${status}</td>
+            <td class="${classeForcado}">
+                <button class="btn-small btn-edit" onclick="editarLinha(${realIndex})">✏️</button>
+                <button class="btn-small btn-force" onclick="forcarNivel(${realIndex})">💪</button>
+                <button class="btn-small" style="background:#95a5a6;color:white;" onclick="removerLinha(${realIndex})">🗑️</button>
+            </td>
+        `;
+    });
+
+    const lblFiltro = document.getElementById('lblFiltroAtivo');
+    if (lblFiltro) {
+        lblFiltro.innerText = referenciasSelecionadas === null ? "Todos" : `${referenciasSelecionadas.length} Ativo(s)`;
+    }
+
+    atualizarStatusBar(linhasProcessadas.length);
+}
+
+function escapeHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/[&<>]/g, function(m) {
+        if (m === '&') return '&amp;';
+        if (m === '<') return '&lt;';
+        if (m === '>') return '&gt;';
+        return m;
+    });
+}
+
+function gerarId() { return Date.now() + '-' + Math.random().toString(36).substr(2, 6); }
+
+function inserir(musica, referencia, execucao, md, me, qn, ritmo, grauCalculado) {
+    linhasData.push({
+        id: gerarId(), 
+        musica: musica, 
+        referencia: referencia ? referencia.trim() : '',
+        execucao: execucao, 
+        md: md || '-', 
+        me: me || '-', 
+        qn: qn, 
+        ritmo: ritmo,
+        grauCalculado: grauCalculado, 
+        nivelForcado: null
+    });
+    renderizarTabela();
+    salvarLocalStorage();
+}
+
+function removerLinha(index) {
+    if (confirm('Remover esta música?')) {
+        linhasData.splice(index, 1);
+        renderizarTabela();
+        salvarLocalStorage();
+    }
+}
+
+// Modificado para corrigir o escopo de busca por ID
+function forcarNivel(index) {
+    const linha = linhasData[index];
+    const nivelAtual = linha.nivelForcado !== null ? linha.nivelForcado : linha.grauCalculado;
+    let novoNivel = prompt(`Forçar nível para "${linha.musica}"\nAtual: ${nivelAtual}`, nivelAtual);
+    if (novoNivel !== null && !isNaN(parseFloat(novoNivel))) {
+        linha.nivelForcado = parseFloat(novoNivel).toFixed(2);
+        renderizarTabela();
+        salvarLocalStorage();
+    } else if (novoNivel !== null) alert('Digite um número!');
+}
+
+function editarLinha(index) {
+    const linha = linhasData[index];
+    const modalHtml = `
+        <div class="modal-backdrop" id="wrapperEditModal">
+            <div class="modal-content" style="width:380px;">
+                <h3 style="margin:0 0 15px 0;">✏️ Editar</h3>
+                <input id="editMusica" value="${escapeHtml(linha.musica)}" placeholder="Música" style="width:100%; margin-bottom:8px; box-sizing:border-box; padding:8px;"><br>
+                <input id="editReferencia" value="${escapeHtml(linha.referencia || '')}" placeholder="Referência" style="width:100%; margin-bottom:8px; box-sizing:border-box; padding:8px;"><br>
+                <select id="editExecucao" style="width:100%; margin-bottom:8px; box-sizing:border-box; padding:8px;">
+                    <option ${linha.execucao === 'MD' ? 'selected' : ''}>MD</option>
+                    <option ${linha.execucao === 'ME' ? 'selected' : ''}>ME</option>
+                    <option ${linha.execucao === 'MS' ? 'selected' : ''}>MS</option>
+                    <option ${linha.execucao === 'MJ' ? 'selected' : ''}>MJ</option>
+                </select>
+                <input id="editMd" value="${escapeHtml(linha.md)}" placeholder="MD" style="width:100%; margin-bottom:8px; box-sizing:border-box; padding:8px;"><br>
+                <input id="editMe" value="${escapeHtml(linha.me)}" placeholder="ME" style="width:100%; margin-bottom:8px; box-sizing:border-box; padding:8px;"><br>
+                <input id="editQn" value="${escapeHtml(linha.qn)}" placeholder="QN" style="width:100%; margin-bottom:8px; box-sizing:border-box; padding:8px;"><br>
+                <input id="editRitmo" value="${escapeHtml(linha.ritmo)}" placeholder="Ritmo" style="width:100%; margin-bottom:8px; box-sizing:border-box; padding:8px;"><br>
+                <input id="editForcado" value="${linha.nivelForcado !== null ? linha.nivelForcado : ''}" placeholder="Forçar nível (opcional)" style="width:100%; margin-bottom:15px; box-sizing:border-box; padding:8px;"><br>
+                <div style="display:flex; gap:10px;">
+                    <button id="saveEditBtn" style="background:#2ecc71; color:white; padding:8px; flex:1;">💾 Salvar</button>
+                    <button id="cancelEditBtn" style="background:#95a5a6; color:white; padding:8px; flex:1;">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    `;
+    const modalDiv = document.createElement('div');
+    modalDiv.id = "wrapEditModal";
+    modalDiv.innerHTML = modalHtml;
+    document.body.appendChild(modalDiv);
+    
+    document.getElementById('saveEditBtn').onclick = () => {
+        const novoMusica = document.getElementById('editMusica').value.trim();
+        if(!novoMusica) { alert("Música obrigatória!"); return; }
+        const novoReferencia = document.getElementById('editReferencia').value.trim();
+        const novoExec = document.getElementById('editExecucao').value;
+        const novoMd = document.getElementById('editMd').value || '-';
+        const novoMe = document.getElementById('editMe').value || '-';
+        const novoQn = document.getElementById('editQn').value;
+        const novoRitmo = document.getElementById('editRitmo').value;
+        const novoForcado = document.getElementById('editForcado').value.trim();
+        
+        linha.musica = novoMusica;
+        linha.referencia = novoReferencia;
+        linha.execucao = novoExec;
+        linha.md = novoMd;
+        linha.me = novoMe;
+        linha.qn = novoQn;
+        linha.ritmo = novoRitmo;
+        linha.grauCalculado = calcularGrauOriginal(novoQn, novoMd, novoMe, novoRitmo, novoExec);
+        
+        if (novoForcado !== "" && !isNaN(parseFloat(novoForcado))) {
+            linha.nivelForcado = parseFloat(novoForcado).toFixed(2);
+        } else if (novoForcado === "") {
+            linha.nivelForcado = null;
+        }
+        document.body.removeChild(modalDiv);
+        renderizarTabela();
+        salvarLocalStorage();
+    };
+    document.getElementById('cancelEditBtn').onclick = () => document.body.removeChild(modalDiv);
+}
+
+function add() {
+    let m = document.getElementById('musica').value.trim();
+    if(!m) { alert("Digite o nome da música!"); return; }
+    let ref = document.getElementById('referencia').value;
+    let exec = document.getElementById('execucao').value;
+    let md = document.getElementById('md').value;
+    let me = document.getElementById('me').value;
+    let qn = document.getElementById('qn').value || 0;
+    let ritmo = document.getElementById('ritmo').value;
+    let grau = calcularGrauOriginal(qn, md, me, ritmo, exec);
+    inserir(m, ref, exec, md, me, qn, ritmo, grau);
+    document.getElementById('musica').value = '';
+    document.getElementById('referencia').value = '';
+    document.getElementById('md').value = '';
+    document.getElementById('me').value = '';
+    document.getElementById('qn').value = '';
+    document.getElementById('ritmo').value = '';
+}
+
+function importar() {
+    const csvTexto = document.getElementById('csvInput').value.trim();
+    if(!csvTexto) return;
+    const linhas = csvTexto.split(/\r?\n/);
+    let count = 0;
+    linhas.forEach(line => {
+        if(line.toLowerCase().includes("música") || !line.trim()) return;
+        let partes = line.split(';').map(v => v.replace(/^"|"$/g, '').trim());
+        if(partes.length >= 7) {
+            let grauCalc = calcularGrauOriginal(partes[5], partes[3], partes[4], partes[6], partes[2]);
+            inserir(partes[0], partes[1], partes[2], partes[3], partes[4], partes[5], partes[6], grauCalc);
+            count++;
+        } else if(partes.length >= 6) {
+            let grauCalc = calcularGrauOriginal(partes[4], partes[2], partes[3], partes[5], partes[1]);
+            inserir(partes[0], '', partes[1], partes[2], partes[3], partes[4], partes[5], grauCalc);
+            count++;
+        }
+    });
+    alert(`${count} músicas importadas!`);
+    document.getElementById('csvInput').value = '';
+}
+
+function copiar() {
+    const dadosProcessados = obterDadosProcessados();
+    if(dadosProcessados.length === 0) { alert("Nenhum dado para copiar!"); return; }
+    
+    let header = "Level | Nível Final | Música | Ref | Exec | MD | ME | QN | Ritmo | Grau Calc | Forçado\n";
+    let linhasStr = dadosProcessados.map(l => {
+        const nivelFinal = l.nivelForcado !== null ? l.nivelForcado : l.grauCalculado;
+        return `${l.levelCalculado}º | ${nivelFinal} | ${l.musica} | ${l.referencia || '-'} | ${l.execucao} | ${l.md} | ${l.me} | ${l.qn} | ${l.ritmo} | ${l.grauCalculado} | ${l.nivelForcado !== null ? l.nivelForcado : '-'}`;
+    });
+    navigator.clipboard.writeText(header + linhasStr.join("\n")).then(() => alert("Copiado com sucesso (Filtrado e Ordenado por Nível)!"));
+}
+
+function exportarCSV() {
+    const dadosProcessados = obterDadosProcessados();
+    if(dadosProcessados.length === 0) { alert("Nenhum dado para exportar!"); return; }
+    
+    let csvRows = [["Level", "Música","Ref","Exec","MD","ME","QN","Ritmo","Grau_Calculado","Nível_Forçado","Nível_Final"]];
+    dadosProcessados.forEach(l => {
+        const nivelFinal = l.nivelForcado !== null ? l.nivelForcado : l.grauCalculado;
+        csvRows.push([`${l.levelCalculado}º`, l.musica, l.referencia || '', l.execucao, l.md, l.me, l.qn, l.ritmo, l.grauCalculado, l.nivelForcado || "", nivelFinal]);
+    });
+    const csv = csvRows.map(row => row.map(c => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
+    navigator.clipboard.writeText(csv).then(() => alert("CSV copiado com sucesso (Filtrado e Ordenado por Nível)!"));
+}
+
+function forcarTodosExemplo() {
+    const dadosVisiveis = obterDadosProcessados();
+    if(dadosVisiveis.length === 0) { alert("Nenhuma música visível no filtro para modificar!"); return; }
+    if(confirm(`Forçar todas as ${dadosVisiveis.length} músicas visíveis para o nível 16?`)) {
+        dadosVisiveis.forEach(l => {
+            let itemOriginal = linhasData.find(item => item.id === l.id);
+            if(itemOriginal) itemOriginal.nivelForcado = "16.00";
+        });
+        renderizarTabela();
+        salvarLocalStorage();
+        alert("Níveis alterados!");
+    }
+}
+
+function atualizarStatusBar(filtradosCount) {
+    const contador = document.getElementById('contador');
+    if(contador) contador.innerText = filtradosCount !== undefined ? filtradosCount : linhasData.length;
+    
+    const contadorTotal = document.getElementById('contadorTotal');
+    if(contadorTotal) contadorTotal.innerText = linhasData.length;
+}
+
+// ======================== Inicialização ========================
+function init() {
+    carregarLocalStorage();
+    renderizarTabela();
+    
+    document.getElementById('btnSyncUpload').onclick = enviarParaPlanilha;
+    document.getElementById('btnSyncDownload').onclick = carregarDaPlanilha;
+}
+init();
+</script>
+</body>
+</html>
