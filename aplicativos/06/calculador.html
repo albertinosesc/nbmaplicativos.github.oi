@@ -63,8 +63,8 @@
     <h2>🎹 Calculador_Piano (Hierarquia com Herança de Formato)</h2>
     
     <div style="background:#e8f4f8; padding:12px; border-radius:8px; margin-bottom:15px; display: flex; gap:10px; align-items: center; justify-content: center; flex-wrap: wrap;">
-        <button id="btnSyncUpload" class="btn-sync-upload">⬆️ Enviar para Planilha Google</button>
-        <button id="btnSyncDownload" class="btn-sync-download">⬇️ Carregar da Planilha Google</button>
+        <button id="btnSyncUpload" class="btn-sync-upload">⬆️ Enviar para Planilha Google (Dados + Modelos)</button>
+        <button id="btnSyncDownload" class="btn-sync-download">⬇️ Carregar da Planilha Google (Dados + Modelos)</button>
     </div>
     
     <div class="inputs">
@@ -99,7 +99,7 @@
     </div>
 
     <div class="status-bar" id="statusBar">
-        ✅ Dados salvos automaticamente | <span id="contador">0</span> músicas exibidas (total: <span id="contadorTotal">0</span>)
+        ✅ Sincronizado localmente | <span id="contador">0</span> músicas exibidas (total: <span id="contadorTotal">0</span>)
     </div>
 
     <div class="wrapper-table">
@@ -153,13 +153,12 @@ const pesosME = { "C": 1, "B,": 2, "A,": 3, "G,": 4, "F Nar": 5, "F,": 5, "E,": 
 
 const STORAGE_KEY = 'piano_calculador_gavetas_dados';
 const MODELOS_KEY = 'piano_calculador_modelos_formato';
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbwFjxR5vb01WiVAwHfmyeRfp7BbkG1s6KVa6GuIZGK1Enh71-69s1C7CLUK6GZ5UBmRWA/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbznmkn_CC5KvXchMIR1RkYJybJrLlHwa0k8VnZPc6Orj83aWfPMLbG76Hcmuj244GXb/exec';
 
 let linesData = [];
-let modelosFormato = {}; // Guarda a memória de padrões de força ex: {"C|C": "25.00"}
+let modelosFormato = {}; 
 let referenciasSelecionadas = null; 
 
-// Obtém a assinatura única do formato do arranjo baseado nas notas digitadas
 function obterChaveFormato(md, me) {
     let d = md ? md.trim().toUpperCase() : '-';
     let e = me ? me.trim().toUpperCase() : '-';
@@ -168,13 +167,11 @@ function obterChaveFormato(md, me) {
 
 // ======================== FÓRMULA PEDAGÓGICA AUTOMÁTICA ========================
 function calcularGrauOriginal(qn, md, me, ritmo) {
-    // 1º Passo: Verificar se esse exato formato possui um modelo forçado globalmente
     let chave = obterChaveFormato(md, me);
     if (modelosFormato[chave]) {
         return parseFloat(modelosFormato[chave]).toFixed(2);
     }
 
-    // Se não houver modelo, segue o cálculo matemático padrão por gavetas
     const extrairNotasComOitava = (texto) => {
         if (!texto || texto === "-" || texto.trim() === "") return [];
         let regex = /[A-G][',]*/gi;
@@ -209,20 +206,14 @@ function calcularGrauOriginal(qn, md, me, ritmo) {
 }
 
 function obtenerValorFinal(item) {
-    // Se o item específico foi forçado individualmente, prioriza ele
     if (item.nivelForcado !== null) return parseFloat(item.nivelForcado);
-    
-    // Se o formato dele está registrado na memória global de modelos, herda o valor
     let chave = obterChaveFormato(item.md, item.me);
     if (modelosFormato[chave]) return parseFloat(modelosFormato[chave]);
-
-    // Caso contrário, usa o grau calculado
     return parseFloat(item.grauCalculado);
 }
 
 function obterDadosProcessados() {
     let listaOrdenadaCompleta = [...linesData].sort((a, b) => obtenerValorFinal(a) - obtenerValorFinal(b));
-    
     let rankAtual = 0;
     let ultimoValor = -1;
 
@@ -241,25 +232,32 @@ function obterDadosProcessados() {
             return referenciasSelecionadas.includes(refTexto);
         });
     }
-    
     return listaComLevels;
 }
 
-// ======================== GOOGLE SHEETS SYNC ========================
+// ======================== GOOGLE SHEETS SYNC (DADOS + MODELOS) ========================
 async function enviarParaPlanilha() {
     if (!SCRIPT_URL) { alert('URL não configurada'); return; }
-    const dadosParaEnviar = linesData.map(item => ({
+    
+    const musicasParaEnviar = linesData.map(item => ({
         musica: item.musica, referencia: item.referencia ? item.referencia : '', execucao: 'MS',
         md: item.md, me: item.me, qn: item.qn, ritmo: item.ritmo,
         grauCalculado: item.grauCalculado, nivelForcado: item.nivelForcado !== null ? item.nivelForcado : ''
     }));
+
+    // Enviamos a lista de músicas E o objeto de modelos juntos na mesma requisição
+    const pacoteCompleto = {
+        musicas: musicasParaEnviar,
+        modelosHeranca: modelosFormato 
+    };
+
     try {
         await fetch(SCRIPT_URL, {
             method: 'POST', mode: 'cors',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
-            body: JSON.stringify({ musicas: dadosParaEnviar })
+            body: JSON.stringify(pacoteCompleto)
         });
-        alert(`✅ Enviado para a Planilha Google com sucesso!`);
+        alert(`✅ Músicas e Memória de Padrões salvas na Planilha Google!`);
     } catch (err) { alert(`Processado.`); }
 }
 
@@ -268,6 +266,12 @@ async function carregarDaPlanilha() {
     try {
         const response = await fetch(SCRIPT_URL, { method: 'GET', mode: 'cors' });
         const result = await response.json();
+        
+        // Se a planilha devolveu a memória de modelos globais, absorvemos ela de volta
+        if (result.modelosHeranca) {
+            modelosFormato = result.modelosHeranca;
+        }
+
         if (result.musicas && Array.isArray(result.musicas)) {
             linesData = result.musicas.map(m => {
                 let m_md = m.md ? m.md : '-';
@@ -282,12 +286,12 @@ async function carregarDaPlanilha() {
                 };
             });
             referenciasSelecionadas = null; renderizarTabela(); salvarLocalStorage();
-            alert(`✅ ${linesData.length} músicas carregadas da nuvem!`);
+            alert(`✅ Sincronização completa: ${linesData.length} músicas e padrões de formatos carregados da nuvem!`);
         }
     } catch (err) { alert(`Erro ao carregar: ${err.message}`); }
 }
 
-// ======================== BACKUPS E ARQUIVOS ========================
+// ======================== BACKUPS LOCAL STORAGE ========================
 function salvarLocalStorage() {
     try { 
         localStorage.setItem(STORAGE_KEY, JSON.stringify({ versao: '3.0', musicas: linesData })); 
@@ -387,10 +391,7 @@ function abrirModalFiltro() {
 // ======================== INTERFACE E RENDER ========================
 function renderizarTabela() {
     const tbody = document.getElementById('tabela'); tbody.innerHTML = '';
-    
-    // Atualiza os graus calculados considerando os modelos salvos na memória
     recalcularTodoBanco();
-    
     const linesDataProcessadas = obterDadosProcessados();
     
     linesDataProcessadas.forEach((linha) => {
@@ -454,7 +455,7 @@ function inserir(musica, referencia, md, me, qn, ritmo, grauCalculado) {
 
 function recalcularTodoBanco() {
     linesData.forEach(linha => {
-        linha.grauCalculado = calcularGrauOriginal(linha.qn, linha.md, linha.me, linha.ritmo);
+        linha.grauCalculado = calcularGrauOriginal(linha.qn, inline.md, linha.me, linha.ritmo);
     });
 }
 
@@ -464,16 +465,11 @@ function forcarNivel(index) {
     if (index === -1) return;
     let item = linesData[index];
     let chave = obterChaveFormato(item.md, item.me);
-    
     let nv = prompt(`Definir valor de força para o formato "${chave}" (afetará todas as correspondentes):`, obtenerValorFinal(item));
     
     if(nv && !isNaN(parseFloat(nv))) {
-        let valFormatado = parseFloat(nv).toFixed(2);
-        // Salva na memória global para herança
-        modelosFormato[chave] = valFormatado;
-        // Limpa a trava individual do item para que ele passe a seguir o modelo global
+        modelosFormato[chave] = parseFloat(nv).toFixed(2);
         item.nivelForcado = null; 
-        
         renderizarTabela(); 
         salvarLocalStorage();
     }
@@ -546,7 +542,6 @@ function importar() {
     document.getElementById('csvInput').value = '';
 }
 
-// ======================== EXPORTAÇÕES ========================
 function copiar() {
     const linesDataProcessadas = obterDadosProcessados();
     let header = "Level | Grau | Música | MD | ME | QN | Ritmo\n";
