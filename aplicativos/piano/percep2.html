@@ -30,19 +30,19 @@
     .main-btn { background: var(--primary); color: white; width: 100%; font-size: 16px; margin-top: 5px; }
     .main-btn.active { background: var(--danger); }
 
-    /* Área do Pentagrama Forçada para Tamanho Grande */
+    .transpose-container { display: flex; gap: 8px; align-items: center; }
+    .btn-transp { background: #e2e8f0; color: #1e293b; padding: 6px 12px; font-size: 14px; border: 1px solid #cbd5e1; }
+    .btn-transp:hover { background: #cbd5e1; }
+    #transpDisplay { font-family: monospace; font-weight: bold; min-width: 30px; text-align: center; font-size: 14px; }
+
     #paper { background: white; border: 1px solid #e2e8f0; border-radius: 12px; min-height: 20px; margin: 20px 0; display: flex; justify-content: center; align-items: center; padding: 20px; overflow-x: auto; }
-    
-    /* TRUQUE VISUAL: Força o SVG gerado pelo ABCJS a ampliar de tamanho real na tela */
     #paper svg { width: 100% !important; height: auto !important; max-width: 990px !important; min-height: 360px; }
 
-    /* Teclado Otimizado de 4 oitavas (C1 a C5) */
     .piano-container { width: 100%; overflow-x: auto; padding: 10px 0; margin-top: 15px; }
     #keyboard { position: relative; width: 812px; height: 170px; background: #cbd5e1; border-radius: 4px; padding: 4px 0 4px 4px; box-sizing: content-box; margin: 0 auto; }
     .white { position: absolute; width: 26px; height: 165px; background: white; border: 1px solid #94a3b8; border-radius: 0 0 4px 4px; z-index: 1; cursor: pointer; transition: background 0.1s; }
     .black { position: absolute; width: 16px; height: 100px; background: #1e293b; border-radius: 0 0 3px 3px; z-index: 2; cursor: pointer; transition: background 0.1s; }
     
-    /* Estados das teclas virtuais */
     .white.active-key { background: var(--accent) !important; }
     .black.active-key { background: #22d3ee !important; }
     .white.pressed-correct { background: var(--success) !important; }
@@ -61,9 +61,9 @@
     <div class="layout-grid">
         <div class="panel">
             <h3>📝 Editor de Notas / Acordes</h3>
-            <textarea id="abcInput" oninput="parseABCInput()">"C"[(C1E1G1)C3E3G3] | "Am"[(A1E2A2)C3E3A3] | "D"[D3^F3A3] | "G"[(G1D2G2)B3D4G4] | "C"C4 | "F"^F4 | "Bb"_B3 | "C7"[(C2E2G2)C3E3G3_B3]</textarea>
+            <textarea id="abcInput" oninput="parseABCInput()">"C"[C3E3G3] | "Dm"[D3F3A3] | "Em"[B2E3G3] | "F"[C3F3A3] | "G"[B2D3G3] | "Am"[C3E3A3] | "B°"[B2D3F3]</textarea>
             <div style="margin-top: 5px; font-size: 11px; color: #64748b;">
-                Use aspas para adicionar cifras em cima do acorde! Ex: <code class="badge">"C"[(C2G2)C3E3G3]</code>.
+                Use aspas para adicionar cifras em cima do acorde! Ex: <code class="badge">"C"[C3E3G3]</code>.
             </div>
         </div>
 
@@ -79,11 +79,31 @@
                 </div>
                 
                 <div class="row">
+                    <span class="inline-label">Ordem dos Acordes:</span>
+                    <select id="orderMode" onchange="resetSequence()">
+                        <option value="random">🔀 Aleatório (Sorteio)</option>
+                        <option value="sequential">➡️ Sequencial (Ordem do Texto)</option>
+                    </select>
+                </div>
+                
+                <div class="row">
+                    <span class="inline-label">Transpor Tom:</span>
+                    <div class="transpose-container">
+                        <button class="btn-transp" onclick="changeTranspose(-1)">▼ Descer</button>
+                        <span id="transpDisplay">0</span>
+                        <button class="btn-transp" onclick="changeTranspose(1)">▲ Subir</button>
+                    </div>
+                </div>
+                
+                <div class="row">
                     <label class="inline-label">
                         <input type="checkbox" id="chkLightKeys" checked onchange="updateDisplay()"> 💡 Acender teclas no Teclado
                     </label>
                     <label class="inline-label">
                         <input type="checkbox" id="chkPlaySound" checked> 🔊 Emitir Som
+                    </label>
+                    <label class="inline-label">
+                        <input type="checkbox" id="chkShowChord" checked window.onload onchange="renderCurrentTransposedItem()"> 🏷️ Mostrar Cifras
                     </label>
                 </div>
 
@@ -105,7 +125,8 @@
 </div>
 
 <script>
-// Dicionário calibrado para C1 a C5 (4 oitavas)
+const scaleOrder = ["C", "^C", "D", "^D", "E", "F", "^F", "G", "^G", "A", "^A", "B"];
+
 const noteDictionary = {
     // Oitava 1
     "C1": {f: 32.70, type: "W", idx: 0, abc: "C,,"},  "^C1": {f: 34.65, type: "B", abc: "^C,,"}, "_C1": {f: 30.87, type: "B", abc: "_C,,"},
@@ -139,16 +160,19 @@ const noteDictionary = {
     "G4": {f: 392.00, type: "W", idx: 25, abc: "g"},   "^G4": {f: 415.30, type: "B", abc: "^g"},  "_G4": {f: 369.99, type: "B", abc: "_g"},
     "A4": {f: 440.00, type: "W", idx: 26, abc: "a"},   "^A4": {f: 466.16, type: "B", abc: "^a"},  "_A4": {f: 415.30, type: "B", abc: "_a"},
     "B4": {f: 493.88, type: "W", idx: 27, abc: "b"},   "^B4": {f: 523.25, type: "W", abc: "^b"},  "_B4": {f: 466.16, type: "B", abc: "_b"},
-    // Limite superior (Oitava 5)
+    // Oitava 5
     "C5": {f: 523.25, type: "W", idx: 28, abc: "c'"}
 };
 
 let poolABC = [];
 let currentItem = "";
-let currentNotesArray = [];
+let currentNotesArray = [];      
+let transposedNotesArray = [];   
 let userSelectedNotes = [];
 let timer = null;
 let audioCtx = null;
+let transposeShift = 0;          
+let sequentialIndex = -1; // Variável para controlar a posição atual no modo sequencial
 
 function initAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -202,40 +226,127 @@ function buildKeyboard() {
 function parseABCInput() {
     const text = document.getElementById("abcInput").value;
     poolABC = text.split('|').map(s => s.trim()).filter(s => s.length > 0);
+    resetSequence();
 }
 
-// Limpa as cifras antes de extrair as notas para o teclado/áudio não darem conflito
+// Reseta o contador se a ordem mudar ou se o texto for editado
+function resetSequence() {
+    sequentialIndex = -1;
+}
+
 function extractAllNotes(str) {
     let cleanStr = str.replace(/"[^"]*"/g, ""); 
     let matches = cleanStr.match(/([_^]?[A-G][1-5])/g);
     return matches ? matches : [];
 }
 
+function transposeNote(noteStr, shift) {
+    if (shift === 0) return noteStr;
+    
+    let accident = "";
+    let basicNote = noteStr;
+    if (noteStr.startsWith("^") || noteStr.startsWith("_")) {
+        accident = noteStr[0];
+        basicNote = noteStr.substring(1);
+    }
+    
+    let noteName = basicNote[0];
+    let octave = parseInt(basicNote[1]);
+    
+    if (accident === "_") {
+        if (noteName === "D") { noteName = "C"; accident = "^"; }
+        else if (noteName === "E") { noteName = "D"; accident = "^"; }
+        else if (noteName === "G") { noteName = "F"; accident = "^"; }
+        else if (noteName === "A") { noteName = "G"; accident = "^"; }
+        else if (noteName === "B") { noteName = "A"; accident = "^"; }
+        else if (noteName === "C") { noteName = "B"; octave--; accident = ""; }
+        else if (noteName === "F") { noteName = "E"; accident = ""; }
+    }
+    
+    let lookupName = accident + noteName;
+    let idx = scaleOrder.indexOf(lookupName);
+    if (idx === -1) return noteStr;
+    
+    let targetIdx = idx + shift;
+    let octaveOffset = Math.floor(targetIdx / 12);
+    let finalIdx = targetIdx % 12;
+    if (finalIdx < 0) {
+        finalIdx += 12;
+    }
+    
+    let finalOctave = octave + octaveOffset;
+    if (finalOctave < 1) finalOctave = 1;
+    if (finalOctave > 5) finalOctave = 5;
+    
+    return scaleOrder[finalIdx] + finalOctave;
+}
+
+function changeTranspose(amount) {
+    transposeShift += amount;
+    document.getElementById("transpDisplay").innerText = (transposeShift > 0 ? "+" : "") + transposeShift;
+    renderCurrentTransposedItem();
+}
+
+// NOVA LÓGICA INTEGRADORA DA SEQUÊNCIA VS ALEATÓRIO
 function nextItem() {
     if (poolABC.length === 0) parseABCInput();
     if (poolABC.length === 0) return;
 
+    const orderMode = document.getElementById("orderMode").value;
+
+    if (orderMode === "sequential") {
+        // Avança de um em um. Se chegar ao fim, volta ao início (looping)
+        sequentialIndex++;
+        if (sequentialIndex >= poolABC.length) {
+            sequentialIndex = 0;
+        }
+        currentItem = poolABC[sequentialIndex];
+    } else {
+        // Modo Aleatório tradicional (sem repetir o mesmo imediatamente se houver opções)
+        let next;
+        do {
+            next = poolABC[Math.floor(Math.random() * poolABC.length)];
+        } while (next === currentItem && poolABC.length > 1);
+        currentItem = next;
+    }
+
+    renderCurrentTransposedItem();
+}
+
+function renderCurrentTransposedItem() {
     userSelectedNotes = [];
     clearKeyboardHighlights();
 
-    let next;
-    do {
-        next = poolABC[Math.floor(Math.random() * poolABC.length)];
-    } while (next === currentItem && poolABC.length > 1);
+    if (!currentItem && poolABC.length > 0) currentItem = poolABC[0];
+    if (!currentItem) return;
 
-    currentItem = next;
     currentNotesArray = extractAllNotes(currentItem);
+    transposedNotesArray = currentNotesArray.map(n => transposeNote(n, transposeShift));
 
-    // Captura a cifra se ela existir no token atual
     let chordSymbol = "";
-    let chordMatch = currentItem.match(/"([^"]+)"/);
-    if (chordMatch) {
-        chordSymbol = `"${chordMatch[1]}"`;
+    const showChord = document.getElementById("chkShowChord") ? document.getElementById("chkShowChord").checked : true;
+
+    if (showChord) {
+        let chordMatch = currentItem.match(/"([^"]+)"/);
+        if (chordMatch) {
+            let rawChord = chordMatch[1]; 
+            let rootNoteMatch = rawChord.match(/^([A-G][#b]?)/);
+            if (rootNoteMatch) {
+                let rootNote = rootNoteMatch[1];
+                let chordExtension = rawChord.substring(rootNote.length); 
+                let abcRoot = rootNote.replace('#', '^').replace('b', '_') + "3"; 
+                let transposedRootABC = transposeNote(abcRoot, transposeShift);
+                let finalRoot = transposedRootABC.replace('3', '').replace('^', '#').replace('_', 'b');
+                chordSymbol = `"${finalRoot}${chordExtension}"`;
+            } else {
+                chordSymbol = `"${rawChord}"`; 
+            }
+        }
+    } else {
+        chordSymbol = "";
     }
 
-    // Limpa a string original para separar as claves sem a interferência da cifra
     let itemWithoutChord = currentItem.replace(/"[^"]*"/g, "");
-
     let bassRaw = "";
     let trebleRaw = "";
 
@@ -247,14 +358,16 @@ function nextItem() {
         trebleRaw = itemWithoutChord.replace('[', '').replace(']', '');
     }
 
-    let bassNotes = extractAllNotes(bassRaw).map(n => noteDictionary[n]?.abc).filter(Boolean);
-    let trebleNotes = extractAllNotes(trebleRaw).map(n => noteDictionary[n]?.abc).filter(Boolean);
+    let bassNotesTransposed = extractAllNotes(bassRaw).map(n => transposeNote(n, transposeShift));
+    let trebleNotesTransposed = extractAllNotes(trebleRaw).map(n => transposeNote(n, transposeShift));
+
+    let bassNotesABC = bassNotesTransposed.map(n => noteDictionary[n]?.abc).filter(Boolean);
+    let trebleNotesABC = trebleNotesTransposed.map(n => noteDictionary[n]?.abc).filter(Boolean);
 
     const formatABCGroup = (arr) => arr.length > 1 ? `[${arr.join('')}]` : (arr.length === 1 ? arr[0] : 'z');
     
-    let abcString = `X:1\nM:none\nL:1/1\nK:C\n%%staffwidth 300\n%%sysstaffsep 21\nV:1 clef=treble\nV:2 clef=bass stem=down\n`;
-    // Aplica a cifra exclusivamente na pauta superior (Clave de Sol) colada ao acorde
-    abcString += `[V:1] ${chordSymbol}${formatABCGroup(trebleNotes)}x|]\n[V:2] ${formatABCGroup(bassNotes)}x|]`;
+    let abcString = `X:1\nM:none\nL:1/1\nK:C\n%%staffwidth 300\n%%sysstaffsep 21\nV:1 clef=treble\nV:2 clef=bass\n`;
+    abcString += `[V:1] ${chordSymbol}${formatABCGroup(trebleNotesABC)}x|]\n[V:2] ${formatABCGroup(bassNotesABC)}x|]`;
 
     ABCJS.renderAbc("paper", abcString, { 
         scale: 2.2, 
@@ -266,7 +379,7 @@ function nextItem() {
 
     if (document.getElementById("chkPlaySound").checked) {
         initAudio();
-        currentNotesArray.forEach(n => {
+        transposedNotesArray.forEach(n => {
             let noteData = noteDictionary[n];
             if (noteData) playOscillator(noteData.f);
         });
@@ -277,7 +390,7 @@ function updateDisplay() {
     clearKeyboardHighlights();
     if (!document.getElementById("chkLightKeys").checked) return;
     
-    currentNotesArray.forEach(n => {
+    transposedNotesArray.forEach(n => {
         let el = document.getElementById(`k-${n}`);
         if (!el) {
             el = document.querySelector(`[data-flat="${n}"]`);
@@ -300,12 +413,12 @@ function handleKeyClick(noteName) {
         keyEl = document.querySelector(`[data-flat="${noteName}"]`);
     }
 
-    let isCorrect = currentNotesArray.includes(noteName);
+    let isCorrect = transposedNotesArray.includes(noteName);
     
     if (!isCorrect && keyEl) {
         const altFlat = keyEl.getAttribute("data-flat");
         const altSharp = keyEl.id.replace("k-", "");
-        if (currentNotesArray.includes(altFlat) || currentNotesArray.includes(altSharp)) {
+        if (transposedNotesArray.includes(altFlat) || transposedNotesArray.includes(altSharp)) {
             isCorrect = true;
         }
     }
@@ -315,7 +428,7 @@ function handleKeyClick(noteName) {
             userSelectedNotes.push(noteName);
             if (keyEl) keyEl.classList.add("pressed-correct");
         }
-        if (userSelectedNotes.length >= currentNotesArray.length) {
+        if (userSelectedNotes.length >= transposedNotesArray.length) {
             setTimeout(() => nextItem(), 400);
         }
     } else {
@@ -357,7 +470,7 @@ function handleModeChange() {
         btn.innerText = "▶ INICIAR AUTOMÁTICO";
         btn.classList.remove("active");
     }
-    nextItem();
+    renderCurrentTransposedItem();
 }
 
 function toggleExecution() {
