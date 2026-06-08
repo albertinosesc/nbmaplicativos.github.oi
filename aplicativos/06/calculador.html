@@ -174,7 +174,7 @@ function calcularGrauOriginal(qn, md, me, ritmo) {
     let divisorPesos = 0;
 
     notasMD.forEach(n => { if (pesosMD[n]) { somaPesos += pesosMD[n]; divisorPesos++; } });
-    notesME = notasME.forEach(n => { if (pesosME[n]) { somaPesos += pesosME[n]; divisorPesos++; } });
+    notasME.forEach(n => { if (pesosME[n]) { somaPesos += pesosME[n]; divisorPesos++; } });
 
     let pesoTopografico = divisorPesos > 0 ? (somaPesos / divisorPesos) * 2 : 0;
 
@@ -295,8 +295,8 @@ function salvarLocalStorage() {
 function carregarLocalStorage() {
   try {
       const dadosSalvos = localStorage.getItem(STORAGE_KEY);
-      const modelosSalvos = localStorage.getItem(MODELOS_KEY);
-      if (modelosSalvos) modelosFormato = JSON.parse(modelosSalvos);
+      const modelsSalvos = localStorage.getItem(MODELOS_KEY);
+      if (modelsSalvos) modelosFormato = JSON.parse(modelsSalvos);
       if (dadosSalvos) {
           const parsed = JSON.parse(dadosSalvos);
           if (parsed.musicas && Array.isArray(parsed.musicas)) { linesData = parsed.musicas; return true; }
@@ -336,6 +336,7 @@ function limparTabela() { if(confirm("⚠️ Deseja apagar todas as músicas do 
 function abrirModalFiltro() {
     let refsUnicas = [...new Set(linesData.map(item => item.referencia ? item.referencia.trim() : ''))].sort();
     if(refsUnicas.length === 0) { alert("Nenhuma referência para filtrar."); return; }        
+    
     let checkboxesHtml = refsUnicas.map(ref => {
         let labelExibicao = ref ? ref : '[Sem Referência]';
         return `
@@ -345,14 +346,22 @@ function abrirModalFiltro() {
             </label>
         `;
     }).join('');        
+    
     const modalHtml = `
         <div id="filterModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:1000;">
-            <div style="background:white; padding:20px; border-radius:8px; width: 300px; box-shadow:0 4px 10px rgba(0,0,0,0.2);">
-                <h3 style="margin-top:0;">🔍 Filtrar Referências</h3>
+            <div style="background:white; padding:20px; border-radius:8px; width: 320px; box-shadow:0 4px 10px rgba(0,0,0,0.2); display: flex; flex-direction: column;">
+                <h3 style="margin-top:0; margin-bottom:10px;">🔍 Filtrar Referências</h3>
+                
+                <div style="display:flex; gap:6px; margin-bottom:10px;">
+                    <button type="button" id="btnMarcarTodos" style="background:#34495e; color:white; padding:4px 8px; font-size:11px; flex:1;">☑️ Marcar Tudo</button>
+                    <button type="button" id="btnDesmarcarTodos" style="background:#7f8c8d; color:white; padding:4px 8px; font-size:11px; flex:1;">⬜ Limpar Seleções</button>
+                </div>
+
                 <div style="max-height:220px; overflow-y:auto; margin-bottom:15px; border:1px solid #ddd; padding:8px; background:#fafafa; border-radius:6px;">${checkboxesHtml}</div>
+                
                 <div style="display:flex; gap:8px;">
-                    <button id="btnAplicarFiltroRapido" style="background:#f39c12; color:white; flex:1; padding:6px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Aplicar</button>
-                    <button id="btnFecharFiltroRapido" style="background:#bdc3c7; color:black; flex:1; padding:6px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Limpar</button>
+                    <button id="btnAplicarFiltroRapido" style="background:#f39c12; color:white; flex:1; padding:8px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Aplicar Filtro</button>
+                    <button id="btnFecharFiltroRapido" style="background:#bdc3c7; color:black; flex:1; padding:8px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Resetar / Ver Tudo</button>
                 </div>
             </div>
         </div>
@@ -361,6 +370,14 @@ function abrirModalFiltro() {
     modalDiv.id = "wrapFilterModal";
     modalDiv.innerHTML = modalHtml;
     document.body.appendChild(modalDiv);
+
+    document.getElementById('btnMarcarTodos').onclick = () => {
+        document.querySelectorAll('.chk-filtro-ref').forEach(chk => chk.checked = true);
+    };
+
+    document.getElementById('btnDesmarcarTodos').onclick = () => {
+        document.querySelectorAll('.chk-filtro-ref').forEach(chk => chk.checked = false);
+    };
 
     document.getElementById('btnAplicarFiltroRapido').onclick = () => {
         const checkboxes = document.querySelectorAll('.chk-filtro-ref');
@@ -384,6 +401,7 @@ function renderizarTabela() {
     recalcularTodoBanco();
     const linesDataProcessadas = obterDadosProcessados();        
     linesDataProcessadas.forEach((linha) => {
+        // LINHA CORRIGIDA: findIndex limpo usando apenas uma Arrow Function correta
         const realIndex = linesData.findIndex(l => l.id === linha.id);
         const row = tbody.insertRow();                
         let chave = obterChaveFormato(linha.md, linha.me);
@@ -441,8 +459,8 @@ function inserir(musica, referencia, md, me, qn, ritmo, grauCalculado) {
 
 function recalcularTodoBanco() {
     linesData.forEach(linha => {
-        let d = linha.md ? linha.md : '-';
-        let e = linha.me ? linha.me : '-';
+        let d = inline_d = linha.md ? linha.md : '-';
+        let e = inline_e = linha.me ? linha.me : '-';
         linha.grauCalculado = calcularGrauOriginal(linha.qn, d, e, linha.ritmo);
     });
 }
