@@ -47,6 +47,12 @@
         .status-bar {background:#ecf0f1; padding:8px 12px; border-radius:6px; margin-top:15px; text-align:center; font-size:12px; color:#2c3e50;}
         .status-bar span {font-weight:bold; color:#27ae60;}
         hr {margin:15px 0; border:0; border-top:1px solid #ddd;}
+
+        /* Estilos do Modal Genérico */
+        .modal-overlay {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:1000;}
+        .modal-content {background:white; padding:20px; border-radius:8px; width: 340px; box-shadow:0 4px 10px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap:10px;}
+        .modal-content h3 {margin-top:0; margin-bottom:5px;}
+        .modal-field {display:flex; flex-direction:column; gap:4px; font-size:13px; font-weight:bold;}
     </style>
 </head>
 <body>
@@ -348,8 +354,8 @@ function abrirModalFiltro() {
     }).join('');        
     
     const modalHtml = `
-        <div id="filterModal" style="position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:1000;">
-            <div style="background:white; padding:20px; border-radius:8px; width: 320px; box-shadow:0 4px 10px rgba(0,0,0,0.2); display: flex; flex-direction: column;">
+        <div class="modal-overlay" id="filterModal">
+            <div class="modal-content">
                 <h3 style="margin-top:0; margin-bottom:10px;">🔍 Filtrar Referências</h3>
                 
                 <div style="display:flex; gap:6px; margin-bottom:10px;">
@@ -395,13 +401,87 @@ function abrirModalFiltro() {
     };
 }
 
+// ======================== MODAL DE EDIÇÃO COMPLETO ========================
+function editarLinha(index) {
+    if (index === -1) return;
+    const linha = linesData[index];
+
+    const modalHtml = `
+        <div class="modal-overlay" id="editModal">
+            <div class="modal-content" style="width: 380px;">
+                <h3>✏️ Editar Música</h3>
+                
+                <div class="modal-field">
+                    <label>Música:</label>
+                    <input id="editMusica" value="${escapeHtml(linha.musica)}">
+                </div>
+                <div class="modal-field">
+                    <label>Referência:</label>
+                    <input id="editReferencia" value="${escapeHtml(linha.referencia)}">
+                </div>
+                <div class="modal-field">
+                    <label>Notas MD:</label>
+                    <input id="editMd" value="${escapeHtml(linha.md)}">
+                </div>
+                <div class="modal-field">
+                    <label>Notas ME:</label>
+                    <input id="editMe" value="${escapeHtml(linha.me)}">
+                </div>
+                <div class="modal-field">
+                    <label>QN:</label>
+                    <input id="editQN" type="number" value="${escapeHtml(linha.qn)}">
+                </div>
+                <div class="modal-field">
+                    <label>Ritmo:</label>
+                    <input id="editRitmo" value="${escapeHtml(linha.ritmo ? linha.ritmo : '1')}">
+                </div>
+                
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <button id="btnSalvarEdicao" style="background:#27ae60; color:white; flex:1; padding:10px;">Salvar Alterações</button>
+                    <button id="btnCancelarEdicao" style="background:#bdc3c7; color:black; flex:1; padding:10px;">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const modalDiv = document.createElement('div');
+    modalDiv.id = "wrapEditModal";
+    modalDiv.innerHTML = modalHtml;
+    document.body.appendChild(modalDiv);
+
+    document.getElementById('btnSalvarEdicao').onclick = () => {
+        let novaMusica = document.getElementById('editMusica').value.trim();
+        let novaRef = document.getElementById('editReferencia').value.trim();
+        let novoMd = document.getElementById('editMd').value.trim();
+        let novoMe = document.getElementById('editMe').value.trim();
+        let novoQN = document.getElementById('editQN').value.trim();
+        let novoRitmo = document.getElementById('editRitmo').value.trim();
+
+        linha.musica = novaMusica ? novaMusica : "Arranjo Manual";
+        linha.referencia = novaRef;
+        linha.md = novoMd ? novoMd : '-';
+        linha.me = novoMe ? novoMe : '-';
+        linha.qn = novoQN ? parseInt(novoQN, 10) : 0;
+        linha.ritmo = novoRitmo ? novoRitmo : '1';
+        
+        linha.grauCalculado = calcularGrauOriginal(linha.qn, linha.md, linha.me, linha.ritmo);
+        
+        document.body.removeChild(modalDiv);
+        renderizarTabela(); 
+        salvarLocalStorage();
+    };
+
+    document.getElementById('btnCancelarEdicao').onclick = () => {
+        document.body.removeChild(modalDiv);
+    };
+}
+
 // ======================== INTERFACE E RENDER ========================
 function renderizarTabela() {
     const tbody = document.getElementById('tabela'); tbody.innerHTML = '';
     recalcularTodoBanco();
     const linesDataProcessadas = obterDadosProcessados();        
     linesDataProcessadas.forEach((linha) => {
-        // LINHA CORRIGIDA: findIndex limpo usando apenas uma Arrow Function correta
         const realIndex = linesData.findIndex(l => l.id === linha.id);
         const row = tbody.insertRow();                
         let chave = obterChaveFormato(linha.md, linha.me);
@@ -459,7 +539,7 @@ function inserir(musica, referencia, md, me, qn, ritmo, grauCalculado) {
 
 function recalcularTodoBanco() {
     linesData.forEach(linha => {
-        let d = inline_d = linha.md ? linha.md : '-';
+        let d = linha.md ? linha.md : '-';
         let e = inline_e = linha.me ? linha.me : '-';
         linha.grauCalculado = calcularGrauOriginal(linha.qn, d, e, linha.ritmo);
     });
@@ -480,29 +560,10 @@ function forcarNivel(index) {
     }
 }
 
-function edit_ritmo(ritmo) { return ritmo ? ritmo : '1'; }
-
-function editarLinha(index) {
-    if (index === -1) return;
-    const linha = linesData[index];
-    let novoMd = prompt("Notas MD:", linha.md);
-    let meNovo = prompt("Notas ME:", linha.me);
-    let ritmoNovo = prompt("Ritmo:", edit_ritmo(linha.ritmo));
-    let qnNovo = prompt("QN:", linha.qn);        
-    if (novoMd !== null && meNovo !== null && ritmoNovo !== null) {
-        linha.md = novoMd ? novoMd : '-';
-        linha.me = meNovo ? meNovo : '-';
-        linha.ritmo = ritmoNovo ? ritmoNovo : '1';
-        linha.qn = qnNovo ? qnNovo : 0;
-        linha.grauCalculado = calcularGrauOriginal(linha.qn, linha.md, linha.me, linha.ritmo);
-        renderizarTabela(); salvarLocalStorage();
-    }
-}
-
 function add() {
     let m = document.getElementById('musica').value.trim();
     if (!m) m = "Arranjo Manual";
-    let ref = document.getElementById('referencia').value;
+    let ref = document.getElementById('referencia').value.trim();
     let md = document.getElementById('md').value;
     let me = document.getElementById('me').value;
     let qn = document.getElementById('qn').value;
@@ -511,6 +572,7 @@ function add() {
     let grau = calcularGrauOriginal(qn, md, me, ritmo);
     inserir(m, ref, md, me, qn, ritmo, grau);        
     document.getElementById('musica').value = '';
+    document.getElementById('referencia').value = '';
     document.getElementById('md').value = '';
     document.getElementById('me').value = '';
     document.getElementById('qn').value = '';
