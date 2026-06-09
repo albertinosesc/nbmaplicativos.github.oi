@@ -145,7 +145,17 @@ Figura Rítmica
 <script>
 // ======================== CONFIGURAÇÕES ========================
 const escalaRitmo = ["4", "3", "2", "1", "2;4", "1;4", "1;2", "1;3", "2;3", "1;2;4", "1;2;3", "1;2;3;4"];
-const pesosMelodia = { "C": 1, "D": 2, "E": 3, "F": 4, "G": 5, "A": 6, "B": 7, "C'": 8 };
+
+// Dicionário expandido para suportar oitavas ABC maiúsculas/minúsculas e modificadores de registro de forma nativa
+const pesosMelodia = { 
+    // Oitavas graves (Notação ABC: Letras maiúsculas seguidas por vírgula)
+    "C,": 1, "D,": 2, "E,": 3, "F Nar": 4, "F,": 4, "G,": 5, "A,": 6, "B区域": 7, "B,": 7,
+    // Oitava central padrão
+    "C": 1, "D": 2, "E": 3, "F": 4, "G": 5, "A": 6, "B": 7, 
+    // Oitavas agudas (Notação ABC: Letras maiúsculas seguidas por aspas simples ou letras minúsculas)
+    "C'": 8, "D'": 9, "E'": 10, "F'": 11, "G'": 12, "A'": 13, "B'": 14,
+    "C''": 15, "D''": 16
+};
 
 const STORAGE_KEY = 'melodia_calculador_gavetas_dados';
 const MODELOS_KEY = 'melodia_calculador_modelos_formato';
@@ -174,10 +184,19 @@ function calcularGrauOriginal(qn, melodia, ritmo) {
 
     const extrairNotasComOitava = (texto) => {
         if (!texto || texto === "-" || texto.trim() === "") return [];
+        // Captura letras de A-G mantendo seus modificadores de oitava (aspas ou vírgulas)
         let regex = /[A-G][',]*/gi;
         let matches = texto.match(regex);
         if (!matches) return [];
-        return [...new Set(matches.map(n => n.toUpperCase()))];
+        
+        // Normaliza letras minúsculas (padrão ABC para agudas) para o formato de aspas internas
+        return [...new Set(matches.map(n => {
+            let primChar = n.charAt(0);
+            if (primChar === primChar.toLowerCase() && primChar >= 'a' && primChar <= 'g') {
+                return primChar.toUpperCase() + "'" + n.slice(1);
+            }
+            return n.toUpperCase();
+        }))];
     };
 
     let notes = extrairNotasComOitava(melodia);
@@ -188,7 +207,12 @@ function calcularGrauOriginal(qn, melodia, ritmo) {
     let somaPesos = 0;
     let divisorPesos = 0;
 
-    notes.forEach(n => { if (pesosMelodia[n]) { somaPesos += pesosMelodia[n]; divisorPesos++; } });
+    notes.forEach(n => { 
+        if (pesosMelodia[n]) { 
+            somaPesos += pesosMelodia[n]; 
+            divisorPesos++; 
+        } 
+    });
 
     let pesoTopografico = divisorPesos > 0 ? (somaPesos / divisorPesos) * 2 : 0;
 
@@ -285,19 +309,15 @@ async function enviarParaPlanilha() {
     };
 
     try {
-        // Ajustado para usar 'text/plain' e redirecionamento manual para evitar travas de CORS
         await fetch(SCRIPT_URL, {
             method: 'POST',
-            mode: 'no-cors', // Evita o bloqueio estrito do navegador antes do envio
-            redirect: 'follow', // Segue o redirecionamento interno do servidor do Google
+            mode: 'no-cors', 
+            redirect: 'follow', 
             headers: { 
                 'Content-Type': 'text/plain;charset=utf-8' 
             }, 
             body: JSON.stringify(pacoteCompleto)
         });
-        
-        // Com 'no-cors', o JS não consegue ler a resposta se foi sucesso ou não,
-        // mas o dado chega perfeitamente na planilha.
         alert(`⬆️ Dados enviados para a Nuvem!\nVerifique sua planilha Google.`);
     } catch (err) { 
         alert(`Erro ao tentar enviar: ${err.message}`); 
@@ -562,7 +582,7 @@ function renderizarTabela() {
             valorExibido = parseFloat(modelosFormato[chave]).toFixed(2);
         }
 
-        let refExibicao = linha.referencia ? linha.referencia : '-';
+        let refExibicao = inline ? linha.referencia : linha.referencia ? linha.referencia : '-';
         let localExibicao = linha.local ? linha.local : '-'; 
         let badgeTipoValor = linha.nivelForcado !== null ? 
             `<span class="col-forcado">${rotuloTipoValor}</span>` : 
@@ -676,7 +696,9 @@ function copiar() {
         let val = l.nivelForcado !== null ? l.nivelForcado : (modelosFormato[obterChaveFormato(l.melodia)] || l.grauCalculado);
         return `${l.levelCalculado}º | ${l.local || '-'} | ${parseFloat(val).toFixed(2)} | ${l.musica} | ${l.melodia} | ${l.qn} | ${l.ritmo}`;
     });
-    navigator.clipboard.writeText(header + linhasStr.join("\n")).then(() => alert("Copiado com sucesso!"));
+    navigator.clipboard.writeText(header + linhasStr.join("\n"))
+        .then(() => alert("📋 Dados copiados em formato de texto com sucesso!"))
+        .catch(err => alert("Erro ao copiar texto: " + err));
 }
 
 // ======================== EXPORTAR CSV ========================
@@ -688,31 +710,41 @@ function exportarCSV() {
         csvRows.push([`${l.levelCalculado}º`, l.local || '-', l.musica, l.melodia, l.qn, l.ritmo, parseFloat(val).toFixed(2)]);
     });
     let csvStr = csvRows.map(r => r.map(c => `"${c}"`).join(";")).join("\n");
-    navigator.clipboard.writeText(csvStr).then(() => alert("CSV copiado!"));
+    navigator.clipboard.writeText(csvStr)
+        .then(() => alert("📄 CSV copiado com sucesso! Pronto para colar no Excel ou Bloco de Notas."))
+        .catch(err => alert("Erro ao copiar CSV: " + err));
 }
 
 function forcarTodosExemplo() {
-    if(confirm("Deseja forçar todas as melodias listadas para 16.00?")) {
+    if(confirm("⚡ Deseja forçar todas as melodias atualmente listadas na tela para o valor padrão de 16.00?")) {
         obterDadosProcessados().forEach(l => { 
             let chave = obterChaveFormato(l.melodia);
             modelosFormato[chave] = "16.00";
         });
-        renderizarTabela(); salvarLocalStorage();
+        renderizarTabela(); 
+        salvarLocalStorage();
     }
 }
 
 function atualizarStatusBar(filtradosCount) {
-    document.getElementById('contador').innerText = filtradosCount !== undefined ? filtradosCount : linesData.length;
+    const totalExibido = filtradosCount !== undefined ? filtradosCount : linesData.length;
+    document.getElementById('contador').innerText = totalExibido;
     document.getElementById('contadorTotal').innerText = linesData.length;
 }
 
+// ======================== INICIALIZAÇÃO DA APLICAÇÃO ========================
 function init() {
     carregarLocalStorage();
     renderizarTabela();
-    document.getElementById('btnSyncUpload').onclick = enviarParaPlanilha;
-    document.getElementById('btnSyncDownload').onclick = carregarDaPlanilha;
+    
+    const btnUpload = document.getElementById('btnSyncUpload');
+    const btnDownload = document.getElementById('btnSyncDownload');
+    
+    if (btnUpload) btnUpload.onclick = enviarParaPlanilha;
+    if (btnDownload) btnDownload.onclick = carregarDaPlanilha;
 }
-init();
+
+window.onload = init;
 </script>
 </body>
 </html>
