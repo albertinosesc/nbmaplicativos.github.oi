@@ -8,7 +8,7 @@
         body{font-family: sans-serif; background:#f0f2f5; padding:20px;}
         .container{max-width:1400px; margin:auto; background:white; padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1)}
         /* Inputs */
-        .inputs {display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 20px;}
+        .inputs {display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px;}
         input, select, textarea {padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;}
         /* Botões */
         button {padding:8px 12px; cursor:pointer; border:none; border-radius:6px; font-weight:bold; font-size:13px; transition:0.2s;}
@@ -48,6 +48,10 @@
         .status-bar span {font-weight:bold; color:#27ae60;}
         hr {margin:15px 0; border:0; border-top:1px solid #ddd;}
 
+        /* Filtros Avançados de Notas */
+        .filtro-notas-container {background:#fef5e7; border:1px solid #f39c12; padding:12px; border-radius:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;}
+        .filtro-notas-container input {padding:6px 10px; border:1px solid #f39c12; border-radius:4px; width:130px; font-size:13px;}
+
         /* Estilos do Modal Genérico */
         .modal-overlay {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:1000;}
         .modal-content {background:white; padding:20px; border-radius:8px; width: 340px; box-shadow:0 4px 10px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap:10px;}
@@ -65,6 +69,7 @@
     </div>
     
     <div class="inputs">
+        <input id="local" placeholder="Local (ex: Gaveta 1)">
         <input id="musica" placeholder="Música">
         <input id="referencia" placeholder="Referência (ex: Livro/Página)">
         <input id="md" placeholder="Notas MD (ex: CDEG)">
@@ -82,7 +87,7 @@
     
     <hr>
     
-    <div style="display: flex; gap:10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px;">
+    <div style="display: flex; gap:10px; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
         <button class="btn-filter" onclick="abrirModalFiltro()">🔍 Filtrar por Referência (<span id="lblFiltroAtivo">Todos</span>)</button>
         <select id="filtroMao" onchange="renderizarTabela()" style="padding:7px 10px; border-radius:6px; font-weight:bold; border:1px solid #f39c12; background: #fffdf9; color:#d35400; cursor:pointer;">
             <option value="todos">👐 Mostrar Todas as Mãos</option>
@@ -90,6 +95,13 @@
             <option value="me">🫲 Apenas Mão Esquerda</option>
             <option value="mj">🎹 Mãos Juntas</option>
         </select>
+    </div>
+
+    <div class="filtro-notas-container">
+        <span style="font-size:13px; font-weight:bold; color:#d35400;">🎯 Filtro por Notas Exatas:</span>
+        <input id="buscaFiltroMD" placeholder="🔍 MD Exata (ex: CD)" oninput="renderizarTabela()">
+        <input id="buscaFiltroME" placeholder="🔍 ME Exata (ex: B,C)" oninput="renderizarTabela()">
+        <button onclick="limparFiltroNotas()" style="background:#bdc3c7; color:black; padding:4px 8px; font-size:11px;">Limpar Busca</button>
     </div>
 
     <div class="btn-group">
@@ -110,6 +122,7 @@
             <thead>
                 <tr>
                     <th>Level</th>
+                    <th>Local</th>
                     <th>Música</th>
                     <th>Ref</th>
                     <th>MD</th>
@@ -143,7 +156,7 @@ const pesosME = { "C": 1, "B,": 2, "A,": 3, "G,": 4, "F Nar": 5, "F,": 5, "E,": 
 
 const STORAGE_KEY = 'piano_calculador_gavetas_dados';
 const MODELOS_KEY = 'piano_calculador_modelos_formato';
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbznmkn_CC5KvXchMIR1RkYJybJrLlHwa0k8VnZPc6Orj83aWfPMLbG76Hcmuj244GXb/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyZxZZGh3btdA04ZhZb4VBSb26wEcuNqb4HYqCk_a2Ifcs1NbtUjDzar8GmID52_l9X/exec';
 
 let linesData = [];
 let modelosFormato = {}; 
@@ -153,6 +166,11 @@ function obterChaveFormato(md, me) {
     let d = md ? md.trim().toUpperCase() : '-';
     let e = me ? me.trim().toUpperCase() : '-';
     return `${d}|${e}`;
+}
+
+function limparStringNotas(txt) {
+    if (!txt) return '';
+    return txt.toString().replace(/[\s=\-]/g, '').toUpperCase();
 }
 
 // ======================== FÓRMULA PEDAGÓGICA AUTOMÁTICA ========================
@@ -213,7 +231,6 @@ function obterDadosProcessados() {
         return { ...item, levelCalculado: rankAtual };
     });
 
-    // 1. Filtro por Referência
     if (referenciasSelecionadas !== null) {
         listaComLevels = listaComLevels.filter(item => {
             let refTexto = item.referencia ? item.referencia.trim() : '';
@@ -221,7 +238,6 @@ function obterDadosProcessados() {
         });
     }
 
-    // 2. Filtro por Tipo de Mão
     const filtroMao = document.getElementById('filtroMao') ? document.getElementById('filtroMao').value : 'todos';
     if (filtroMao !== 'todos') {
         listaComLevels = listaComLevels.filter(item => {
@@ -235,13 +251,30 @@ function obterDadosProcessados() {
         });
     }
 
+    const buscaMD = limparStringNotas(document.getElementById('buscaFiltroMD').value);
+    const buscaME = limparStringNotas(document.getElementById('buscaFiltroME').value);
+
+    if (buscaMD !== '') {
+        listaComLevels = listaComLevels.filter(item => limparStringNotas(item.md) === buscaMD);
+    }
+    if (buscaME !== '') {
+        listaComLevels = listaComLevels.filter(item => limparStringNotas(item.me) === buscaME);
+    }
+
     return listaComLevels;
+}
+
+function limparFiltroNotas() {
+    document.getElementById('buscaFiltroMD').value = '';
+    document.getElementById('buscaFiltroME').value = '';
+    renderizarTabela();
 }
 
 // ======================== GOOGLE SHEETS SYNC ========================
 async function enviarParaPlanilha() {
     if (!SCRIPT_URL) { alert('URL não configurada'); return; }        
     const musicasParaEnviar = linesData.map(item => ({
+        local: item.local ? item.local : '',
         musica: item.musica, referencia: item.referencia ? item.referencia : '', execucao: 'MS',
         md: item.md, me: item.me, qn: item.qn, ritmo: item.ritmo,
         grauCalculado: item.grauCalculado, nivelForcado: item.nivelForcado !== null ? item.nivelForcado : ''
@@ -249,7 +282,8 @@ async function enviarParaPlanilha() {
 
     const pacoteCompleto = {
         musicas: musicasParaEnviar,
-        modelosHeranca: modelosFormato     };
+        modelosHeranca: modelosFormato     
+    };
 
     try {
         await fetch(SCRIPT_URL, {
@@ -257,7 +291,7 @@ async function enviarParaPlanilha() {
             headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
             body: JSON.stringify(pacoteCompleto)
         });
-        alert(`✅ Músicas e Memória de Padrões salvas na Planilha Google!`);
+        alert(`✅ Dados enviados para a Nuvem!`);
     } catch (err) { alert(`Processado.`); }
 }
 
@@ -277,14 +311,16 @@ async function carregarDaPlanilha() {
                 let m_qn = m.qn ? m.qn : '0';
                 let m_ritmo = m.ritmo ? m.ritmo : '';
                 return {
-                    id: gerarId(), musica: m.musica ? m.musica : '', referencia: m.referencia ? m.referencia : '',
+                    id: gerarId(), 
+                    local: m.local ? m.local : '-',
+                    musica: m.musica ? m.musica : '', referencia: m.referencia ? m.referencia : '',
                     md: m_md, me: m_me, qn: m_qn, ritmo: m_ritmo,
                     grauCalculado: calcularGrauOriginal(m_qn, m_md, m_me, m_ritmo),
                     nivelForcado: m.nivelForcado && m.nivelForcado !== '' ? parseFloat(m.nivelForcado).toFixed(2) : null
                 };
             });
             referenciasSelecionadas = null; renderizarTabela(); salvarLocalStorage();
-            alert(`✅ Sincronização completa: ${linesData.length} músicas e padrões de formatos carregados da nuvem!`);
+            alert(`✅ Sincronização completa da nuvem realizada!`);
         }
     } catch (err) { alert(`Erro ao carregar: ${err.message}`); }
 }
@@ -292,7 +328,7 @@ async function carregarDaPlanilha() {
 // ======================== BACKUPS LOCAL STORAGE ========================
 function salvarLocalStorage() {
   try {
-       localStorage.setItem(STORAGE_KEY, JSON.stringify({ versao: '3.0', musicas: linesData }));
+       localStorage.setItem(STORAGE_KEY, JSON.stringify({ versao: '3.1', musicas: linesData }));
        localStorage.setItem(MODELOS_KEY, JSON.stringify(modelosFormato));
        atualizarStatusBar(obterDadosProcessados().length); 
    } catch (e) {}
@@ -311,9 +347,10 @@ function carregarLocalStorage() {
   return false;
 }
 
+// ======================== FUNÇÕES DO CONTEXTO DE EXPORTE ========================
 function salvarLocal() {
     const dadosFiltrados = obterDadosProcessados();
-    const dados = { versao: '3.0', musicas: dadosFiltrados, modelos: modelosFormato };
+    const dados = { versao: '3.1', musicas: dadosFiltrados, modelos: modelosFormato };
     const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a'); a.href = url; a.download = `piano_gavetas_backup.json`; a.click();
@@ -357,14 +394,11 @@ function abrirModalFiltro() {
         <div class="modal-overlay" id="filterModal">
             <div class="modal-content">
                 <h3 style="margin-top:0; margin-bottom:10px;">🔍 Filtrar Referências</h3>
-                
                 <div style="display:flex; gap:6px; margin-bottom:10px;">
                     <button type="button" id="btnMarcarTodos" style="background:#34495e; color:white; padding:4px 8px; font-size:11px; flex:1;">☑️ Marcar Tudo</button>
                     <button type="button" id="btnDesmarcarTodos" style="background:#7f8c8d; color:white; padding:4px 8px; font-size:11px; flex:1;">⬜ Limpar Seleções</button>
                 </div>
-
                 <div style="max-height:220px; overflow-y:auto; margin-bottom:15px; border:1px solid #ddd; padding:8px; background:#fafafa; border-radius:6px;">${checkboxesHtml}</div>
-                
                 <div style="display:flex; gap:8px;">
                     <button id="btnAplicarFiltroRapido" style="background:#f39c12; color:white; flex:1; padding:8px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Aplicar Filtro</button>
                     <button id="btnFecharFiltroRapido" style="background:#bdc3c7; color:black; flex:1; padding:8px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Resetar / Ver Tudo</button>
@@ -380,11 +414,9 @@ function abrirModalFiltro() {
     document.getElementById('btnMarcarTodos').onclick = () => {
         document.querySelectorAll('.chk-filtro-ref').forEach(chk => chk.checked = true);
     };
-
     document.getElementById('btnDesmarcarTodos').onclick = () => {
         document.querySelectorAll('.chk-filtro-ref').forEach(chk => chk.checked = false);
     };
-
     document.getElementById('btnAplicarFiltroRapido').onclick = () => {
         const checkboxes = document.querySelectorAll('.chk-filtro-ref');
         let selecionados = [];
@@ -393,7 +425,6 @@ function abrirModalFiltro() {
         document.body.removeChild(modalDiv);
         renderizarTabela();
     };
-
     document.getElementById('btnFecharFiltroRapido').onclick = () => {
         referenciasSelecionadas = null;
         document.body.removeChild(modalDiv);
@@ -404,7 +435,7 @@ function abrirModalFiltro() {
 // ======================== MODAL DE EDIÇÃO COMPLETO ========================
 function editarLinha(index) {
     if (index === -1) return;
-    const linha = linesData[index];
+    const rowData = linesData[index];
 
     const modalHtml = `
         <div class="modal-overlay" id="editModal">
@@ -412,28 +443,32 @@ function editarLinha(index) {
                 <h3>✏️ Editar Música</h3>
                 
                 <div class="modal-field">
+                    <label>Local:</label>
+                    <input id="editLocal" value="${escapeHtml(rowData.local || '-')}">
+                </div>
+                <div class="modal-field">
                     <label>Música:</label>
-                    <input id="editMusica" value="${escapeHtml(linha.musica)}">
+                    <input id="editMusica" value="${escapeHtml(rowData.musica)}">
                 </div>
                 <div class="modal-field">
                     <label>Referência:</label>
-                    <input id="editReferencia" value="${escapeHtml(linha.referencia)}">
+                    <input id="editReferencia" value="${escapeHtml(rowData.referencia)}">
                 </div>
                 <div class="modal-field">
                     <label>Notas MD:</label>
-                    <input id="editMd" value="${escapeHtml(linha.md)}">
+                    <input id="editMd" value="${escapeHtml(rowData.md)}">
                 </div>
                 <div class="modal-field">
                     <label>Notas ME:</label>
-                    <input id="editMe" value="${escapeHtml(linha.me)}">
+                    <input id="editMe" value="${escapeHtml(rowData.me)}">
                 </div>
                 <div class="modal-field">
                     <label>QN:</label>
-                    <input id="editQN" type="number" value="${escapeHtml(linha.qn)}">
+                    <input id="editQN" type="number" value="${escapeHtml(rowData.qn)}">
                 </div>
                 <div class="modal-field">
                     <label>Ritmo:</label>
-                    <input id="editRitmo" value="${escapeHtml(linha.ritmo ? linha.ritmo : '1')}">
+                    <input id="editRitmo" value="${escapeHtml(rowData.ritmo ? rowData.ritmo : '1')}">
                 </div>
                 
                 <div style="display:flex; gap:8px; margin-top:10px;">
@@ -450,6 +485,7 @@ function editarLinha(index) {
     document.body.appendChild(modalDiv);
 
     document.getElementById('btnSalvarEdicao').onclick = () => {
+        rowData.local = document.getElementById('editLocal').value.trim() || '-';
         let novaMusica = document.getElementById('editMusica').value.trim();
         let novaRef = document.getElementById('editReferencia').value.trim();
         let novoMd = document.getElementById('editMd').value.trim();
@@ -457,14 +493,14 @@ function editarLinha(index) {
         let novoQN = document.getElementById('editQN').value.trim();
         let novoRitmo = document.getElementById('editRitmo').value.trim();
 
-        linha.musica = novaMusica ? novaMusica : "Arranjo Manual";
-        linha.referencia = novaRef;
-        linha.md = novoMd ? novoMd : '-';
-        linha.me = novoMe ? novoMe : '-';
-        linha.qn = novoQN ? parseInt(novoQN, 10) : 0;
-        linha.ritmo = novoRitmo ? novoRitmo : '1';
+        rowData.musica = novaMusica ? novaMusica : "Arranjo Manual";
+        rowData.referencia = novaRef;
+        rowData.md = novoMd ? novoMd : '-';
+        rowData.me = novoMe ? novoMe : '-';
+        rowData.qn = novoQN ? parseInt(novoQN, 10) : 0;
+        rowData.ritmo = novoRitmo ? novoRitmo : '1';
         
-        linha.grauCalculado = calcularGrauOriginal(linha.qn, linha.md, linha.me, linha.ritmo);
+        rowData.grauCalculado = calcularGrauOriginal(rowData.qn, rowData.md, rowData.me, rowData.ritmo);
         
         document.body.removeChild(modalDiv);
         renderizarTabela(); 
@@ -484,7 +520,7 @@ function renderizarTabela() {
     linesDataProcessadas.forEach((linha) => {
         const realIndex = linesData.findIndex(l => l.id === linha.id);
         const row = tbody.insertRow();                
-        let chave = obterChaveFormato(linha.md, linha.me);
+        let chave = obterChaveFormato(linha.md, linha.me); // Corrigido aqui: inline.me -> linha.me
         let classeEstilo = '';
         let rotuloTipoValor = '✓ Calculado';
         let valorExibido = linha.grauCalculado;
@@ -500,11 +536,13 @@ function renderizarTabela() {
         }
 
         let refExibicao = linha.referencia ? linha.referencia : '-';
+        let localExibicao = linha.local ? linha.local : '-'; // Corrigido aqui: inline.local -> linha.local
         let badgeTipoValor = linha.nivelForcado !== null ? 
             `<span class="col-forcado">${rotuloTipoValor}</span>` : 
             (modelosFormato[chave] ? `<span class="col-herado">${rotuloTipoValor}</span>` : `<span>${rotuloTipoValor}</span>`);                
         row.innerHTML = `
             <td class="${classeEstilo}"><span class="col-level">${linha.levelCalculado}º</span></td>
+            <td class="${classeEstilo}" style="font-weight:bold; color:#7f8c8d;">${escapeHtml(localExibicao)}</td>
             <td class="${classeEstilo}" style="text-align:left; font-weight:500;">${escapeHtml(linha.musica)}</td>
             <td class="${classeEstilo}">${escapeHtml(refExibicao)}</td>
             <td class="${classeEstilo}">${escapeHtml(linha.md)}</td>
@@ -529,18 +567,19 @@ function renderizarTabela() {
 function escapeHtml(str) { return str ? String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])) : ''; }
 function gerarId() { return Date.now() + '-' + Math.random().toString(36).substr(2, 6); }
 
-function inserir(musica, referencia, md, me, qn, ritmo, grauCalculado) {
+function inserir(local, musica, referencia, md, me, qn, ritmo, grauCalculado) {
+    let i_local = local ? local.trim() : '-';
     let i_md = md ? md.trim() : '-';
     let i_me = me ? me.trim() : '-';
     let i_ritmo = ritmo ? ritmo : '1';
-    linesData.push({ id: gerarId(), musica, referencia, md: i_md, me: i_me, qn, ritmo: i_ritmo, grauCalculado, nivelForcado: null });
+    linesData.push({ id: gerarId(), local: i_local, musica, referencia, md: i_md, me: i_me, qn, ritmo: i_ritmo, grauCalculado, nivelForcado: null });
     renderizarTabela(); salvarLocalStorage();
 }
 
 function recalcularTodoBanco() {
     linesData.forEach(linha => {
         let d = linha.md ? linha.md : '-';
-        let e = inline_e = linha.me ? linha.me : '-';
+        let e = linha.me ? linha.me : '-';
         linha.grauCalculado = calcularGrauOriginal(linha.qn, d, e, linha.ritmo);
     });
 }
@@ -561,6 +600,7 @@ function forcarNivel(index) {
 }
 
 function add() {
+    let loc = document.getElementById('local').value.trim();
     let m = document.getElementById('musica').value.trim();
     if (!m) m = "Arranjo Manual";
     let ref = document.getElementById('referencia').value.trim();
@@ -570,7 +610,8 @@ function add() {
     if (!qn) qn = 0;
     let ritmo = document.getElementById('ritmo').value;        
     let grau = calcularGrauOriginal(qn, md, me, ritmo);
-    inserir(m, ref, md, me, qn, ritmo, grau);        
+    inserir(loc, m, ref, md, me, qn, ritmo, grau);        
+    document.getElementById('local').value = '';
     document.getElementById('musica').value = '';
     document.getElementById('referencia').value = '';
     document.getElementById('md').value = '';
@@ -597,7 +638,7 @@ function importar() {
             let ritmo = partes[3] ? partes[3] : '1';                         
             let nomeFicticio = `Arranjo QN ${qn} (${md}/${me})`;
             let grauCalc = calcularGrauOriginal(qn, md, me, ritmo);
-            inserir(nomeFicticio, "Importado", md, me, qn, ritmo, grauCalc);
+            inserir("-", nomeFicticio, "Importado", md, me, qn, ritmo, grauCalc);
             count++;
         }
     });
@@ -605,22 +646,23 @@ function importar() {
     document.getElementById('csvInput').value = '';
 }
 
+// ======================== EXPORTES ========================
 function copiar() {
     const linesDataProcessadas = obterDadosProcessados();
-    let header = "Level | Grau | Música | MD | ME | QN | Ritmo\n";
+    let header = "Level | Local | Grau | Música | MD | ME | QN | Ritmo\n";
     let linhasStr = linesDataProcessadas.map(l => {
         let val = l.nivelForcado !== null ? l.nivelForcado : (modelosFormato[obterChaveFormato(l.md, l.me)] || l.grauCalculado);
-        return `${l.levelCalculado}º | ${parseFloat(val).toFixed(2)} | ${l.musica} | ${l.md} | ${l.me} | ${l.qn} | ${l.ritmo}`;
+        return `${l.levelCalculado}º | ${l.local || '-'} | ${parseFloat(val).toFixed(2)} | ${l.musica} | ${l.md} | ${l.me} | ${l.qn} | ${l.ritmo}`;
     });
     navigator.clipboard.writeText(header + linhasStr.join("\n")).then(() => alert("Copiado com sucesso!"));
 }
 
 function exportarCSV() {
     const linesDataProcessadas = obterDadosProcessados();
-    let csvRows = [["Level", "Música", "MD", "ME", "QN", "Ritmo", "Grau Final"]];
+    let csvRows = [["Level", "Local", "Música", "MD", "ME", "QN", "Ritmo", "Grau Final"]];
     linesDataProcessadas.forEach(l => {
         let val = l.nivelForcado !== null ? l.nivelForcado : (modelosFormato[obterChaveFormato(l.md, l.me)] || l.grauCalculado);
-        csvRows.push([`${l.levelCalculado}º`, l.musica, l.md, l.me, l.qn, l.ritmo, parseFloat(val).toFixed(2)]);
+        csvRows.push([`${l.levelCalculado}º`, l.local || '-', l.musica, l.md, l.me, l.qn, l.ritmo, parseFloat(val).toFixed(2)]);
     });
     let csvStr = csvRows.map(r => r.map(c => `"${c}"`).join(";")).join("\n");
     navigator.clipboard.writeText(csvStr).then(() => alert("CSV copiado!"));
