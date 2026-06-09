@@ -48,9 +48,11 @@
         .status-bar span {font-weight:bold; color:#27ae60;}
         hr {margin:15px 0; border:0; border-top:1px solid #ddd;}
 
-        /* Filtros Avançados de Notas */
+        /* Filtros Avançados */
         .filtro-notas-container {background:#fef5e7; border:1px solid #f39c12; padding:12px; border-radius:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;}
-        .filtro-notas-container input {padding:6px 10px; border:1px solid #f39c12; border-radius:4px; width:130px; font-size:13px;}
+        .filtro-notas-container input {padding:6px 10px; border:1px solid #f39c12; border-radius:4px; font-size:13px;}
+        .input-filtro-local {width: 150px;}
+        .input-filtro-notas {width: 130px;}
 
         /* Estilos do Modal Genérico */
         .modal-overlay {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:1000;}
@@ -98,10 +100,11 @@
     </div>
 
     <div class="filtro-notas-container">
-        <span style="font-size:13px; font-weight:bold; color:#d35400;">🎯 Filtro por Notas Exatas:</span>
-        <input id="buscaFiltroMD" placeholder="🔍 MD Exata (ex: CD)" oninput="renderizarTabela()">
-        <input id="buscaFiltroME" placeholder="🔍 ME Exata (ex: B,C)" oninput="renderizarTabela()">
-        <button onclick="limparFiltroNotas()" style="background:#bdc3c7; color:black; padding:4px 8px; font-size:11px;">Limpar Busca</button>
+        <span style="font-size:13px; font-weight:bold; color:#d35400;">🎯 Filtros Avançados:</span>
+        <input id="buscaFiltroLocal" class="input-filtro-local" placeholder="🔍 Filtrar Local" oninput="renderizarTabela()">
+        <input id="buscaFiltroMD" class="input-filtro-notas" placeholder="🎯 MD Exata (ex: CD)" oninput="renderizarTabela()">
+        <input id="buscaFiltroME" class="input-filtro-notas" placeholder="🎯 ME Exata (ex: B,C)" oninput="renderizarTabela()">
+        <button onclick="limparFiltrosAvancados()" style="background:#bdc3c7; color:black; padding:4px 8px; font-size:11px;">Limpar Filtros</button>
     </div>
 
     <div class="btn-group">
@@ -169,8 +172,9 @@ function obterChaveFormato(md, me) {
 }
 
 function limparStringNotas(txt) {
-    if (!txt) return '';
-    return txt.toString().replace(/[\s=\-]/g, '').toUpperCase();
+    if (!txt) return '-';
+    let limpo = txt.toString().replace(/[\s=\-]/g, '').toUpperCase();
+    return limpo === '' ? '-' : limpo;
 }
 
 // ======================== FÓRMULA PEDAGÓGICA AUTOMÁTICA ========================
@@ -188,17 +192,17 @@ function calcularGrauOriginal(qn, md, me, ritmo) {
         return [...new Set(matches.map(n => n.toUpperCase()))];
     };
 
-    let notasMD = extrairNotasComOitava(md);
-    let notasME = extrairNotasComOitava(me);        
-    let totalNotasUnicas = [...new Set([...notasMD, ...notasME])].length;
+    let notesMD = extrairNotasComOitava(md);
+    let notesME = extrairNotasComOitava(me);        
+    let totalNotasUnicas = [...new Set([...notesMD, ...notesME])].length;
     if (totalNotasUnicas === 0) totalNotasUnicas = 1;
 
     let baseGaveta = totalNotasUnicas * 100;        
     let somaPesos = 0;
     let divisorPesos = 0;
 
-    notasMD.forEach(n => { if (pesosMD[n]) { somaPesos += pesosMD[n]; divisorPesos++; } });
-    notasME.forEach(n => { if (pesosME[n]) { somaPesos += pesosME[n]; divisorPesos++; } });
+    notesMD.forEach(n => { if (pesosMD[n]) { somaPesos += pesosMD[n]; divisorPesos++; } });
+    notesME.forEach(n => { if (pesosME[n]) { somaPesos += pesosME[n]; divisorPesos++; } });
 
     let pesoTopografico = divisorPesos > 0 ? (somaPesos / divisorPesos) * 2 : 0;
 
@@ -231,6 +235,7 @@ function obterDadosProcessados() {
         return { ...item, levelCalculado: rankAtual };
     });
 
+    // 1. Filtro por Referência (Modal)
     if (referenciasSelecionadas !== null) {
         listaComLevels = listaComLevels.filter(item => {
             let refTexto = item.referencia ? item.referencia.trim() : '';
@@ -238,6 +243,7 @@ function obterDadosProcessados() {
         });
     }
 
+    // 2. Filtro por Seletor de Mão (Dropdown)
     const filtroMao = document.getElementById('filtroMao') ? document.getElementById('filtroMao').value : 'todos';
     if (filtroMao !== 'todos') {
         listaComLevels = listaComLevels.filter(item => {
@@ -251,20 +257,55 @@ function obterDadosProcessados() {
         });
     }
 
-    const buscaMD = limparStringNotas(document.getElementById('buscaFiltroMD').value);
-    const buscaME = limparStringNotas(document.getElementById('buscaFiltroME').value);
-
-    if (buscaMD !== '') {
-        listaComLevels = listaComLevels.filter(item => limparStringNotas(item.md) === buscaMD);
+    // 3. Filtro por Local (Busca Exata)
+    const buscaLocal = document.getElementById('buscaFiltroLocal') ? document.getElementById('buscaFiltroLocal').value.trim().toLowerCase() : '';
+    if (buscaLocal !== '') {
+        listaComLevels = listaComLevels.filter(item => {
+            let localItem = item.local ? item.local.trim().toLowerCase() : '';
+            return localItem === buscaLocal;
+        });
     }
-    if (buscaME !== '') {
-        listaComLevels = listaComLevels.filter(item => limparStringNotas(item.me) === buscaME);
+
+    // 4. Filtro por Notas MD e ME (Nova Lógica com suporte a "-" para vazio)
+    const inputMD = document.getElementById('buscaFiltroMD') ? document.getElementById('buscaFiltroMD').value.trim() : '';
+    const inputME = document.getElementById('buscaFiltroME') ? document.getElementById('buscaFiltroME').value.trim() : '';
+
+    if (inputMD !== '' || inputME !== '') {
+        listaComLevels = listaComLevels.filter(item => {
+            let notaItemMD = limparStringNotas(item.md);
+            let notaItemME = limparStringNotas(item.me);
+            
+            let matchMD = true;
+            let matchME = true;
+
+            // Lógica para MD
+            if (inputMD !== '') {
+                if (inputMD === '-') {
+                    matchMD = (notaItemMD === '-'); // Quer explicitamente a coluna vazia
+                } else {
+                    matchMD = (notaItemMD === limparStringNotas(inputMD)); // Quer a nota exata
+                }
+            }
+
+            // Lógica para ME
+            if (inputME !== '') {
+                if (inputME === '-') {
+                    matchME = (notaItemME === '-'); // Quer explicitamente a coluna vazia
+                } else {
+                    matchME = (notaItemME === limparStringNotas(inputME)); // Quer a nota exata
+                }
+            }
+            
+            return matchMD && matchME;
+        });
     }
 
     return listaComLevels;
 }
 
-function limparFiltroNotas() {
+
+function limparFiltrosAvancados() {
+    document.getElementById('buscaFiltroLocal').value = '';
     document.getElementById('buscaFiltroMD').value = '';
     document.getElementById('buscaFiltroME').value = '';
     renderizarTabela();
@@ -347,7 +388,7 @@ function carregarLocalStorage() {
   return false;
 }
 
-// ======================== FUNÇÕES DO CONTEXTO DE EXPORTE ========================
+// ======================== BACKUP INTERNO ========================
 function salvarLocal() {
     const dadosFiltrados = obterDadosProcessados();
     const dados = { versao: '3.1', musicas: dadosFiltrados, modelos: modelosFormato };
@@ -375,7 +416,7 @@ function carregarLocal() {
 
 function limparTabela() { if(confirm("⚠️ Deseja apagar todas as músicas do banco local?")) { linesData = []; modelosFormato = {}; renderizarTabela(); salvarLocalStorage(); } }
 
-// ======================== MODAL DE FILTRO ========================
+// ======================== MODAL DE FILTRO REFS ========================
 function abrirModalFiltro() {
     let refsUnicas = [...new Set(linesData.map(item => item.referencia ? item.referencia.trim() : ''))].sort();
     if(refsUnicas.length === 0) { alert("Nenhuma referência para filtrar."); return; }        
@@ -520,7 +561,7 @@ function renderizarTabela() {
     linesDataProcessadas.forEach((linha) => {
         const realIndex = linesData.findIndex(l => l.id === linha.id);
         const row = tbody.insertRow();                
-        let chave = obterChaveFormato(linha.md, linha.me); // Corrigido aqui: inline.me -> linha.me
+        let chave = obterChaveFormato(linha.md, linha.me); 
         let classeEstilo = '';
         let rotuloTipoValor = '✓ Calculado';
         let valorExibido = linha.grauCalculado;
@@ -536,7 +577,7 @@ function renderizarTabela() {
         }
 
         let refExibicao = linha.referencia ? linha.referencia : '-';
-        let localExibicao = linha.local ? linha.local : '-'; // Corrigido aqui: inline.local -> linha.local
+        let localExibicao = linha.local ? linha.local : '-'; 
         let badgeTipoValor = linha.nivelForcado !== null ? 
             `<span class="col-forcado">${rotuloTipoValor}</span>` : 
             (modelosFormato[chave] ? `<span class="col-herado">${rotuloTipoValor}</span>` : `<span>${rotuloTipoValor}</span>`);                
@@ -584,6 +625,7 @@ function recalcularTodoBanco() {
     });
 }
 
+
 function removerLinha(index) { if (index !== -1 && confirm('Remover esta música?')) { linesData.splice(index, 1); renderizarTabela(); salvarLocalStorage(); } }
 
 function forcarNivel(index) {
@@ -599,6 +641,7 @@ function forcarNivel(index) {
     }
 }
 
+// ======================== OPERAÇÕES INTERNAS DA TELA ========================
 function add() {
     let loc = document.getElementById('local').value.trim();
     let m = document.getElementById('musica').value.trim();
