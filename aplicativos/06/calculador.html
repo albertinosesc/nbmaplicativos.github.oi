@@ -416,30 +416,56 @@ function carregarLocal() {
 
 function limparTabela() { if(confirm("⚠️ Deseja apagar todas as músicas do banco local?")) { linesData = []; modelosFormato = {}; renderizarTabela(); salvarLocalStorage(); } }
 
-// ======================== MODAL DE FILTRO REFS ========================
+// ======================== MODAL DE FILTRO REFS (ATUALIZADO) ========================
 function abrirModalFiltro() {
-    let refsUnicas = [...new Set(linesData.map(item => item.referencia ? item.referencia.trim() : ''))].sort();
+    // 1. Contar quantos elementos existem para cada referência
+    let contagemRefs = {};
+    linesData.forEach(item => {
+        let refTexto = item.referencia ? item.referencia.trim() : '';
+        contagemRefs[refTexto] = (contagemRefs[refTexto] || 0) + 1;
+    });
+
+    // 2. Pegar as referências únicas
+    let refsUnicas = Object.keys(contagemRefs);
     if(refsUnicas.length === 0) { alert("Nenhuma referência para filtrar."); return; }        
     
+    // 3. Organizar em ordem numérica natural (extraindo o primeiro número para ordenar)
+    refsUnicas.sort((a, b) => {
+        let numA = parseInt(a.match(/\d+/)) || 0;
+        let numB = parseInt(b.match(/\d+/)) || 0;
+        
+        if (numA !== numB) {
+            return numA - numB; // Ordena pelo número
+        }
+        return a.localeCompare(b); // Se os números forem iguais, vai por ordem alfabética
+    });
+    
+    // 4. Montar a lista com as quebras de linha corretas e o contador de elementos
     let checkboxesHtml = refsUnicas.map(ref => {
         let labelExibicao = ref ? ref : '[Sem Referência]';
+        let qtd = contagemRefs[ref]; // Quantidade de elementos
+        
         return `
-            <label style="display:flex; align-items:center; gap:8px; margin-bottom:6px; font-size:14px; cursor:pointer;">
-                <input type="checkbox" class="chk-filtro-ref" value="${escapeHtml(ref)}" checked>
-                <span>${escapeHtml(labelExibicao)}</span>
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; cursor:pointer; width:100%;">
+                <input type="checkbox" class="chk-filtro-ref" value="${escapeHtml(ref)}" checked style="margin:0;">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    ${escapeHtml(labelExibicao)} <b style="color:#27ae60; font-size:11px;">(${qtd} itens)</b>
+                </span>
             </label>
         `;
     }).join('');        
     
     const modalHtml = `
         <div class="modal-overlay" id="filterModal">
-            <div class="modal-content">
+            <div class="modal-content" style="width: 420px; max-width: 90%;">
                 <h3 style="margin-top:0; margin-bottom:10px;">🔍 Filtrar Referências</h3>
                 <div style="display:flex; gap:6px; margin-bottom:10px;">
                     <button type="button" id="btnMarcarTodos" style="background:#34495e; color:white; padding:4px 8px; font-size:11px; flex:1;">☑️ Marcar Tudo</button>
                     <button type="button" id="btnDesmarcarTodos" style="background:#7f8c8d; color:white; padding:4px 8px; font-size:11px; flex:1;">⬜ Limpar Seleções</button>
                 </div>
-                <div style="max-height:220px; overflow-y:auto; margin-bottom:15px; border:1px solid #ddd; padding:8px; background:#fafafa; border-radius:6px;">${checkboxesHtml}</div>
+                <div style="max-height:280px; overflow-y:auto; margin-bottom:15px; border:1px solid #ddd; padding:10px; background:#fafafa; border-radius:6px; display:flex; flex-direction:column;">
+                    ${checkboxesHtml}
+                </div>
                 <div style="display:flex; gap:8px;">
                     <button id="btnAplicarFiltroRapido" style="background:#f39c12; color:white; flex:1; padding:8px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Aplicar Filtro</button>
                     <button id="btnFecharFiltroRapido" style="background:#bdc3c7; color:black; flex:1; padding:8px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Resetar / Ver Tudo</button>
@@ -447,6 +473,11 @@ function abrirModalFiltro() {
             </div>
         </div>
     `;
+    
+    // Remove o modal anterior se ele já existir por algum motivo
+    const antigo = document.getElementById('wrapFilterModal');
+    if(antigo) antigo.remove();
+
     const modalDiv = document.createElement('div');
     modalDiv.id = "wrapFilterModal";
     modalDiv.innerHTML = modalHtml;
@@ -463,12 +494,12 @@ function abrirModalFiltro() {
         let selecionados = [];
         checkboxes.forEach(chk => { if(chk.checked) selecionados.push(chk.value); });
         referenciasSelecionadas = (selecionados.length === refsUnicas.length) ? null : selecionados;
-        document.body.removeChild(modalDiv);
+        modalDiv.remove();
         renderizarTabela();
     };
     document.getElementById('btnFecharFiltroRapido').onclick = () => {
         referenciasSelecionadas = null;
-        document.body.removeChild(modalDiv);
+        modalDiv.remove();
         renderizarTabela();
     };
 }
