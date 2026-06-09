@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Calculador_Melodia_V1</title>
+    <style>
+        body{font-family: sans-serif; background:#f0f2f5; padding:20px;}
+        .container{max-width:1400px; margin:auto; background:white; padding:25px; border-radius:12px; box-shadow:0 4px 15px rgba(0,0,0,0.1)}
+        /* Inputs */
+        .inputs {display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px;}
+        input, select, textarea {padding:10px; border:1px solid #ddd; border-radius:6px; font-size:14px;}
+        /* Botões */
+        button {padding:8px 12px; cursor:pointer; border:none; border-radius:6px; font-weight:bold; font-size:13px; transition:0.2s;}
+        button:hover {opacity:0.85; transform:scale(1.01);}
+        .btn-add {background:#27ae60; color:white;}
+        .btn-copy {background:#8e44ad; color:white;}
+        .btn-csv-copy {background:#16a085; color:white;}
+        .btn-clear {background:#c0392b; color:white;}
+        .btn-save {background:#2980b9; color:white;}
+        .btn-load {background:#27ae60; color:white;}
+        .btn-import {background:#3498db; color:white; padding:10px 20px;}
+        .btn-force-all {background:#e67e22; color:white;}
+        .btn-sync-upload {background:#2c3e50; color:white;}
+        .btn-sync-download {background:#16a085; color:white;}
+        .btn-filter {background:#f39c12; color:white;}
+        /* Grupos de botões */
+        .btn-group {display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; align-items: center;}
+        /* Área de importação */
+        .import-area {display: flex; gap: 10px; margin-top: 15px; align-items: stretch;}
+        .import-area textarea {flex: 1; height: 50px; font-size:12px;}
+        /* Tabela */
+        table {width:100%; border-collapse:collapse; margin-top:20px; font-size:13px;}
+        th, td {border:1px solid #ddd; padding:6px 8px; text-align:center; vertical-align:middle;}
+        th {background:#2c3e50; color:white; position:sticky; top:0; font-size:12px;}
+        .grau-val {font-weight:bold; color:#d35400; background:#fff3e0; padding:2px 6px; border-radius:4px; font-size:12px;}
+        .col-level {font-weight:bold; color:#2c3e50; background:#e8f4f8; padding:2px 6px; border-radius:4px;}
+        .forcado {background-color:#ffe0b3 !important;}
+        .herado {background-color:#e8f8f5 !important;}
+        .btn-small {padding:4px 8px; margin:2px; font-size:11px; border-radius:4px;}
+        .btn-edit {background:#3498db; color:white;}
+        .btn-force {background:#e74c3c; color:white;}
+        .col-forcado {background:#f39c12; color:white; font-size:11px; padding:2px 6px; border-radius:10px;}
+        .col-herado {background:#16a085; color:white; font-size:11px; padding:2px 6px; border-radius:10px;}
+        .wrapper-table{overflow-x:auto; max-height:550px; overflow-y:auto;}
+        /* Status */
+        .status-bar {background:#ecf0f1; padding:8px 12px; border-radius:6px; margin-top:15px; text-align:center; font-size:12px; color:#2c3e50;}
+        .status-bar span {font-weight:bold; color:#27ae60;}
+        hr {margin:15px 0; border:0; border-top:1px solid #ddd;}
+
+        /* Filtros Avançados */
+        .filtro-notas-container {background:#fef5e7; border:1px solid #f39c12; padding:12px; border-radius:8px; display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-top:10px;}
+        .filtro-notas-container input {padding:6px 10px; border:1px solid #f39c12; border-radius:4px; font-size:13px;}
+        .input-filtro-local {width: 150px;}
+        .input-filtro-notas {width: 160px;}
+
+        /* Estilos do Modal Genérico */
+        .modal-overlay {position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.4); display:flex; align-items:center; justify-content:center; z-index:1000;}
+        .modal-content {background:white; padding:20px; border-radius:8px; width: 340px; box-shadow:0 4px 10px rgba(0,0,0,0.2); display: flex; flex-direction: column; gap:10px;}
+        .modal-content h3 {margin-top:0; margin-bottom:5px;}
+        .modal-field {display:flex; flex-direction:column; gap:4px; font-size:13px; font-weight:bold;}
+    </style>
+</head>
+<body>
+<div class="container">
+    <h2>🎻 Calculador_Melodia (Instrumentos Monofônicos - Sopros / Cordas / Voz)</h2>
+    
+    <div style="background:#e8f4f8; padding:12px; border-radius:8px; margin-bottom:15px; display: flex; gap:10px; align-items: center; justify-content: center; flex-wrap: wrap;">
+        <button id="btnSyncUpload" class="btn-sync-upload">⬆️ Enviar para Planilha Google (Dados + Modelos)</button>
+        <button id="btnSyncDownload" class="btn-sync-download">⬇️ Carregar da Planilha Google (Dados + Modelos)</button>
+    </div>
+    
+    <div class="inputs">
+        <input id="local" placeholder="Local (ex: Gaveta 1)">
+        <input id="musica" placeholder="Música">
+        <input id="referencia" placeholder="Referência (ex: Livro/Página)">
+        <input id="melodia" placeholder="Melodia (ex: CDEG)">
+        <input id="qn" type="number" placeholder="QN">
+        <input id="ritmo" placeholder="Ritmo (ex: 1,2,4)">
+    </div>
+    
+    <button class="btn-add" style="width:100%;" onclick="add()">+ Adicionar Música</button>
+    
+    <div class="import-area">
+        <textarea id="csvInput" placeholder="Cole o CSV aqui... (formato: Melodia;QN;Ritmo)"></textarea>
+        <button class="btn-import" onclick="importar()">Importar</button>
+    </div>
+    
+    <hr>
+    
+    <div style="display: flex; gap:10px; align-items: center; flex-wrap: wrap; margin-bottom: 5px;">
+        <button class="btn-filter" onclick="abrirModalFiltro()">🔍 Filtrar por Referência (<span id="lblFiltroAtivo">Todos</span>)</button>
+    </div>
+
+    <div class="filtro-notas-container">
+        <span style="font-size:13px; font-weight:bold; color:#d35400;">🎯 Filtros Avançados:</span>
+        <input id="buscaFiltroLocal" class="input-filtro-local" placeholder="🔍 Filtrar Local" oninput="renderizarTabela()">
+        <input id="buscaFiltroMelodia" class="input-filtro-notas" placeholder="🎯 Melodia Exata (ex: CD ou -)" oninput="renderizarTabela()">
+        <button onclick="limparFiltrosAvancados()" style="background:#bdc3c7; color:black; padding:4px 8px; font-size:11px;">Limpar Filtros</button>
+    </div>
+
+    <div class="btn-group">
+        <button class="btn-copy" onclick="copiar()">📋 Copiar Texto</button>
+        <button class="btn-csv-copy" onclick="exportarCSV()">📄 Copiar CSV</button>
+        <button class="btn-force-all" onclick="forcarTodosExemplo()">⚡ Forçar Nível 16</button>
+        <button class="btn-save" onclick="salvarLocal()">💾 Salvar Backup (JSON)</button>
+        <button class="btn-load" onclick="carregarLocal()">📂 Carregar Backup</button>
+        <button class="btn-clear" onclick="limparTabela()">🗑️ Limpar Tudo</button>
+    </div>
+
+    <div class="status-bar" id="statusBar">
+        ✅ Sincronizado localmente | <span id="contador">0</span> músicas exibidas (total: <span id="contadorTotal">0</span>)
+    </div>
+
+    <div class="wrapper-table">
+        <table>
+            <thead>
+                <tr>
+                    <th>Level</th>
+                    <th>Local</th>
+                    <th>Música</th>
+                    <th>Ref</th>
+                    <th>Melodia</th>
+                    <th>QN</th>
+                    <th>Ritmo</th>
+                    <th>Grau</th>
+                    <th>Tipo Valor</th>
+                    <th>Status</th>
+                    <th>Ações</th>
+                </tr>
+            </thead>
+            <tbody id="tabela"></tbody>
+        </table>
+    </div>
+</div>
+
+<pre style="background-color: #ffffff; border: 1px solid #ddd; border-radius: 8px; padding: 15px; max-width: 230px; font-family: 'Courier New', Courier, monospace; font-size: 14px; line-height: 1.5; box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin: 10px 0;">
+Figura Rítmica
+1 = Semínima
+2 = Mínima
+3 = Mínima Pontuada
+4 = Semibreve
+</pre>
+
+<script>
+// ======================== CONFIGURAÇÕES ========================
+const escalaRitmo = ["4", "3", "2", "1", "2;4", "1;4", "1;2", "1;3", "2;3", "1;2;4", "1;2;3", "1;2;3;4"];
+const pesosMelodia = { "C": 1, "D": 2, "E": 3, "F": 4, "G": 5, "A": 6, "B": 7, "C'": 8 };
+
+const STORAGE_KEY = 'melodia_calculador_gavetas_dados';
+const MODELOS_KEY = 'melodia_calculador_modelos_formato';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbzSMiU2m0X3STmgWRVEeWYDvzy0yiabZ0oIz-6I5M_4hlMzJYfzOKPYfzuScR34-DkjvQ/exec';
+
+let linesData = [];
+let modelosFormato = {}; 
+let referenciasSelecionadas = null; 
+
+function obterChaveFormato(melodia) {
+    return melodia ? melodia.trim().toUpperCase() : '-';
+}
+
+function limparStringNotas(txt) {
+    if (!txt) return '-';
+    let limpo = txt.toString().replace(/[\s=\-]/g, '').toUpperCase();
+    return limpo === '' ? '-' : limpo;
+}
+
+// ======================== FÓRMULA PEDAGÓGICA AUTOMÁTICA ========================
+function calcularGrauOriginal(qn, melodia, ritmo) {
+    let chave = obterChaveFormato(melodia);
+    if (modelosFormato[chave]) {
+        return parseFloat(modelosFormato[chave]).toFixed(2);
+    }
+
+    const extrairNotasComOitava = (texto) => {
+        if (!texto || texto === "-" || texto.trim() === "") return [];
+        let regex = /[A-G][',]*/gi;
+        let matches = texto.match(regex);
+        if (!matches) return [];
+        return [...new Set(matches.map(n => n.toUpperCase()))];
+    };
+
+    let notes = extrairNotasComOitava(melodia);
+    let totalNotasUnicas = notes.length;
+    if (totalNotasUnicas === 0) totalNotasUnicas = 1;
+
+    let baseGaveta = totalNotasUnicas * 100;        
+    let somaPesos = 0;
+    let divisorPesos = 0;
+
+    notes.forEach(n => { if (pesosMelodia[n]) { somaPesos += pesosMelodia[n]; divisorPesos++; } });
+
+    let pesoTopografico = divisorPesos > 0 ? (somaPesos / divisorPesos) * 2 : 0;
+
+    let ritmoLimpo = ritmo ? ritmo.toString().replace(/,/g, ';').replace(/\s+/g, '').trim() : "1";
+    let rIdx = escalaRitmo.indexOf(ritmoLimpo);        
+    let pesoRitmo = rIdx !== -1 ? (rIdx * 0.10) : 0.00;        
+    let pesoQN = parseFloat(qn) ? parseFloat(qn) * 0.01 : 0;
+
+    return (baseGaveta + pesoTopografico + pesoRitmo + pesoQN).toFixed(2);
+}
+
+function obtenerValorFinal(item) {
+    if (item.nivelForcado !== null) return parseFloat(item.nivelForcado);
+    let chave = obterChaveFormato(item.melodia);
+    if (modelosFormato[chave]) return parseFloat(modelosFormato[chave]);
+    return parseFloat(item.grauCalculado);
+}
+
+function obterDadosProcessados() {
+    let listaOrdenadaCompleta = [...linesData].sort((a, b) => obtenerValorFinal(a) - obtenerValorFinal(b));
+    let rankAtual = 0;
+    let ultimoValor = -1;
+
+    let listaComLevels = listaOrdenadaCompleta.map((item) => {
+        let valFinal = obtenerValorFinal(item);
+        if (valFinal !== ultimoValor) {
+            rankAtual++; 
+            ultimoValor = valFinal;
+        }
+        return { ...item, levelCalculado: rankAtual };
+    });
+
+    // 1. Filtro por Referência (Modal)
+    if (referenciasSelecionadas !== null) {
+        listaComLevels = listaComLevels.filter(item => {
+            let refTexto = item.referencia ? item.referencia.trim() : '';
+            return referenciasSelecionadas.includes(refTexto);
+        });
+    }
+
+    // 2. Filtro por Local (Busca Exata)
+    const buscaLocal = document.getElementById('buscaFiltroLocal') ? document.getElementById('buscaFiltroLocal').value.trim().toLowerCase() : '';
+    if (buscaLocal !== '') {
+        listaComLevels = listaComLevels.filter(item => {
+            let localItem = item.local ? item.local.trim().toLowerCase() : '';
+            return localItem === buscaLocal;
+        });
+    }
+
+    // 3. Filtro por Notas Melodia (Suporte a "-" para vazio)
+    const inputMelodia = document.getElementById('buscaFiltroMelodia') ? document.getElementById('buscaFiltroMelodia').value.trim() : '';
+
+    if (inputMelodia !== '') {
+        listaComLevels = listaComLevels.filter(item => {
+            let notaItemMelodia = limparStringNotas(item.melodia);
+            let matchMelodia = true;
+
+            if (inputMelodia === '-') {
+                matchMelodia = (notaItemMelodia === '-');
+            } else {
+                matchMelodia = (notaItemMelodia === limparStringNotas(inputMelodia));
+            }
+            
+            return matchMelodia;
+        });
+    }
+
+    return listaComLevels;
+}
+
+function limparFiltrosAvancados() {
+    document.getElementById('buscaFiltroLocal').value = '';
+    document.getElementById('buscaFiltroMelodia').value = '';
+    renderizarTabela();
+}
+
+// ======================== GOOGLE SHEETS SYNC ========================
+async function enviarParaPlanilha() {
+    if (!SCRIPT_URL) { alert('URL não configurada'); return; }        
+    const musicasParaEnviar = linesData.map(item => ({
+        local: item.local ? item.local : '',
+        musica: item.musica, referencia: item.referencia ? item.referencia : '', execucao: 'MS',
+        melodia: item.melodia, qn: item.qn, ritmo: item.ritmo,
+        grauCalculado: item.grauCalculado, nivelForcado: item.nivelForcado !== null ? item.nivelForcado : ''
+    }));
+
+    const pacoteCompleto = {
+        musicas: musicasParaEnviar,
+        modelosHeranca: modelosFormato     
+    };
+
+    try {
+        await fetch(SCRIPT_URL, {
+            method: 'POST', mode: 'cors',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' }, 
+            body: JSON.stringify(pacoteCompleto)
+        });
+        alert(`✅ Dados enviados para a Nuvem!`);
+    } catch (err) { alert(`Processado.`); }
+}
+
+async function carregarDaPlanilha() {
+    if (!SCRIPT_URL) { alert('URL não configurada'); return; }
+    try {
+        const response = await fetch(SCRIPT_URL, { method: 'GET', mode: 'cors' });
+        const result = await response.json();                
+        if (result.modelosHeranca) {
+            modelosFormato = result.modelosHeranca;
+        }
+
+        if (result.musicas && Array.isArray(result.musicas)) {
+            linesData = result.musicas.map(m => {
+                let m_melodia = m.melodia ? m.melodia : '-';
+                let m_qn = m.qn ? m.qn : '0';
+                let m_ritmo = m.ritmo ? m.ritmo : '';
+                return {
+                    id: gerarId(), 
+                    local: m.local ? m.local : '-',
+                    musica: m.musica ? m.musica : '', referencia: m.referencia ? m.referencia : '',
+                    melodia: m_melodia, qn: m_qn, ritmo: m_ritmo,
+                    grauCalculado: calcularGrauOriginal(m_qn, m_melodia, m_ritmo),
+                    nivelForcado: m.nivelForcado && m.nivelForcado !== '' ? parseFloat(m.nivelForcado).toFixed(2) : null
+                };
+            });
+            referenciasSelecionadas = null; renderizarTabela(); salvarLocalStorage();
+            alert(`✅ Sincronização completa da nuvem realizada!`);
+        }
+    } catch (err) { alert(`Erro ao carregar: ${err.message}`); }
+}
+
+// ======================== BACKUPS LOCAL STORAGE ========================
+function salvarLocalStorage() {
+  try {
+       localStorage.setItem(STORAGE_KEY, JSON.stringify({ versao: '3.1', musicas: linesData }));
+       localStorage.setItem(MODELOS_KEY, JSON.stringify(modelosFormato));
+       atualizarStatusBar(obterDadosProcessados().length); 
+   } catch (e) {}
+}
+
+function carregarLocalStorage() {
+  try {
+      const dadosSalvos = localStorage.getItem(STORAGE_KEY);
+      const modelsSalvos = localStorage.getItem(MODELOS_KEY);
+      if (modelsSalvos) modelosFormato = JSON.parse(modelsSalvos);
+      if (dadosSalvos) {
+          const parsed = JSON.parse(dadosSalvos);
+          if (parsed.musicas && Array.isArray(parsed.musicas)) { linesData = parsed.musicas; return true; }
+      }
+  } catch (e) {}
+  return false;
+}
+
+// ======================== BACKUP INTERNO ========================
+function salvarLocal() {
+    const dadosFiltrados = obterDadosProcessados();
+    const dados = { versao: '3.1', musicas: dadosFiltrados, modelos: modelosFormato };
+    const blob = new Blob([JSON.stringify(dados, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = `melodia_gavetas_backup.json`; a.click();
+}
+
+function carregarLocal() {
+    const input = document.createElement('input'); input.type = 'file'; input.accept = '.json';
+    input.onchange = (e) => {
+        const file = e.target.files[0]; if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+            try {
+                const dados = JSON.parse(ev.target.result);
+                if (dados.modelos) modelosFormato = dados.modelos;
+                if (dados.musicas && Array.isArray(dados.musicas)) { linesData = dados.musicas; renderizarTabela(); salvarLocalStorage(); }
+            } catch (er) { alert('Arquivo JSON inválido.'); }
+        };
+        reader.readAsText(file);
+    };
+    input.click();
+}
+
+function limparTabela() { if(confirm("⚠️ Deseja apagar todas as músicas do banco local?")) { linesData = []; modelosFormato = {}; renderizarTabela(); salvarLocalStorage(); } }
+
+// ======================== MODAL DE FILTRO REFS ========================
+function abrirModalFiltro() {
+    let contagemRefs = {};
+    linesData.forEach(item => {
+        let refTexto = item.referencia ? item.referencia.trim() : '';
+        contagemRefs[refTexto] = (contagemRefs[refTexto] || 0) + 1;
+    });
+
+    let refsUnicas = Object.keys(contagemRefs);
+    if(refsUnicas.length === 0) { alert("Nenhuma referência para filtrar."); return; }        
+    
+    let totalChecklists = refsUnicas.length;
+
+    refsUnicas.sort((a, b) => {
+        let numA = parseInt(a.match(/\d+/)) || 0;
+        let numB = parseInt(b.match(/\d+/)) || 0;
+        if (numA !== numB) return numA - numB;
+        return a.localeCompare(b);
+    });
+    
+    let checkboxesHtml = refsUnicas.map(ref => {
+        let labelExibicao = ref ? ref : '[Sem Referência]';
+        let qtd = contagemRefs[ref];
+        return `
+            <label style="display:flex; align-items:center; gap:8px; margin-bottom:8px; font-size:13px; cursor:pointer; width:100%;">
+                <input type="checkbox" class="chk-filtro-ref" value="${escapeHtml(ref)}" checked style="margin:0;">
+                <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                    ${escapeHtml(labelExibicao)} <b style="color:#27ae60; font-size:11px;">(${qtd} itens)</b>
+                </span>
+            </label>
+        `;
+    }).join('');        
+    
+    const modalHtml = `
+        <div class="modal-overlay" id="filterModal">
+            <div class="modal-content" style="width: 420px; max-width: 90%;">
+                <h3 style="margin-top:0; margin-bottom:2px;">🔍 Filtrar Referências</h3>
+                <div style="font-size: 12px; color: #7f8c8d; font-weight: bold; margin-bottom: 12px;">
+                    📋 Total de Checklists: <span style="color: #d35400; font-size: 14px;">${totalChecklists}</span>
+                </div>
+                <div style="display:flex; gap:6px; margin-bottom:10px;">
+                    <button type="button" id="btnMarcarTodos" style="background:#34495e; color:white; padding:4px 8px; font-size:11px; flex:1;">☑️ Marcar Tudo</button>
+                    <button type="button" id="btnDesmarcarTodos" style="background:#7f8c8d; color:white; padding:4px 8px; font-size:11px; flex:1;">⬜ Limpar Seleções</button>
+                </div>
+                <div style="max-height:280px; overflow-y:auto; margin-bottom:15px; border:1px solid #ddd; padding:10px; background:#fafafa; border-radius:6px; display:flex; flex-direction:column;">
+                    ${checkboxesHtml}
+                </div>
+                <div style="display:flex; gap:8px;">
+                    <button id="btnAplicarFiltroRapido" style="background:#f39c12; color:white; flex:1; padding:8px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Aplicar Filtro</button>
+                    <button id="btnFecharFiltroRapido" style="background:#bdc3c7; color:black; flex:1; padding:8px; border:none; border-radius:4px; font-weight:bold; cursor:pointer;">Resetar / Ver Tudo</button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    const antigo = document.getElementById('wrapFilterModal');
+    if(antigo) antigo.remove();
+
+    const modalDiv = document.createElement('div');
+    modalDiv.id = "wrapFilterModal";
+    modalDiv.innerHTML = modalHtml;
+    document.body.appendChild(modalDiv);
+
+    document.getElementById('btnMarcarTodos').onclick = () => {
+        document.querySelectorAll('.chk-filtro-ref').forEach(chk => chk.checked = true);
+    };
+    document.getElementById('btnDesmarcarTodos').onclick = () => {
+        document.querySelectorAll('.chk-filtro-ref').forEach(chk => chk.checked = false);
+    };
+    document.getElementById('btnAplicarFiltroRapido').onclick = () => {
+        const checkboxes = document.querySelectorAll('.chk-filtro-ref');
+        let selecionados = [];
+        checkboxes.forEach(chk => { if(chk.checked) selecionados.push(chk.value); });
+        referenciasSelecionadas = (selecionados.length === refsUnicas.length) ? null : selecionados;
+        modalDiv.remove();
+        renderizarTabela();
+    };
+    document.getElementById('btnFecharFiltroRapido').onclick = () => {
+        referenciasSelecionadas = null;
+        modalDiv.remove();
+        renderizarTabela();
+    };
+}
+
+// ======================== MODAL DE EDIÇÃO COMPLETO ========================
+function editarLinha(index) {
+    if (index === -1) return;
+    const rowData = linesData[index];
+
+    const modalHtml = `
+        <div class="modal-overlay" id="editModal">
+            <div class="modal-content" style="width: 380px;">
+                <h3>✏️ Editar Música</h3>
+                
+                <div class="modal-field">
+                    <label>Local:</label>
+                    <input id="editLocal" value="${escapeHtml(rowData.local || '-')}">
+                </div>
+                <div class="modal-field">
+                    <label>Música:</label>
+                    <input id="editMusica" value="${escapeHtml(rowData.musica)}">
+                </div>
+                <div class="modal-field">
+                    <label>Referência:</label>
+                    <input id="editReferencia" value="${escapeHtml(rowData.referencia)}">
+                </div>
+                <div class="modal-field">
+                    <label>Melodia:</label>
+                    <input id="editMelodia" value="${escapeHtml(rowData.melodia)}">
+                </div>
+                <div class="modal-field">
+                    <label>QN:</label>
+                    <input id="editQN" type="number" value="${escapeHtml(rowData.qn)}">
+                </div>
+                <div class="modal-field">
+                    <label>Ritmo:</label>
+                    <input id="editRitmo" value="${escapeHtml(rowData.ritmo ? rowData.ritmo : '1')}">
+                </div>
+                
+                <div style="display:flex; gap:8px; margin-top:10px;">
+                    <button id="btnSalvarEdicao" style="background:#27ae60; color:white; flex:1; padding:10px;">Salvar Alterações</button>
+                    <button id="btnCancelarEdicao" style="background:#bdc3c7; color:black; flex:1; padding:10px;">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    const modalDiv = document.createElement('div');
+    modalDiv.id = "wrapEditModal";
+    modalDiv.innerHTML = modalHtml;
+    document.body.appendChild(modalDiv);
+
+    document.getElementById('btnSalvarEdicao').onclick = () => {
+        rowData.local = document.getElementById('editLocal').value.trim() || '-';
+        let novaMusica = document.getElementById('editMusica').value.trim();
+        let novaRef = document.getElementById('editReferencia').value.trim();
+        let novaMelodia = document.getElementById('editMelodia').value.trim();
+        let novoQN = document.getElementById('editQN').value.trim();
+        let novoRitmo = document.getElementById('editRitmo').value.trim();
+
+        rowData.musica = novaMusica ? novaMusica : "Melodia Manual";
+        rowData.referencia = novaRef;
+        rowData.melodia = novaMelodia ? novaMelodia : '-';
+        rowData.qn = novoQN ? parseInt(novoQN, 10) : 0;
+        rowData.ritmo = novoRitmo ? novoRitmo : '1';
+        
+        rowData.grauCalculado = calcularGrauOriginal(rowData.qn, rowData.melodia, rowData.ritmo);
+        
+        modalDiv.remove();
+        renderizarTabela(); 
+        salvarLocalStorage();
+    };
+
+    document.getElementById('btnCancelarEdicao').onclick = () => { modalDiv.remove(); };
+}
+
+// ======================== INTERFACE E RENDER ========================
+function renderizarTabela() {
+    const tbody = document.getElementById('tabela'); tbody.innerHTML = '';
+    recalcularTodoBanco();
+    const linesDataProcessadas = obterDadosProcessados();        
+    linesDataProcessadas.forEach((linha) => {
+        const realIndex = linesData.findIndex(l => l.id === linha.id);
+        const row = tbody.insertRow();                
+        let chave = obterChaveFormato(linha.melodia); 
+        let classeEstilo = '';
+        let rotuloTipoValor = '✓ Calculado';
+        let valorExibido = linha.grauCalculado;
+
+        if (linha.nivelForcado !== null) {
+            classeEstilo = 'forcado';
+            rotuloTipoValor = `🔨 Forçado (Item)`;
+            valorExibido = linha.nivelForcado;
+        } else if (modelosFormato[chave]) {
+            classeEstilo = 'herado';
+            rotuloTipoValor = `🧬 Herança (${chave})`;
+            valorExibido = parseFloat(modelosFormato[chave]).toFixed(2);
+        }
+
+        let refExibicao = linha.referencia ? linha.referencia : '-';
+        let localExibicao = linha.local ? linha.local : '-'; 
+        let badgeTipoValor = linha.nivelForcado !== null ? 
+            `<span class="col-forcado">${rotuloTipoValor}</span>` : 
+            (modelosFormato[chave] ? `<span class="col-herado">${rotuloTipoValor}</span>` : `<span>${rotuloTipoValor}</span>`);                
+        row.innerHTML = `
+            <td class="${classeEstilo}"><span class="col-level">${linha.levelCalculado}º</span></td>
+            <td class="${classeEstilo}" style="font-weight:bold; color:#7f8c8d;">${escapeHtml(localExibicao)}</td>
+            <td class="${classeEstilo}" style="text-align:left; font-weight:500;">${escapeHtml(linha.musica)}</td>
+            <td class="${classeEstilo}">${escapeHtml(refExibicao)}</td>
+            <td class="${classeEstilo}">${escapeHtml(linha.melodia)}</td>
+            <td class="${classeEstilo}">${escapeHtml(linha.qn)}</td>
+            <td class="${classeEstilo}">${escapeHtml(linha.ritmo)}</td>
+            <td class="${classeEstilo}"><span class="grau-val">${valorExibido}</span></td>
+            <td class="${classeEstilo}">${badgeTipoValor}</td>
+            <td class="${classeEstilo}">Status: ${valorExibido}</td>
+            <td class="${classeEstilo}">
+                <button class="btn-small btn-edit" onclick="editarLinha(${realIndex})">✏️</button>
+                <button class="btn-small btn-force" onclick="forcarNivel(${realIndex})">💪</button>
+                <button class="btn-small" style="background:#95a5a6;color:white;" onclick="removerLinha(${realIndex})">🗑️</button>
+            </td>
+        `;
+    });        
+    const lblFiltro = document.getElementById('lblFiltroAtivo');
+    if (lblFiltro) lblFiltro.innerText = referenciasSelecionadas === null ? "Todos" : `${referenciasSelecionadas.length} Ativo(s)`;
+    atualizarStatusBar(linesDataProcessadas.length);
+}
+
+function escapeHtml(str) { return str ? String(str).replace(/[&<>]/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[m])) : ''; }
+function gerarId() { return Date.now() + '-' + Math.random().toString(36).substr(2, 6); }
+
+function inserir(local, musica, referencia, melodia, qn, ritmo, grauCalculado) {
+    let i_local = local ? local.trim() : '-';
+    let i_melodia = melodia ? melodia.trim() : '-';
+    let i_ritmo = ritmo ? ritmo : '1';
+    linesData.push({ id: gerarId(), local: i_local, musica, referencia, melodia: i_melodia, qn, ritmo: i_ritmo, grauCalculado, nivelForcado: null });
+    renderizarTabela(); salvarLocalStorage();
+}
+
+function recalcularTodoBanco() {
+    linesData.forEach(linha => {
+        let m = linha.melodia ? linha.melodia : '-';
+        linha.grauCalculado = calcularGrauOriginal(linha.qn, m, linha.ritmo);
+    });
+}
+
+function removerLinha(index) { if (index !== -1 && confirm('Remover esta música?')) { linesData.splice(index, 1); renderizarTabela(); salvarLocalStorage(); } }
+
+function forcarNivel(index) {
+    if (index === -1) return;
+    let item = linesData[index];
+    let chave = obterChaveFormato(item.melodia);
+    let nv = prompt(`Definir valor de força para o formato "${chave}" (afetará todas as correspondentes):`, obtenerValorFinal(item));        
+    if(nv && !isNaN(parseFloat(nv))) {
+        modelosFormato[chave] = parseFloat(nv).toFixed(2);
+        item.nivelForcado = null; 
+        renderizarTabela(); 
+        salvarLocalStorage();
+    }
+}
+
+// ======================== OPERAÇÕES INTERNAS DA TELA ========================
+function add() {
+    let loc = document.getElementById('local').value.trim();
+    let m = document.getElementById('musica').value.trim();
+    if (!m) m = "Melodia Manual";
+    let ref = document.getElementById('referencia').value.trim();
+    let mel = document.getElementById('melodia').value;
+    let qn = document.getElementById('qn').value;
+    if (!qn) qn = 0;
+    let ritmo = document.getElementById('ritmo').value;        
+    let grau = calcularGrauOriginal(qn, mel, ritmo);
+    inserir(loc, m, ref, mel, qn, ritmo, grau);        
+    document.getElementById('local').value = '';
+    document.getElementById('musica').value = '';
+    document.getElementById('referencia').value = '';
+    document.getElementById('melodia').value = '';
+    document.getElementById('qn').value = '';
+    document.getElementById('ritmo').value = '';
+}
+
+function importar() {
+    const csvTexto = document.getElementById('csvInput').value.trim();
+    if(!csvTexto) return;
+    const linhas = csvTexto.split(/\r?\n/);
+    let count = 0;
+    linhas.forEach(line => {
+        if(line.toLowerCase().includes("melodia")) return;
+        if(line.toLowerCase().includes("música")) return;
+        if(!line.trim()) return;                
+        let partes = line.split('\t').length > 1 ? line.split('\t') : line.split(';');
+        partes = partes.map(v => v.replace(/^"|"$/g, '').trim());                
+        if(partes.length >= 2) {
+            let mel = partes[0] ? partes[0] : '-';
+            let qn = partes[1] ? partes[1] : '0';
+            let ritmo = partes[2] ? partes[2] : '1';                         
+            let nomeFicticio = `Melodia QN ${qn} (${mel})`;
+            let grauCalc = calcularGrauOriginal(qn, mel, ritmo);
+            inserir("-", nomeFicticio, "Importado", mel, qn, ritmo, grauCalc);
+            count++;
+        }
+    });
+    if(count > 0) alert(`✅ ${count} melodias importadas com sucesso!`);
+    document.getElementById('csvInput').value = '';
+}
+
+// ======================== EXPORTES ========================
+function copiar() {
+    const linesDataProcessadas = obterDadosProcessados();
+    let header = "Level | Local | Grau | Música | Melodia | QN | Ritmo\n";
+    let linhasStr = linesDataProcessadas.map(l => {
+        let val = l.nivelForcado !== null ? l.nivelForcado : (modelosFormato[obterChaveFormato(l.melodia)] || l.grauCalculado);
+        return `${l.levelCalculado}º | ${l.local || '-'} | ${parseFloat(val).toFixed(2)} | ${l.musica} | ${l.melodia} | ${l.qn} | ${l.ritmo}`;
+    });
+    navigator.clipboard.writeText(header + linhasStr.join("\n")).then(() => alert("Copiado com sucesso!"));
+}
+
+// ======================== EXPORTAR CSV ========================
+function exportarCSV() {
+    const linesDataProcessadas = obterDadosProcessados();
+    let csvRows = [["Level", "Local", "Música", "Melodia", "QN", "Ritmo", "Grau Final"]];
+    linesDataProcessadas.forEach(l => {
+        let val = l.nivelForcado !== null ? l.nivelForcado : (modelosFormato[obterChaveFormato(l.melodia)] || l.grauCalculado);
+        csvRows.push([`${l.levelCalculado}º`, l.local || '-', l.musica, l.melodia, l.qn, l.ritmo, parseFloat(val).toFixed(2)]);
+    });
+    let csvStr = csvRows.map(r => r.map(c => `"${c}"`).join(";")).join("\n");
+    navigator.clipboard.writeText(csvStr).then(() => alert("CSV copiado!"));
+}
+
+function forcarTodosExemplo() {
+    if(confirm("Deseja forçar todas as melodias listadas para 16.00?")) {
+        obterDadosProcessados().forEach(l => { 
+            let chave = obterChaveFormato(l.melodia);
+            modelosFormato[chave] = "16.00";
+        });
+        renderizarTabela(); salvarLocalStorage();
+    }
+}
+
+function atualizarStatusBar(filtradosCount) {
+    document.getElementById('contador').innerText = filtradosCount !== undefined ? filtradosCount : linesData.length;
+    document.getElementById('contadorTotal').innerText = linesData.length;
+}
+
+function init() {
+    carregarLocalStorage();
+    renderizarTabela();
+    document.getElementById('btnSyncUpload').onclick = enviarParaPlanilha;
+    document.getElementById('btnSyncDownload').onclick = carregarDaPlanilha;
+}
+init();
+</script>
+</body>
+</html>
