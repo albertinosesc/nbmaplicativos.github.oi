@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Editor Markdown</title>
+  <style>
+    :root {
+      --bg-primary: #f8f9fa;
+      --bg-sidebar: #ffffff;
+      --text-main: #212529;
+      --text-muted: #6c757d;
+      --border-color: #e9ecef;
+      --primary: #4f46e5;
+      --primary-hover: #4338ca;
+      --success: #10b981;
+      --success-hover: #059669;
+      --danger: #ef4444;
+      --info: #3b82f6;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: sans-serif;
+      background-color: var(--bg-primary);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    header {
+      background: #ffffff;
+      padding: 15px 25px;
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    header h2 {
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+
+    .container {
+      display: flex;
+      flex: 1;
+      height: calc(100vh - 60px);
+    }
+
+    .sidebar {
+      width: 320px;
+      background: var(--bg-sidebar);
+      border-right: 1px solid var(--border-color);
+      display: flex;
+      flex-direction: column;
+      padding: 20px;
+    }
+
+    .sidebar h3 {
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 15px;
+    }
+
+    .current-folder {
+      background: #f3f4f6;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .folder-input-group {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+    }
+
+    .editor-area {
+      flex: 1;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      background: #fafafa;
+    }
+
+    .toolbar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      background: #ffffff;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
+      flex-wrap: wrap;
+    }
+
+    .toolbar-section {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .toolbar-divider {
+      width: 1px;
+      height: 28px;
+      background-color: var(--border-color);
+    }
+
+    #fileName {
+      width: 240px;
+    }
+
+    textarea {
+      width: 100%;
+      flex: 1;
+      font-family: monospace;
+      font-size: 0.95rem;
+      padding: 15px;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+      resize: none;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--primary);
+    }
+
+    input[type="text"] {
+      padding: 8px 12px;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      font-size: 0.9rem;
+      outline: none;
+    }
+
+    button {
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.2s;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+
+    button.primary { background: var(--primary); color: white; }
+    button.success { background: var(--success); color: white; }
+    button.edit { background: var(--info); color: white; }
+    button.copy { background: #e0e7ff; color: var(--primary); }
+    button.paste { background: #f3e8ff; color: #7c3aed; }
+    button.delete { background: #fee2e2; color: var(--danger); }
+    button.secondary { background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; }
+
+    #fileExplorer {
+      flex: 1;
+      overflow-y: auto;
+    }
+
+    .section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin: 15px 0 8px 0;
+    }
+
+    .file-item, .folder-item {
+      display: flex;
+      flex-direction: column;
+      padding: 10px;
+      margin-bottom: 6px;
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+    }
+
+    .item-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+    }
+
+    .item-name {
+      font-size: 0.9rem;
+      color: #374151;
+    }
+
+    .file-actions {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+      justify-content: flex-end;
+    }
+
+    .file-actions button {
+      padding: 4px 8px;
+      font-size: 0.75rem;
+    }
+
+    .status {
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      display: none;
+      animation: slideDown 0.3s ease;
+    }
+
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .status.success { background: #d1fae5; color: #065f46; }
+    .status.error { background: #fee2e2; color: #991b1b; }
+
+    hr {
+      border: 0;
+      border-top: 1px solid var(--border-color);
+      margin: 15px 0;
+    }
+
+    @media (max-width: 768px) {
+      .container {
+        flex-direction: column;
+      }
+      .sidebar {
+        width: 100%;
+        max-height: 300px;
+      }
+      .toolbar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h2>📝 Editor Markdown com Gerenciador de Arquivos</h2>
+</header>
+
+<div class="container">
+  <div class="sidebar">
+    <h3>📂 Navegação</h3>
+    
+    <div class="current-folder">
+      <div>
+        <span style="font-size: 0.8rem; color: var(--text-muted); display:block;">Pasta atual</span>
+        <span id="currentFolderPath" style="font-weight:600;">Raiz</span>
+      </div>
+      <button onclick="voltarPasta()" id="backButton" class="secondary" style="display:none; padding: 6px 10px; font-size: 0.8rem;">⬆ Voltar</button>
+    </div>
+    
+    <div class="folder-input-group">
+      <input type="text" id="newFolderName" placeholder="Nova pasta..." onkeypress="if(event.key==='Enter') criarPasta()">
+      <button onclick="criarPasta()" class="primary">📁 Criar</button>
+    </div>
+    
+    <hr>
+    
+    <div id="fileExplorer"></div>
+  </div>
+  
+  <div class="editor-area">
+    <div class="toolbar">
+      <div class="toolbar-section">
+        <input type="text" id="fileName" placeholder="Nome do arquivo (ex: aula.md)">
+      </div>
+      
+      <div class="toolbar-section">
+        <button onclick="salvar()" class="success">💾 Salvar</button>
+        <button onclick="salvarComo()" class="edit">📋 Salvar Como</button>
+        <button onclick="novoArquivo()" class="secondary">✨ Novo</button>
+      </div>
+      
+      <div class="toolbar-divider"></div>
+      
+      <div class="toolbar-section">
+        <button onclick="copiarTexto()" class="copy">📋 Copiar Texto</button>
+        <button onclick="colarTexto()" class="paste">📄 Colar Texto</button>
+      </div>
+      
+      <div class="toolbar-section">
+        <button onclick="exportarDados()" class="secondary">💾 Backup</button>
+        <button onclick="importarDados()" class="primary">📥 Restaurar</button>
+      </div>
+    </div>
+
+    <div id="status" class="status"></div>
+
+    <textarea id="editor" placeholder="Digite seu conteúdo Markdown aqui..."></textarea>
+  </div>
+</div>
+
+<script>
+// Sistema de armazenamento local - substitui o Google Drive
+let arquivoAtualId = null;
+let pastaAtualId = null;
+let caminhoPastas = [];
+
+// Estrutura de dados
+let driveData = {
+  root: {
+    type: 'folder',
+    name: 'Raiz',
+    children: [],
+    files: []
+  }
+};
+
+// Inicializar dados do localStorage
+function initData() {
+  const saved = localStorage.getItem('markdownEditorData');
+  if (saved) {
+    driveData = JSON.parse(saved);
+  } else {
+    // Criar alguns exemplos
+    driveData = {
+      root: {
+        type: 'folder',
+        name: 'Raiz',
+        children: [],
+        files: [
+          {
+            id: 'file1',
+            name: 'Exemplo.md',
+            content: '# Bem-vindo ao Editor Markdown!\n\nEste é um arquivo de exemplo.\n\n## Funcionalidades\n\n- Criar pastas\n- Salvar arquivos\n- Renomear itens\n- Copiar e colar texto\n- Backup automático'
+          }
+        ]
+      }
+    };
+    saveData();
+  }
+}
+
+// Salvar dados no localStorage
+function saveData() {
+  localStorage.setItem('markdownEditorData', JSON.stringify(driveData));
+}
+
+// Função auxiliar: obter item por ID
+function getItemById(id, parent = null, currentPath = driveData.root) {
+  if (parent === null) parent = { current: driveData.root, path: [] };
+  
+  // Verificar arquivos
+  for (let file of currentPath.files) {
+    if (file.id === id) {
+      return { item: file, parent: currentPath, type: 'file' };
+    }
+  }
+  
+  // Verificar pastas
+  for (let folder of currentPath.children) {
+    if (folder.id === id) {
+      return { item: folder, parent: currentPath, type: 'folder' };
+    }
+  }
+  
+  // Buscar recursivamente
+  for (let folder of currentPath.children) {
+    const result = getItemById(id, parent, folder);
+    if (result) return result;
+  }
+  
+  return null;
+}
+
+// Gerar ID único
+function generateId() {
+  return Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+}
+
+// Funções principais (mantendo os mesmos nomes)
+function salvar() {
+  const conteudo = document.getElementById("editor").value;
+  const nome = document.getElementById("fileName").value;
+  if (!nome) {
+    showStatus("Por favor, digite um nome para o arquivo!", true);
+    return;
+  }
+  
+  try {
+    if (arquivoAtualId) {
+      // Atualizar arquivo existente
+      const result = getItemById(arquivoAtualId);
+      if (result && result.type === 'file') {
+        result.item.content = conteudo;
+        result.item.name = nome;
+        saveData();
+        showStatus("Arquivo salvo com sucesso!");
+      }
+    } else {
+      // Criar novo arquivo
+      const currentFolder = getFolderById(pastaAtualId);
+      const newFile = {
+        id: generateId(),
+        name: nome,
+        content: conteudo
+      };
+      currentFolder.files.push(newFile);
+      saveData();
+      arquivoAtualId = newFile.id;
+      showStatus("Arquivo salvo com sucesso!");
+    }
+    carregarArquivos();
+  } catch (error) {
+    showStatus("Erro ao salvar: " + error.message, true);
+  }
+}
+
+function salvarComo() {
+  const conteudo = document.getElementById("editor").value;
+  const nome = document.getElementById("fileName").value;
+  if (!nome) {
+    showStatus("Por favor, digite um nome para o arquivo!", true);
+    return;
+  }
+  
+  try {
+    const currentFolder = getFolderById(pastaAtualId);
+    const newFile = {
+      id: generateId(),
+      name: nome,
+      content: conteudo
+    };
+    currentFolder.files.push(newFile);
+    saveData();
+    arquivoAtualId = null;
+    showStatus("Arquivo copiado com sucesso!");
+    carregarArquivos();
+  } catch (error) {
+    showStatus("Erro ao copiar: " + error.message, true);
+  }
+}
+
+function novoArquivo() {
+  document.getElementById("editor").value = "";
+  document.getElementById("fileName").value = "";
+  arquivoAtualId = null;
+  showStatus("Pronto para criar um novo arquivo!");
+}
+
+function criarPasta() {
+  const nome = document.getElementById("newFolderName").value;
+  if (!nome) {
+    showStatus("Digite um nome para a pasta!", true);
+    return;
+  }
+  
+  try {
+    const currentFolder = getFolderById(pastaAtualId);
+    const newFolder = {
+      id: generateId(),
+      type: 'folder',
+      name: nome,
+      children: [],
+      files: []
+    };
+    currentFolder.children.push(newFolder);
+    saveData();
+    showStatus("Pasta criada com sucesso!");
+    document.getElementById("newFolderName").value = "";
+    carregarArquivos();
+  } catch (error) {
+    showStatus("Erro ao criar pasta: " + error.message, true);
+  }
+}
+
+function renomear(id, tipo, nomeAtual) {
+  const novoNome = prompt("Digite o novo nome:", nomeAtual);
+  if (!novoNome || novoNome === nomeAtual) return;
+  
+  try {
+    const result = getItemById(id);
+    if (result) {
+      result.item.name = novoNome;
+      saveData();
+      showStatus(`${tipo === 'file' ? 'Arquivo' : 'Pasta'} renomeado com sucesso!`);
+      carregarArquivos();
+    }
+  } catch (error) {
+    showStatus("Erro ao renomear: " + error.message, true);
+  }
+}
+
+function excluir(id, tipo, nome) {
+  if (!confirm(`Tem certeza que deseja excluir ${tipo === 'file' ? 'o arquivo' : 'a pasta'} "${nome}"?`)) return;
+  if (tipo === 'folder') {
+    if (!confirm("ATENÇÃO: Esta pasta e todo seu conteúdo será excluído permanentemente!")) return;
+  }
+  
+  try {
+    const result = getItemById(id);
+    if (result) {
+      if (tipo === 'file') {
+        const index = result.parent.files.findIndex(f => f.id === id);
+        if (index !== -1) result.parent.files.splice(index, 1);
+      } else {
+        const index = result.parent.children.findIndex(f => f.id === id);
+        if (index !== -1) result.parent.children.splice(index, 1);
+      }
+      saveData();
+      showStatus(`${tipo === 'file' ? 'Arquivo' : 'Pasta'} excluído com sucesso!`);
+      if (tipo === 'folder' && pastaAtualId === id) {
+        voltarPasta();
+      } else {
+        carregarArquivos();
+      }
+    }
+  } catch (error) {
+    showStatus("Erro ao excluir: " + error.message, true);
+  }
+}
+
+function copiarArquivo(id, nome) {
+  try {
+    const result = getItemById(id);
+    if (result && result.type === 'file') {
+      const currentFolder = getFolderById(pastaAtualId);
+      const nomeBase = nome.replace(/\.md$/, '');
+      let novoNome = `${nomeBase} - Cópia.md`;
+      let contador = 1;
+      while (currentFolder.files.some(f => f.name === novoNome)) {
+        contador++;
+        novoNome = `${nomeBase} - Cópia ${contador}.md`;
+      }
+      
+      const newFile = {
+        id: generateId(),
+        name: novoNome,
+        content: result.item.content
+      };
+      currentFolder.files.push(newFile);
+      saveData();
+      showStatus(`Arquivo "${nome}" copiado com sucesso!`);
+      carregarArquivos();
+    }
+  } catch (error) {
+    showStatus("Erro ao copiar arquivo: " + error.message, true);
+  }
+}
+
+function getFolderById(id) {
+  if (!id) return driveData.root;
+  const result = getItemById(id);
+  return result && result.type === 'folder' ? result.item : driveData.root;
+}
+
+function getFolderPath(folder, path = []) {
+  if (folder === driveData.root) return ['Raiz'];
+  // Implementação simplificada
+  return ['Raiz', folder.name];
+}
+
+function carregarArquivos() {
+  try {
+    const currentFolder = getFolderById(pastaAtualId);
+    mostrarExplorador(currentFolder);
+  } catch (error) {
+    showStatus("Erro ao carregar arquivos: " + error.message, true);
+  }
+}
+
+function mostrarExplorador(folder) {
+  const explorer = document.getElementById("fileExplorer");
+  explorer.innerHTML = "";
+  
+  const pathText = folder === driveData.root ? "Raiz" : folder.name;
+  document.getElementById("currentFolderPath").innerText = pathText;
+  document.getElementById("backButton").style.display = pastaAtualId ? "inline-block" : "none";
+  
+  if (folder.children && folder.children.length > 0) {
+    const title = document.createElement("div");
+    title.className = "section-title";
+    title.innerText = "📁 Pastas";
+    explorer.appendChild(title);
+    
+    folder.children.forEach(pasta => {
+      const div = document.createElement("div");
+      div.className = "folder-item";
+      div.innerHTML = `
+        <div class="item-row">
+          <span class="item-name">📁 ${escapeHtml(pasta.name)}</span>
+        </div>
+        <div class="file-actions">
+          <button onclick="renomear('${pasta.id}', 'folder', '${escapeHtml(pasta.name)}')" class="secondary edit">✏️</button>
+          <button onclick="excluir('${pasta.id}', 'folder', '${escapeHtml(pasta.name)}')" class="delete">🗑️</button>
+          <button onclick="entrarPasta('${pasta.id}')" class="primary">📂 Abrir</button>
+        </div>
+      `;
+      explorer.appendChild(div);
+    });
+  }
+  
+  if (folder.files && folder.files.length > 0) {
+    const title = document.createElement("div");
+    title.className = "section-title";
+    title.innerText = "📄 Arquivos";
+    explorer.appendChild(title);
+    
+    folder.files.forEach(arquivo => {
+      const div = document.createElement("div");
+      div.className = "file-item";
+      div.innerHTML = `
+        <div class="item-row">
+          <span class="item-name">📄 ${escapeHtml(arquivo.name)}</span>
+        </div>
+        <div class="file-actions">
+          <button onclick="renomear('${arquivo.id}', 'file', '${escapeHtml(arquivo.name)}')" class="secondary edit">✏️</button>
+          <button onclick="copiarArquivo('${arquivo.id}', '${escapeHtml(arquivo.name)}')" class="secondary">📋 Cópia</button>
+          <button onclick="excluir('${arquivo.id}', 'file', '${escapeHtml(arquivo.name)}')" class="delete">🗑️</button>
+          <button onclick="abrirArquivo('${arquivo.id}')" class="primary">📖 Abrir</button>
+        </div>
+      `;
+      explorer.appendChild(div);
+    });
+  }
+  
+  if ((!folder.children || folder.children.length === 0) && (!folder.files || folder.files.length === 0)) {
+    explorer.innerHTML += "<p style='color: var(--text-muted); font-style: italic; font-size: 0.9rem; margin-top: 10px;'>Esta pasta está vazia</p>";
+  }
+}
+
+function entrarPasta(id) {
+  caminhoPastas.push(pastaAtualId);
+  pastaAtualId = id;
+  carregarArquivos();
+}
+
+function voltarPasta() {
+  if (caminhoPastas.length > 0) {
+    pastaAtualId = caminhoPastas.pop();
+  } else {
+    pastaAtualId = null;
+  }
+  carregarArquivos();
+}
+
+function abrirArquivo(id) {
+  try {
+    const result = getItemById(id);
+    if (result && result.type === 'file') {
+      document.getElementById("editor").value = result.item.content;
+      document.getElementById("fileName").value = result.item.name;
+      arquivoAtualId = id;
+      showStatus(`Arquivo "${result.item.name}" carregado com sucesso!`);
+    }
+  } catch (error) {
+    showStatus("Erro ao abrir arquivo: " + error.message, true);
+  }
+}
+
+function copiarTexto() {
+  const editor = document.getElementById("editor");
+  editor.select();
+  editor.setSelectionRange(0, 99999);
+  try {
+    const sucesso = document.execCommand('copy');
+    if (sucesso) {
+      showStatus("✅ Texto copiado para a área de transferência!");
+    } else {
+      showStatus("❌ Falha ao copiar texto. Tente novamente.", true);
+    }
+  } catch (err) {
+    showStatus("❌ Erro ao copiar: " + err.message, true);
+  }
+  editor.blur();
+}
+
+async function colarTexto() {
+  try {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      const texto = await navigator.clipboard.readText();
+      const editor = document.getElementById("editor");
+      const startPos = editor.selectionStart;
+      const endPos = editor.selectionEnd;
+      const textoAtual = editor.value;
+      const novoTexto = textoAtual.substring(0, startPos) + texto + textoAtual.substring(endPos);
+      editor.value = novoTexto;
+      editor.selectionStart = editor.selectionEnd = startPos + texto.length;
+      showStatus("✅ Texto colado com sucesso!");
+    } else {
+      showStatus("⚠️ Seu navegador não suporta colagem automática. Use Ctrl+V", true);
+    }
+  } catch (err) {
+    showStatus("⚠️ Para colar, use Ctrl+V (Windows/Linux) ou Cmd+V (Mac)", true);
+  }
+}
+
+function exportarDados() {
+  const data = localStorage.getItem('markdownEditorData');
+  const blob = new Blob([data], {type: 'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `markdown_backup_${new Date().toISOString().slice(0,19)}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showStatus("Backup exportado com sucesso!");
+}
+
+function importarDados() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = '.json';
+  input.onchange = (e) => {
+    const file = e.target.files[0];
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target.result);
+        localStorage.setItem('markdownEditorData', JSON.stringify(data));
+        driveData = data;
+        initData();
+        pastaAtualId = null;
+        caminhoPastas = [];
+        carregarArquivos();
+        showStatus("Dados restaurados com sucesso!");
+      } catch (error) {
+        showStatus("Erro ao importar: arquivo inválido", true);
+      }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function escapeHtml(text) {
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+function showStatus(message, isError = false) {
+  const statusDiv = document.getElementById('status');
+  statusDiv.className = 'status ' + (isError ? 'error' : 'success');
+  statusDiv.innerHTML = message;
+  statusDiv.style.display = 'block';
+  setTimeout(() => {
+    statusDiv.style.display = 'none';
+  }, 3000);
+}
+
+// Inicialização
+initData();
+window.onload = () => {
+  pastaAtualId = null;
+  caminhoPastas = [];
+  carregarArquivos();
+};
+</script>
+
+</body>
+</html>
