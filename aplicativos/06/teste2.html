@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Editor Musical - Diagnóstico</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body { font-family: monospace; padding: 20px; }
+        .error { color: red; background: #ffeeee; padding: 10px; border-left: 3px solid red; margin: 10px 0; }
+        .success { color: green; background: #eeffee; padding: 10px; border-left: 3px solid green; }
+        #log { background: #f0f0f0; padding: 10px; height: 200px; overflow: auto; font-size: 12px; }
+    </style>
+</head>
+<body>
+    <h1>🎵 Editor Musical - Diagnóstico</h1>
+    
+    <div id="status">🟡 Inicializando...</div>
+    <div id="log"></div>
+    
+    <textarea id="editor" rows="10" cols="80" placeholder="Digite aqui..."></textarea>
+    <br>
+    <button onclick="saveToSupabase()">💾 Salvar</button>
+    <button onclick="testConnection()">🔌 Testar Conexão</button>
+
+    <script>
+        const SUPABASE_URL = 'https://unqbbyejjbyiysgvwrrj.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_ltaNA7nnVozoSCOcZIjg';
+        
+        let supabase;
+        let currentRoomId = 'teste_' + Date.now();
+        
+        function addLog(message, isError = false) {
+            const logDiv = document.getElementById('log');
+            const p = document.createElement('div');
+            p.textContent = new Date().toLocaleTimeString() + ': ' + message;
+            p.style.color = isError ? 'red' : 'black';
+            logDiv.appendChild(p);
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+        
+        async function testConnection() {
+            addLog('🔍 Testando conexão com Supabase...');
+            
+            try {
+                addLog('URL: ' + SUPABASE_URL);
+                addLog('Key: ' + SUPABASE_ANON_KEY.substring(0, 20) + '...');
+                
+                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                
+                // Teste simples
+                const { data, error } = await supabase
+                    .from('books')
+                    .select('count', { count: 'exact', head: true });
+                
+                if (error) {
+                    addLog('❌ ERRO: ' + JSON.stringify(error), true);
+                    addLog('Código: ' + error.code, true);
+                    addLog('Mensagem: ' + error.message, true);
+                    
+                    if (error.code === 'PGRST301') {
+                        addLog('⚠️ Você está abrindo como file://! Use http://localhost', true);
+                    }
+                } else {
+                    addLog('✅ Conexão OK! Tabela books acessível', false);
+                    document.getElementById('status').innerHTML = '✅ Conectado ao Supabase!';
+                }
+                
+            } catch (err) {
+                addLog('❌ EXCEÇÃO: ' + err.message, true);
+            }
+        }
+        
+        async function saveToSupabase() {
+            if (!supabase) {
+                addLog('❌ Cliente não inicializado', true);
+                return;
+            }
+            
+            const content = document.getElementById('editor').value;
+            
+            addLog('💾 Salvando na sala: ' + currentRoomId);
+            
+            // Tentar inserir
+            const { error } = await supabase
+                .from('books')
+                .upsert({
+                    id: currentRoomId,
+                    content: content,
+                    updated_at: new Date()
+                });
+            
+            if (error) {
+                addLog('❌ Erro ao salvar: ' + JSON.stringify(error), true);
+            } else {
+                addLog('✅ Salvo com sucesso!', false);
+            }
+        }
+        
+        // Carregar conteúdo
+        async function loadContent() {
+            if (!supabase) return;
+            
+            const { data, error } = await supabase
+                .from('books')
+                .select('content')
+                .eq('id', currentRoomId)
+                .single();
+            
+            if (data && !error) {
+                document.getElementById('editor').value = data.content;
+                addLog('📖 Conteúdo carregado', false);
+            } else {
+                addLog('📝 Nenhum conteúdo encontrado, criando novo', false);
+            }
+        }
+        
+        // Verificar se está rodando corretamente
+        function checkEnvironment() {
+            if (window.location.protocol === 'file:') {
+                addLog('⚠️ ⚠️ ⚠️ ATENÇÃO ⚠️ ⚠️ ⚠️', true);
+                addLog('Você está abrindo como file://', true);
+                addLog('Isso NÃO funciona com Supabase!', true);
+                addLog('', true);
+                addLog('SOLUÇÃO:', true);
+                addLog('1. Abra o terminal na pasta deste arquivo', true);
+                addLog('2. Digite: python -m http.server 8000', true);
+                addLog('3. Abra: http://localhost:8000/teste.html', true);
+                document.getElementById('status').innerHTML = '❌ ERRO: Use servidor local!';
+            } else {
+                addLog('✅ Ambiente correto: ' + window.location.protocol + '//' + window.location.host, false);
+                testConnection();
+            }
+        }
+        
+        // Iniciar
+        checkEnvironment();
+        
+        // Auto-salvar
+        let timeout;
+        document.getElementById('editor').addEventListener('input', () => {
+            clearTimeout(timeout);
+            timeout = setTimeout(saveToSupabase, 1000);
+        });
+    </script>
+</body>
+</html>
