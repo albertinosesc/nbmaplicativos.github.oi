@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+    <title>Pro Maestro - Visualizador com Vídeo</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0f1a; min-height: 100vh; }
+        .header {
+            background: linear-gradient(135deg, #1a1a2e 0%, #0f3460 100%);
+            color: white; padding: 15px 20px; display: flex; justify-content: space-between;
+            align-items: center; flex-wrap: wrap; gap: 10px; border-bottom: 2px solid #e94560;
+        }
+        .header h1 { font-size: 1.3rem; display: flex; align-items: center; gap: 10px; }
+        .room-info { background: rgba(255,255,255,0.1); padding: 8px 15px; border-radius: 8px; font-family: monospace; }
+        .status { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; }
+        .status.online { background: #2ecc71; box-shadow: 0 0 5px #2ecc71; }
+        .status.offline { background: #e74c3c; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .toolbar { background: #1a1a2e; padding: 12px; border-radius: 8px; margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+        button { padding: 8px 16px; background: #0f3460; color: white; border: none; border-radius: 5px; cursor: pointer; transition: all 0.2s; font-size: 13px; }
+        button:hover { background: #e94560; transform: translateY(-2px); }
+        .preview-container { background: white; border-radius: 12px; padding: 40px; min-height: 500px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        .score { margin: 30px 0; overflow-x: auto; }
+        .chord-notation { font-family: monospace; white-space: pre-wrap; line-height: 3; margin: 20px 0; padding: 15px; background: #f8f8f8; border-left: 4px solid #e94560; border-radius: 0 8px 8px 0; }
+        .lyric { position: relative; display: inline-block; }
+        .chord { position: absolute; top: -20px; left: 0; font-weight: bold; font-size: 0.9em; color: #e94560; }
+        img { max-width: 100%; margin: 20px 0; border-radius: 8px; }
+        .notification { position: fixed; bottom: 20px; left: 20px; background: #333; color: white; padding: 10px 20px; border-radius: 8px; z-index: 10000; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { opacity: 0; transform: translateX(-100%); } to { opacity: 1; transform: translateX(0); } }
+        .loading { text-align: center; padding: 50px; color: #666; }
+        .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; border-top: 1px solid #333; margin-top: 20px; }
+        
+        /* Painel de vídeo (igual ao editor) */
+        .video-panel {
+            position: fixed; bottom: 20px; right: 20px; width: 300px;
+            background: #1a1a2e; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 2000; display: none; flex-direction: column; padding: 10px;
+            color: white; font-size: 12px; border: 1px solid #e94560;
+        }
+        .video-panel video { width: 100%; background: #000; border-radius: 8px; margin: 5px 0; }
+        .video-panel .remote-video { width: 100%; max-height: 200px; }
+        .video-controls { display: flex; gap: 8px; margin-top: 8px; justify-content: center; }
+        .video-controls button { background: #0f3460; padding: 5px 10px; font-size: 11px; }
+        .close-video { position: absolute; top: 5px; right: 10px; cursor: pointer; font-size: 18px; color: #e94560; }
+        .peer-id { background: #0f3460; padding: 5px; border-radius: 5px; font-family: monospace; word-break: break-all; margin: 8px 0; font-size: 10px; }
+        
+        @media (max-width: 768px) {
+            .preview-container { padding: 20px; }
+            .header h1 { font-size: 1rem; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1><span>🎵</span> Pro Maestro - Visualizador</h1>
+        <div style="display: flex; gap: 15px; align-items: center; flex-wrap: wrap;">
+            <div class="room-info">📚 Sala: <strong id="roomCode">---</strong></div>
+            <div><span class="status offline" id="statusDot"></span><span id="statusText">Offline</span></div>
+            <button onclick="copiarLinkVisual()">📋 Copiar Link</button>
+            <button onclick="baixarPDFVisual()">📄 Baixar PDF</button>
+            <button onclick="imprimirVisual()">🖨️ Imprimir</button>
+            <button onclick="toggleVideoPanel()" style="background: #9b59b6;">📹 Vídeo Chamada</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <div class="toolbar">
+            <span style="flex:1; color:#aaa;">👁️ Modo de visualização - Apenas leitura</span>
+            <button onclick="recarregarVisual()">🔄 Recarregar</button>
+        </div>
+        <div id="preview" class="preview-container"><div class="loading">🟡 Carregando conteúdo...</div></div>
+        <div class="footer">Conteúdo sincronizado em tempo real com o editor do professor</div>
+    </div>
+
+    <!-- Painel de Vídeo chamada -->
+    <div id="videoCallPanel" class="video-panel">
+        <span class="close-video" onclick="toggleVideoPanel()">✖</span>
+        <strong>📹 Chamada de Vídeo</strong>
+        <div style="margin-top: 5px;">Seu ID: <span id="myPeerId" class="peer-id">Carregando...</span></div>
+        <div style="display: flex; gap: 5px; margin-top: 5px;">
+            <input type="text" id="remotePeerId" placeholder="ID do professor" style="flex:1; background:#0f3460; border:none; padding:5px; border-radius:5px; color:white;">
+            <button onclick="startCall()">Ligar</button>
+            <button onclick="endCall()">Desligar</button>
+        </div>
+        <video id="localVideo" autoplay muted playsinline style="background:#000;"></video>
+        <video id="remoteVideo" class="remote-video" autoplay playsinline style="background:#000;"></video>
+        <div class="video-controls">
+            <button onclick="toggleCamera()">📷 Câmera</button>
+            <button onclick="toggleMicrophone()">🎤 Microfone</button>
+        </div>
+    </div>
+
+    <script>
+        // =========== SUPABASE CONFIG ==========
+        const SUPABASE_URL = 'https://unqbbyejjbyiysgvwrrj.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVucWJieWVqamJ5aXlzZ3Z3cnJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODU1NjMsImV4cCI6MjA5Njk2MTU2M30.l-S9Cb2AnW1gX6iL-7aEghHvnH4ykJ_X7oeNn7z932I';
+        
+        let supabaseClient = null;
+        let salaIdAtual = null;
+        let canalAtivo = null;
+        
+        // PeerJS
+        let peer = null;
+        let currentCall = null;
+        let localStream = null;
+        let cameraEnabled = true;
+        let micEnabled = true;
+        let userId = null;
+        
+        // =========== FUNÇÕES PRINCIPAIS ==========
+        async function iniciarVisualizador() {
+            try {
+                mostrarNotificacao('🟡 Conectando ao Supabase...', 'info');
+                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                const { error } = await supabaseClient.from('books').select('count', { count: 'exact', head: true });
+                if (error) throw error;
+                atualizarStatusConexao(true);
+                mostrarNotificacao('✅ Conectado!', 'success');
+                
+                // Gerar userId estável para o Peer
+                userId = localStorage.getItem('userId_visualizador');
+                if (!userId) {
+                    userId = 'aluno_' + Math.random().toString(36).substring(2, 10);
+                    localStorage.setItem('userId_visualizador', userId);
+                }
+                
+                const params = new URLSearchParams(window.location.search);
+                salaIdAtual = params.get('sala');
+                if (salaIdAtual) {
+                    document.getElementById('roomCode').innerHTML = salaIdAtual;
+                    await carregarConteudoVisual(salaIdAtual);
+                    await configurarRealtimeVisual();
+                } else {
+                    document.getElementById('preview').innerHTML = `<div style="text-align: center; padding: 50px;"><h3>⚠️ Nenhuma sala especificada</h3><p>Use um link compartilhado pelo professor.</p><p style="font-family: monospace;">Exemplo: ?sala=abc123</p></div>`;
+                }
+                // Iniciar PeerJS para vídeo
+                initPeer();
+            } catch (erro) {
+                atualizarStatusConexao(false);
+                mostrarNotificacao('❌ Erro de conexão: ' + erro.message, 'error');
+                document.getElementById('preview').innerHTML = `<div style="text-align: center; padding: 50px; color: red;"><h3>❌ Erro de Conexão</h3><p>Não foi possível conectar ao servidor.</p></div>`;
+            }
+        }
+        
+        async function carregarConteudoVisual(id) {
+            const previewDiv = document.getElementById('preview');
+            previewDiv.innerHTML = '<div class="loading">📖 Carregando conteúdo da sala ' + id + '...</div>';
+            const { data, error } = await supabaseClient.from('books').select('content').eq('id', id).single();
+            if (error || !data) {
+                previewDiv.innerHTML = `<div style="text-align: center; padding: 50px;"><h3>⚠️ Sala não encontrada</h3><p>A sala "${id}" não existe ou foi removida.</p></div>`;
+                return;
+            }
+            renderizarConteudoVisual(data.content);
+            mostrarNotificacao('✅ Conteúdo carregado!', 'success');
+        }
+        
+        async function configurarRealtimeVisual() {
+            if (canalAtivo) await supabaseClient.removeChannel(canalAtivo);
+            canalAtivo = supabaseClient.channel(`sala-${salaIdAtual}`)
+                .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'books', filter: `id=eq.${salaIdAtual}` }, (payload) => {
+                    renderizarConteudoVisual(payload.new.content);
+                    mostrarNotificacao('📝 Conteúdo atualizado pelo professor!', 'info');
+                })
+                .subscribe();
+        }
+        
+        function renderizarConteudoVisual(content) {
+            const preview = document.getElementById('preview');
+            preview.innerHTML = '';
+            const segments = content.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[IMG\][\s\S]*?\[\/IMG\])/g);
+            segments.forEach(segment => {
+                if (segment.startsWith('[ABC]') && segment.endsWith('[/ABC]')) {
+                    const abcNotation = segment.slice(5, -6).trim();
+                    const div = document.createElement('div'); div.className = 'score';
+                    preview.appendChild(div);
+                    try { ABCJS.renderAbc(div, abcNotation, { responsive: 'resize', staffwidth: 800, scale: 1.5 }); }
+                    catch(e) { div.innerHTML = '<p style="color: red">❌ Erro na notação musical ABC</p>'; }
+                } 
+                else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
+                    const cifraDiv = document.createElement('div'); cifraDiv.className = 'chord-notation';
+                    let styles = {};
+                    const styleMatch = segment.match(/\[CIFRA\s+style\s*=\s*([^\]]+)\]/);
+                    if (styleMatch) {
+                        const styleStr = styleMatch[1];
+                        styleStr.split(',').forEach(style => {
+                            const [prop, value] = style.split(':').map(s => s.trim());
+                            styles[prop] = value.replace(/["']/g, '');
+                        });
+                        segment = segment.replace(/\[CIFRA\s+style\s*=\s*[^\]]+\]/, '[CIFRA]');
+                    }
+                    const cifraText = segment.slice(segment.indexOf(']') + 1, -8).trim();
+                    const processedLines = cifraText.split('\n').map(line => {
+                        return line.replace(/\[([^\]]+)\]([^\[]+)?/g, (match, chord, text) => {
+                            text = text || '';
+                            let styleStr = '';
+                            if (Object.keys(styles).length > 0) {
+                                const safeStyles = Object.entries(styles).map(([k,v]) => `${k}:${v}`).join(';');
+                                styleStr = ` style="${safeStyles}"`;
+                            }
+                            return `<span class="lyric"><span class="chord"${styleStr}>${chord}</span>${text}</span>`;
+                        });
+                    });
+                    cifraDiv.innerHTML = processedLines.join('\n');
+                    preview.appendChild(cifraDiv);
+                }
+                else if (segment.startsWith('[IMG]') && segment.endsWith('[/IMG]')) {
+                    const imgData = segment.slice(5, -6).trim();
+                    const img = document.createElement('img');
+                    try { const imgInfo = JSON.parse(imgData); img.src = imgInfo.src; img.alt = imgInfo.alt || 'Imagem'; preview.appendChild(img); }
+                    catch(e) { preview.appendChild(document.createTextNode(segment)); }
+                }
+                else if (segment.trim()) {
+                    const html = marked.parse(segment);
+                    const div = document.createElement('div'); div.innerHTML = html; preview.appendChild(div);
+                }
+            });
+        }
+        
+        // =========== PEERJS (VIDEO) ==========
+        function initPeer() {
+            const peerId = (userId || 'aluno').replace(/[^a-zA-Z0-9]/g, '') + '_' + Date.now().toString().slice(-6);
+            peer = new Peer(peerId, { debug: 2, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
+            peer.on('open', (id) => {
+                document.getElementById('myPeerId').innerHTML = id;
+                mostrarNotificacao('📞 Vídeo pronto. Seu ID: ' + id, 'info');
+            });
+            peer.on('call', (call) => {
+                if (confirm('Professor está chamando. Aceitar?')) {
+                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                        .then(stream => {
+                            localStream = stream;
+                            document.getElementById('localVideo').srcObject = stream;
+                            call.answer(stream);
+                            call.on('stream', (remoteStream) => { document.getElementById('remoteVideo').srcObject = remoteStream; });
+                            currentCall = call;
+                        })
+                        .catch(err => mostrarNotificacao('Erro ao acessar câmera/mic', 'error'));
+                } else { call.close(); }
+            });
+            peer.on('error', (err) => { console.error('Peer error:', err); mostrarNotificacao('Erro de vídeo: ' + err.type, 'error'); });
+        }
+        
+        function startCall() {
+            const remoteId = document.getElementById('remotePeerId').value.trim();
+            if (!remoteId) { mostrarNotificacao('Digite o ID do professor', 'error'); return; }
+            if (!peer) { mostrarNotificacao('Peer não inicializado', 'error'); return; }
+            if (localStream) {
+                const call = peer.call(remoteId, localStream);
+                call.on('stream', (remoteStream) => { document.getElementById('remoteVideo').srcObject = remoteStream; });
+                currentCall = call;
+                mostrarNotificacao('Chamando...', 'info');
+            } else {
+                navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                    .then(stream => {
+                        localStream = stream;
+                        document.getElementById('localVideo').srcObject = stream;
+                        const call = peer.call(remoteId, stream);
+                        call.on('stream', (remoteStream) => { document.getElementById('remoteVideo').srcObject = remoteStream; });
+                        currentCall = call;
+                        mostrarNotificacao('Chamando...', 'info');
+                    })
+                    .catch(err => mostrarNotificacao('Permissão negada', 'error'));
+            }
+        }
+        
+        function endCall() {
+            if (currentCall) { currentCall.close(); currentCall = null; }
+            if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
+            document.getElementById('localVideo').srcObject = null;
+            document.getElementById('remoteVideo').srcObject = null;
+            mostrarNotificacao('Chamada encerrada', 'info');
+        }
+        
+        function toggleCamera() {
+            if (!localStream) return;
+            const videoTrack = localStream.getVideoTracks()[0];
+            if (videoTrack) { cameraEnabled = !cameraEnabled; videoTrack.enabled = cameraEnabled; mostrarNotificacao(cameraEnabled ? 'Câmera ligada' : 'Câmera desligada', 'info'); }
+        }
+        function toggleMicrophone() {
+            if (!localStream) return;
+            const audioTrack = localStream.getAudioTracks()[0];
+            if (audioTrack) { micEnabled = !micEnabled; audioTrack.enabled = micEnabled; mostrarNotificacao(micEnabled ? 'Microfone ligado' : 'Microfone desligado', 'info'); }
+        }
+        function toggleVideoPanel() {
+            const panel = document.getElementById('videoCallPanel');
+            if (panel.style.display === 'flex') { panel.style.display = 'none'; }
+            else {
+                panel.style.display = 'flex';
+                if (!localStream) {
+                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                        .then(stream => { localStream = stream; document.getElementById('localVideo').srcObject = stream; })
+                        .catch(err => console.warn('Sem permissão de câmera', err));
+                }
+            }
+        }
+        
+        // =========== FUNÇÕES AUXILIARES ==========
+        function copiarLinkVisual() {
+            const url = `${window.location.origin}${window.location.pathname}?sala=${salaIdAtual}`;
+            navigator.clipboard.writeText(url);
+            mostrarNotificacao('📋 Link copiado!', 'success');
+        }
+        async function baixarPDFVisual() {
+            const element = document.getElementById('preview');
+            mostrarNotificacao('📄 Gerando PDF...', 'info');
+            const opt = { margin: [10,10], filename: `pro_maestro_${salaIdAtual}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+            html2pdf().set(opt).from(element).save();
+        }
+        function imprimirVisual() { window.print(); }
+        function recarregarVisual() { if (salaIdAtual) carregarConteudoVisual(salaIdAtual); }
+        function atualizarStatusConexao(connected) {
+            const dot = document.getElementById('statusDot'); const text = document.getElementById('statusText');
+            if (connected) { dot.className = 'status online'; text.innerHTML = 'Online'; }
+            else { dot.className = 'status offline'; text.innerHTML = 'Offline'; }
+        }
+        function mostrarNotificacao(msg, tipo) {
+            const div = document.createElement('div'); div.className = 'notification';
+            div.style.background = tipo === 'error' ? '#e74c3c' : (tipo === 'info' ? '#3498db' : '#2ecc71');
+            div.textContent = msg; document.body.appendChild(div); setTimeout(() => div.remove(), 3000);
+        }
+        
+        iniciarVisualizador();
+    </script>
+</body>
+</html>
