@@ -2,146 +2,377 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Editor Musical - Diagnóstico</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor Musical - Colaboração em Tempo Real</title>
+    
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    
     <style>
-        body { font-family: monospace; padding: 20px; }
-        .error { color: red; background: #ffeeee; padding: 10px; border-left: 3px solid red; margin: 10px 0; }
-        .success { color: green; background: #eeffee; padding: 10px; border-left: 3px solid green; }
-        #log { background: #f0f0f0; padding: 10px; height: 200px; overflow: auto; font-size: 12px; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: Arial, sans-serif; background: #f0f2f5; padding: 20px; }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .editor-column, .preview-column {
+            flex: 1;
+            min-width: 300px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+        
+        .toolbar {
+            padding: 10px;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        
+        button {
+            padding: 8px 16px;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+        }
+        
+        button:hover { background: #45a049; }
+        
+        #editor {
+            width: 100%;
+            height: 500px;
+            padding: 15px;
+            border: none;
+            resize: none;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        
+        #preview {
+            padding: 15px;
+            height: 500px;
+            overflow-y: auto;
+            background: white;
+        }
+        
+        .notification {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            animation: slideIn 0.3s ease;
+            z-index: 10000;
+        }
+        
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        .room-code {
+            background: rgba(255,255,255,0.2);
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-family: monospace;
+        }
+        
+        .status {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+        }
+        
+        .status.connected { background: #4ade80; box-shadow: 0 0 5px #4ade80; }
+        .status.disconnected { background: #f87171; }
     </style>
 </head>
 <body>
-    <h1>🎵 Editor Musical - Diagnóstico</h1>
+    <div class="header">
+        <h1>🎵 Editor Musical Colaborativo</h1>
+        <div style="display: flex; gap: 15px; align-items: center;">
+            <div class="room-code">
+                📚 Sala: <strong id="roomCode">Carregando...</strong>
+            </div>
+            <div>
+                <span class="status disconnected" id="statusDot"></span>
+                <span id="statusText">Desconectado</span>
+            </div>
+            <button onclick="copyRoomLink()">📋 Copiar Link</button>
+            <button onclick="createNewRoom()">➕ Nova Sala</button>
+        </div>
+    </div>
     
-    <div id="status">🟡 Inicializando...</div>
-    <div id="log"></div>
-    
-    <textarea id="editor" rows="10" cols="80" placeholder="Digite aqui..."></textarea>
-    <br>
-    <button onclick="saveToSupabase()">💾 Salvar</button>
-    <button onclick="testConnection()">🔌 Testar Conexão</button>
+    <div class="container">
+        <div class="editor-column">
+            <div class="toolbar">
+                <button onclick="saveToSupabase()">💾 Salvar</button>
+                <button onclick="clearEditor()">🗑️ Limpar</button>
+            </div>
+            <textarea id="editor" placeholder="Digite seu texto aqui..."></textarea>
+        </div>
+        
+        <div class="preview-column">
+            <div class="toolbar">
+                <button onclick="updatePreview()">🔄 Atualizar Preview</button>
+            </div>
+            <div id="preview"></div>
+        </div>
+    </div>
 
     <script>
+        // =========== CONFIGURAÇÃO ===========
         const SUPABASE_URL = 'https://unqbbyejjbyiysgvwrrj.supabase.co';
         const SUPABASE_ANON_KEY = 'sb_publishable_ltaNA7nnVozoSCOcZIjg';
         
-        let supabase;
-        let currentRoomId = 'teste_' + Date.now();
+        // =========== VARIÁVEIS (sem duplicação) ===========
+        let supabaseClient = null;
+        let currentRoomId = null;
+        let syncTimeout = null;
+        let isTyping = false;
         
-        function addLog(message, isError = false) {
-            const logDiv = document.getElementById('log');
-            const p = document.createElement('div');
-            p.textContent = new Date().toLocaleTimeString() + ': ' + message;
-            p.style.color = isError ? 'red' : 'black';
-            logDiv.appendChild(p);
-            logDiv.scrollTop = logDiv.scrollHeight;
-            console.log(message);
-        }
-        
-        async function testConnection() {
-            addLog('🔍 Testando conexão com Supabase...');
-            
+        // =========== FUNÇÕES PRINCIPAIS ===========
+        async function init() {
             try {
-                addLog('URL: ' + SUPABASE_URL);
-                addLog('Key: ' + SUPABASE_ANON_KEY.substring(0, 20) + '...');
+                showNotification('🟡 Conectando ao Supabase...', 'info');
                 
-                supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                // Criar cliente apenas uma vez
+                if (!supabaseClient) {
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                }
                 
-                // Teste simples
-                const { data, error } = await supabase
+                // Testar conexão
+                const { error } = await supabaseClient
                     .from('books')
                     .select('count', { count: 'exact', head: true });
                 
                 if (error) {
-                    addLog('❌ ERRO: ' + JSON.stringify(error), true);
-                    addLog('Código: ' + error.code, true);
-                    addLog('Mensagem: ' + error.message, true);
-                    
-                    if (error.code === 'PGRST301') {
-                        addLog('⚠️ Você está abrindo como file://! Use http://localhost', true);
-                    }
-                } else {
-                    addLog('✅ Conexão OK! Tabela books acessível', false);
-                    document.getElementById('status').innerHTML = '✅ Conectado ao Supabase!';
+                    throw new Error(error.message);
                 }
                 
-            } catch (err) {
-                addLog('❌ EXCEÇÃO: ' + err.message, true);
+                updateConnectionStatus(true);
+                showNotification('✅ Conectado ao Supabase!', 'success');
+                
+                // Verificar se tem sala na URL
+                const urlParams = new URLSearchParams(window.location.search);
+                const roomFromURL = urlParams.get('room');
+                
+                if (roomFromURL) {
+                    currentRoomId = roomFromURL;
+                    await loadRoom(currentRoomId);
+                } else {
+                    await createNewRoom();
+                }
+                
+            } catch (error) {
+                console.error('Erro:', error);
+                updateConnectionStatus(false);
+                showNotification('❌ Erro: ' + error.message, 'error');
             }
         }
         
-        async function saveToSupabase() {
-            if (!supabase) {
-                addLog('❌ Cliente não inicializado', true);
+        async function createNewRoom() {
+            const newRoomId = Math.random().toString(36).substring(2, 10);
+            currentRoomId = newRoomId;
+            
+            const exampleContent = `🎵 BEM-VINDO AO EDITOR COLABORATIVO!
+
+[ABC]
+X:1
+M:4/4
+L:1/8
+K:C
+CDEF GABc | BAGF E2D2 |]
+[/ABC]
+
+✨ Edite este texto e veja sincronizar em tempo real!
+Compartilhe o link com seus amigos.`;
+            
+            const { error } = await supabaseClient
+                .from('books')
+                .insert([{
+                    id: currentRoomId,
+                    content: exampleContent,
+                    created_at: new Date(),
+                    updated_at: new Date()
+                }]);
+                
+            if (error) {
+                console.error('Erro ao criar sala:', error);
+                showNotification('❌ Erro ao criar sala', 'error');
                 return;
             }
             
-            const content = document.getElementById('editor').value;
+            await setupRealtimeSync();
+            document.getElementById('editor').value = exampleContent;
+            updatePreview();
             
-            addLog('💾 Salvando na sala: ' + currentRoomId);
+            // Atualizar URL
+            const url = new URL(window.location);
+            url.searchParams.set('room', currentRoomId);
+            window.history.pushState({}, '', url);
             
-            // Tentar inserir
-            const { error } = await supabase
-                .from('books')
-                .upsert({
-                    id: currentRoomId,
-                    content: content,
-                    updated_at: new Date()
-                });
-            
-            if (error) {
-                addLog('❌ Erro ao salvar: ' + JSON.stringify(error), true);
-            } else {
-                addLog('✅ Salvo com sucesso!', false);
-            }
+            document.getElementById('roomCode').textContent = currentRoomId;
+            showNotification('✨ Nova sala criada!', 'success');
         }
         
-        // Carregar conteúdo
-        async function loadContent() {
-            if (!supabase) return;
-            
-            const { data, error } = await supabase
+        async function loadRoom(roomId) {
+            const { data, error } = await supabaseClient
                 .from('books')
                 .select('content')
-                .eq('id', currentRoomId)
+                .eq('id', roomId)
                 .single();
+                
+            if (error && error.code !== 'PGRST116') {
+                console.error('Erro:', error);
+                showNotification('❌ Sala não encontrada', 'error');
+                await createNewRoom();
+                return;
+            }
             
-            if (data && !error) {
+            if (data) {
                 document.getElementById('editor').value = data.content;
-                addLog('📖 Conteúdo carregado', false);
-            } else {
-                addLog('📝 Nenhum conteúdo encontrado, criando novo', false);
+                updatePreview();
+            }
+            
+            document.getElementById('roomCode').textContent = roomId;
+            await setupRealtimeSync();
+            showNotification('📖 Sala carregada!', 'success');
+        }
+        
+        async function setupRealtimeSync() {
+            const channel = supabaseClient.channel(`room-${currentRoomId}`)
+                .on(
+                    'postgres_changes',
+                    {
+                        event: 'UPDATE',
+                        schema: 'public',
+                        table: 'books',
+                        filter: `id=eq.${currentRoomId}`
+                    },
+                    (payload) => {
+                        const newContent = payload.new.content;
+                        const editor = document.getElementById('editor');
+                        
+                        if (editor.value !== newContent && !isTyping) {
+                            editor.value = newContent;
+                            updatePreview();
+                            showNotification('👥 Sincronizado!', 'info');
+                        }
+                    }
+                )
+                .subscribe();
+        }
+        
+        async function saveToSupabase() {
+            if (!currentRoomId || !supabaseClient) return;
+            
+            const content = document.getElementById('editor').value;
+            
+            const { error } = await supabaseClient
+                .from('books')
+                .update({
+                    content: content,
+                    updated_at: new Date()
+                })
+                .eq('id', currentRoomId);
+                
+            if (error) {
+                console.error('Erro ao salvar:', error);
             }
         }
         
-        // Verificar se está rodando corretamente
-        function checkEnvironment() {
-            if (window.location.protocol === 'file:') {
-                addLog('⚠️ ⚠️ ⚠️ ATENÇÃO ⚠️ ⚠️ ⚠️', true);
-                addLog('Você está abrindo como file://', true);
-                addLog('Isso NÃO funciona com Supabase!', true);
-                addLog('', true);
-                addLog('SOLUÇÃO:', true);
-                addLog('1. Abra o terminal na pasta deste arquivo', true);
-                addLog('2. Digite: python -m http.server 8000', true);
-                addLog('3. Abra: http://localhost:8000/teste.html', true);
-                document.getElementById('status').innerHTML = '❌ ERRO: Use servidor local!';
-            } else {
-                addLog('✅ Ambiente correto: ' + window.location.protocol + '//' + window.location.host, false);
-                testConnection();
+        function syncWhileTyping() {
+            if (syncTimeout) clearTimeout(syncTimeout);
+            isTyping = true;
+            syncTimeout = setTimeout(() => {
+                saveToSupabase();
+                isTyping = false;
+            }, 1000);
+        }
+        
+        function updatePreview() {
+            const text = document.getElementById('editor').value;
+            const preview = document.getElementById('preview');
+            preview.innerHTML = `<pre style="white-space: pre-wrap; font-family: monospace;">${escapeHtml(text)}</pre>`;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function copyRoomLink() {
+            const url = `${window.location.protocol}//${window.location.host}${window.location.pathname}?room=${currentRoomId}`;
+            navigator.clipboard.writeText(url);
+            showNotification('📋 Link copiado!', 'success');
+        }
+        
+        function clearEditor() {
+            if (confirm('Tem certeza?')) {
+                document.getElementById('editor').value = '';
+                updatePreview();
+                syncWhileTyping();
             }
         }
+        
+        function updateConnectionStatus(connected) {
+            const dot = document.getElementById('statusDot');
+            const text = document.getElementById('statusText');
+            
+            if (connected) {
+                dot.className = 'status connected';
+                text.textContent = 'Conectado';
+            } else {
+                dot.className = 'status disconnected';
+                text.textContent = 'Desconectado';
+            }
+        }
+        
+        function showNotification(message, type = 'success') {
+            const notification = document.createElement('div');
+            notification.className = 'notification';
+            notification.style.background = type === 'error' ? '#dc3545' : (type === 'info' ? '#2196F3' : '#4CAF50');
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            setTimeout(() => notification.remove(), 3000);
+        }
+        
+        // Event listeners
+        document.getElementById('editor').addEventListener('input', () => {
+            updatePreview();
+            syncWhileTyping();
+        });
         
         // Iniciar
-        checkEnvironment();
-        
-        // Auto-salvar
-        let timeout;
-        document.getElementById('editor').addEventListener('input', () => {
-            clearTimeout(timeout);
-            timeout = setTimeout(saveToSupabase, 1000);
-        });
+        init();
     </script>
 </body>
 </html>
