@@ -4,13 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
     <title>Pro Maestro - Visualizador com Vídeo</title>
-    
+        
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
-    
+        
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f0f1a; min-height: 100vh; }
@@ -29,7 +29,7 @@
         button { padding: 8px 16px; background: #0f3460; color: white; border: none; border-radius: 5px; cursor: pointer; transition: all 0.2s; font-size: 13px; }
         button:hover { background: #e94560; transform: translateY(-2px); }
         .preview-container { background: white; border-radius: 12px; padding: 40px; min-height: 500px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        .score { margin: 30px 0; overflow-x: auto; }
+        .score { margin: 30px 0; overflow: visible; } /* Ajustado overflow para o scale não cortar */
         .chord-notation { font-family: monospace; white-space: pre-wrap; line-height: 3; margin: 20px 0; padding: 15px; background: #f8f8f8; border-left: 4px solid #e94560; border-radius: 0 8px 8px 0; }
         .lyric { position: relative; display: inline-block; }
         .chord { position: absolute; top: -20px; left: 0; font-weight: bold; font-size: 0.9em; color: #e94560; }
@@ -38,8 +38,7 @@
         @keyframes slideIn { from { opacity: 0; transform: translateX(-100%); } to { opacity: 1; transform: translateX(0); } }
         .loading { text-align: center; padding: 50px; color: #666; }
         .footer { text-align: center; padding: 20px; color: #666; font-size: 12px; border-top: 1px solid #333; margin-top: 20px; }
-        
-        /* Painel de vídeo (igual ao editor) */
+                
         .video-panel {
             position: fixed; bottom: 20px; right: 20px; width: 300px;
             background: #1a1a2e; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.5);
@@ -52,10 +51,37 @@
         .video-controls button { background: #0f3460; padding: 5px 10px; font-size: 11px; }
         .close-video { position: absolute; top: 5px; right: 10px; cursor: pointer; font-size: 18px; color: #e94560; }
         .peer-id { background: #0f3460; padding: 5px; border-radius: 5px; font-family: monospace; word-break: break-all; margin: 8px 0; font-size: 10px; }
-        
+                
+        /* ===================================================
+           ESTILOS CUSTOMIZADOS - NBM ESCOLA DE MÚSICA 
+        =================================================== */
+        .score svg {
+            transform: scale(1.7);
+            transform-origin: top left;
+        }
+        /* Move e colore as cifras */
+        .score svg .abcjs-chord {
+            transform: translate(1px, 30px);
+            fill: red !important;
+        }
+        /* Tamanho das cifras */
+        .score svg .abcjs-chord tspan {
+            font-size: 24px !important;
+        }
+        /* Barras de compasso */
+        .score svg .abcjs-bar {
+            stroke-width: 2px;
+            stroke: black;
+        }
+        /* Aproxima o andamento do pentagrama */
+        .score svg .abcjs-tempo {
+            transform: translate(-48px, 30px);
+        }
+
         @media (max-width: 768px) {
             .preview-container { padding: 20px; }
             .header h1 { font-size: 1rem; }
+            .score svg { transform: scale(1.2); } /* Escala reduzida para telas menores */
         }
     </style>
 </head>
@@ -71,7 +97,7 @@
             <button onclick="toggleVideoPanel()" style="background: #9b59b6;">📹 Vídeo Chamada</button>
         </div>
     </div>
-    
+        
     <div class="container">
         <div class="toolbar">
             <span style="flex:1; color:#aaa;">👁️ Modo de visualização - Apenas leitura</span>
@@ -81,7 +107,6 @@
         <div class="footer">Conteúdo sincronizado em tempo real com o editor do professor</div>
     </div>
 
-    <!-- Painel de Vídeo chamada -->
     <div id="videoCallPanel" class="video-panel">
         <span class="close-video" onclick="toggleVideoPanel()">✖</span>
         <strong>📹 Chamada de Vídeo</strong>
@@ -103,11 +128,11 @@
         // =========== SUPABASE CONFIG ==========
         const SUPABASE_URL = 'https://unqbbyejjbyiysgvwrrj.supabase.co';
         const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVucWJieWVqamJ5aXlzZ3Z3cnJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODU1NjMsImV4cCI6MjA5Njk2MTU2M30.l-S9Cb2AnW1gX6iL-7aEghHvnH4ykJ_X7oeNn7z932I';
-        
+                
         let supabaseClient = null;
         let salaIdAtual = null;
         let canalAtivo = null;
-        
+                
         // PeerJS
         let peer = null;
         let currentCall = null;
@@ -115,7 +140,7 @@
         let cameraEnabled = true;
         let micEnabled = true;
         let userId = null;
-        
+                
         // =========== FUNÇÕES PRINCIPAIS ==========
         async function iniciarVisualizador() {
             try {
@@ -125,14 +150,13 @@
                 if (error) throw error;
                 atualizarStatusConexao(true);
                 mostrarNotificacao('✅ Conectado!', 'success');
-                
-                // Gerar userId estável para o Peer
+                                
                 userId = localStorage.getItem('userId_visualizador');
                 if (!userId) {
                     userId = 'aluno_' + Math.random().toString(36).substring(2, 10);
                     localStorage.setItem('userId_visualizador', userId);
                 }
-                
+                                
                 const params = new URLSearchParams(window.location.search);
                 salaIdAtual = params.get('sala');
                 if (salaIdAtual) {
@@ -142,7 +166,6 @@
                 } else {
                     document.getElementById('preview').innerHTML = `<div style="text-align: center; padding: 50px;"><h3>⚠️ Nenhuma sala especificada</h3><p>Use um link compartilhado pelo professor.</p><p style="font-family: monospace;">Exemplo: ?sala=abc123</p></div>`;
                 }
-                // Iniciar PeerJS para vídeo
                 initPeer();
             } catch (erro) {
                 atualizarStatusConexao(false);
@@ -150,7 +173,7 @@
                 document.getElementById('preview').innerHTML = `<div style="text-align: center; padding: 50px; color: red;"><h3>❌ Erro de Conexão</h3><p>Não foi possível conectar ao servidor.</p></div>`;
             }
         }
-        
+                
         async function carregarConteudoVisual(id) {
             const previewDiv = document.getElementById('preview');
             previewDiv.innerHTML = '<div class="loading">📖 Carregando conteúdo da sala ' + id + '...</div>';
@@ -162,7 +185,7 @@
             renderizarConteudoVisual(data.content);
             mostrarNotificacao('✅ Conteúdo carregado!', 'success');
         }
-        
+                
         async function configurarRealtimeVisual() {
             if (canalAtivo) await supabaseClient.removeChannel(canalAtivo);
             canalAtivo = supabaseClient.channel(`sala-${salaIdAtual}`)
@@ -172,20 +195,29 @@
                 })
                 .subscribe();
         }
-        
+                
         function renderizarConteudoVisual(content) {
             const preview = document.getElementById('preview');
             preview.innerHTML = '';
             const segments = content.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[IMG\][\s\S]*?\[\/IMG\])/g);
+            
             segments.forEach(segment => {
                 if (segment.startsWith('[ABC]') && segment.endsWith('[/ABC]')) {
                     const abcNotation = segment.slice(5, -6).trim();
-                    const div = document.createElement('div'); div.className = 'score';
+                    const div = document.createElement('div'); 
+                    div.className = 'score';
                     preview.appendChild(div);
-                    try { ABCJS.renderAbc(div, abcNotation, { responsive: 'resize', staffwidth: 800, scale: 1.5 }); }
+                    try { 
+                        // Alterado responsive e scale para permitir o controle via CSS do professor
+                        ABCJS.renderAbc(div, abcNotation, { 
+                            responsive: 'resize', 
+                            staffwidth: 700,
+                            add_classes: true // ESSENCIAL para aplicar as classes CSS .abcjs-chord, .abcjs-tempo, etc.
+                        }); 
+                    }
                     catch(e) { div.innerHTML = '<p style="color: red">❌ Erro na notação musical ABC</p>'; }
                 } 
-                else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
+                 else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
                     const cifraDiv = document.createElement('div'); cifraDiv.className = 'chord-notation';
                     let styles = {};
                     const styleMatch = segment.match(/\[CIFRA\s+style\s*=\s*([^\]]+)\]/);
@@ -218,13 +250,14 @@
                     try { const imgInfo = JSON.parse(imgData); img.src = imgInfo.src; img.alt = imgInfo.alt || 'Imagem'; preview.appendChild(img); }
                     catch(e) { preview.appendChild(document.createTextNode(segment)); }
                 }
-                else if (segment.trim()) {
+                // Filtra tags de style soltas que venham no banco de dados para evitar impressão de texto cru
+                else if (segment.trim() && !segment.trim().startsWith('<style>')) {
                     const html = marked.parse(segment);
                     const div = document.createElement('div'); div.innerHTML = html; preview.appendChild(div);
                 }
             });
         }
-        
+                
         // =========== PEERJS (VIDEO) ==========
         function initPeer() {
             const peerId = (userId || 'aluno').replace(/[^a-zA-Z0-9]/g, '') + '_' + Date.now().toString().slice(-6);
@@ -248,7 +281,7 @@
             });
             peer.on('error', (err) => { console.error('Peer error:', err); mostrarNotificacao('Erro de vídeo: ' + err.type, 'error'); });
         }
-        
+                
         function startCall() {
             const remoteId = document.getElementById('remotePeerId').value.trim();
             if (!remoteId) { mostrarNotificacao('Digite o ID do professor', 'error'); return; }
@@ -271,7 +304,7 @@
                     .catch(err => mostrarNotificacao('Permissão negada', 'error'));
             }
         }
-        
+                
         function endCall() {
             if (currentCall) { currentCall.close(); currentCall = null; }
             if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
@@ -279,7 +312,7 @@
             document.getElementById('remoteVideo').srcObject = null;
             mostrarNotificacao('Chamada encerrada', 'info');
         }
-        
+                
         function toggleCamera() {
             if (!localStream) return;
             const videoTrack = localStream.getVideoTracks()[0];
@@ -302,7 +335,7 @@
                 }
             }
         }
-        
+                
         // =========== FUNÇÕES AUXILIARES ==========
         function copiarLinkVisual() {
             const url = `${window.location.origin}${window.location.pathname}?sala=${salaIdAtual}`;
@@ -327,7 +360,7 @@
             div.style.background = tipo === 'error' ? '#e74c3c' : (tipo === 'info' ? '#3498db' : '#2ecc71');
             div.textContent = msg; document.body.appendChild(div); setTimeout(() => div.remove(), 3000);
         }
-        
+                
         iniciarVisualizador();
     </script>
 </body>
