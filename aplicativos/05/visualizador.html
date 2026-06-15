@@ -30,32 +30,44 @@
         button:hover { background: #e94560; transform: translateY(-2px); }
         .preview-container { background: white; border-radius: 12px; padding: 40px; min-height: 500px; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
         
-        /* Contêiner da partitura ajustado para não cortar os elementos flutuantes */
         .score { 
             margin: 20px 0; 
             overflow-x: auto; 
             width: 100%;
         }
         
+        /* Ajuste estético para os blocos de diagramas de acordes flutuantes */
+        .chord-diagram-container {
+            display: inline-block;
+            text-align: center;
+            margin: 10px;
+            background: #fdfdfd;
+            padding: 10px;
+            border-radius: 8px;
+            border: 1px solid #ddd;
+        }
+        .chord-diagram-container canvas {
+            max-width: 120px;
+            height: auto;
+            display: block;
+            margin: 0 auto;
+        }
+        
         /* ===================================================
            ESTILOS DESIGN - NBM ESCOLA DE MÚSICA 
         =================================================== */
-        /* Move e colore de vermelho os textos de acordes/cifras */
         .score svg .abcjs-chord {
             transform: translate(0px, 12px);
             fill: #ff0000 !important;
             font-weight: bold;
         }
-        /* Tamanho das cifras de forma equilibrada */
         .score svg .abcjs-chord tspan {
             font-size: 16px !important;
         }
-        /* Barras de compasso mais nítidas, sem exagero */
         .score svg .abcjs-bar {
             stroke-width: 1.8px;
             stroke: #000000;
         }
-        /* Reposiciona o andamento (Ex: q=120) para perto do pentagrama */
         .score svg .abcjs-tempo {
             transform: translate(0px, 10px);
         }
@@ -126,14 +138,15 @@
             <button onclick="toggleMicrophone()">🎤 Microfone</button>
         </div>
     </div>
+
     <script src="js/acordeviolao.js"></script>
-<script src="js/acordes_dinamicos.js"></script>
-<script src="js/acordes_piano.js"></script>
-<script src="js/editor_acordes.js"></script>
-<script src="js/piano_editor.js"></script>
-<script src="js/main.js"></script>
-<script src="js/exportar.js"></script>
-<script src="js/abc_infantil.js"></script>
+    <script src="js/acordes_dinamicos.js"></script>
+    <script src="js/acordes_piano.js"></script>
+    <script src="js/editor_acordes.js"></script>
+    <script src="js/piano_editor.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/exportar.js"></script>
+    <script src="js/abc_infantil.js"></script>
 
     <script>
         // =========== SUPABASE CONFIG ==========
@@ -210,7 +223,9 @@
         function renderizarConteudoVisual(content) {
             const preview = document.getElementById('preview');
             preview.innerHTML = '';
-            const segments = content.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[IMG\][\s\S]*?\[\/IMG\])/g);
+            
+            // Regex atualizada para incluir a divisão de tags de [Acorde:X;Y]Nome[/Acorde]
+            const segments = content.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[Acorde:\d+;\d+\].*?\[\/Acorde\]|\[IMG\][\s\S]*?\[\/IMG\])/g);
             
             segments.forEach(segment => {
                 if (segment.startsWith('[ABC]') && segment.endsWith('[/ABC]')) {
@@ -219,16 +234,24 @@
                     div.className = 'score';
                     preview.appendChild(div);
                     try { 
-                        // O controle de escala ideal e balanceado é feito aqui (scale: 1.3 ou 1.4)
-                        ABCJS.renderAbc(div, abcNotation, { 
-                            responsive: 'resize', 
-                            scale: 1.3, 
-                            add_classes: true 
-                        }); 
-                    }
-                    catch(e) { div.innerHTML = '<p style="color: red">❌ Erro na notação musical ABC</p>'; }
+                        ABCJS.renderAbc(div, abcNotation, { responsive: 'resize', scale: 1.3, add_classes: true }); 
+                    } catch(e) { div.innerHTML = '<p style="color: red">❌ Erro na notação musical ABC</p>'; }
                 } 
-                 else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
+                else if (segment.startsWith('[Acorde:') && segment.endsWith('[/Acorde]')) {
+                    // Trata a tag do diagrama de acorde dinamicamente
+                    const match = segment.match(/\[Acorde:(\d+);(\d+)\](.*?)\[\/Acorde\]/);
+                    if (match) {
+                        const numero = match[1];
+                        const nome = match[3];
+                        
+                        const chordContainer = document.createElement('div');
+                        chordContainer.className = 'chord-diagram-container';
+                        // Cria a estrutura padrão que o seu script (ex: acordes_dinamicos.js) espera ler
+                        chordContainer.innerHTML = `<div class="chord-title" style="font-weight:bold; margin-bottom:5px; color:#333;">${nome}</div><canvas data-chord="${numero}"></canvas>`;
+                        preview.appendChild(chordContainer);
+                    }
+                }
+                else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
                     const cifraDiv = document.createElement('div'); cifraDiv.className = 'chord-notation';
                     let styles = {};
                     const styleMatch = segment.match(/\[CIFRA\s+style\s*=\s*([^\]]+)\]/);
@@ -266,6 +289,13 @@
                     const div = document.createElement('div'); div.innerHTML = html; preview.appendChild(div);
                 }
             });
+
+            // DISPARO CRUCIAL: Após injetar os contêineres e canvas na tela, força os scripts locais a desenharem os acordes
+            if (typeof renderizarAcordesDinamicos === 'function') {
+                renderizarAcordesDinamicos();
+            } else if (typeof renderizar === 'function') {
+                renderizar();
+            }
         }
                 
         // =========== PEERJS (VIDEO) ==========
