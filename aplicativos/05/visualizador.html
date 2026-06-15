@@ -36,7 +36,6 @@
             width: 100%;
         }
         
-        /* Ajuste estético para os blocos de diagramas de acordes flutuantes */
         .chord-diagram-container {
             display: inline-block;
             text-align: center;
@@ -168,12 +167,13 @@
         // =========== FUNÇÕES PRINCIPAIS ==========
         async function iniciarVisualizador() {
             try {
-                mostrarNotificacao('🟡 Conectando ao Supabase...', 'info');
-                supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-                const { error } = await supabaseClient.from('books').select('count', { count: 'exact', head: true });
-                if (error) throw error;
-                atualizarStatusConexao(true);
-                mostrarNotificacao('✅ Conectado!', 'success');
+                // Inicializa o cliente do Supabase de forma segura
+                if (window.supabase) {
+                    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+                    atualizarStatusConexao(true);
+                } else {
+                    throw new Error("Biblioteca do Supabase não carregou.");
+                }
                                 
                 userId = localStorage.getItem('userId_visualizador');
                 if (!userId) {
@@ -192,42 +192,76 @@
                 }
                 initPeer();
             } catch (erro) {
+                console.error("Erro na inicialização:", erro);
                 atualizarStatusConexao(false);
-                mostrarNotificacao('❌ Erro de conexão: ' + erro.message, 'error');
-                document.getElementById('preview').innerHTML = `<div style="text-align: center; padding: 50px; color: red;"><h3>❌ Erro de Conexão</h3><p>Não foi possível conectar ao servidor.</p></div>`;
+                mostrarNotificacao('⚠️ Conectando em modo de contingência...', 'info');
+                
+                // Força tentativa direta mesmo com erro de handshake inicial
+                const params = new URLSearchParams(window.location.search);
+                salaIdAtual = params.get('sala');
+                if (salaIdAtual && supabaseClient) {
+                    document.getElementById('roomCode').innerHTML = salaIdAtual;
+                    carregarConteudoVisual(salaIdAtual);
+                    configurarRealtimeVisual();
+                }
             }
         }
                 
         async function carregarConteudoVisual(id) {
+            if (!supabaseClient) return;
             const previewDiv = document.getElementById('preview');
-            previewDiv.innerHTML = '<div class="loading">📖 Carregando conteúdo da sala ' + id + '...</div>';
-            const { data, error } = await supabaseClient.from('books').select('content').eq('id', id).single();
-            if (error || !data) {
-                previewDiv.innerHTML = `<div style="text-align: center; padding: 50px;"><h3>⚠️ Sala não encontrada</h3><p>A sala "${id}" não existe ou foi removida.</p></div>`;
-                return;
+            
+            // Só exibe o carregando se a tela estiver vazia para evitar piscadas durantes atualizações em tempo real
+            if(previewDiv.innerHTML.includes('loading') || previewDiv.innerHTML === '') {
+                previewDiv.innerHTML = '<div class="loading">📖 Carregando conteúdo da sala ' + id + '...</div>';
             }
-            renderizarConteudoVisual(data.content);
-            mostrarNotificacao('✅ Conteúdo carregado!', 'success');
+
+            try {
+                const { data, error } = await supabaseClient.from('books').select('content').eq('id', id).single();
+                if (error) throw error;
+                
+                if (data) {
+                    renderizarConteudoVisual(data.content);
+                    atualizarStatusConexao(true);
+                } else {
+                    previewDiv.innerHTML = `<div style="text-align: center; padding: 50px;"><h3>⚠️ Sala vazia ou não encontrada</h3><p>A sala "${id}" não retornou dados.</p></div>`;
+                }
+            } catch (err) {
+                console.error("Erro ao puxar dados da tabela:", err);
+                mostrarNotificacao('❌ Erro ao sincronizar conteúdo.', 'error');
+            }
         }
                 
         async function configurarRealtimeVisual() {
+            if (!supabaseClient || !salaIdAtual) return;
             if (canalAtivo) await supabaseClient.removeChannel(canalAtivo);
+            
             canalAtivo = supabaseClient.channel(`sala-${salaIdAtual}`)
                 .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'books', filter: `id=eq.${salaIdAtual}` }, (payload) => {
-                    renderizarConteudoVisual(payload.new.content);
-                    mostrarNotificacao('📝 Conteúdo atualizado pelo professor!', 'info');
+                    if (payload.new && payload.new.content) {
+                        renderizarConteudoVisual(payload.new.content);
+                        mostrarNotificacao('📝 Conteúdo atualizado pelo professor!', 'info');
+                    }
                 })
-                .subscribe();
+                .subscribe((status) => {
+                    if (status === 'SUBSCRIBED') {
+                        atualizarStatusConexao(true);
+                    }
+                });
         }
                 
         function renderizarConteudoVisual(content) {
             const preview = document.getElementById('preview');
+            if (!preview) return;
+            
             preview.innerHTML = '';
             
-            // Regex atualizada para incluir a divisão de tags de [Acorde:X;Y]Nome[/Acorde]
+            // Captura blocos específicos incluindo as tags customizadas [Acorde:1;1]
             const segments = content.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[Acorde:\d+;\d+\].*?\[\/Acorde\]|\[IMG\][\s\S]*?\[\/IMG\])/g);
             
             segments.forEach(segment => {
+                if (!segment) return;
+
                 if (segment.startsWith('[ABC]') && segment.endsWith('[/ABC]')) {
                     const abcNotation = segment.slice(5, -6).trim();
                     const div = document.createElement('div'); 
@@ -238,7 +272,6 @@
                     } catch(e) { div.innerHTML = '<p style="color: red">❌ Erro na notação musical ABC</p>'; }
                 } 
                 else if (segment.startsWith('[Acorde:') && segment.endsWith('[/Acorde]')) {
-                    // Trata a tag do diagrama de acorde dinamicamente
                     const match = segment.match(/\[Acorde:(\d+);(\d+)\](.*?)\[\/Acorde\]/);
                     if (match) {
                         const numero = match[1];
@@ -246,8 +279,7 @@
                         
                         const chordContainer = document.createElement('div');
                         chordContainer.className = 'chord-diagram-container';
-                        // Cria a estrutura padrão que o seu script (ex: acordes_dinamicos.js) espera ler
-                        chordContainer.innerHTML = `<div class="chord-title" style="font-weight:bold; margin-bottom:5px; color:#333;">${nome}</div><canvas data-chord="${numero}"></canvas>`;
+                        chordContainer.innerHTML = `<div class="chord-title" style="font-weight:bold; margin-bottom:5px; color:#333; font-size:14px;">${nome}</div><canvas data-chord="${numero}"></canvas>`;
                         preview.appendChild(chordContainer);
                     }
                 }
@@ -290,21 +322,22 @@
                 }
             });
 
-            // DISPARO CRUCIAL: Após injetar os contêineres e canvas na tela, força os scripts locais a desenharem os acordes
-            if (typeof renderizarAcordesDinamicos === 'function') {
-                renderizarAcordesDinamicos();
-            } else if (typeof renderizar === 'function') {
-                renderizar();
-            }
+            // Dispara as funções de desenho gráfico contidas em acordes_dinamicos.js
+            setTimeout(() => {
+                if (typeof renderizarAcordesDinamicos === 'function') {
+                    renderizarAcordesDinamicos();
+                } else if (typeof renderizar === 'function') {
+                    renderizar();
+                }
+            }, 50);
         }
                 
         // =========== PEERJS (VIDEO) ==========
         function initPeer() {
             const peerId = (userId || 'aluno').replace(/[^a-zA-Z0-9]/g, '') + '_' + Date.now().toString().slice(-6);
-            peer = new Peer(peerId, { debug: 2, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
+            peer = new Peer(peerId, { debug: 1, config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] } });
             peer.on('open', (id) => {
                 document.getElementById('myPeerId').innerHTML = id;
-                mostrarNotificacao('📞 Vídeo pronto. Seu ID: ' + id, 'info');
             });
             peer.on('call', (call) => {
                 if (confirm('Professor está chamando. Aceitar?')) {
@@ -319,7 +352,6 @@
                         .catch(err => mostrarNotificacao('Erro ao acessar câmera/mic', 'error'));
                 } else { call.close(); }
             });
-            peer.on('error', (err) => { console.error('Peer error:', err); mostrarNotificacao('Erro de vídeo: ' + err.type, 'error'); });
         }
                 
         function startCall() {
@@ -392,8 +424,10 @@
         function recarregarVisual() { if (salaIdAtual) carregarConteudoVisual(salaIdAtual); }
         function atualizarStatusConexao(connected) {
             const dot = document.getElementById('statusDot'); const text = document.getElementById('statusText');
-            if (connected) { dot.className = 'status online'; text.innerHTML = 'Online'; }
-            else { dot.className = 'status offline'; text.innerHTML = 'Offline'; }
+            if (dot && text) {
+                if (connected) { dot.className = 'status online'; text.innerHTML = 'Online'; }
+                else { dot.className = 'status offline'; text.innerHTML = 'Offline'; }
+            }
         }
         function mostrarNotificacao(msg, tipo) {
             const div = document.createElement('div'); div.className = 'notification';
