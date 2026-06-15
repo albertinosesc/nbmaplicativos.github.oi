@@ -1,0 +1,842 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Pro Maestro - Sistema Completo com Vídeo Chamada</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+
+    <link rel="stylesheet" href="css/estilo.css">
+
+    <style>
+        /* Estilos para o painel de vídeo chamadas integrado */
+        .video-panel {
+            position: fixed;
+            bottom: 20px;
+            right: 80px;
+            width: 320px;
+            background: #1a1a2e;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+            z-index: 2000;
+            display: none;
+            flex-direction: column;
+            padding: 10px;
+            color: white;
+            font-size: 12px;
+            border: 1px solid #e94560;
+        }
+        .video-panel video {
+            width: 100%;
+            background: #000;
+            border-radius: 8px;
+            margin: 5px 0;
+        }
+        .video-panel .remote-video {
+            width: 100%;
+            max-height: 200px;
+        }
+        .video-controls {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+        .video-controls button {
+            background: #0f3460;
+            border: none;
+            padding: 6px 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            color: white;
+            font-size: 11px;
+        }
+        .video-controls button:hover {
+            background: #e94560;
+        }
+        .peer-id {
+            background: #0f3460;
+            padding: 5px;
+            border-radius: 5px;
+            font-family: monospace;
+            word-break: break-all;
+            margin: 8px 0;
+            font-size: 10px;
+        }
+        .close-video {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            cursor: pointer;
+            font-size: 18px;
+            color: #e94560;
+        }
+    </style>
+</head>
+<body>
+
+<button class="toggle-sidebar" onclick="toggleSidebar()">☰</button>
+
+<div id="sidebar">
+  <div class="sidebar-content">
+    <h2>🎸 Pro Maestro</h2>
+    
+    <div style="background: #0f3460; padding: 12px; border-radius: 8px; margin-bottom: 15px;">
+      <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; font-size: 12px; margin-bottom: 10px;">
+        <div><span class="status offline" id="statusDot"></span><span id="statusText">Offline</span></div>
+        <div style="background: #e94560; padding: 4px 10px; border-radius: 20px;" id="userCount">👥 0 online</div>
+        <button onclick="copyRoomLink()" style="background: #e94560; padding: 5px 10px; margin: 0; font-size: 11px;">📋 Copiar Link</button>
+      </div>
+      
+      <div style="display: flex; gap: 5px; background: #1a1a2e; padding: 6px; border-radius: 5px;">
+        <input type="text" id="inputSalaManual" placeholder="Nome ou ID da sala" style="flex: 1; padding: 5px; background: #0f3460; border: 1px solid #e94560; color: white; border-radius: 4px; font-size: 12px;">
+        <button onclick="conectarSalaManual()" style="background: #2ecc71; color: white; padding: 5px 10px; margin: 0; font-size: 12px; font-weight: bold; border: none; border-radius: 4px; cursor: pointer;">Ir</button>
+      </div>
+      <div style="font-size: 11px; color: #aaa; margin-top: 5px; text-align: center;">
+        Sala Atual: <strong id="roomCode" style="color: #fff;">---</strong>
+      </div>
+    </div>
+    
+    <button onclick="toggleVideoPanel()" style="background: #9b59b6; margin-bottom: 15px;">📹 Chamada de Vídeo</button>
+    
+    <div id="listaAulas"></div>
+    <button onclick="exportHTML()">📄 Exportar Aula (HTML)</button>
+    <button onclick="exportarPastaAtual()">📂 Exportar Pasta (HTML)</button>
+    <button onclick="exportAppHTML()">💾 Exportar App (Todas)</button>
+    <button onclick="resetarAcordes()">🔄 Resetar Acordes</button>
+    <button onclick="abrirEditorAcordes()">🎸 Editor de Acordes</button>
+    <button onclick="abrirModalPiano()">🎹 Editor de Piano</button>
+    
+    <div class="menu-categoria collapsed" id="menu-estrutura">
+      <h4 onclick="toggleCategoria('menu-estrutura')">📝 Estrutura ▼</h4>
+      <div class="categoria-content">
+        <button onclick="addFormatacao('# ', '')">H1 Título</button>
+        <button onclick="addFormatacao('## ', '')">H2 Título</button>
+        <button onclick="addFormatacao('### ', '')">H3 Título</button>
+        <button onclick="addFormatacao('---\n', '')">Linha Horizontal</button>
+      </div>
+    </div>
+    
+    <div class="menu-categoria collapsed" id="menu-enfase">
+      <h4 onclick="toggleCategoria('menu-enfase')">🎨 Ênfase ▼</h4>
+      <div class="categoria-content">
+        <button onclick="addFormatacao('**', '**')">Negrito</button>
+        <button onclick="addFormatacao('*', '*')">Itálico</button>
+        <button onclick="addFormatacao('***', '***')">Negrito+Itálico</button>
+        <button onclick="addFormatacao('~~', '~~')">Tachado</button>
+      </div>
+    </div>
+    
+    <div class="menu-categoria collapsed" id="menu-listas">
+      <h4 onclick="toggleCategoria('menu-listas')">📋 Listas ▼</h4>
+      <div class="categoria-content">
+        <button onclick="addFormatacao('- ', '')">Não ordenada</button>
+        <button onclick="addFormatacao('1. ', '')">Ordenada</button>
+        <button onclick="addFormatacao('  - ', '')">Sublista</button>
+        <button onclick="addFormatacao('- [ ] ', '')">Checkbox [ ]</button>
+        <button onclick="addFormatacao('- [x] ', '')">Checkbox [x]</button>
+      </div>
+    </div>
+    
+    <div class="menu-categoria collapsed" id="menu-blocos">
+      <h4 onclick="toggleCategoria('menu-blocos')">💬 Blocos ▼</h4>
+      <div class="categoria-content">
+        <button onclick="addFormatacao('> ', '')">Citação</button>
+        <button onclick="addFormatacao('>> ', '')">Citação aninhada</button>
+        <button onclick="addFormatacao('```\n', '\n```')">Bloco código</button>
+        <button onclick="addFormatacao('`', '`')">Código inline</button>
+      </div>
+    </div>
+    
+    <div class="menu-categoria collapsed" id="menu-midia">
+      <h4 onclick="toggleCategoria('menu-midia')">🔗 Links/Mídia ▼</h4>
+      <div class="categoria-content">
+        <button onclick="inserirLink()">Link</button>
+        <button onclick="inserirImagem()">Imagem</button>
+      </div>
+    </div>
+    
+    <div class="menu-categoria collapsed" id="menu-partituras">
+      <h4 onclick="toggleCategoria('menu-partituras')">🎵 Partituras ▼</h4>
+      <div class="categoria-content">
+        <button onclick="inserirAcorde()">🎸 Acorde Violão</button>
+        <button onclick="inserirABC()">🎵 Partitura Normal</button>
+        <button onclick="inserirABCInfantil()">🎨 Partitura Infantil</button>
+        <button onclick="inserirPiano()">🎹 Acorde Piano</button>
+      </div>
+    </div>
+    
+    <div style="margin-top: 15px; padding: 10px; background: #0f3460; border-radius: 8px;">
+        <h4 style="color: #e94560; margin-bottom: 10px;">💾 Backup (3 Opções)</h4>
+        <div style="display: flex; flex-direction: column; gap: 8px;">
+            <div style="background: #1a1a2e; padding: 8px; border-radius: 5px;">
+                <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">📄 Arquivo Separado</div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="exportarArquivo()" style="flex:1; background: #2ecc71; padding: 8px; border: none; border-radius: 5px; color: white; cursor: pointer;">📤 Exportar</button>
+                    <button onclick="importarArquivo()" style="flex:1; background: #3a86ff; padding: 8px; border: none; border-radius: 5px; color: white; cursor: pointer;">📥 Importar</button>
+                </div>
+            </div>
+            <div style="background: #1a1a2e; padding: 8px; border-radius: 5px;">
+                <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">📂 Pasta Atual</div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="exportarPastaAtual()" style="flex:1; background: #9b59b6; padding: 8px; border: none; border-radius: 5px; color: white; cursor: pointer;">📤 Exportar</button>
+                    <button onclick="importarParaPastaAtual()" style="flex:1; background: #e67e22; padding: 8px; border: none; border-radius: 5px; color: white; cursor: pointer;">📥 Importar</button>
+                </div>
+            </div>
+            <div style="background: #1a1a2e; padding: 8px; border-radius: 5px;">
+                <div style="font-size: 12px; color: #aaa; margin-bottom: 5px;">💾 Sistema Completo</div>
+                <div style="display: flex; gap: 8px;">
+                    <button onclick="exportarTudoSistema()" style="flex:1; background: #e94560; padding: 8px; border: none; border-radius: 5px; color: white; cursor: pointer;">📤 Exportar</button>
+                    <button onclick="importarTudoSistema()" style="flex:1; background: #f39c12; padding: 8px; border: none; border-radius: 5px; color: white; cursor: pointer;">📥 Importar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div id="msgSemSuporte" style="display: none; font-size: 11px; margin-top: 10px; color: #f39c12; text-align: center;">
+        ⚠️ Seu navegador não suporta exportar/importar pastas. Use as opções "Arquivo Separado" ou "Tudo".
+    </div>
+    
+    <p style="font-size: 11px; margin-top: 10px; color: #aaa; text-align: center;">
+        📄 <strong>Arquivo</strong> = Dados principais<br>
+        📁 <strong>Pasta</strong> = Dados organizados (Chrome/Edge)<br>
+        💾 <strong>Tudo</strong> = Dados + Preferências + Configurações
+    </p>
+    <div>
+        links: <br>
+        <a href="https://albertinosesc.github.io/nbmaplicativos.github.oi/aplicativos/05/dicionario_acorde_nu.html" style="color: #aaa;" target="_blank">Lista de IDs_Dicionário Violão</a>
+    </div>
+    <hr>
+    <div class="controles-sidebar">
+      <h3>🎨 Controle Partitura</h3>
+      <button onclick="toggleCoresNotas()" id="btnCores" style="background: #00CC00;">✅ Cores</button>
+      <div class="control-group-sidebar">
+        <label>📏 Espaço ENTRE Pentagramas</label>
+        <input type="range" id="staffsepRange" min="0" max="200" step="2" value="60" oninput="atualizarStaffSep()">
+        <span id="staffsepValue">60</span>
+      </div>
+      <div class="control-group-sidebar">
+        <label>📐 Espaço ENTRE Sistemas</label>
+        <input type="range" id="sysstaffsepRange" min="0" max="200" step="2" value="80" oninput="atualizarSysStaffSep()">
+        <span id="sysstaffsepValue">80</span>
+      </div>
+      <div class="control-group-sidebar">
+        <label>🎨 Intensidade Cores</label>
+        <input type="range" id="intensidadeRange" min="0.3" max="1" step="0.05" value="0.8" oninput="atualizarIntensidadeCores()">
+        <span id="intensidadeValue">0.8</span>
+      </div>
+      <div class="control-group-sidebar">
+        <label>🎵 Distância ACORDES (Y)</label>
+        <input type="range" id="acordeRange" min="-55" max="55" step="1" value="-8" oninput="ajustarAcordes()">
+        <span id="acordeValue">-8</span>
+      </div>
+      <div class="control-group-sidebar">
+        <label>✏️ Distância LETRAS (Y)</label>
+        <input type="range" id="letraRange" min="-55" max="55" step="1" value="12" oninput="ajustarLetras()">
+        <span id="letraValue">12</span>
+      </div>
+      <div class="control-group-sidebar">
+        <label>⬅️➡️ Alinhamento LETRAS (X)</label>
+        <input type="range" id="letraXRange" min="-30" max="30" step="1" value="5" oninput="ajustarLetrasX()">
+        <span id="letraXValue">5</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="main">
+  <div class="toolbar">
+    <button onclick="addFormatacao('# ', '')">H1</button>
+    <button onclick="addFormatacao('## ', '')">H2</button>
+    <button onclick="addFormatacao('**', '**')">B</button>
+    <button onclick="addFormatacao('*', '*')">I</button>
+    <button onclick="addFormatacao('- ', '')">•</button>
+    <button onclick="addFormatacao('1. ', '')">1.</button>
+    <button onclick="addFormatacao('> ', '')">❝</button>
+    <button onclick="inserirLink()">🔗</button>
+    <button onclick="inserirAcorde()">🎸</button>
+    <button onclick="inserirABC()">🎵</button>
+    <button onclick="inserirABCInfantil()">🎨</button>
+    <button onclick="inserirPiano()">🎹</button>
+    
+    <input type="number" id="buscaAcordeRapida" placeholder="Nº do acorde" style="width: 120px; padding: 6px; border-radius: 5px; border: 1px solid #e94560; background: #1a1a2e; color: white;" title="Digite o número do acorde e pressione Enter">
+    <button onclick="inserirAcordePorNumero()" style="background: #9b59b6; padding: 6px 12px;">🎸 Inserir</button>
+    <button onclick="copiarEditor()">📋 Copiar</button>
+    <button onclick="colarEditor()">📄 Colar</button>
+  </div>
+
+  <div class="editor-container">
+    <textarea id="editor" placeholder="Digite seu conteúdo aqui..."></textarea>
+    <div id="preview"></div>
+  </div>
+</div>
+
+<button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreenPreview()">⛶</button>
+
+<div id="modalAcordes" class="modal">
+  <div class="modal-content">
+    <span class="close" onclick="fecharEditorAcordes()">&times;</span>
+    <h2>🎸 Editor de Acordes</h2>
+    <h3>📚 Biblioteca Local</h3>
+    <div style="margin: 15px 0;">
+      <input type="text" id="pesquisaAcordes" placeholder="🔍 Pesquisar acorde..." style="width: 100%; padding: 8px; background: #0f3460; border: none; border-radius: 5px; color: #fff;">
+    </div>
+    <div id="bibliotecaAcordes" class="biblioteca-acordes"></div>
+    <h3>📝 Escreva seus acordes</h3>
+    <p>Formatos aceitos:<br>
+    <strong>Formato 1:</strong> 'C': { nome: 'Dó Maior', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 1, baixo: 'C' }<br>
+    <strong>Formato 2:</strong> C: Dó Maior / -1,3,2,0,1,0 / ,3,2,,1, / false / 1 / C</p>
+    <textarea id="acordeInput" placeholder='Digite seus acordes aqui...'></textarea>
+    <div style="margin-top: 10px; display: flex; gap: 10px; flex-wrap: wrap;">
+      <button onclick="gerarPreviewAcordes()" style="background: #e94560;">🔧 Gerar Preview</button>
+      <button onclick="salvarAcordeNaBiblioteca()" style="background: #0066FF;">💾 Salvar na Biblioteca</button>
+      <button onclick="copiarCodigoAcordes()" style="background: #00CC00;">📋 Copiar Código JS</button>
+      <button onclick="fecharEditorAcordes()" style="background: #666;">❌ Fechar</button>
+    </div>
+    <div id="previewAcordes" style="background: white; border-radius: 8px; padding: 15px; margin-top: 15px; min-height: 150px;"></div>
+    <textarea id="codigoAcordes" rows="6" readonly style="margin-top: 15px; height: 120px; font-size: 11px;"></textarea>
+  </div>
+</div>
+
+<div id="modalPiano" class="modal">
+  <div class="modal-content" style="max-width: 1400px;">
+    <span class="close" onclick="fecharModalPiano()">&times;</span>
+    <h2>🎹 Editor de Piano</h2>
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+      <div>
+        <div class="clef-selector" style="margin-bottom: 15px;">
+          <span style="font-weight: bold;">🎼 Adicionar notas:</span>
+          <button id="clefTrebleBtn" class="clef-btn treble active" onclick="setClefModePiano('treble')">🎵 Clave de Sol</button>
+          <button id="clefBassBtn" class="clef-btn bass" onclick="setClefModePiano('bass')">🎶 Clave de Fá</button>
+        </div>
+        <div class="keyboardWrap" style="overflow-x: auto; border: 1px solid #ddd; padding: 10px; background: #fff; border-radius: 8px;">
+          <div id="keyboard" style="position: relative; height: 160px; white-space: nowrap; display: inline-block;"></div>
+        </div>
+        <div style="text-align: center; margin-top: 5px; font-size: 12px;">
+          👆 Clique nas teclas: <span id="clefModeLabel" class="clef-indicator treble">🔵 Clave de Sol</span>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 15px;">
+          <div class="form-group">
+            <label>🎸 Dedilhado Mão Direita:</label>
+            <input id="fingersTreble" value="1 3 5" oninput="atualizarEditorPiano()">
+          </div>
+          <div class="form-group">
+            <label>🎸 Dedilhado Mão Esquerda:</label>
+            <input id="fingersBass" value="5 3 1" oninput="atualizarEditorPiano()">
+          </div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+          <div class="form-group">
+            <label>🎵 Início:</label>
+            <input id="startNota" value="C3" onchange="criarTecladoPiano(); atualizarEditorPiano()">
+          </div>
+          <div class="form-group">
+            <label>🎵 Fim:</label>
+            <input id="endNota" value="C4" onchange="criarTecladoPiano(); atualizarEditorPiano()">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>🔍 Tamanho: <span id="zoomPianoVal">30</span>px</label>
+          <input type="range" id="zoomPiano" min="20" max="60" value="30" oninput="ajustarZoomPiano(this.value)">
+        </div>
+        <div class="form-group">
+          <label>📝 Nome:</label>
+          <input id="diagramNamePiano" value="C Maior">
+        </div>
+        <div class="form-group">
+          <label>🎼 ABC:</label>
+          <textarea id="abcTextPiano" rows="3" oninput="sincronizarDoABCPiano()"></textarea>
+        </div>
+        <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+          <button class="btn-primary" onclick="adicionarDiagramaPiano()">➕ Adicionar</button>
+          <button class="btn-danger" onclick="limparEditorPiano()">🗑️ Limpar</button>
+          <button class="btn-info" onclick="generarCodigoPianoParaEditor()">📋 Gerar Código</button>
+        </div>
+        <div style="margin-top: 15px; padding: 8px; background: #f8f9fa; border-radius: 8px;">
+          <div style="text-align:center;">👁️ Pré-visualização:</div>
+          <div id="preview-diagram-piano" style="display: flex; justify-content: center; overflow-x: auto;"></div>
+          <div id="preview-score-piano" style="display: flex; justify-content: center; margin-top: 8px;"></div>
+        </div>
+      </div>
+      <div>
+        <div class="panel-title">
+          📚 Meus Diagramas <span id="diagramCountPiano" class="badge-count">0</span>
+        </div>
+        <div style="background: linear-gradient(135deg, #f8f9fa, #e9ecef); border: 2px solid #667eea; border-radius: 12px; padding: 15px; margin-bottom: 20px;">
+          <h4 style="color: #667eea; margin: 0 0 15px 0;">📄 CONFIGURAÇÃO</h4>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+            <div style="background: white; padding: 12px; border-radius: 8px; text-align: center;">
+              <label>📊 COLUNAS</label>
+              <input type="number" id="columnsPiano" min="1" max="4" value="2" onchange="generarLayoutPiano()">
+            </div>
+            <div style="background: white; padding: 12px; border-radius: 8px; text-align: center;">
+              <label>📏 LINHAS</label>
+              <input type="number" id="rowsPiano" min="1" max="5" value="3" onchange="generarLayoutPiano()">
+            </div>
+            <div style="background: white; padding: 12px; border-radius: 8px; text-align: center;">
+              <label>📐 ESPAÇAMENTO</label>
+              <input type="number" id="gapPiano" min="8" max="30" value="12" onchange="generarLayoutPiano()">
+            </div>
+          </div>
+          <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+            <button class="btn-success" onclick="generarLayoutPiano()">📄 GERAR LAYOUT</button>
+            <button class="btn-purple" onclick="exportarPianoImagem()">🖼️ EXPORTAR IMAGEM</button>
+            <button class="btn-warning" onclick="exportarPianoHTML()">📑 EXPORTAR HTML</button>
+            <button class="btn-secondary" onclick="imprimirLayoutPiano()">🖨️ IMPRIMIR</button>
+          </div>
+        </div>
+        <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+          <button class="btn-secondary" onclick="moverParaCimaPiano()">⬆️ Mover</button>
+          <button class="btn-secondary" onclick="moverParaBaixoPiano()">⬇️ Mover</button>
+          <button class="btn-danger" onclick="limparTodosDiagramasPiano()">🗑️ Limpar Tudo</button>
+        </div>
+        <input type="text" id="searchDiagramsPiano" class="search-box" placeholder="🔍 Buscar..." oninput="filtrarDiagramasPiano()">
+        <div id="diagramsListPiano" class="diagrams-list" style="max-height: 350px; overflow-y: auto;"></div>
+      </div>
+    </div>
+    <div id="previewPiano" style="margin-top: 20px; display: none;">
+      <h3>📄 Layout para Impressão</h3>
+      <div id="pianoContainer" style="background: white;"></div>
+    </div>
+  </div>
+</div>
+
+<div id="videoCallPanel" class="video-panel">
+    <span class="close-video" onclick="toggleVideoPanel()">✖</span>
+    <strong>📹 Chamada de Vídeo</strong>
+    <div style="margin-top: 5px;">Seu ID: <span id="myPeerId" class="peer-id">Carregando...</span></div>
+    <div style="display: flex; gap: 5px; margin-top: 5px;">
+        <input type="text" id="remotePeerId" placeholder="ID do outro usuário" style="flex:1; background:#0f3460; border:none; padding:5px; border-radius:5px; color:white;">
+        <button onclick="startCall()">Ligar</button>
+        <button onclick="endCall()">Desligar</button>
+    </div>
+    <video id="localVideo" autoplay muted playsinline style="background:#000;"></video>
+    <video id="remoteVideo" class="remote-video" autoplay playsinline style="background:#000;"></video>
+    <div class="video-controls">
+        <button onclick="toggleCamera()">📷 Câmera</button>
+        <button onclick="toggleMicrophone()">🎤 Microfone</button>
+    </div>
+</div>
+
+<script src="js/acordeviolao.js"></script>
+<script src="js/acordes_dinamicos.js"></script>
+<script src="js/acordes_piano.js"></script>
+<script src="js/editor_acordes.js"></script>
+<script src="js/piano_editor.js"></script>
+<script src="js/main.js"></script>
+<script src="js/exportar.js"></script>
+<script src="js/abc_infantil.js"></script>
+
+<style>
+    #preview { background: white; padding: 20px; border-radius: 8px; overflow-x: auto; }
+    #preview:fullscreen { padding: 40px; overflow-y: auto; }
+    #preview:-webkit-full-screen { padding: 40px; }
+    .chord-diagram canvas { max-width: 140px; height: auto; }
+    .abcjs-container { max-width: 100%; overflow-x: auto; }
+    .abcjs-container svg { max-width: 100%; height: auto; }
+    .fullscreen-btn {
+        position: fixed; bottom: 20px; right: 20px; background: #3a86ff; color: white;
+        border: none; border-radius: 50%; width: 50px; height: 50px; font-size: 24px;
+        cursor: pointer; z-index: 1000; box-shadow: 0 2px 10px rgba(0,0,0,0.3); transition: all 0.3s ease;
+    }
+    .fullscreen-btn:hover { background: #e94560; transform: scale(1.05); }
+</style>
+
+<div id="fullscreenOverlay" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000;">
+    <button id="globalFullscreenBtn" style="background: #00CC00; color: white; border: none; border-radius: 50%; width: 55px; height: 55px; font-size: 28px; cursor: pointer; box-shadow: 0 4px 15px rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center;">⛶</button>
+</div>
+
+<script>
+// Botão de tela cheia GLOBAL
+const globalBtn = document.getElementById('globalFullscreenBtn');
+if (globalBtn) {
+    globalBtn.addEventListener('click', function() {
+        const preview = document.getElementById('preview');
+        const btn = this;
+        if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+            if (preview.requestFullscreen) { preview.requestFullscreen(); }
+            else if (preview.webkitRequestFullscreen) { preview.webkitRequestFullscreen(); }
+            btn.textContent = '✖'; btn.style.background = '#e94560';
+        } else {
+            if (document.exitFullscreen) { document.exitFullscreen(); }
+            else if (document.webkitExitFullscreen) { document.webkitExitFullscreen(); }
+            btn.textContent = '⛶'; btn.style.background = '#00CC00';
+        }
+    });
+}
+
+// ============================================
+// FUNÇÕES DO SUPABASE + PEERJS (VÍDEO CHAMADA)
+// ============================================
+const SUPABASE_URL = 'https://unqbbyejjbyiysgvwrrj.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVucWJieWVqamJ5aXlzZ3Z3cnJqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEzODU1NjMsImV4cCI6MjA5Njk2MTU2M30.l-S9Cb2AnW1gX6iL-7aEghHvnH4ykJ_X7oeNn7z932I';
+
+let supabaseClient = null;
+let currentRoomId = null;
+let syncTimeout = null;
+let isTypingSupabase = false;
+let userId = null;
+let heartbeatInterval = null;
+
+let peer = null;
+let currentCall = null;
+let localStream = null;
+let cameraEnabled = true;
+let micEnabled = true;
+
+function showNotification(msg, tipo) {
+    const div = document.createElement('div');
+    div.style.position = 'fixed'; div.style.bottom = '20px'; div.style.left = '20px';
+    div.style.background = tipo === 'error' ? '#e74c3c' : (tipo === 'info' ? '#3498db' : '#2ecc71');
+    div.style.color = 'white'; div.style.padding = '10px 16px'; div.style.borderRadius = '8px';
+    div.style.zIndex = '10000'; div.style.fontSize = '13px'; div.textContent = msg;
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 3000);
+}
+
+async function initSupabase() {
+    try {
+        if (!window.supabase) {
+            console.error("Supabase não carregou externamente.");
+            return;
+        }
+        supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+        
+        document.getElementById('statusDot').className = 'status online';
+        document.getElementById('statusText').innerHTML = 'Online';
+        showNotification('✅ Conectado ao Supabase!', 'success');
+        
+        userId = localStorage.getItem('userId') || 'user_' + Math.random().toString(36).substring(2, 10);
+        localStorage.setItem('userId', userId);
+        
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomFromURL = urlParams.get('sala');
+        if (roomFromURL) {
+            currentRoomId = roomFromURL;
+            await loadRoomSupabase(currentRoomId);
+        } else {
+            await createRoomSupabase();
+        }
+        
+        startHeartbeat();
+        setInterval(() => updateUserCount(), 10000);
+        
+        // Inicializa o PeerJS para videoconferência
+        initPeer();
+    } catch(e) {
+        document.getElementById('statusDot').className = 'status offline';
+        document.getElementById('statusText').innerHTML = 'Offline';
+        showNotification('❌ Erro de conexão', 'error');
+    }
+}
+
+// Conectar manualmente com tratamento de erro
+async function conectarSalaManual() {
+    if (!supabaseClient) {
+        showNotification('⚠️ Sistema de sincronização offline ou carregando...', 'error');
+        return;
+    }
+    
+    const input = document.getElementById('inputSalaManual');
+    if (!input) return;
+    
+    const salaDesejada = input.value.trim().replace(/[^a-zA-Z0-9-_]/g, '');
+    if (!salaDesejada) {
+        showNotification('⚠️ Digite um nome de sala válido!', 'info');
+        return;
+    }
+
+    currentRoomId = salaDesejada;
+    document.getElementById('roomCode').innerHTML = currentRoomId;
+    
+    const url = new URL(window.location);
+    url.searchParams.set('sala', currentRoomId);
+    window.history.pushState({}, '', url);
+
+    try {
+        const { data } = await supabaseClient.from('books').select('content').eq('id', currentRoomId).maybeSingle();
+        
+        if (data) {
+            document.getElementById('editor').value = data.content;
+            if (typeof renderizar === 'function') renderizar();
+            showNotification(`📂 Entrou na sala: ${currentRoomId}`, 'success');
+        } else {
+            const content = document.getElementById('editor').value || `# Sala ${currentRoomId}\n\nComece a editar...`;
+            await supabaseClient.from('books').insert([{ id: currentRoomId, content: content }]);
+            showNotification(`✨ Nova sala criada: ${currentRoomId}`, 'success');
+        }
+        
+        await setupRealtimeSync();
+        await startHeartbeat();
+        await updateUserCount();
+        input.value = '';
+    } catch (err) {
+        console.error(err);
+        showNotification('❌ Erro ao conectar na sala', 'error');
+    }
+}
+
+async function startHeartbeat() {
+    if (heartbeatInterval) clearInterval(heartbeatInterval);
+    heartbeatInterval = setInterval(async () => {
+        if (currentRoomId && supabaseClient) {
+            await supabaseClient.from('collaborations').upsert({ book_id: currentRoomId, user_name: userId, last_activity: new Date() });
+        }
+    }, 30000);
+    if (currentRoomId && supabaseClient) {
+        await supabaseClient.from('collaborations').upsert({ book_id: currentRoomId, user_name: userId, last_activity: new Date() });
+    }
+}
+
+async function updateUserCount() {
+    if (!currentRoomId || !supabaseClient) return;
+    const twoMinutesAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const { count } = await supabaseClient.from('collaborations').select('*', { count: 'exact', head: true }).eq('book_id', currentRoomId).gt('last_activity', twoMinutesAgo.toISOString());
+    document.getElementById('userCount').innerHTML = `👥 ${count || 1} online`;
+}
+
+async function createRoomSupabase() {
+    const newRoomId = Math.random().toString(36).substring(2, 10);
+    currentRoomId = newRoomId;
+    const content = document.getElementById('editor').value || '# Pro Maestro Colaborativo\n\nEdite este texto...';
+    await supabaseClient.from('books').insert([{ id: currentRoomId, content: content }]);
+    document.getElementById('roomCode').innerHTML = newRoomId;
+    const url = new URL(window.location);
+    url.searchParams.set('sala', currentRoomId);
+    window.history.pushState({}, '', url);
+    await setupRealtimeSync();
+    showNotification('✨ Sala criada! Compartilhe o link.', 'success');
+}
+
+async function loadRoomSupabase(roomId) {
+    const { data } = await supabaseClient.from('books').select('content').eq('id', roomId).single();
+    if (data && data.content) {
+        document.getElementById('editor').value = data.content;
+        if (typeof renderizar === 'function') renderizar();
+    }
+    document.getElementById('roomCode').innerHTML = roomId;
+    await setupRealtimeSync();
+}
+
+async function setupRealtimeSync() {
+    if (!supabaseClient || !currentRoomId) return;
+    supabaseClient.channel(`sala-${currentRoomId}`).on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'books', filter: `id=eq.${currentRoomId}`
+    }, (payload) => {
+        const newContent = payload.new.content;
+        const editor = document.getElementById('editor');
+        if (editor && editor.value !== newContent && !isTypingSupabase) {
+            editor.value = newContent;
+            if (typeof renderizar === 'function') renderizar();
+            showNotification('👥 Atualizado por outro usuário', 'info');
+        }
+    }).subscribe();
+}
+
+async function saveToSupabase() {
+    if (!currentRoomId || !supabaseClient) return;
+    const content = document.getElementById('editor').value;
+    await supabaseClient.from('books').update({ content: content, updated_at: new Date() }).eq('id', currentRoomId);
+}
+
+function handleTyping() {
+    if (syncTimeout) clearTimeout(syncTimeout);
+    isTypingSupabase = true;
+    syncTimeout = setTimeout(() => { saveToSupabase(); isTypingSupabase = false; }, 1000);
+}
+
+function copyRoomLink() {
+    const visualizadorUrl = window.location.href.replace('editor.html', 'visualizador.html');
+    const url = visualizadorUrl.split('?')[0] + `?sala=${currentRoomId}`;
+    navigator.clipboard.writeText(url);
+    showNotification('📋 Link do visualizador copiado!', 'success');
+}
+
+// =========== PEERJS (WEBRTC) ===========
+function initPeer() {
+    const peerId = (userId || 'user').replace(/[^a-zA-Z0-9]/g, '') + '_' + Date.now().toString().slice(-6);
+    peer = new Peer(peerId, {
+        debug: 2,
+        config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }] }
+    });
+    
+    peer.on('open', (id) => {
+        document.getElementById('myPeerId').innerHTML = id;
+        console.log('PeerJS conectado. ID:', id);
+        showNotification('📞 Vídeo pronto. ID: ' + id, 'info');
+    });
+    
+    peer.on('call', (call) => {
+        if (confirm('Usuário está chamando. Aceitar?')) {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                .then(stream => {
+                    localStream = stream;
+                    document.getElementById('localVideo').srcObject = stream;
+                    call.answer(stream);
+                    call.on('stream', (remoteStream) => {
+                        document.getElementById('remoteVideo').srcObject = remoteStream;
+                    });
+                    currentCall = call;
+                })
+                .catch(err => showNotification('Erro ao acessar câmera/mic', 'error'));
+        } else {
+            call.close();
+        }
+    });
+    
+    peer.on('error', (err) => {
+        console.error('Peer error:', err);
+        showNotification('Erro de conexão de vídeo: ' + err.type, 'error');
+    });
+}
+
+function startCall() {
+    const remoteId = document.getElementById('remotePeerId').value.trim();
+    if (!remoteId) {
+        showNotification('Digite o ID do usuário', 'error');
+        return;
+    }
+    if (!peer) {
+        showNotification('Peer ainda não inicializado', 'error');
+        return;
+    }
+    if (localStream) {
+        const call = peer.call(remoteId, localStream);
+        call.on('stream', (remoteStream) => {
+            document.getElementById('remoteVideo').srcObject = remoteStream;
+        });
+        currentCall = call;
+        showNotification('Chamando...', 'info');
+    } else {
+        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+            .then(stream => {
+                localStream = stream;
+                document.getElementById('localVideo').srcObject = stream;
+                const call = peer.call(remoteId, stream);
+                call.on('stream', (remoteStream) => {
+                    document.getElementById('remoteVideo').srcObject = remoteStream;
+                });
+                currentCall = call;
+                showNotification('Chamando...', 'info');
+            })
+            .catch(err => showNotification('Permissão de câmera/mic negada', 'error'));
+    }
+}
+
+function endCall() {
+    if (currentCall) {
+        currentCall.close();
+        currentCall = null;
+    }
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+        document.getElementById('localVideo').srcObject = null;
+        document.getElementById('remoteVideo').srcObject = null;
+    }
+    showNotification('Chamada encerrada', 'info');
+}
+
+function toggleCamera() {
+    if (!localStream) return;
+    const videoTrack = localStream.getVideoTracks()[0];
+    if (videoTrack) {
+        cameraEnabled = !cameraEnabled;
+        videoTrack.enabled = cameraEnabled;
+        showNotification(cameraEnabled ? 'Câmera ligada' : 'Câmera desligada', 'info');
+    }
+}
+
+function toggleMicrophone() {
+    if (!localStream) return;
+    const audioTrack = localStream.getAudioTracks()[0];
+    if (audioTrack) {
+        micEnabled = !micEnabled;
+        audioTrack.enabled = micEnabled;
+        showNotification(micEnabled ? 'Microfone ligado' : 'Microfone desligado', 'info');
+    }
+}
+
+function toggleVideoPanel() {
+    const panel = document.getElementById('videoCallPanel');
+    if (panel.style.display === 'flex') {
+        panel.style.display = 'none';
+    } else {
+        panel.style.display = 'flex';
+        if (!localStream) {
+            navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+                .then(stream => {
+                    localStream = stream;
+                    document.getElementById('localVideo').srcObject = stream;
+                })
+                .catch(err => console.warn('Não foi possível acessar câmera/mic', err));
+        }
+    }
+}
+
+// Vincular sincronização ao input do editor
+const editorElement = document.getElementById('editor');
+if (editorElement) {
+    editorElement.addEventListener('input', function() {
+        if (typeof handleTyping === 'function') handleTyping();
+    });
+}
+
+window.addEventListener('load', function() {
+    setTimeout(initSupabase, 500);
+});
+
+// ============================================
+// ACORDES E COPIAR/COLAR
+// ============================================
+function inserirAcordePorNumero() {
+    const inputField = document.getElementById('buscaAcordeRapida');
+    if (!inputField) return;
+    const numero = inputField.value;
+    if (!numero || numero < 1) return;
+    let nomeAcorde = "Acorde";
+    if (typeof ACORDES !== 'undefined' && ACORDES[numero]) nomeAcorde = ACORDES[numero].nome;
+    
+    const codigoFinal = `[Acorde:${numero};1]${nomeAcorde}[/Acorde]`;
+    const editor = document.getElementById('editor');
+    if (!editor) return;
+    const start = editor.selectionStart;
+    editor.value = editor.value.substring(0, start) + codigoFinal + editor.value.substring(start);
+    if (typeof renderizar === 'function') renderizar();
+    inputField.value = '';
+    editor.focus();
+}
+
+function copiarEditor() {
+    const editor = document.getElementById('editor');
+    if (!editor) return;
+    editor.select();
+    try {
+        document.execCommand('copy');
+        showNotification('📋 Conteúdo copiado!', 'success');
+    } catch (err) { console.error(err); }
+}
+
+async function colarEditor() {
+    const editor = document.getElementById('editor');
+    if (!editor) return;
+    try {
+        const textoClipboard = await navigator.clipboard.readText();
+        const start = editor.selectionStart;
+        editor.value = editor.value.substring(0, start) + textoClipboard + editor.value.substring(start);
+        if (typeof renderizar === 'function') renderizar();
+        if (typeof handleTyping === 'function') handleTyping();
+        showNotification('📄 Conteúdo colado!', 'success');
+    } catch (err) { showNotification('❌ Erro ao colar', 'error'); }
+}
+</script>
+</body>
+</html>
