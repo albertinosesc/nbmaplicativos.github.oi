@@ -138,6 +138,23 @@
         </div>
     </div>
 
+    <script>
+        // Criamos uma versão segura da função de renderização. 
+        // Quando o main.js tentar chamá-la no load, ela não vai quebrar por causa de campos vazios!
+        window.renderizar = function() {
+            console.log("🔄 Função global renderizar() interceptada com segurança no visualizador.");
+            // Executa o desenho seguro direto nos elementos gerados na tela
+            if (typeof renderizarAcordesDinamicos === 'function') {
+                try { renderizarAcordesDinamicos(); } catch(e) {}
+            } else if (typeof desenharAcordeNoCanvas === 'function') {
+                document.querySelectorAll('canvas[data-chord]').forEach(canvas => {
+                    const idAcorde = canvas.getAttribute('data-chord');
+                    try { desenharAcordeNoCanvas(canvas, idAcorde); } catch(err) {}
+                });
+            }
+        };
+    </script>
+
     <script src="js/acordeviolao.js"></script>
     <script src="js/acordes_dinamicos.js"></script>
     <script src="js/acordes_piano.js"></script>
@@ -167,7 +184,6 @@
         // =========== FUNÇÕES PRINCIPAIS ==========
         async function iniciarVisualizador() {
             try {
-                // Inicializa o cliente do Supabase de forma segura
                 if (window.supabase) {
                     supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
                     atualizarStatusConexao(true);
@@ -196,7 +212,6 @@
                 atualizarStatusConexao(false);
                 mostrarNotificacao('⚠️ Conectando em modo de contingência...', 'info');
                 
-                // Força tentativa direta mesmo com erro de handshake inicial
                 const params = new URLSearchParams(window.location.search);
                 salaIdAtual = params.get('sala');
                 if (salaIdAtual && supabaseClient) {
@@ -211,7 +226,6 @@
             if (!supabaseClient) return;
             const previewDiv = document.getElementById('preview');
             
-            // Só exibe o carregando se a tela estiver vazia para evitar piscadas durantes atualizações em tempo real
             if(previewDiv.innerHTML.includes('loading') || previewDiv.innerHTML === '') {
                 previewDiv.innerHTML = '<div class="loading">📖 Carregando conteúdo da sala ' + id + '...</div>';
             }
@@ -250,108 +264,90 @@
                 });
         }
                 
-function renderizarConteudoVisual(content) {
-    const preview = document.getElementById('preview');
-    if (!preview) return;
-    
-    preview.innerHTML = '';
-    
-    // Captura blocos específicos incluindo as tags customizadas [Acorde:1;1]
-    const segments = content.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[Acorde:\d+;\d+\].*?\[\/Acorde\]|\[IMG\][\s\S]*?\[\/IMG\])/g);
-    
-    segments.forEach(segment => {
-        if (!segment) return;
+        function renderizarConteudoVisual(content) {
+            const preview = document.getElementById('preview');
+            if (!preview) return;
+            
+            preview.innerHTML = '';
+            
+            const segments = content.split(/(\[ABC\][\s\S]*?\[\/ABC\]|\[CIFRA[^\]]*\][\s\S]*?\[\/CIFRA\]|\[Acorde:\d+;\d+\].*?\[\/Acorde\]|\[IMG\][\s\S]*?\[\/IMG\])/g);
+            
+            segments.forEach(segment => {
+                if (!segment) return;
 
-        if (segment.startsWith('[ABC]') && segment.endsWith('[/ABC]')) {
-            const abcNotation = segment.slice(5, -6).trim();
-            const div = document.createElement('div'); 
-            div.className = 'score';
-            preview.appendChild(div);
-            try { 
-                ABCJS.renderAbc(div, abcNotation, { responsive: 'resize', scale: 1.3, add_classes: true }); 
-            } catch(e) { div.innerHTML = '<p style="color: red">❌ Erro na notação musical ABC</p>'; }
-        } 
-        else if (segment.startsWith('[Acorde:') && segment.endsWith('[/Acorde]')) {
-            const match = segment.match(/\[Acorde:(\d+);(\d+)\](.*?)\[\/Acorde\]/);
-            if (match) {
-                const numero = match[1];
-                const nome = match[3];
-                
-                const chordContainer = document.createElement('div');
-                chordContainer.className = 'chord-diagram-container';
-                chordContainer.innerHTML = `<div class="chord-title" style="font-weight:bold; margin-bottom:5px; color:#333; font-size:14px;">${nome}</div><canvas data-chord="${numero}"></canvas>`;
-                preview.appendChild(chordContainer);
-            }
-        }
-        else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
-            const cifraDiv = document.createElement('div'); cifraDiv.className = 'chord-notation';
-            let styles = {};
-            const styleMatch = segment.match(/\[CIFRA\s+style\s*=\s*([^\]]+)\]/);
-            if (styleMatch) {
-                const styleStr = styleMatch[1];
-                styleStr.split(',').forEach(style => {
-                    const [prop, value] = style.split(':').map(s => s.trim());
-                    styles[prop] = value.replace(/["']/g, '');
-                });
-                segment = segment.replace(/\[CIFRA\s+style\s*=\s*[^\]]+\]/, '[CIFRA]');
-            }
-            const cifraText = segment.slice(segment.indexOf(']') + 1, -8).trim();
-            const processedLines = cifraText.split('\n').map(line => {
-                return line.replace(/\[([^\]]+)\]([^\[]+)?/g, (match, chord, text) => {
-                    text = text || '';
-                    let styleStr = '';
-                    if (Object.keys(styles).length > 0) {
-                        const safeStyles = Object.entries(styles).map(([k,v]) => `${k}:${v}`).join(';');
-                        styleStr = ` style="${safeStyles}"`;
+                if (segment.startsWith('[ABC]') && segment.endsWith('[/ABC]')) {
+                    const abcNotation = segment.slice(5, -6).trim();
+                    const div = document.createElement('div'); 
+                    div.className = 'score';
+                    preview.appendChild(div);
+                    try { 
+                        ABCJS.renderAbc(div, abcNotation, { responsive: 'resize', scale: 1.3, add_classes: true }); 
+                    } catch(e) { div.innerHTML = '<p style="color: red">❌ Erro na notação musical ABC</p>'; }
+                } 
+                else if (segment.startsWith('[Acorde:') && segment.endsWith('[/Acorde]')) {
+                    const match = segment.match(/\[Acorde:(\d+);(\d+)\](.*?)\[\/Acorde\]/);
+                    if (match) {
+                        const numero = match[1];
+                        const nome = match[3];
+                        
+                        const chordContainer = document.createElement('div');
+                        chordContainer.className = 'chord-diagram-container';
+                        chordContainer.innerHTML = `<div class="chord-title" style="font-weight:bold; margin-bottom:5px; color:#333; font-size:14px;">${nome}</div><canvas data-chord="${numero}"></canvas>`;
+                        preview.appendChild(chordContainer);
                     }
-                    return `<span class="lyric"><span class="chord"${styleStr}>${chord}</span>${text}</span>`;
-                });
+                }
+                else if (segment.startsWith('[CIFRA') && segment.endsWith('[/CIFRA]')) {
+                    const cifraDiv = document.createElement('div'); cifraDiv.className = 'chord-notation';
+                    let styles = {};
+                    const styleMatch = segment.match(/\[CIFRA\s+style\s*=\s*([^\]]+)\]/);
+                    if (styleMatch) {
+                        const styleStr = styleMatch[1];
+                        styleStr.split(',').forEach(style => {
+                            const [prop, value] = style.split(':').map(s => s.trim());
+                            styles[prop] = value.replace(/["']/g, '');
+                        });
+                        segment = segment.replace(/\[CIFRA\s+style\s*=\s*[^\]]+\]/, '[CIFRA]');
+                    }
+                    const cifraText = segment.slice(segment.indexOf(']') + 1, -8).trim();
+                    const processedLines = cifraText.split('\n').map(line => {
+                        return line.replace(/\[([^\]]+)\]([^\[]+)?/g, (match, chord, text) => {
+                            text = text || '';
+                            let styleStr = '';
+                            if (Object.keys(styles).length > 0) {
+                                const safeStyles = Object.entries(styles).map(([k,v]) => `${k}:${v}`).join(';');
+                                styleStr = ` style="${safeStyles}"`;
+                            }
+                            return `<span class="lyric"><span class="chord"${styleStr}>${chord}</span>${text}</span>`;
+                        });
+                    });
+                    cifraDiv.innerHTML = processedLines.join('\n');
+                    preview.appendChild(cifraDiv);
+                }
+                else if (segment.startsWith('[IMG]') && segment.endsWith('[/IMG]')) {
+                    const imgData = segment.slice(5, -6).trim();
+                    const img = document.createElement('img');
+                    try { const imgInfo = JSON.parse(imgData); img.src = imgInfo.src; img.alt = imgInfo.alt || 'Imagem'; preview.appendChild(img); }
+                    catch(e) { preview.appendChild(document.createTextNode(segment)); }
+                }
+                else if (segment.trim() && !segment.trim().startsWith('<style>')) {
+                    const html = marked.parse(segment);
+                    const div = document.createElement('div'); div.innerHTML = html; preview.appendChild(div);
+                }
             });
-            cifraDiv.innerHTML = processedLines.join('\n');
-            preview.appendChild(cifraDiv);
-        }
-        else if (segment.startsWith('[IMG]') && segment.endsWith('[/IMG]')) {
-            const imgData = segment.slice(5, -6).trim();
-            const img = document.createElement('img');
-            try { const imgInfo = JSON.parse(imgData); img.src = imgInfo.src; img.alt = imgInfo.alt || 'Imagem'; preview.appendChild(img); }
-            catch(e) { preview.appendChild(document.createTextNode(segment)); }
-        }
-        else if (segment.trim() && !segment.trim().startsWith('<style>')) {
-            const html = marked.parse(segment);
-            const div = document.createElement('div'); div.innerHTML = html; preview.appendChild(div);
-        }
-    });
 
-    // SOLUÇÃO DO ERRO: Isola a execução do main.js para evitar travar o desenho dos acordes
-    setTimeout(() => {
-        // 1. Tenta primeiro a função específica que desenha nos canvas sem depender de inputs
-        if (typeof renderizarAcordesDinamicos === 'function') {
-            try {
-                renderizarAcordesDinamicos();
-                return; // Se funcionou, encerra com sucesso!
-            } catch (e) {
-                console.warn("Falha leve ao renderizarAcordesDinamicos, tentando alternativa...", e);
-            }
-        }
-        
-        // 2. Se precisar chamar a renderizar global, envelopa em um try/catch para ignorar erros de elementos nulos do Editor
-        if (typeof renderizar === 'function') {
-            try {
-                renderizar();
-            } catch (erroGlobal) {
-                console.log("Ignorando dependências vazias do editor no visualizador.");
-                // Caso o erro ocorra antes do desenho, força o mapeamento manual direto nos elementos injetados
-                if (typeof desenharAcordeNoCanvas === 'function') {
+            // Força a renderização local direta nos elementos injetados na visualização
+            setTimeout(() => {
+                if (typeof renderizarAcordesDinamicos === 'function') {
+                    try { renderizarAcordesDinamicos(); } catch(e) {}
+                } else if (typeof desenharAcordeNoCanvas === 'function') {
                     document.querySelectorAll('canvas[data-chord]').forEach(canvas => {
                         const idAcorde = canvas.getAttribute('data-chord');
-                        desenharAcordeNoCanvas(canvas, idAcorde);
+                        try { desenharAcordeNoCanvas(canvas, idAcorde); } catch(err) {}
                     });
                 }
-            }
+            }, 60);
         }
-    }, 50);
-}
-          
+                
         // =========== PEERJS (VIDEO) ==========
         function initPeer() {
             const peerId = (userId || 'aluno').replace(/[^a-zA-Z0-9]/g, '') + '_' + Date.now().toString().slice(-6);
@@ -381,81 +377,4 @@ function renderizarConteudoVisual(content) {
             if (localStream) {
                 const call = peer.call(remoteId, localStream);
                 call.on('stream', (remoteStream) => { document.getElementById('remoteVideo').srcObject = remoteStream; });
-                currentCall = call;
-                mostrarNotificacao('Chamando...', 'info');
-            } else {
-                navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                    .then(stream => {
-                        localStream = stream;
-                        document.getElementById('localVideo').srcObject = stream;
-                        const call = peer.call(remoteId, stream);
-                        call.on('stream', (remoteStream) => { document.getElementById('remoteVideo').srcObject = remoteStream; });
-                        currentCall = call;
-                        mostrarNotificacao('Chamando...', 'info');
-                    })
-                    .catch(err => mostrarNotificacao('Permissão negada', 'error'));
-            }
-        }
-                
-        function endCall() {
-            if (currentCall) { currentCall.close(); currentCall = null; }
-            if (localStream) { localStream.getTracks().forEach(track => track.stop()); localStream = null; }
-            document.getElementById('localVideo').srcObject = null;
-            document.getElementById('remoteVideo').srcObject = null;
-            mostrarNotificacao('Chamada encerrada', 'info');
-        }
-                
-        function toggleCamera() {
-            if (!localStream) return;
-            const videoTrack = localStream.getVideoTracks()[0];
-            if (videoTrack) { cameraEnabled = !cameraEnabled; videoTrack.enabled = cameraEnabled; mostrarNotificacao(cameraEnabled ? 'Câmera ligada' : 'Câmera desligada', 'info'); }
-        }
-        function toggleMicrophone() {
-            if (!localStream) return;
-            const audioTrack = localStream.getAudioTracks()[0];
-            if (audioTrack) { micEnabled = !micEnabled; audioTrack.enabled = micEnabled; mostrarNotificacao(micEnabled ? 'Microfone ligado' : 'Microfone desligado', 'info'); }
-        }
-        function toggleVideoPanel() {
-            const panel = document.getElementById('videoCallPanel');
-            if (panel.style.display === 'flex') { panel.style.display = 'none'; }
-            else {
-                panel.style.display = 'flex';
-                if (!localStream) {
-                    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-                        .then(stream => { localStream = stream; document.getElementById('localVideo').srcObject = stream; })
-                        .catch(err => console.warn('Sem permissão de câmera', err));
-                }
-            }
-        }
-                
-        // =========== FUNÇÕES AUXILIARES ==========
-        function copiarLinkVisual() {
-            const url = `${window.location.origin}${window.location.pathname}?sala=${salaIdAtual}`;
-            navigator.clipboard.writeText(url);
-            mostrarNotificacao('📋 Link copiado!', 'success');
-        }
-        async function baixarPDFVisual() {
-            const element = document.getElementById('preview');
-            mostrarNotificacao('📄 Gerando PDF...', 'info');
-            const opt = { margin: [10,10], filename: `pro_maestro_${salaIdAtual}.pdf`, image: { type: 'jpeg', quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
-            html2pdf().set(opt).from(element).save();
-        }
-        function imprimirVisual() { window.print(); }
-        function recarregarVisual() { if (salaIdAtual) carregarConteudoVisual(salaIdAtual); }
-        function atualizarStatusConexao(connected) {
-            const dot = document.getElementById('statusDot'); const text = document.getElementById('statusText');
-            if (dot && text) {
-                if (connected) { dot.className = 'status online'; text.innerHTML = 'Online'; }
-                else { dot.className = 'status offline'; text.innerHTML = 'Offline'; }
-            }
-        }
-        function mostrarNotificacao(msg, tipo) {
-            const div = document.createElement('div'); div.className = 'notification';
-            div.style.background = tipo === 'error' ? '#e74c3c' : (tipo === 'info' ? '#3498db' : '#2ecc71');
-            div.textContent = msg; document.body.appendChild(div); setTimeout(() => div.remove(), 3000);
-        }
-                
-        iniciarVisualizador();
-    </script>
-</body>
-</html>
+                current
