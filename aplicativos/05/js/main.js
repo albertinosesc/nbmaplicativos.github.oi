@@ -1254,12 +1254,16 @@ function renderizar() {
             if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'infantil');
         });
         
+        // ========== NOVO: Processar Escalas e Arpejos ==========
+        if (typeof window.escalasArpejos !== 'undefined' && window.escalasArpejos.renderizar) {
+            window.escalasArpejos.renderizar(preview);
+        }
+        // ======================================================
+        
     } catch (e) {
         console.error("Erro na renderização:", e);
         preview.innerHTML = '<p style="color:red;">❌ Erro ao renderizar: ' + e.message + '</p>';
     }
-
-
 }
 
 // ============================================
