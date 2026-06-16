@@ -360,3 +360,6 @@
         renderizarEscalasArpejos();
     }
 })();
+
+// Forçar a exposição da função de renderização
+window.renderizarEscalasArpejos = window.escalasArpejos.renderizar;
