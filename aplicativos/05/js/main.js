@@ -1194,6 +1194,20 @@ function renderizar() {
         const abcNormais = [];
         const pianosCustom = [];
         
+        // ========== PROCESSAR ESCALAS E ARPEJOS (ANTES DO MARKED) ==========
+        const escalasArpejos = [];
+        processado = processado.replace(/\[Escala:[^\]]+\]/gi, (match) => {
+            const id = 'escala-' + Date.now() + '-' + escalasArpejos.length;
+            escalasArpejos.push({ id, comando: match });
+            return `<div id="${id}" class="escala-placeholder" style="display:inline-block;"></div>`;
+        });
+        processado = processado.replace(/\[Arpejo:[^\]]+\]/gi, (match) => {
+            const id = 'arpejo-' + Date.now() + '-' + escalasArpejos.length;
+            escalasArpejos.push({ id, comando: match });
+            return `<div id="${id}" class="escala-placeholder" style="display:inline-block;"></div>`;
+        });
+        // ================================================================
+        
         processado = processado.replace(/\[Acorde:([^\]]+)\]([\s\S]*?)\[\/Acorde\]/g, (match, sigla, nome) => {
             const id = 'chord-' + Date.now() + '-' + acordes.length;
             acordes.push({ id, sigla: sigla.trim(), nome: nome ? nome.trim() : '' });
@@ -1254,11 +1268,21 @@ function renderizar() {
             if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'infantil');
         });
         
-        // ========== NOVO: Processar Escalas e Arpejos ==========
-        if (typeof window.escalasArpejos !== 'undefined' && window.escalasArpejos.renderizar) {
-            window.escalasArpejos.renderizar(preview);
+        // ========== RENDERIZAR ESCALAS E ARPEJOS ==========
+        if (typeof window.escalasArpejos !== 'undefined') {
+            escalasArpejos.forEach(item => {
+                const el = document.getElementById(item.id);
+                if (el) {
+                    const dados = window.escalasArpejos.processarComando(item.comando);
+                    if (dados) {
+                        window.escalasArpejos.desenharDiagramaEscala(el, dados.titulo, dados.posicoes, dados.posInicial);
+                    } else {
+                        el.innerHTML = `<span style="color:red;">❌ ${item.comando}</span>`;
+                    }
+                }
+            });
         }
-        // ======================================================
+        // ================================================
         
     } catch (e) {
         console.error("Erro na renderização:", e);
