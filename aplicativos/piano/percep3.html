@@ -1,10 +1,9 @@
-
 <!DOCTYPE html>
 <html lang="pt-br">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Treino Musical - Intervalos Personalizados</title>
+<title>Treino Musical - Intervalos Personalizados (Corrigido)</title>
 <style>
     :root { --primary: #4f46e5; --success: #22c55e; --danger: #ef4444; --left-hand: #3b82f6; --right-hand: #ef4444; }
     body { font-family: 'Segoe UI', sans-serif; background: #f3f4f6; padding: 20px; display: flex; flex-direction: column; align-items: center; }
@@ -63,7 +62,7 @@
 </head>
 <body>
 <div class="container">
-    <h2>🎹 Treino Musical - Intervalos Personalizados</h2>
+    <h2>🎹 Treino Musical - Intervalos Personalizados (Posições Restauradas)</h2>
 
     <div class="hand-selector">
         <button class="hand-btn right active" onclick="selectMode('right')" id="modeRightBtn">✋ Apenas Direita</button>
@@ -72,7 +71,6 @@
         <button class="hand-btn full" onclick="selectMode('full')" id="modeFullBtn">🎼 Ambas (Pauta Completa)</button>
     </div>
 
-    <!-- CONTROLES DE INTERVALO -->
     <div class="range-selectors" id="rangeSelectors">
         <div class="range-group">
             <span class="hand-label right"></span>
@@ -173,69 +171,72 @@
 </div>
 <script>
 // ------------------------------------------------------------
-// 1. DEFINIÇÕES GERAIS
+// 1. MAPEAMENTO DE POSIÇÕES NO PENTAGRAMA (FIXO)
 // ------------------------------------------------------------
-const allNotes = ["C2","D2","E2","F2","G2","A2","B2","C3","D3","E3","F3","G3","A3","B3","C4","D4","E4","F4","G4","A4","B4","C5"];
-const indexOfC3 = allNotes.indexOf("C3"); // 7
-const indexOfF2 = allNotes.indexOf("F2"); // 5
-const colorMap = {
-    "C": "#FF0000", "D": "#FF7F00", "E": "#FFD700", "F": "#00FF00",
-    "G": "#0000FF", "A": "#4B0082", "B": "#9400D3"
-};
-const freqBase = 261.63; // C3
+// Usamos o mesmo esquema visual original: 
+// - Mão direita: C3 = 140, descendo 7.5px por nota natural (C, D, E, F, G, A, B)
+// - Mão esquerda: F2 = 200, descendo 7.5px por nota natural (usando a mesma escala, mas com referência diferente)
+// Para qualquer nota, calculamos o número de passos a partir de C3.
+// Passos: C=0, D=1, E=2, F=3, G=4, A=5, B=6, C=7 (oitava seguinte)
+function getStepsFromC3(note) {
+    const map = { 'C':0, 'D':1, 'E':2, 'F':3, 'G':4, 'A':5, 'B':6 };
+    const match = note.match(/([A-G])(\d+)/);
+    if (!match) return 0;
+    const letter = match[1];
+    const octave = parseInt(match[2]);
+    const step = map[letter] || 0;
+    return (octave - 3) * 7 + step;
+}
 
-function getSemitones(note) {
-    const idx = allNotes.indexOf(note);
-    if (idx === -1) return 0;
-    return idx; // C2=0, D2=2, etc (mas não inclui sustenidos, então é o índice)
+function getYForNote(note, hand) {
+    const steps = getStepsFromC3(note);
+    if (hand === 'right') {
+        // C3 (steps=0) -> 140
+        return 140 - steps * 7.5;
+    } else {
+        // C3 (steps=0) -> 170 (posição original da mão esquerda)
+        return 170 - steps * 7.5;
+    }
+}
+
+// ------------------------------------------------------------
+// 2. FREQUÊNCIAS CORRETAS (BASEADAS EM SEMITONS)
+// ------------------------------------------------------------
+function noteToSemitones(note) {
+    const map = { 'C':0, 'D':2, 'E':4, 'F':5, 'G':7, 'A':9, 'B':11 };
+    const match = note.match(/([A-G])(\d+)/);
+    if (!match) return 0;
+    const letter = match[1];
+    const octave = parseInt(match[2]);
+    const semitone = map[letter] || 0;
+    return semitone + (octave - 3) * 12;
 }
 
 function getFrequency(note) {
-    const idx = allNotes.indexOf(note);
-    if (idx === -1) return 261.63;
-    // C3 = índice 7, freq 261.63
-    return 261.63 * Math.pow(2, (idx - 7) / 12);
+    const semitones = noteToSemitones(note);
+    return 261.63 * Math.pow(2, semitones / 12);
 }
 
+// ------------------------------------------------------------
+// 3. DEMAIS FUNÇÕES (MANTIDAS)
+// ------------------------------------------------------------
+const colorMap = { "C": "#FF0000", "D": "#FF7F00", "E": "#FFD700", "F": "#00FF00", "G": "#0000FF", "A": "#4B0082", "B": "#9400D3" };
 function getColor(note) {
     const base = note.charAt(0);
     return colorMap[base] || "#888";
 }
 
-function getYForNote(note, hand) {
-    const idx = allNotes.indexOf(note);
-    if (hand === 'right') {
-        // base C3 = 140
-        return 140 - (idx - indexOfC3) * 7.5;
-    } else {
-        // base F2 = 200 (primeira nota da mão esquerda original)
-        return 200 - (idx - indexOfF2) * 7.5;
-    }
-}
+const allNotes = ["C2","D2","E2","F2","G2","A2","B2","C3","D3","E3","F3","G3","A3","B3","C4","D4","E4","F4","G4","A4","B4","C5"];
 
-// ------------------------------------------------------------
-// 2. GERAÇÃO DINÂMICA DE DADOS POR INTERVALO
-// ------------------------------------------------------------
-let rightData = [];
-let leftData = [];
-let currentMode = 'right';
-let current = null;
-let currentBoth = { right: null, left: null };
-let autoTimer = null;
-let sounds = { note: true, piano: true, error: true };
-let keysColorida = false;
-let audioCtx = null;
-let showFingers = true;
-let activeRightFingers = ['1','2','3','4','5'];
-let activeLeftFingers = ['5','4','3','2','1'];
-let pool = [];
+let rightData = [], leftData = [], currentMode = 'right', current = null, currentBoth = { right: null, left: null };
+let autoTimer = null, sounds = { note: true, piano: true, error: true }, keysColorida = false, audioCtx = null, showFingers = true;
+let activeRightFingers = ['1','2','3','4','5'], activeLeftFingers = ['5','4','3','2','1'], pool = [];
 
 function generateNotesForHand(hand, startNote, endNote) {
     const startIdx = allNotes.indexOf(startNote);
     const endIdx = allNotes.indexOf(endNote);
     if (startIdx === -1 || endIdx === -1 || startIdx > endIdx) return [];
     const notes = allNotes.slice(startIdx, endIdx + 1);
-    // Limitar a 5 notas (dedos)
     const maxNotes = 5;
     const selected = notes.slice(0, maxNotes);
     const fingers = (hand === 'right') ? ['1','2','3','4','5'] : ['5','4','3','2','1'];
@@ -266,7 +267,6 @@ function populateRangeSelects() {
             sel.appendChild(opt);
         });
     });
-    // Valores padrão
     document.getElementById('rightStart').value = 'C3';
     document.getElementById('rightEnd').value = 'G3';
     document.getElementById('leftStart').value = 'F2';
@@ -278,25 +278,15 @@ function updateRanges() {
     const rEnd = document.getElementById('rightEnd').value;
     const lStart = document.getElementById('leftStart').value;
     const lEnd = document.getElementById('leftEnd').value;
-
     rightData = generateNotesForHand('right', rStart, rEnd);
     leftData = generateNotesForHand('left', lStart, lEnd);
-
-    // Atualiza a interface
     renderPicker();
     updatePool();
     renderPiano();
-    if (currentMode === 'both') {
-        generateRandomBoth();
-    } else {
-        // Se não houver dados, evitar erro
-        if (currentMode === 'right' && rightData.length === 0) {
-            // fallback
-            rightData = generateNotesForHand('right', 'C3', 'G3');
-        }
-        if (currentMode === 'left' && leftData.length === 0) {
-            leftData = generateNotesForHand('left', 'F2', 'C3');
-        }
+    if (currentMode === 'both') generateRandomBoth();
+    else {
+        if (currentMode === 'right' && rightData.length === 0) rightData = generateNotesForHand('right', 'C3', 'G3');
+        if (currentMode === 'left' && leftData.length === 0) leftData = generateNotesForHand('left', 'F2', 'C3');
         if (currentMode === 'full' && rightData.length === 0 && leftData.length === 0) {
             rightData = generateNotesForHand('right', 'C3', 'G3');
             leftData = generateNotesForHand('left', 'F2', 'C3');
@@ -307,9 +297,6 @@ function updateRanges() {
     updateKeysVisual();
 }
 
-// ------------------------------------------------------------
-// 3. FUNÇÕES PRINCIPAIS (adaptadas)
-// ------------------------------------------------------------
 function selectMode(mode) {
     currentMode = mode;
     document.getElementById('modeRightBtn').classList.toggle('active', mode === 'right');
@@ -317,37 +304,19 @@ function selectMode(mode) {
     document.getElementById('modeBothBtn').classList.toggle('active', mode === 'both');
     document.getElementById('modeFullBtn').classList.toggle('active', mode === 'full');
     document.getElementById('bothConfig').style.display = mode === 'both' ? 'block' : 'none';
-
-    // Atualiza dados baseado no modo
-    if (mode === 'right') {
-        data = [...rightData];
-    } else if (mode === 'left') {
-        data = [...leftData];
-    } else if (mode === 'full') {
-        data = [...rightData, ...leftData];
-    } else { // both
-        data = [...rightData]; // usado para pool? mas both usa lógica própria
-    }
-    // Atualiza pool com base nos checkboxes (já feito em updateRanges)
     renderPicker();
     updatePool();
     renderPiano();
-
-    if (mode === 'both') {
-        generateRandomBoth();
-    } else {
-        newNote();
-    }
+    if (mode === 'both') generateRandomBoth();
+    else newNote();
     updateView();
 }
 
 function renderPicker() {
     const container = document.getElementById("pickerContainer");
     container.innerHTML = "";
-
     let showRight = (currentMode === 'right' || currentMode === 'full' || currentMode === 'both') && rightData.length > 0;
     let showLeft = (currentMode === 'left' || currentMode === 'full' || currentMode === 'both') && leftData.length > 0;
-
     if (showRight) {
         const rowMD = document.createElement("div");
         rowMD.className = "picker-row";
@@ -364,7 +333,6 @@ function renderPicker() {
         rowMD.appendChild(pickerMD);
         container.appendChild(rowMD);
     }
-
     if (showLeft) {
         const rowME = document.createElement("div");
         rowME.className = "picker-row";
@@ -397,7 +365,6 @@ function updatePool() {
     });
     pool = newPool;
     if (pool.length === 0 && checks.length > 0) {
-        // marcar o primeiro
         checks[0].checked = true;
         updatePool();
         return;
@@ -411,15 +378,9 @@ function newNote() {
         generateRandomBoth();
         updateView();
     } else {
-        if (pool.length === 0) {
-            // tentar recarregar pool
-            updatePool();
-            if (pool.length === 0) return;
-        }
+        if (pool.length === 0) { updatePool(); if (pool.length === 0) return; }
         let next;
-        do {
-            next = pool[Math.floor(Math.random() * pool.length)];
-        } while (next === current && pool.length > 1);
+        do { next = pool[Math.floor(Math.random() * pool.length)]; } while (next === current && pool.length > 1);
         current = next;
         updateView();
         if (sounds.note) play(current.f);
@@ -439,7 +400,6 @@ function generateRandomBoth() {
 
 function getNoteFromFinger(finger, hand) {
     const handData = (hand === 'right') ? rightData : leftData;
-    // dedo é string
     return handData.find(n => n.d === finger);
 }
 
@@ -449,10 +409,7 @@ function getExpectedForNote(noteName, hand) {
     return match ? match.d : null;
 }
 
-function getDisplayText() {
-    if (!current) return '';
-    return current.d;
-}
+function getDisplayText() { if (!current) return ''; return current.d; }
 
 // ------------------------------------------------------------
 // 4. DESENHO E INTERFACE
@@ -469,28 +426,21 @@ function draw(note) {
     ctx.lineTo(45, 245);
     ctx.stroke();
     ctx.strokeStyle = "#b0b7c1";
-
-    // Clave de sol
     for(let i=0; i<5; i++) {
         let y = 125 - (i*15);
         ctx.beginPath(); ctx.moveTo(45, y); ctx.lineTo(550, y); ctx.stroke();
     }
     ctx.font = "65px Arial"; ctx.fillStyle = "#222"; ctx.fillText("𝄞", 52, 122);
-
-    // Clave de fá
     for(let i=0; i<5; i++) {
         let y = 245 - (i*15);
         ctx.beginPath(); ctx.moveTo(45, y); ctx.lineTo(550, y); ctx.stroke();
     }
     ctx.font = "64px Arial"; ctx.fillStyle = "#222"; ctx.fillText("𝄢", 55, 241);
-
     if (!note) return;
     ctx.beginPath();
     ctx.fillStyle = isColor ? note.color : "#000";
     ctx.ellipse(300, note.y, 10, 7, -0.25, 0, Math.PI*2);
     ctx.fill();
-
-    // Linhas suplementares para C3 (se necessário)
     ctx.strokeStyle = "#222";
     ctx.lineWidth = 2;
     if (note.hand === 'right' && note.n === "C3") {
@@ -508,7 +458,6 @@ function updateView() {
     const tx = document.getElementById("displayText");
     const fingeringDiv = document.getElementById("fingeringDisplay");
     const bothDisplay = document.getElementById("bothDisplay");
-
     if (currentMode === 'both') {
         cv.style.display = "none";
         tx.style.display = "none";
@@ -553,7 +502,7 @@ function updateView() {
 }
 
 // ------------------------------------------------------------
-// 5. PIANO E TECLADO (expandido até C5)
+// 5. PIANO E TECLADO
 // ------------------------------------------------------------
 const pianoFullRange = [];
 (function buildPianoRange() {
@@ -564,7 +513,7 @@ const pianoFullRange = [];
         pianoFullRange.push({
             n: note,
             label: note,
-            y: getYForNote(note, 'right'), // não usado para desenho do teclado
+            y: getYForNote(note, 'right'), // não usado
             f: getFrequency(note),
             color: getColor(note)
         });
@@ -575,9 +524,6 @@ function renderPiano() {
     const kb = document.getElementById("keyboard");
     kb.innerHTML = "";
     const keyWidth = 44;
-    // Posições das teclas pretas relativas (baseado nas teclas brancas)
-    const blackOffsets = [0.7, 1.7, 3.7, 4.7, 5.7, 7.7, 8.7, 10.7, 11.7, 12.7, 14.7, 15.7, 17.7, 18.7, 19.7];
-    // Vamos usar apenas as teclas brancas
     pianoFullRange.forEach((item, i) => {
         const key = document.createElement("div");
         key.className = "white";
@@ -622,7 +568,6 @@ function renderPiano() {
         };
         kb.appendChild(key);
     });
-    // Teclas pretas (apenas as que existem dentro do range)
     const blackNotes = ["C#2","D#2","F#2","G#2","A#2","C#3","D#3","F#3","G#3","A#3","C#4","D#4","F#4","G#4","A#4"];
     blackNotes.forEach(bn => {
         const idx = pianoFullRange.findIndex(p => p.label === bn.replace('#',''));
@@ -659,7 +604,7 @@ function updateKeysVisual() {
 }
 
 // ------------------------------------------------------------
-// 6. ÁUDIO E UTILITÁRIOS
+// 6. ÁUDIO
 // ------------------------------------------------------------
 function initAudio() {
     if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -724,9 +669,6 @@ function changeSpeed() {
     if (autoTimer) { toggleAuto(); toggleAuto(); }
 }
 
-// ------------------------------------------------------------
-// 7. INICIALIZAÇÃO E EVENTOS
-// ------------------------------------------------------------
 function initBothSelectors() {
     const rightBtns = document.querySelectorAll('#rightFingers .finger-btn');
     rightBtns.forEach(btn => {
@@ -768,7 +710,7 @@ function initBothSelectors() {
 
 window.onload = () => {
     populateRangeSelects();
-    updateRanges(); // gera dados iniciais
+    updateRanges();
     selectMode('right');
     initBothSelectors();
     renderPiano();
