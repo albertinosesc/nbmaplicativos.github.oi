@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Treino Musical Adaptativo Avançado</title>
+    <title>Treino Musical Adaptativo Avançado - Rápido</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
     <style>
         :root {
@@ -165,10 +165,28 @@
             align-items: center;
             justify-content: space-between;
             gap: 15px;
+            flex-wrap: wrap;
+        }
+        .speed-control label {
+            background: transparent;
+            padding: 0;
+            width: auto;
+            flex-shrink: 0;
         }
         .speed-control input[type="range"] {
-            flex: 1;
+            flex: 2;
+            min-width: 120px;
             cursor: pointer;
+        }
+        .speed-control input[type="number"] {
+            width: 70px;
+            padding: 6px;
+            text-align: center;
+            font-size: 13px;
+        }
+        .speed-control span {
+            min-width: 45px;
+            text-align: center;
         }
         button {
             border: none;
@@ -402,15 +420,19 @@
             <button id="btnInfinito" onclick="alternarInfinito()">INFINITO: OFF</button>
                         
             <div class="sliders-container">
+                <!-- Controle Tempo da Questão (mais rápido) -->
                 <div class="speed-control">
-                    <label for="tempoSlider" style="background:transparent; padding:0; width:auto;">Tempo da Questão:</label>
-                    <input type="range" id="tempoSlider" min="1" max="20" value="6" oninput="atualizarTextoTempo(this.value)">
-                    <span id="tempoValor">6s</span>
+                    <label for="tempoSlider">Tempo da Questão:</label>
+                    <input type="range" id="tempoSlider" min="0.1" max="2" step="0.05" value="0.2" oninput="atualizarTempoQuestao(this.value)">
+                    <input type="number" id="tempoNumber" min="0.1" max="2" step="0.05" value="0.2" oninput="atualizarTempoQuestaoNum(this.value)">
+                    <span id="tempoValor">0.2s</span>
                 </div>
-                <div class="speed-control" id="container-bpm-slider">
-                    <label for="bpmSlider" style="background:transparent; padding:0; width:auto;">Velocidade Melodia:</label>
-                    <input type="range" id="bpmSlider" min="60" max="300" value="130" step="10" oninput="atualizarTextoBPM(this.value)">
-                    <span id="bpmValor">130 BPM</span>
+                <!-- Controle Atraso entre Notas (mais rápido) -->
+                <div class="speed-control" id="container-delay-slider">
+                    <label for="delaySlider">Atraso entre notas:</label>
+                    <input type="range" id="delaySlider" min="0.05" max="2" step="0.05" value="0.2" oninput="atualizarDelay(this.value)">
+                    <input type="number" id="delayNumber" min="0.05" max="2" step="0.05" value="0.2" oninput="atualizarDelayNum(this.value)">
+                    <span id="delayValor">0.2s</span>
                 </div>
             </div>
         </div>
@@ -471,9 +493,45 @@ const piano = new Tone.Sampler({
         A6:"A6.mp3", C7:"C7.mp3", "D#7":"Ds7.mp3", "F#7":"Fs7.mp3",
         A7:"A7.mp3", C8:"C8.mp3"
     },
-    release: 1.2,
+    release: 0.8,
     baseUrl: "https://tonejs.github.io/audio/salamander/"
 }).toDestination();
+
+function atualizarTempoQuestao(val) {
+    val = parseFloat(val);
+    if (isNaN(val)) val = 0.2;
+    val = Math.min(2, Math.max(0.1, val));
+    document.getElementById("tempoSlider").value = val;
+    document.getElementById("tempoNumber").value = val;
+    document.getElementById("tempoValor").innerText = val.toFixed(2) + "s";
+}
+
+function atualizarTempoQuestaoNum(val) {
+    val = parseFloat(val);
+    if (isNaN(val)) val = 0.2;
+    val = Math.min(2, Math.max(0.1, val));
+    document.getElementById("tempoSlider").value = val;
+    document.getElementById("tempoNumber").value = val;
+    document.getElementById("tempoValor").innerText = val.toFixed(2) + "s";
+}
+
+function atualizarDelay(val) {
+    val = parseFloat(val);
+    if (isNaN(val)) val = 0.2;
+    val = Math.min(2, Math.max(0.05, val));
+    document.getElementById("delaySlider").value = val;
+    document.getElementById("delayNumber").value = val;
+    document.getElementById("delayValor").innerText = val.toFixed(2) + "s";
+}
+
+function atualizarDelayNum(val) {
+    val = parseFloat(val);
+    if (isNaN(val)) val = 0.2;
+    val = Math.min(2, Math.max(0.05, val));
+    document.getElementById("delaySlider").value = val;
+    document.getElementById("delayNumber").value = val;
+    document.getElementById("delayValor").innerText = val.toFixed(2) + "s";
+}
 
 function ajustarFluxoInterface() {
     if (modoAtivo === "japones") {
@@ -514,11 +572,11 @@ function ajustarFluxoInterface() {
     }
 
     if (document.getElementById("tipoSom").value === "harmonico") {
-        document.getElementById("container-bpm-slider").style.opacity = "0.3";
-        document.getElementById("container-bpm-slider").style.pointerEvents = "none";
+        document.getElementById("container-delay-slider").style.opacity = "0.3";
+        document.getElementById("container-delay-slider").style.pointerEvents = "none";
     } else {
-        document.getElementById("container-bpm-slider").style.opacity = "1";
-        document.getElementById("container-bpm-slider").style.pointerEvents = "auto";
+        document.getElementById("container-delay-slider").style.opacity = "1";
+        document.getElementById("container-delay-slider").style.pointerEvents = "auto";
     }
     
     pararLoops();
@@ -528,21 +586,19 @@ function ajustarFluxoInterface() {
 
 function parsearSequenciaCustomizada(texto, oitava) {
     let bruto = texto.toUpperCase()
-                     .normalize("NFD").replace(/[\u0300-\u036f]/g, "") // Remove acentos
+                     .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
                      .replace(/,/g, " ")
                      .split(/\s+/);
     
     let notasValidas = [];
     bruto.forEach(token => {
         if(!token) return;
-        // Traduz Dó, Ré, Mi para C, D, E se necessário
         if (DICIONARIO_TRADUCAO[token]) {
             token = DICIONARIO_TRADUCAO[token];
         }
         if (ESCALA_CROMATICA.includes(token)) {
             notasValidas.push(`${token}${oitava}`);
         } else {
-            // Tenta verificar se tem sustenido colado ex: C#
             let match = token.match(/^([A-G]#?)$/);
             if (match && ESCALA_CROMATICA.includes(match[1])) {
                 notasValidas.push(`${match[1]}${oitava}`);
@@ -559,10 +615,8 @@ function inicializarMetodoJapones() {
     let customNotas = parsearSequenciaCustomizada(inputCustom, oitava);
 
     if (customNotas.length > 0) {
-        // Usa a sequência customizada inserida pelo usuário
         jpSequenciaCompleta = customNotas;
     } else {
-        // Usa o padrão algorítmico do método clássico
         const raiz = document.getElementById("jpRaizSelect").value;
         const idxRaiz = ESCALA_CROMATICA.indexOf(raiz);
         jpSequenciaCompleta = PATRAO_INTERVALOS_JP.map(semitons => {
@@ -706,15 +760,15 @@ async function tocarMelodia(arrayNotas) {
         audioIniciado = true;
     }
     const tipo = document.getElementById("tipoSom").value;
+    const delaySegundos = parseFloat(document.getElementById("delaySlider").value) || 0.2;
+    const duracaoNota = 0.2; // nota mais curta para acelerar
 
     if (tipo === "harmonico") {
-        piano.triggerAttackRelease(arrayNotas, "1.5");
+        piano.triggerAttackRelease(arrayNotas, duracaoNota);
     } else {
-        const bpm = parseInt(document.getElementById("bpmSlider").value);
-        const espacamentoSegundos = 60 / bpm; 
         let agora = Tone.now();
         arrayNotas.forEach((nota, i) => {
-            piano.triggerAttackRelease(nota, "0.4", agora + (i * espacamentoSegundos));
+            piano.triggerAttackRelease(nota, duracaoNota, agora + (i * delaySegundos));
         });
     }
 }
@@ -723,8 +777,6 @@ function repetirSom(){
     if(atual) tocarMelodia(atual.notasSorteadas);
 }
 
-function atualizarTextoTempo(val) { document.getElementById("tempoValor").innerText = val + "s"; }
-function atualizarTextoBPM(val) { document.getElementById("bpmValor").innerText = val + "BPM"; }
 function pararLoops() { clearTimeout(infinitoTimeout); }
 
 function resetarEstilosBotoes() {
@@ -737,12 +789,12 @@ function resetarEstilosBotoes() {
 function calcularDuracaoMelodia() {
     const tipo = document.getElementById("tipoSom").value;
     if (tipo === "harmonico") {
-        return 1500;
+        return 200; // 0.2s
     } else {
-        const bpm = parseInt(document.getElementById("bpmSlider").value);
-        const espacamentoSegundos = 60 / bpm;
+        const delaySegundos = parseFloat(document.getElementById("delaySlider").value) || 0.2;
         const qtdNotas = atual.notasSorteadas.length;
-        return (qtdNotas * espacamentoSegundos) * 1000;
+        // duracaoNota = 0.2s
+        return ((qtdNotas - 1) * delaySegundos + 0.2) * 1000;
     }
 }
 
@@ -763,7 +815,7 @@ function verificarProgressaoMelodica() {
                 }, 10);
                 ajustarFluxoInterface();
             } else {
-                jpRodadasExecutadas = gatilho; // Trava no teto máximo
+                jpRodadasExecutadas = gatilho;
             }
         }
         atualizarInterfaceJaponesa();
@@ -818,7 +870,6 @@ function gerarExercicioMetodoJapones() {
         document.getElementById("info").innerHTML = "<span style='color:var(--danger)'>Adicione notas válidas para jogar!</span>";
         return;
     }
-    // Regra Imutável: Escolhe 1 única nota aleatória do conjunto que já foi liberado até o nível atual
     let notaSorteadaUnica = jpPoolAtivo[Math.floor(Math.random() * jpPoolAtivo.length)];
     let escolhidas = [notaSorteadaUnica];
 
@@ -829,7 +880,7 @@ function gerarExercicioMetodoJapones() {
     esperando = true;
 
     if (infinito || automatico) {
-        const tempoConfiguradoMs = parseInt(document.getElementById("tempoSlider").value) * 1000;
+        const tempoConfiguradoMs = parseFloat(document.getElementById("tempoSlider").value) * 1000;
         const duracaoMelodiaMs = calcularDuracaoMelodia();
         infinitoTimeout = setTimeout(() => { revelarRespostaMelodiaLivre(); }, tempoConfiguradoMs + duracaoMelodiaMs);
     } else {
@@ -923,7 +974,7 @@ function gerarSequenciaLivre(quantidade) {
     esperando = true;
 
     if (infinito || automatico) {
-        const tempoConfiguradoMs = parseInt(document.getElementById("tempoSlider").value) * 1000;
+        const tempoConfiguradoMs = parseFloat(document.getElementById("tempoSlider").value) * 1000;
         const duracaoMelodiaMs = calcularDuracaoMelodia();
         infinitoTimeout = setTimeout(() => { revelarRespostaMelodiaLivre(); }, tempoConfiguradoMs + duracaoMelodiaMs);
     } else {
@@ -933,7 +984,7 @@ function gerarSequenciaLivre(quantidade) {
 
 function configurarTimeoutResposta() {
     if (infinito) {
-        const tempoConfiguradoMs = parseInt(document.getElementById("tempoSlider").value) * 1000;
+        const tempoConfiguradoMs = parseFloat(document.getElementById("tempoSlider").value) * 1000;
         const duracaoMelodiaMs = calcularDuracaoMelodia();
         infinitoTimeout = setTimeout(() => { revelarRespostaAutomatica(); }, tempoConfiguradoMs + duracaoMelodiaMs);
     }
@@ -950,7 +1001,7 @@ function responder(numIntervalo, botaoClicado) {
         verificarProgressaoMelodica();
         
         if (automatico) {
-            setTimeout(() => { novoExercicio(); }, 1500);
+            setTimeout(() => { novoExercicio(); }, 800);
         }
     } else {
         if(botaoClicado) {
@@ -976,7 +1027,7 @@ function revelarRespostaAutomatica() {
     verificarProgressaoMelodica();
 
     if (infinito) {
-        setTimeout(() => { novoExercicio(); }, 2000);
+        setTimeout(() => { novoExercicio(); }, 1000);
     }
 }
 
@@ -991,7 +1042,7 @@ function revelarRespostaMelodiaLivre() {
     verificarProgressaoMelodica();
 
     if (infinito) {
-        setTimeout(() => { novoExercicio(); }, 2500);
+        setTimeout(() => { novoExercicio(); }, 1000);
     }
 }
 
