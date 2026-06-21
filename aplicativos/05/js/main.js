@@ -967,12 +967,21 @@ function ajustarLetras() {
 function ajustarLetrasX() {
     const valor = parseFloat(document.getElementById("letraXRange")?.value || 5);
     document.getElementById("letraXValue").innerText = valor;
-    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
-        let xAtual = parseFloat(el.getAttribute("x"));
-        if (!isNaN(xAtual)) {
-            if (!el.dataset.xOriginal) el.dataset.xOriginal = xAtual;
-            el.setAttribute("x", parseFloat(el.dataset.xOriginal) + valor);
+    
+    // Seleciona todos os elementos de letra (tanto para infantil quanto normal)
+    document.querySelectorAll("#preview .abcjs-lyric, #preview .abcjs-chord").forEach(el => {
+        // Usa transform para transladar horizontalmente
+        let transform = el.getAttribute("transform") || "";
+        // Remove qualquer translate anterior que tenha sido adicionado por esta função
+        transform = transform.replace(/translate\([^,]+,\s*[^)]+\)/g, "").trim();
+        // Aplica o novo translate (mantendo outros transforms)
+        if (valor !== 0) {
+            el.setAttribute("transform", transform + ` translate(${valor}, 0)`);
+        } else {
+            el.setAttribute("transform", transform);
         }
+    });
+}
     });
 }
 
