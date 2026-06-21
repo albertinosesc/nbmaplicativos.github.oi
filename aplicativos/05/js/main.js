@@ -982,8 +982,6 @@ function ajustarLetrasX() {
         }
     });
 }
-    });
-}
 
 function atualizarStaffSep() { renderizar(); }
 function atualizarSysStaffSep() { renderizar(); }
