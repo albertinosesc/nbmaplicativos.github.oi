@@ -40,6 +40,7 @@ const REGISTRO_RITMOS = {
 const INDICE_ARQUIVOS_RITMO = [
     { categoria: "Jazz", arquivo: "ritmos/Jazz20.js" },
     { categoria: "Country", arquivo: "ritmos/country20.js" },
+    { categoria: "Pop", arquivo: "ritmos/pop20.js" },
     { categoria: "Rock", arquivo: "ritmos/rock_pop.js" },
     { categoria: "Bossa Nova", arquivo: "ritmos/bossa_nova.js" },
     { categoria: "Piano", arquivo: "ritmos/piano_simples.js" },
