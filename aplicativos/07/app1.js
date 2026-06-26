@@ -1,4 +1,4 @@
-// app.js - Lógica principal de interface, Transposição e Síntese de Áudio (ABCJS)
+// app.js - Lógica principal com hierarquia Categoria → Subcategoria → Style → Variação
 let synthControllerAtual = null;
 let bancoDeMusicasRepertorio = [];
 
@@ -26,13 +26,13 @@ function alterarTom(semitons) {
 }
 
 // =========================================================================
-// PROCESSAMENTO PRINCIPAL (CORRIGIDO)
+// PROCESSAMENTO PRINCIPAL COM ANTECIPAÇÃO AUTOMÁTICA
 // =========================================================================
 function processarCifrasParaAbc() {
     // --- LEITURA DOS CAMPOS ---
     const titulo = document.getElementById("titulo")?.value || "Música";
-    const compositor = document.getElementById("compositor")?.value || "N-Play";
-    const arranjador = document.getElementById("arranjador")?.value || "N-Play";
+    const compositor = document.getElementById("compositor")?.value || "";
+    const arranjador = document.getElementById("arranjador")?.value || "";
     const clave = document.getElementById("clave")?.value.trim() || "C";
     const estiloBaixo = document.getElementById("padraoBaixo")?.value || "tonica";
     const cifrasRaw = document.getElementById("cifras")?.value || "";
@@ -43,101 +43,113 @@ function processarCifrasParaAbc() {
     let vezesRepetir = parseInt(document.getElementById("loopVezes")?.value) || 4;
     if (isNaN(vezesRepetir) || vezesRepetir < 1) vezesRepetir = 1;
 
-    // --- OBTÉM CATEGORIA E SUBCATEGORIA ATUAIS (para resolver variações por número) ---
-    const catRH = document.getElementById("ritmoCategoriaRH")?.value;
-    const subRH = document.getElementById("ritmoSubcategoriaRH")?.value;
-    const catLH = document.getElementById("ritmoCategoriaLH")?.value;
-    const subLH = document.getElementById("ritmoSubcategoriaLH")?.value;
+    // --- OBTÉM CATEGORIA, SUBCATEGORIA, STYLE E VARIAÇÃO ATUAIS ---
+    const catAtualRH = document.getElementById("ritmoCategoriaRH")?.value;
+    const subAtualRH = document.getElementById("ritmoSubcategoriaRH")?.value;
+    const styleAtualRH = document.getElementById("ritmoStyleRH")?.value;
+    const varAtualRH = document.getElementById("ritmoVariacaoRH")?.value;
 
-    // Lista de nomes de variações da categoria/subcategoria atual (RH e LH)
-    const listaVarsRH = (catRH && subRH && BANCO_RITMOS[catRH] && BANCO_RITMOS[catRH][subRH]) 
-        ? Object.keys(BANCO_RITMOS[catRH][subRH]) 
-        : [];
-    const listaVarsLH = (catLH && subLH && BANCO_RITMOS[catLH] && BANCO_RITMOS[catLH][subLH]) 
-        ? Object.keys(BANCO_RITMOS[catLH][subLH]) 
-        : [];
+    const catAtualLH = document.getElementById("ritmoCategoriaLH")?.value;
+    const subAtualLH = document.getElementById("ritmoSubcategoriaLH")?.value;
+    const styleAtualLH = document.getElementById("ritmoStyleLH")?.value;
+    const varAtualLH = document.getElementById("ritmoVariacaoLH")?.value;
 
-    // Variação global (selecionada nos menus)
-    const varGlobalRH = document.getElementById("ritmoVariacaoRH")?.value || null;
-    const varGlobalLH = document.getElementById("ritmoVariacaoLH")?.value || null;
-
-    // --- DEFINE O METRO (usa a primeira variação global, se disponível) ---
+    // --- DEFINE O METRO INICIAL ---
     let metroDinamico = "4/4";
-    const ritmoGlobalRH = (catRH && subRH && varGlobalRH) ? obterVariacao(catRH, subRH, varGlobalRH) : null;
-    const ritmoGlobalLH = (catLH && subLH && varGlobalLH) ? obterVariacao(catLH, subLH, varGlobalLH) : null;
+    const ritmoGlobalRH = (catAtualRH && subAtualRH && varAtualRH) ? obterVariacao(catAtualRH, subAtualRH, varAtualRH) : null;
+    const ritmoGlobalLH = (catAtualLH && subAtualLH && varAtualLH) ? obterVariacao(catAtualLH, subAtualLH, varAtualLH) : null;
     if (ritmoGlobalRH && ritmoGlobalRH.metro) metroDinamico = ritmoGlobalRH.metro;
     else if (ritmoGlobalLH && ritmoGlobalLH.metro) metroDinamico = ritmoGlobalLH.metro;
+
+    // --- DEFINE DURAÇÃO (L:) A PARTIR DOS RITMOS GLOBAIS ---
+    let duracaoAtual = "1/4";
+    if (ritmoGlobalRH && ritmoGlobalRH.duracao) duracaoAtual = ritmoGlobalRH.duracao;
+    else if (ritmoGlobalLH && ritmoGlobalLH.duracao) duracaoAtual = ritmoGlobalLH.duracao;
+
+    // --- OBTÉM O STYLE PARA EXIBIÇÃO NO CABEÇALHO ---
+    let styleHeader = "";
+    if (ritmoGlobalRH && ritmoGlobalRH.style) styleHeader = ritmoGlobalRH.style;
+    else if (ritmoGlobalLH && ritmoGlobalLH.style) styleHeader = ritmoGlobalLH.style;
 
     // --- DIVIDE O TEXTO EM LINHAS ---
     const linhas = cifrasRaw.split(/[\n;]+/).filter(line => line.trim() !== '');
     if (linhas.length === 0) {
-        linhas.push('C | Am | Dm | G | Dm| E'); // fallback
+        linhas.push('C | Am | Dm | G | Dm | E');
     }
 
-    let todasPartesRh = [];
-    let todasPartesLh = [];
+    // --- PLANIFICAÇÃO DOS COMPASSOS EM UMA LISTA LINEAR ÚNICA ---
+    let todosOsBlocos = [];
+    linhas.forEach((linha) => {
+        let blocos = linha.split('|').map(b => b.trim()).filter(b => b !== '');
+        if (blocos.length === 0) {
+            const tempos = parseInt(metroDinamico.split('/')[0]) || 4;
+            blocos = [`z${tempos}`];
+        }
+        todosOsBlocos.push(...blocos);
+    });
 
-    // --- FUNÇÃO AUXILIAR PARA OBTER O RITMO A PARTIR DO NOME DA VARIAÇÃO ---
-    function obterRitmoPorNome(cat, sub, nomeVar) {
-        if (cat && sub && nomeVar) {
-            return obterVariacao(cat, sub, nomeVar);
+    let partesRh = [], partesLh = [];
+
+    // --- FUNÇÃO AUXILIAR PARA RESOLVER COMANDOS ---
+    function resolverComando(comando, catPadrao, subPadrao, listaVars) {
+        if (typeof ALIAS_RITMOS !== 'undefined' && ALIAS_RITMOS[comando]) {
+            return ALIAS_RITMOS[comando];
+        }
+        const num = parseInt(comando);
+        if (!isNaN(num) && num >= 1 && num <= listaVars.length) {
+            return { categoria: catPadrao, subcategoria: subPadrao, nome: listaVars[num - 1] };
+        }
+        if (listaVars.includes(comando)) {
+            return { categoria: catPadrao, subcategoria: subPadrao, nome: comando };
         }
         return null;
     }
 
-    // --- PROCESSA CADA LINHA ---
-    linhas.forEach((linha) => {
-        // Divide os compassos da linha (separados por "|")
-        let blocosCompasso = linha.split('|').map(b => b.trim()).filter(b => b !== '');
-        if (blocosCompasso.length === 0) {
-            const tempos = parseInt(metroDinamico.split('/')[0]) || 4;
-            blocosCompasso = [`z${tempos}`];
+    function obterRitmo(cat, sub, varNome) {
+        if (cat && sub && varNome) return obterVariacao(cat, sub, varNome);
+        return null;
+    }
+
+    // --- PROCESSAMENTO COM ENGENHARIA DE OLHAR PARA A FRENTE ---
+    todosOsBlocos.forEach((blocoAtual, idx) => {
+        let catRH = catAtualRH, subRH = subAtualRH, varRH = varAtualRH;
+        let catLH = catAtualLH, subLH = subAtualLH, varLH = varAtualLH;
+
+        const matchComando = blocoAtual.match(/^\{([^}]+)\}\s*/);
+        if (matchComando) {
+            const comando = matchComando[1].trim();
+            const listaVarsRH = (catRH && subRH && BANCO_RITMOS[catRH] && BANCO_RITMOS[catRH][subRH]) ? Object.keys(BANCO_RITMOS[catRH][subRH]) : [];
+            const resolvido = resolverComando(comando, catRH, subRH, listaVarsRH);
+            if (resolvido) {
+                catRH = resolvido.categoria; subRH = resolvido.subcategoria; varRH = resolvido.nome;
+                catLH = resolvido.categoria; subLH = resolvido.subcategoria; varLH = resolvido.nome;
+            }
+            blocoAtual = blocoAtual.replace(/^\{[^}]+\}\s*/, '');
+            if (!blocoAtual) return;
         }
 
-        // Inicializa a variação atual com a global (para esta linha)
-        let varAtualRH = varGlobalRH;
-        let varAtualLH = varGlobalLH;
+        const ritmoRH = obterRitmo(catRH, subRH, varRH);
+        const ritmoLH = obterRitmo(catLH, subLH, varLH);
 
-        let partesRh = [];
-        let partesLh = [];
+        // Identifica o próximo compasso para obter a cifra de antecipação automática
+        let proximoBloco = todosOsBlocos[idx + 1] || blocoAtual;
+        proximoBloco = proximoBloco.replace(/^\{[^}]+\}\s*/, '').trim();
 
-        // Processa cada compasso (bloco)
-        blocosCompasso.forEach((bloco, idx) => {
-            // Verifica se o bloco começa com {n} (onde n é um número)
-            const matchComando = bloco.match(/^\{(\d+)\}\s*/);
-            if (matchComando) {
-                const numero = parseInt(matchComando[1]);
-                // Mapeia o número para o nome da variação (1-based)
-                // Usa a lista de RH (assumindo que RH e LH têm as mesmas variações, ou usa a que tiver)
-                const listaVars = (listaVarsRH.length > 0) ? listaVarsRH : listaVarsLH;
-                if (numero >= 1 && numero <= listaVars.length) {
-                    const nomeVar = listaVars[numero - 1];
-                    varAtualRH = nomeVar;
-                    varAtualLH = nomeVar; // aplica a mesma para ambos
-                }
-                // Remove o comando do bloco
-                bloco = bloco.replace(/^\{(\d+)\}\s*/, '');
-                // Se o bloco ficou vazio, pula (pode ser um comando isolado)
-                if (!bloco) return;
-            }
-
-            // Obtém os ritmos correspondentes às variações atuais
-            const ritmoRH = obterRitmoPorNome(catRH, subRH, varAtualRH);
-            const ritmoLH = obterRitmoPorNome(catLH, subLH, varAtualLH);
-
-            // Processa o compasso com os ritmos obtidos
-            let resultado = processarCompassoDinamico(bloco, metroDinamico, estiloBaixo, ritmoRH, ritmoLH);
-            partesRh.push(resultado.rh);
-            partesLh.push(resultado.lh);
-        });
-
-        const linhaRh = partesRh.join(' | ');
-        const linhaLh = partesLh.join(' | ');
-        todasPartesRh.push(linhaRh);
-        todasPartesLh.push(linhaLh);
+        // Executa o processador robusto do ritmos.js repassando os alvos harmonicamente amarrados
+        let resultado = processarCompassoDinamicoComProximo(blocoAtual, proximoBloco, metroDinamico, estiloBaixo, ritmoRH, ritmoLH, idx);
+        partesRh.push(resultado.rh);
+        partesLh.push(resultado.lh);
     });
 
-    // --- MONTAGEM DO SISTEMA LINHA POR LINHA (com barras) ---
+    // Remontagem das linhas estruturadas de 4 em 4 compassos para a visualização gráfica
+    let todasPartesRh = [];
+    let todasPartesLh = [];
+    for (let i = 0; i < partesRh.length; i += 4) {
+        todasPartesRh.push(partesRh.slice(i, i + 4).join(' | '));
+        todasPartesLh.push(partesLh.slice(i, i + 4).join(' | '));
+    }
+
+    // --- MONTAGEM DO ABC VISUAL ---
     let corpoAbcVisual = "";
     for (let i = 0; i < todasPartesRh.length; i++) {
         const abertura = (i === 0 && querLoop) ? '|:' : '';
@@ -146,14 +158,17 @@ function processarCifrasParaAbc() {
         corpoAbcVisual += `V:2\n${abertura} ${todasPartesLh[i]} ${fechamento}\n`;
     }
 
-    // --- MONTAGEM DO ABC VISUAL ---
+    // --- INCLUI O STYLE NO CAMPO A: (ARRAJADOR) ---
+    const arranjadorCompleto = styleHeader ? `${styleHeader}` : arranjador;
+
     let abcVisual = `X:1
 T:${titulo}
 C:${compositor}
+R:${arranjadorCompleto}
 A:${arranjador}
 M:${metroDinamico}
-%%score { 1 | 2 }
-L:1/4
+%%score {1 | 2}
+L:${duracaoAtual}
 Q:1/4=${bpmVal}
 K:${clave}
 %%MIDI program 0
@@ -161,19 +176,17 @@ V:1 clef=treble
 V:2 clef=bass
 ${corpoAbcVisual}`;
 
-    // --- ÁUDIO (com repetições se ativado) ---
-    let cuerpoRhAudio = todasPartesRh.join(' | ');
-    let cuerpoLhAudio = todasPartesLh.join(' | ');
+    // --- ÁUDIO ---
+    let cuerpoRhAudio = partesRh.join(' | ');
+    let cuerpoLhAudio = partesLh.join(' | ');
     if (querLoop && vezesRepetir > 1) {
-        const repeatRh = Array(vezesRepetir).fill(todasPartesRh.join(' | ')).join(' | ');
-        const repeatLh = Array(vezesRepetir).fill(todasPartesLh.join(' | ')).join(' | ');
-        cuerpoRhAudio = repeatRh;
-        cuerpoLhAudio = repeatLh;
+        cuerpoRhAudio = Array(vezesRepetir).fill(partesRh.join(' | ')).join(' | ');
+        cuerpoLhAudio = Array(vezesRepetir).fill(partesLh.join(' | ')).join(' | ');
     }
 
     let abcAudio = `X:1
 M:${metroDinamico}
-L:1/4
+L:${duracaoAtual}
 Q:1/4=${bpmVal}
 K:${clave}
 %%MIDI program 0
@@ -185,13 +198,17 @@ V:2 clef=bass
     window.abcGeradoAtual = abcVisual;
     renderizarDiretoDoAbc(abcVisual, abcAudio);
 
-    console.log("🔍 Número de linhas lidas:", linhas.length);
+    console.log("🔍 Total Compassos Planificados:", todosOsBlocos.length);
     console.log("📄 ABC gerado:\n", abcVisual);
 }
+
 // =========================================================================
-// RENDERIZAÇÃO (ABCJS)
+// RENDERIZAÇÃO E SINCRONIA COM O EDITOR
 // =========================================================================
 function renderizarDiretoDoAbc(abcVisual, abcAudio) {
+    const editor = document.getElementById('abcEditor');
+    if (editor) editor.value = abcVisual;
+
     const codigoVisual = abcVisual || window.abcGeradoAtual || "";
     const codigoAudio = abcAudio || codigoVisual;
 
@@ -228,7 +245,18 @@ function renderizarDiretoDoAbc(abcVisual, abcAudio) {
 }
 
 // =========================================================================
-// MENUS HIERÁRQUICOS
+// FUNÇÕES DO EDITOR (botão e atualização automática)
+// =========================================================================
+function renderizarDoEditor() {
+    const editor = document.getElementById('abcEditor');
+    if (!editor) return;
+    const abc = editor.value;
+    if (abc.trim() === '') return;
+    renderizarDiretoDoAbc(abc, abc);
+}
+
+// =========================================================================
+// MENUS HIERÁRQUICOS: Categoria → Subcategoria → Style → Variação
 // =========================================================================
 function inicializarMenus() {
     const categorias = Object.keys(BANCO_RITMOS);
@@ -236,27 +264,22 @@ function inicializarMenus() {
         console.warn("Nenhum ritmo carregado.");
         return;
     }
-
-    // Preenche os dois conjuntos de menus
     ['RH', 'LH'].forEach(lado => {
         const catSelect = document.getElementById(`ritmoCategoria${lado}`);
-        const subSelect = document.getElementById(`ritmoSubcategoria${lado}`);
-        const varSelect = document.getElementById(`ritmoVariacao${lado}`);
         if (!catSelect) return;
-
         catSelect.innerHTML = "";
         categorias.forEach(cat => {
             catSelect.innerHTML += `<option value="${cat}">${cat}</option>`;
         });
-
-        // Atualiza subcategorias e variações para o primeiro item
+        // Inicializa os submenus
         atualizarSubcategorias(lado);
     });
 }
 
 function atualizarSubcategorias(lado) {
-    const catSelect = document.getElementById(`ritmoCategoria${lado}`);
-    const subSelect = document.getElementById(`ritmoSubcategoria${lado}`);
+    const prefix = lado === 'RH' ? 'RH' : 'LH';
+    const catSelect = document.getElementById(`ritmoCategoria${prefix}`);
+    const subSelect = document.getElementById(`ritmoSubcategoria${prefix}`);
     if (!catSelect || !subSelect) return;
 
     const cat = catSelect.value;
@@ -266,24 +289,66 @@ function atualizarSubcategorias(lado) {
             subSelect.innerHTML += `<option value="${sub}">${sub}</option>`;
         });
     }
-    atualizarVariacoes(lado);
+    // Após atualizar subcategorias, atualiza os estilos
+    atualizarStyles(lado);
 }
 
-function atualizarVariacoes(lado) {
-    const catSelect = document.getElementById(`ritmoCategoria${lado}`);
-    const subSelect = document.getElementById(`ritmoSubcategoria${lado}`);
-    const varSelect = document.getElementById(`ritmoVariacao${lado}`);
-    if (!catSelect || !subSelect || !varSelect) return;
+function atualizarStyles(lado) {
+    const prefix = lado === 'RH' ? 'RH' : 'LH';
+    const catSelect = document.getElementById(`ritmoCategoria${prefix}`);
+    const subSelect = document.getElementById(`ritmoSubcategoria${prefix}`);
+    const styleSelect = document.getElementById(`ritmoStyle${prefix}`);
+    if (!catSelect || !subSelect || !styleSelect) return;
 
     const cat = catSelect.value;
     const sub = subSelect.value;
-    varSelect.innerHTML = "";
+    styleSelect.innerHTML = "";
+
     if (BANCO_RITMOS[cat] && BANCO_RITMOS[cat][sub]) {
-        Object.keys(BANCO_RITMOS[cat][sub]).forEach(v => {
-            varSelect.innerHTML += `<option value="${v}">${v}</option>`;
+        // Extrai todos os estilos únicos das variações da subcategoria
+        const styles = new Set();
+        const vars = BANCO_RITMOS[cat][sub];
+        Object.keys(vars).forEach(varNome => {
+            const variacao = vars[varNome];
+            if (variacao.style) styles.add(variacao.style);
+        });
+        // Se não houver style definido, adiciona "Padrão"
+        if (styles.size === 0) styles.add("Padrão");
+        
+        styles.forEach(style => {
+            styleSelect.innerHTML += `<option value="${style}">${style}</option>`;
+        });
+        
+        // Seleciona o primeiro estilo e atualiza as variações
+        atualizarVariacoesPorStyle(lado);
+    }
+}
+
+function atualizarVariacoesPorStyle(lado) {
+    const prefix = lado === 'RH' ? 'RH' : 'LH';
+    const catSelect = document.getElementById(`ritmoCategoria${prefix}`);
+    const subSelect = document.getElementById(`ritmoSubcategoria${prefix}`);
+    const styleSelect = document.getElementById(`ritmoStyle${prefix}`);
+    const varSelect = document.getElementById(`ritmoVariacao${prefix}`);
+    if (!catSelect || !subSelect || !styleSelect || !varSelect) return;
+
+    const cat = catSelect.value;
+    const sub = subSelect.value;
+    const style = styleSelect.value;
+
+    varSelect.innerHTML = "";
+
+    if (BANCO_RITMOS[cat] && BANCO_RITMOS[cat][sub]) {
+        const vars = BANCO_RITMOS[cat][sub];
+        Object.keys(vars).forEach(varNome => {
+            const variacao = vars[varNome];
+            const styleVar = variacao.style || "Padrão";
+            if (styleVar === style) {
+                varSelect.innerHTML += `<option value="${varNome}">${varNome}</option>`;
+            }
         });
     }
-    processarCifrasParaAbc(); // atualiza a música ao mudar
+    processarCifrasParaAbc();
 }
 
 // =========================================================================
@@ -335,28 +400,49 @@ function exportarArquivo(tipo, formato) {
     link.click();
 }
 
-
+// =========================================================================
+// INICIALIZAÇÃO
+// =========================================================================
 window.addEventListener("DOMContentLoaded", () => {
     carregarPastaDeRitmos().then(() => {
         inicializarMenus();
 
-        // Listeners para RH
-        document.getElementById("ritmoCategoriaRH")?.addEventListener("change", () => atualizarSubcategorias("RH"));
-        document.getElementById("ritmoSubcategoriaRH")?.addEventListener("change", () => atualizarVariacoes("RH"));
+        // Listeners para RH (cadeia hierárquica)
+        document.getElementById("ritmoCategoriaRH")?.addEventListener("change", () => {
+            atualizarSubcategorias("RH");
+        });
+        document.getElementById("ritmoSubcategoriaRH")?.addEventListener("change", () => {
+            atualizarStyles("RH");
+        });
+        document.getElementById("ritmoStyleRH")?.addEventListener("change", () => {
+            atualizarVariacoesPorStyle("RH");
+        });
         document.getElementById("ritmoVariacaoRH")?.addEventListener("change", processarCifrasParaAbc);
 
-        // Listeners para LH
-        document.getElementById("ritmoCategoriaLH")?.addEventListener("change", () => atualizarSubcategorias("LH"));
-        document.getElementById("ritmoSubcategoriaLH")?.addEventListener("change", () => atualizarVariacoes("LH"));
+        // Listeners para LH (cadeia hierárquica)
+        document.getElementById("ritmoCategoriaLH")?.addEventListener("change", () => {
+            atualizarSubcategorias("LH");
+        });
+        document.getElementById("ritmoSubcategoriaLH")?.addEventListener("change", () => {
+            atualizarStyles("LH");
+        });
+        document.getElementById("ritmoStyleLH")?.addEventListener("change", () => {
+            atualizarVariacoesPorStyle("LH");
+        });
         document.getElementById("ritmoVariacaoLH")?.addEventListener("change", processarCifrasParaAbc);
 
-        // Outros campos
+        // Campos globais
         document.getElementById("loopCheck")?.addEventListener("change", processarCifrasParaAbc);
         document.getElementById("loopVezes")?.addEventListener("input", processarCifrasParaAbc);
         ["titulo", "compositor", "arranjador", "clave", "padraoBaixo", "cifras", "bpm"].forEach(id => {
             document.getElementById(id)?.addEventListener("input", processarCifrasParaAbc);
         });
 
+        // Editor ABC
+        document.getElementById("btnAtualizarAbc")?.addEventListener("click", renderizarDoEditor);
+        document.getElementById("abcEditor")?.addEventListener("input", renderizarDoEditor);
+
+        // Disparo inicial
         processarCifrasParaAbc();
     });
 });
