@@ -2,7 +2,7 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Biblioteca Musical Digital Avançada</title>
+<title>Biblioteca</title>
 <style>
 /* ===== Estilo Global ===== */
 body {
@@ -63,10 +63,19 @@ header #toggleMenu {
   box-sizing: border-box;
 }
 
+/* ===== Menu ===== */
 #menu {
   list-style: none;
   padding-left: 0;
   margin: 0;
+}
+
+/* Remove padding/margem de todos os UL e LI dentro do menu */
+#menu ul,
+#menu li {
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
 .collapsible {
@@ -74,16 +83,20 @@ header #toggleMenu {
   cursor: pointer;
   display: flex;
   align-items: center;
-  padding: 5px;
+  padding: 4px 0;      /* pequeno espaçamento vertical */
+  margin-bottom: 0;
 }
 
+/* ===== SUBMENU - ajuste para aproximar ===== */
 .submenu {
   display: none;
-  padding-left: 15px;
+  padding-left: 20px;   /* ← valor pequeno: 0 para colado, 5px para leve recuo */
+  margin: 0;
 }
 
-ul li {
-  padding: 5px;
+/* Itens do menu (inclui os do submenu) */
+#menu li {
+  padding: 0px 18px;      /* espaçamento vertical, horizontal zero */
   cursor: pointer;
   border-bottom: 1px dashed #eee;
   display: flex;
@@ -91,14 +104,24 @@ ul li {
   transition: background 0.2s;
 }
 
-ul li:hover, .active {
+#menu li:hover,
+#menu li.active {
   background-color: #e0e0ff;
 }
 
 /* ===== Ícones ===== */
-.icon-cat::before { content: "📂"; margin-right: 6px; }
-.icon-sub::before { content: "📂"; margin-right: 6px; }
-.icon-file::before { content: "▶"; margin-right: 6px; }
+.icon-cat::before {
+  content: "📂";
+  margin-right: 6px;
+}
+.icon-sub::before {
+  content: "📂";
+  margin-right: 6px;
+}
+.icon-file::before {
+  content: "▶";
+  margin-right: 2%;
+}
 
 /* ===== Iframe ===== */
 #iframeConteudo {
@@ -114,8 +137,12 @@ ul li:hover, .active {
 }
 
 @keyframes highlightFade {
-  0%,70% { background-color: #ffffcc; }
-  100% { background-color: transparent; }
+  0%, 70% {
+    background-color: #ffffcc;
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 .anchor-status {
@@ -139,7 +166,7 @@ ul li:hover, .active {
   <div>
     <h1 style="margin: 0; font-size: 1.5rem;">Biblioteca NBM</h1>
     <h3 style="margin: 0; font-style: italic; font-weight: normal; font-size: 1rem;">
-      Professor: Albertino Moura - 2026
+      Professor: Albertino Moura
     </h3>
   </div>
 </header>
@@ -159,20 +186,69 @@ let activeListItem = null;
 const iframe = document.getElementById('iframeConteudo');
 const sidebar = document.getElementById('sidebar');
 const toggleButton = document.getElementById('toggleMenu');
+const searchInput = document.getElementById('searchInput');
 
-// ------------------ Toggle menu lateral ------------------
-toggleButton.addEventListener('click', () => {
-  sidebar.classList.toggle('hidden');
-});
+// ==================== LISTA DOS ARQUIVOS JSON ====================
+const ARQUIVOS_JSON = [
+  'data/Duracao.json',
+  'data/Melodia.json',
+  'data/Generalidades.json',
+  
+  'data/Compositor.json'
+];
 
-// ------------------ Gerar menu ------------------
+// ==================== CARREGAR TODOS OS JSONs ====================
+async function carregarTodosMenus() {
+  try {
+    const promises = ARQUIVOS_JSON.map(async (url) => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) {
+          console.warn(`⚠️ Arquivo não encontrado: ${url} (status ${res.status})`);
+          return null;
+        }
+        const data = await res.json();
+        console.log(`✅ Carregado: ${url}`, data);
+        return data;
+      } catch (err) {
+        console.warn(`❌ Erro ao processar ${url}:`, err);
+        return null;
+      }
+    });
+    const resultados = await Promise.all(promises);
+    const dadosValidos = resultados.filter(d => d !== null);
+    if (dadosValidos.length === 0) {
+      console.error('❌ Nenhum arquivo JSON carregado.');
+      return {};
+    }
+
+    // Mescla os objetos
+    const menuCompleto = {};
+    dadosValidos.forEach(obj => {
+      for (const [categoria, subcategorias] of Object.entries(obj)) {
+        if (menuCompleto[categoria]) {
+          console.warn(`Categoria duplicada: "${categoria}". Sobrescrevendo.`);
+        }
+        menuCompleto[categoria] = subcategorias;
+      }
+    });
+    console.log('📋 Menu completo:', menuCompleto);
+    return menuCompleto;
+  } catch (err) {
+    console.error('Erro fatal:', err);
+    return {};
+  }
+}
+
+// ==================== GERAR MENU ====================
 function gerarMenu(data) {
   const menu = document.getElementById('menu');
   menu.innerHTML = '';
+  allFiles = [];
 
   for (const cat in data) {
     const catLi = document.createElement('div');
-    catLi.innerHTML = `${cat}`;
+    catLi.textContent = cat;
     catLi.className = 'collapsible icon-cat';
     menu.appendChild(catLi);
 
@@ -182,21 +258,19 @@ function gerarMenu(data) {
     const subcats = data[cat];
     for (const sub in subcats) {
       const subLi = document.createElement('div');
-      subLi.innerHTML = `${sub}`;
+      subLi.textContent = sub;
       subLi.className = 'collapsible icon-sub';
       subMenu.appendChild(subLi);
 
       const subSubMenu = document.createElement('ul');
       subcats[sub].forEach(fileObj => {
         const li = document.createElement('li');
-        const nome = fileObj.arquivo.split('/').pop().replace('.html','').replace(/-/g,' ');
+        const nome = fileObj.arquivo.split('/').pop().replace('.html', '').replace(/-/g, ' ');
         li.textContent = nome;
         li.dataset.file = fileObj.arquivo;
-        li.dataset.tags = fileObj.tags.join(',');
         li.classList.add('icon-file');
         li.onclick = () => carregarArquivo(fileObj.arquivo, li);
         subSubMenu.appendChild(li);
-
         allFiles.push(li);
       });
       subMenu.appendChild(subSubMenu);
@@ -215,7 +289,13 @@ function gerarMenu(data) {
   }
 }
 
-// ------------------ Carregar arquivo ------------------
+// ==================== INICIALIZAR MENU ====================
+async function inicializarMenu() {
+  const dados = await carregarTodosMenus();
+  gerarMenu(dados);
+}
+
+// ==================== CARREGAR ARQUIVO NO IFRAME ====================
 function carregarArquivo(url, li) {
   if (activeListItem) activeListItem.classList.remove('active');
   li.classList.add('active');
@@ -230,20 +310,56 @@ function carregarArquivo(url, li) {
     .catch(err => console.error('Erro ao carregar arquivo:', err));
 }
 
-// ------------------ Busca ------------------
-document.getElementById('searchInput').addEventListener('input', e => {
-  const termo = e.target.value.toLowerCase();
+// ==================== BUSCA (apenas por nome) ====================
+searchInput.addEventListener('input', e => {
+  const termo = e.target.value.toLowerCase().trim();
+  const menu = document.getElementById('menu');
+
+  if (termo === '') {
+    inicializarMenu();
+    return;
+  }
+
   allFiles.forEach(li => {
     const texto = li.textContent.toLowerCase();
-    const tags = li.dataset.tags ? li.dataset.tags.toLowerCase() : '';
-    li.style.display = (texto.includes(termo) || tags.includes(termo)) ? 'block' : 'none';
+    const match = texto.includes(termo);
+    li.style.display = match ? 'flex' : 'none';
+
+    if (match) {
+      let parent = li.parentElement;
+      while (parent && parent !== menu) {
+        if (parent.classList.contains('submenu')) {
+          parent.style.display = 'block';
+          const prev = parent.previousElementSibling;
+          if (prev && prev.classList.contains('collapsible')) {
+            prev.classList.add('expanded');
+          }
+        }
+        parent = parent.parentElement;
+      }
+    }
+  });
+
+  document.querySelectorAll('.submenu').forEach(sub => {
+    const hasVisible = Array.from(sub.querySelectorAll('li')).some(li => li.style.display !== 'none');
+    if (!hasVisible) {
+      sub.style.display = 'none';
+      const prev = sub.previousElementSibling;
+      if (prev && prev.classList.contains('collapsible')) {
+        prev.classList.remove('expanded');
+      }
+    }
   });
 });
 
-// ------------------ Âncoras ------------------
+// ==================== Toggle menu lateral ====================
+toggleButton.addEventListener('click', () => {
+  sidebar.classList.toggle('hidden');
+});
+
+// ==================== Âncoras ====================
 function injetarScriptDeAncoras() {
   if (!iframe.contentDocument) return;
-
   iframe.contentDocument.querySelectorAll('script[data-anchor]').forEach(s => s.remove());
 
   const script = document.createElement('script');
@@ -253,7 +369,6 @@ function injetarScriptDeAncoras() {
       if (window.__anchorFixApplied) return;
       window.__anchorFixApplied = true;
       let lastTarget = null;
-
       document.addEventListener('click', e => {
         let target = e.target;
         while(target && target.tagName !== 'A' && target !== document.body) target = target.parentElement;
@@ -275,11 +390,8 @@ function injetarScriptDeAncoras() {
   iframe.contentDocument.head.appendChild(script);
 }
 
-// ------------------ Inicializar ------------------
-fetch('menu.json')
-  .then(res => res.json())
-  .then(data => gerarMenu(data))
-  .catch(err => console.error('Erro ao carregar menu JSON:', err));
+// ==================== INICIALIZAÇÃO ====================
+inicializarMenu();
 </script>
 
 </body>
