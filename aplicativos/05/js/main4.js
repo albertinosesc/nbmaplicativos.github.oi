@@ -1,5 +1,5 @@
 // ============================================
-// main.js - PRO MAESTRO
+// main4.js - PRO MAESTRO (VERSÃO COMPLETA)
 // ============================================
 
 // Variáveis
@@ -7,11 +7,24 @@ let dados = {
     listas: []
 };
 
+// ============================================
+// CONFIGURAÇÃO GITHUB
+// ============================================
+let githubToken = localStorage.getItem('github_token') || '';
+let githubRepo = localStorage.getItem('github_repo') || '';
+let githubBranch = localStorage.getItem('github_branch') || 'main';
+let githubPasta = localStorage.getItem('github_pasta') || 'aulas/';
 let listaAtual = null;
 let cartaoAtual = null;
 let timeoutRenderTimer;
 let coresAtivas = true;
 let expandedPaths = new Set();
+
+// Exporta variáveis para o escopo global (acessível em outros scripts)
+window.githubToken = githubToken;
+window.githubRepo = githubRepo;
+window.githubBranch = githubBranch;
+window.githubPasta = githubPasta;
 
 const STORAGE_KEY = 'pro_maestro_listas';
 const editor = document.getElementById('editor');
@@ -19,19 +32,511 @@ const preview = document.getElementById('preview');
 const listaAulas = document.getElementById('listaAulas');
 
 // ============================================
+// CONFIGURAR GITHUB (botão 🔑)
+// ============================================
+function configurarGitHub() {
+    const token = prompt('🔑 Token do GitHub (ou vazio para remover):', githubToken || '');
+    if (token === null) return;
+    if (token.trim() === '') {
+        localStorage.removeItem('github_token');
+        githubToken = '';
+        toast('Token removido.', 'info');
+    } else {
+        localStorage.setItem('github_token', token.trim());
+        githubToken = token.trim();
+        toast('✅ Token salvo.', 'success');
+    }
+
+    const repo = prompt('📁 Repositório (usuario/repo):', githubRepo || '');
+    if (repo !== null && repo.trim() !== '') {
+        localStorage.setItem('github_repo', repo.trim());
+        githubRepo = repo.trim();
+    }
+
+    const branch = prompt('🌿 Branch (padrão: main):', githubBranch || 'main');
+    if (branch !== null && branch.trim() !== '') {
+        localStorage.setItem('github_branch', branch.trim());
+        githubBranch = branch.trim();
+    }
+
+    const pasta = prompt('📂 Pasta padrão (ex: aulas/, partituras/, ou vazio):', githubPasta || '');
+    if (pasta !== null) {
+        let pastaTratada = pasta.trim();
+        if (pastaTratada && !pastaTratada.endsWith('/')) pastaTratada += '/';
+        localStorage.setItem('github_pasta', pastaTratada);
+        githubPasta = pastaTratada;
+        toast(`Pasta definida: "${githubPasta || 'raiz'}"`, 'info');
+    }
+
+    // Sincroniza com o escopo global
+    window.githubToken = githubToken;
+    window.githubRepo = githubRepo;
+    window.githubBranch = githubBranch;
+    window.githubPasta = githubPasta;
+}
+
+// ============================================================
+// OBTER SHA DE UM ARQUIVO NO GITHUB
+// ============================================================
+async function obterShaArquivoGitHub(nomeArquivo, pasta) {
+    if (!githubToken || !githubRepo) return null;
+    const caminho = pasta + encodeURIComponent(nomeArquivo);
+    const url = `https://api.github.com/repos/${githubRepo}/contents/${caminho}`;
+    try {
+        const response = await fetch(url, {
+            headers: { 'Authorization': `token ${githubToken}` }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            return data.sha;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+// ============================================================
+// ENVIAR ARQUIVO PARA O GITHUB
+// ============================================================
+async function enviarArquivoParaGitHub(nomeArquivo, conteudo, pasta, mensagem = '') {
+    if (!githubToken) { toast('Token não configurado.', 'error'); return false; }
+    if (!githubRepo) { toast('Repositório não configurado.', 'error'); return false; }
+
+    const caminho = pasta + encodeURIComponent(nomeArquivo);
+    const url = `https://api.github.com/repos/${githubRepo}/contents/${caminho}`;
+
+    let sha = await obterShaArquivoGitHub(nomeArquivo, pasta);
+    const contentBase64 = btoa(unescape(encodeURIComponent(conteudo)));
+
+    const body = {
+        message: mensagem || `Atualizando ${nomeArquivo} via Pro Maestro`,
+        content: contentBase64,
+        branch: githubBranch
+    };
+    if (sha) body.sha = sha;
+
+    try {
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Erro desconhecido');
+        }
+        return true;
+    } catch (err) {
+        toast(`❌ Erro ao enviar "${nomeArquivo}": ${err.message}`, 'error');
+        return false;
+    }
+}
+
+// ============================================================
+// ENVIAR ARQUIVO ATUAL (botão 🚀)
+// ============================================================
+async function enviarParaGitHub() {
+    if (listaAtual === null || cartaoAtual === null) {
+        toast('❌ Nenhuma aula aberta.', 'error');
+        return;
+    }
+    if (!githubToken) { toast('Configure o GitHub primeiro (🔑).', 'error'); return; }
+
+    const lista = obterListaPorCaminho(listaAtual);
+    if (!lista || !lista.cards[cartaoAtual]) {
+        toast('❌ Cartão não encontrado.', 'error');
+        return;
+    }
+
+    const card = lista.cards[cartaoAtual];
+    const titulo = card.texto.replace(/\s+/g, '_');
+
+    // Escolher formato
+    const formatoSelect = document.getElementById('formatoExport');
+    const formato = formatoSelect ? formatoSelect.value : 'md';
+    let extensao = formato;
+    let conteudo = '';
+
+    if (formato === 'html') {
+        const preview = document.getElementById('preview');
+        if (!preview) { toast('❌ Pré-visualização não encontrada.', 'error'); return; }
+        conteudo = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>${card.texto}</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
+<style>body{font-family:Arial;padding:20px;}.chord-diagram canvas{max-width:140px;}.abcjs-container{max-width:100%;overflow-x:auto;}</style>
+</head>
+<body>
+${preview.innerHTML}
+</body>
+</html>`;
+    } else {
+        conteudo = editor.value;
+        if (formato === 'txt') extensao = 'txt';
+        else if (formato === 'md') extensao = 'md';
+    }
+
+    const nomeArquivo = `${titulo}.${extensao}`;
+
+    const usarPadrao = confirm(`Usar pasta padrão "${githubPasta || 'raiz'}"? (Cancelar para especificar outra)`);
+    let pastaDestino = githubPasta;
+    if (!usarPadrao) {
+        const resp = prompt('Pasta de destino (ex: aulas/, partituras/, ou vazio):', '');
+        if (resp === null) return;
+        let pastaDigitada = resp.trim();
+        if (pastaDigitada && !pastaDigitada.endsWith('/')) pastaDigitada += '/';
+        pastaDestino = pastaDigitada;
+    }
+
+    const sucesso = await enviarArquivoParaGitHub(nomeArquivo, conteudo, pastaDestino, `Enviando ${nomeArquivo}`);
+    if (sucesso) toast(`✅ "${nomeArquivo}" enviado para "${pastaDestino || 'raiz'}"!`, 'success');
+}
+
+// --- Exportar e enviar TXT ---
+async function exportarEnviarTXT() {
+    const conteudo = obterConteudoAtual();
+    if (!conteudo) { alert('❌ Sem conteúdo para exportar.'); return; }
+    const titulo = obterTituloAtual().replace(/\s+/g, '_');
+    const nomeArquivo = `${titulo}.txt`;
+    const pasta = 'txt';
+    const ok = await enviarArquivoParaGitHub(nomeArquivo, conteudo, pasta);
+    if (ok) toast('✅ TXT enviado para o GitHub!', 'success');
+}
+
+// --- Exportar e enviar MD ---
+async function exportarEnviarMD() {
+    const conteudo = obterConteudoAtual();
+    if (!conteudo) { alert('❌ Sem conteúdo para exportar.'); return; }
+    const titulo = obterTituloAtual().replace(/\s+/g, '_');
+    const nomeArquivo = `${titulo}.md`;
+    const pasta = 'markdown';
+    const ok = await enviarArquivoParaGitHub(nomeArquivo, conteudo, pasta);
+    if (ok) toast('✅ MD enviado para o GitHub!', 'success');
+}
+
+// --- Exportar e enviar HTML (pré-visualização) ---
+async function exportarEnviarHTML() {
+    const preview = document.getElementById('preview');
+    if (!preview) { alert('❌ Pré-visualização não encontrada.'); return; }
+    const titulo = obterTituloAtual().replace(/\s+/g, '_');
+    const htmlContent = gerarHTMLCompleto(preview.innerHTML);
+    const nomeArquivo = `${titulo}.html`;
+    const pasta = 'html';
+    const ok = await enviarArquivoParaGitHub(nomeArquivo, htmlContent, pasta);
+    if (ok) toast('✅ HTML enviado para o GitHub!', 'success');
+}
+
+// ============================================================
+// PUXAR DO GITHUB (CORRIGIDO - botão 📥)
+// ============================================================
+window.puxarDoGitHub = async function() {
+    console.log("🔍 Iniciando puxarDoGitHub...");
+
+    // 1. Verifica configurações
+    if (!window.githubToken || !window.githubRepo) {
+        toast('Configure o GitHub primeiro (🔑).', 'error');
+        return;
+    }
+
+    // 2. Pergunta a pasta de origem no GitHub
+    const pastaOrigem = prompt(
+        '📂 Pasta de origem no GitHub (ex: arquivos/, conteudo/, ou vazio para raiz):',
+        window.githubPasta || ''
+    );
+    if (pastaOrigem === null) return;
+    let pasta = pastaOrigem.trim();
+    if (pasta && !pasta.endsWith('/')) pasta += '/';
+
+    // 3. Lista arquivos da pasta
+    const urlLista = `https://api.github.com/repos/${window.githubRepo}/contents/${pasta}?ref=${window.githubBranch}`;
+    let arquivos = [];
+    try {
+        const response = await fetch(urlLista, {
+            headers: { 'Authorization': `token ${window.githubToken}` }
+        });
+        if (!response.ok) {
+            if (response.status === 404) {
+                toast(`❌ Pasta "${pasta || 'raiz'}" não encontrada.`, 'error');
+                return;
+            }
+            const error = await response.json();
+            toast(`❌ Erro: ${error.message}`, 'error');
+            return;
+        }
+        const data = await response.json();
+        const extensoes = ['.txt', '.md', '.html', '.css', '.js', '.json', '.csv', '.xml'];
+        arquivos = data
+            .filter(item => item.type === 'file' && extensoes.some(ext => item.name.endsWith(ext)))
+            .map(item => item.name);
+
+        if (arquivos.length === 0) {
+            toast(`📭 Nenhum arquivo encontrado em "${pasta || 'raiz'}"`, 'error');
+            const manual = confirm('Deseja digitar o nome do arquivo manualmente?');
+            if (!manual) return;
+            const nomeManual = prompt('Digite o nome do arquivo:');
+            if (!nomeManual) return;
+            arquivos = [nomeManual];
+        } else {
+            let listaMsg = '📄 Escolha um arquivo (digite o número):\n\n';
+            arquivos.forEach((nome, idx) => {
+                listaMsg += `  ${idx + 1}. ${nome}\n`;
+            });
+            listaMsg += `\n  ${arquivos.length + 1}. Digitar manualmente`;
+            const escolha = prompt(listaMsg, '1');
+            if (escolha === null) return;
+            const numero = parseInt(escolha);
+            if (isNaN(numero) || numero < 1 || numero > arquivos.length + 1) {
+                toast('❌ Número inválido.', 'error');
+                return;
+            }
+            if (numero === arquivos.length + 1) {
+                const nomeManual = prompt('Digite o nome do arquivo:');
+                if (!nomeManual) return;
+                arquivos = [nomeManual];
+            } else {
+                arquivos = [arquivos[numero - 1]];
+            }
+        }
+    } catch (err) {
+        toast(`❌ Erro ao listar arquivos: ${err.message}`, 'error');
+        return;
+    }
+
+    const nomeArquivo = arquivos[0];
+    console.log(`✅ Arquivo selecionado: "${nomeArquivo}"`);
+
+    // 4. Baixa o conteúdo do arquivo (em memória)
+    const caminho = encodeURIComponent(pasta + nomeArquivo);
+    const urlDownload = `https://api.github.com/repos/${window.githubRepo}/contents/${caminho}?ref=${window.githubBranch}`;
+    let conteudo;
+    try {
+        const response = await fetch(urlDownload, {
+            headers: { 'Authorization': `token ${window.githubToken}` }
+        });
+        if (!response.ok) {
+            if (response.status === 404) {
+                toast(`❌ "${nomeArquivo}" não encontrado.`, 'error');
+            } else {
+                const error = await response.json();
+                toast(`❌ Erro: ${error.message}`, 'error');
+            }
+            return;
+        }
+        const data = await response.json();
+        try {
+            conteudo = decodeURIComponent(escape(atob(data.content)));
+            console.log(`✅ Conteúdo decodificado (${conteudo.length} caracteres).`);
+        } catch (decodeErr) {
+            toast(`❌ Erro ao decodificar arquivo: ${decodeErr.message}`, 'error');
+            return;
+        }
+    } catch (err) {
+        toast(`❌ Erro ao baixar: ${err.message}`, 'error');
+        return;
+    }
+
+    // 5. PERGUNTA: ABRIR NO EDITOR OU BAIXAR PARA PASTA?
+    const acao = confirm(
+        `📄 "${nomeArquivo}" baixado com sucesso!\n\n` +
+        `Clique em "OK" para ABRIR no editor (sem salvar em disco).\n` +
+        `Clique em "Cancelar" para BAIXAR para uma pasta do computador.`
+    );
+
+    if (acao) {
+        // ========== ABRIR NO EDITOR ==========
+        // Verifica se já há uma aula aberta; se não, cria um cartão temporário
+        if (listaAtual === null || cartaoAtual === null) {
+            // Cria uma lista "Temporários" se não existir
+            let listaTemp = dados.listas.find(l => l.nome === 'Temporários');
+            if (!listaTemp) {
+                listaTemp = { nome: 'Temporários', cards: [], sublistas: [] };
+                dados.listas.push(listaTemp);
+            }
+            // Cria um novo cartão com o nome do arquivo
+            const novoCard = {
+                texto: nomeArquivo.replace(/\.[^.]+$/, ''), // remove extensão
+                conteudo: conteudo,
+                ultimaModificacao: Date.now()
+            };
+            listaTemp.cards.push(novoCard);
+            const idx = dados.listas.indexOf(listaTemp);
+            const cardIdx = listaTemp.cards.length - 1;
+            salvarDados();
+            // Abre o cartão recém-criado
+            carregarAula([idx], cardIdx);
+            toast(`✅ "${nomeArquivo}" aberto no editor!`, 'success');
+        } else {
+            // Substitui o conteúdo da aula atual
+            const lista = obterListaPorCaminho(listaAtual);
+            if (lista && lista.cards[cartaoAtual]) {
+                lista.cards[cartaoAtual].conteudo = conteudo;
+                lista.cards[cartaoAtual].texto = nomeArquivo.replace(/\.[^.]+$/, '');
+                lista.cards[cartaoAtual].ultimaModificacao = Date.now();
+                salvarDados();
+                editor.value = conteudo;
+                renderizar();
+                toast(`✅ "${nomeArquivo}" carregado na aula atual.`, 'success');
+            } else {
+                toast('❌ Erro: aula não encontrada.', 'error');
+            }
+        }
+    } else {
+        // ========== BAIXAR PARA PASTA ==========
+        let pastaLocal;
+        try {
+            pastaLocal = await window.showDirectoryPicker({ mode: 'readwrite' });
+            console.log(`📁 Pasta local selecionada: ${pastaLocal.name}`);
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                toast('Erro ao selecionar pasta: ' + err.message, 'error');
+            }
+            return;
+        }
+
+        try {
+            const arquivoHandle = await pastaLocal.getFileHandle(nomeArquivo, { create: true });
+            await salvarArquivo(arquivoHandle, conteudo);
+            toast(`✅ "${nomeArquivo}" baixado em "${pastaLocal.name}"`, 'success');
+        } catch (saveErr) {
+            toast(`❌ Erro ao salvar arquivo: ${saveErr.message}`, 'error');
+            return;
+        }
+
+        // Pergunta se quer abrir a pasta no app
+        const abrir = confirm(`Deseja abrir a pasta "${pastaLocal.name}" no explorador agora?`);
+        if (abrir) {
+            try {
+                if (typeof window.carregarPasta === 'function') {
+                    window.pastaHandle = pastaLocal;
+                    await window.carregarPasta();
+                } else if (typeof carregarPasta === 'function') {
+                    pastaHandle = pastaLocal;
+                    await carregarPasta();
+                } else {
+                    toast('⚠️ Função carregarPasta não encontrada.', 'warning');
+                }
+            } catch (err) {
+                toast(`⚠️ Erro ao abrir pasta: ${err.message}`, 'warning');
+            }
+        }
+    }
+};
+
+// ============================================================
+// SINCRONIZAR TODOS OS CARTÕES (botão 🔄)
+// ============================================================
+async function sincronizarGitHub() {
+    if (listaAtual === null) {
+        toast('❌ Nenhuma lista aberta.', 'error');
+        return;
+    }
+    if (!githubToken || !githubRepo) {
+        toast('Configure o GitHub primeiro (🔑).', 'error');
+        return;
+    }
+
+    const lista = obterListaPorCaminho(listaAtual);
+    if (!lista || !lista.cards || lista.cards.length === 0) {
+        toast('📭 Esta lista não tem cartões.', 'info');
+        return;
+    }
+
+    const formatoSelect = document.getElementById('formatoExport');
+    const formato = formatoSelect ? formatoSelect.value : 'md';
+    const extensao = formato === 'html' ? 'html' : (formato === 'txt' ? 'txt' : 'md');
+
+    const pastaDestino = prompt('Pasta de destino para TODOS os cartões:', githubPasta || '');
+    if (pastaDestino === null) return;
+    let pastaTratada = pastaDestino.trim();
+    if (pastaTratada && !pastaTratada.endsWith('/')) pastaTratada += '/';
+
+    if (!confirm(`Enviar ${lista.cards.length} cartões para "${pastaTratada || 'raiz'}" como .${extensao}?`)) return;
+
+    let enviados = 0, erros = 0;
+    for (let i = 0; i < lista.cards.length; i++) {
+        const card = lista.cards[i];
+        const titulo = card.texto.replace(/\s+/g, '_');
+        let conteudo = '';
+
+        if (formato === 'html') {
+            const markedContent = marked.parse(card.conteudo || '');
+            conteudo = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>${card.texto}</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
+<style>body{font-family:Arial;padding:20px;}.chord-diagram canvas{max-width:140px;}.abcjs-container{max-width:100%;overflow-x:auto;}</style>
+</head>
+<body>
+${markedContent}
+</body>
+</html>`;
+        } else {
+            conteudo = card.conteudo || '';
+        }
+
+        const nomeArquivo = `${titulo}.${extensao}`;
+        const ok = await enviarArquivoParaGitHub(nomeArquivo, conteudo, pastaTratada, `Sincronizando ${nomeArquivo}`);
+        if (ok) enviados++; else erros++;
+    }
+
+    toast(`✅ Sincronização concluída!\nEnviados: ${enviados}\nErros: ${erros}`, 'success');
+}
+
+// ============================================================
+// FUNÇÃO PARA SALVAR ARQUIVO LOCALMENTE
+// ============================================================
+async function salvarArquivo(handle, conteudo) {
+    const writable = await handle.createWritable();
+    await writable.write(conteudo);
+    await writable.close();
+}
+
+// ============================================================
+// FUNÇÃO PARA GERAR HTML COMPLETO
+// ============================================================
+function gerarHTMLCompleto(conteudoPreview) {
+    return `<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${obterTituloAtual()}</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: white; }
+    .chord-diagram canvas { max-width: 140px; height: auto; }
+    .abcjs-container { max-width: 100%; overflow-x: auto; }
+    .abcjs-container svg { max-width: 100%; height: auto; }
+    .piano-diagram-container { display: inline-block; margin: 10px; }
+    ${document.querySelector('style')?.innerHTML || ''}
+  </style>
+</head>
+<body>
+  ${conteudoPreview}
+</body>
+</html>`;
+}
+
+// ============================================
 // FUNÇÃO DE TELA CHEIA (CORREÇÃO)
 // ============================================
 function toggleFullscreenPreview() {
     const previewElement = document.getElementById('preview');
     const fullscreenBtn = document.getElementById('fullscreenBtn');
-    
+
     if (!document.fullscreenElement && !document.webkitFullscreenElement) {
-        // Entrar em tela cheia
         if (previewElement.requestFullscreen) {
             previewElement.requestFullscreen();
-        } else if (previewElement.webkitRequestFullscreen) { /* Safari */
+        } else if (previewElement.webkitRequestFullscreen) {
             previewElement.webkitRequestFullscreen();
-        } else if (previewElement.msRequestFullscreen) { /* IE/Edge */
+        } else if (previewElement.msRequestFullscreen) {
             previewElement.msRequestFullscreen();
         }
         if (fullscreenBtn) {
@@ -39,12 +544,11 @@ function toggleFullscreenPreview() {
             fullscreenBtn.style.background = '#e94560';
         }
     } else {
-        // Sair da tela cheia
         if (document.exitFullscreen) {
             document.exitFullscreen();
-        } else if (document.webkitExitFullscreen) { /* Safari */
+        } else if (document.webkitExitFullscreen) {
             document.webkitExitFullscreen();
-        } else if (document.msExitFullscreen) { /* IE/Edge */
+        } else if (document.msExitFullscreen) {
             document.msExitFullscreen();
         }
         if (fullscreenBtn) {
@@ -54,7 +558,6 @@ function toggleFullscreenPreview() {
     }
 }
 
-// Detectar quando sair da tela cheia (ESC)
 document.addEventListener('fullscreenchange', function() {
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     if (!document.fullscreenElement && fullscreenBtn) {
@@ -93,7 +596,7 @@ function obterDadosPadrao() {
             {
                 nome: "Piano",
                 cards: [
-                    {texto: "Escala de Dó Maior", conteudo: "# Escala de Dó Maior\n\n[PIANO:C]Dó Maior[/PIANO]\n\n[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC DEF | GAB c |]\n[/ABC]", ultimaModificacao: Date.now() },
+                    { texto: "Escala de Dó Maior", conteudo: "# Escala de Dó Maior\n\n[PIANO:C]Dó Maior[/PIANO]\n\n[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC DEF | GAB c |]\n[/ABC]", ultimaModificacao: Date.now() },
                     { texto: "Acordes Básicos", conteudo: "# Acordes Básicos\n\n[PIANO:C]Dó Maior[/PIANO]\n[PIANO:G]Sol Maior[/PIANO]\n[PIANO:Am]Lá Menor[/PIANO]", ultimaModificacao: Date.now() }
                 ],
                 sublistas: [
@@ -127,7 +630,6 @@ function obterDadosPadrao() {
 // ============================================
 // FUNÇÃO PARA SALVAR ACORDE DINÂMICO NA BIBLIOTECA
 // ============================================
-
 function salvarAcordeDinamicoNaBiblioteca() {
     const formato = prompt(
         '💾 SALVAR ACORDE DINÂMICO NA BIBLIOTECA\n\n' +
@@ -136,28 +638,22 @@ function salvarAcordeDinamicoNaBiblioteca() {
         'Exemplo: 2;5 (Lá Menor)\n\n' +
         'Formato:'
     );
-    
     if (!formato) return;
-    
     const convertido = converterDinamicoParaEditavel(formato);
     if (!convertido) return;
-    
-    // Pergunta se quer personalizar o nome
+
     const novoNome = prompt(`Nome do acorde na biblioteca (ou Enter para manter "${convertido.nome}"):`, convertido.nome);
     if (novoNome && novoNome.trim()) {
         convertido.acorde.nome = novoNome.trim();
         convertido.linha = convertido.linha.replace(convertido.nome, novoNome.trim());
     }
-    
-    // Salva diretamente na biblioteca
+
     if (typeof bibliotecaAcordes !== 'undefined') {
-        // Extrai dados da linha
         const partes = convertido.linha.split('/').map(p => p.trim());
         const siglaNome = partes[0];
         const doisPontos = siglaNome.indexOf(':');
         const sigla = siglaNome.substring(0, doisPontos).trim();
-        
-        // Salva na biblioteca
+
         bibliotecaAcordes[sigla] = {
             nome: convertido.acorde.nome,
             cordas: convertido.acorde.cordas,
@@ -166,22 +662,14 @@ function salvarAcordeDinamicoNaBiblioteca() {
             casaInicial: convertido.acorde.casaInicial,
             baixo: convertido.acorde.baixo || sigla
         };
-        
-        // Salva no localStorage
         localStorage.setItem('biblioteca_acordes', JSON.stringify(bibliotecaAcordes));
-        
-        // Atualizar visualização
-        if (typeof atualizarBibliotecaVisual === 'function') {
-            atualizarBibliotecaVisual();
-        }
-        
+        if (typeof atualizarBibliotecaVisual === 'function') atualizarBibliotecaVisual();
         alert(`✅ Acorde "${sigla}" salvo na biblioteca!\n\nUse [Acorde:${sigla}] no editor.`);
     } else {
         alert('Erro: biblioteca de acordes não disponível');
     }
 }
 
-// Adicionado um botão na barra lateral para salvar acorde sonoro
 function adicionarBotaoSalvarDinamico() {
     const sidebar = document.getElementById('sidebar');
     if (sidebar) {
@@ -190,8 +678,6 @@ function adicionarBotaoSalvarDinamico() {
         btn.style.background = '#9b59b6';
         btn.style.marginTop = '10px';
         btn.onclick = salvarAcordeDinamicoNaBiblioteca;
-        
-        // Insere depois do botão "Editor de Acordes"
         const editorBtn = document.querySelector('#sidebar button[onclick="abrirEditorAcordes()"]');
         if (editorBtn) {
             editorBtn.insertAdjacentElement('afterend', btn);
@@ -211,40 +697,23 @@ function inserirCodigoAcorde(codigo) {
 // ============================================
 // CONVERTER ACORDE DINÂMICO PARA EDITÁVEL
 // ============================================
-
-// Função para converter acorde sonoro em formato editável
 function converterDinamicoParaEditavel(formato) {
     if (typeof window.processarAcordeDinamico !== 'function') {
         alert('Módulo de acordes sonoros não carregado!');
         return null;
     }
-    
     const acorde = window.processarAcordeDinamico(formato, '');
     if (!acorde) {
         alert(`Formato "${formato}" inválido!`);
         return null;
     }
-    
-    // Gera uma linha no formato que o editor entende
-    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestanaCordas) && acorde.pestanaCordas.length > 0
-        ? JSON.stringify(acorde.pestanaCordas)
-        : 'true') : 'false';
-    
+    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestanaCordas) && acorde.pestanaCordas.length > 0 ? JSON.stringify(acorde.pestanaCordas) : 'true') : 'false';
     const cordasStr = acorde.cordas.join(',');
     const dedosStr = acorde.dedos.join(',');
-    
-    // Formato: SIGLA: NOME / CORDAS / DEDOS / PESTANA / CASA_INICIAL / BAIXO
     const linha = `${formato}: ${acorde.nome} / ${cordasStr} / ${dedosStr} / ${pestanaStr} / ${acorde.casaInicial} / ${acorde.baixo || ''}`;
-    
-    return {
-        linha: linha,
-        acorde: acorde,
-        formato: formato,
-        nome: acorde.nome
-    };
+    return { linha, acorde, formato, nome: acorde.nome };
 }
 
-// Função para abrir editor com acorde sonoro
 function editarAcordeDinamico() {
     const formato = prompt(
         '🎸 EDITAR ACORDE DINÂMICO\n\n' +
@@ -255,67 +724,52 @@ function editarAcordeDinamico() {
         '• 1;3;5 = Dó Maior (corda base 5)\n\n' +
         'Formato:'
     );
-    
     if (!formato) return;
-    
     const convertido = converterDinamicoParaEditavel(formato);
     if (!convertido) return;
-    
-    // Abre o editor com o acorde convertido
     abrirEditorAcordesComDados(convertido.linha, convertido.nome);
 }
 
-// Função para abrir editor com dados pré-preenchidos
 function abrirEditorAcordesComDados(linha, nomeSugerido) {
     const modal = document.getElementById('modalAcordes');
     if (!modal) {
         alert('Editor de acordes não encontrado!');
         return;
     }
-    
-    // Abre o modal
     if (typeof carregarBiblioteca === 'function') carregarBiblioteca();
     modal.style.display = 'block';
-    
-    // Preenche o campo de texto
     const inputField = document.getElementById('acordeInput');
     if (inputField) {
         inputField.value = linha;
     }
-    
-    // Foca no campo
     setTimeout(() => {
         if (inputField) {
             inputField.focus();
             inputField.select();
         }
     }, 100);
-    
-    // Pré-visualização gerada automaticamente
     setTimeout(() => {
-        if (typeof gerarPreviewAcordes === 'function') {
-            gerarPreviewAcordes();
-        }
+        if (typeof gerarPreviewAcordes === 'function') gerarPreviewAcordes();
     }, 200);
-    
     alert(`✅ Acorde dinâmico convertido!\n\nAgora você pode editar e salvar na biblioteca.`);
 }
 
+// ============================================
+// DESENHAR ACORDE (DIAGRAMA DE VIOLÃO)
+// ============================================
 function desenharAcorde(container, sigla, nomeParam = '') {
     let acorde = null;
     let nomeExibido = nomeParam || sigla;
-    
-    // FORÇAR O C1 A NÃO MOSTRAR NÚMERO
+
     if (sigla === 'C1') {
         if (typeof ACORDES !== 'undefined' && ACORDES['C1']) {
-            acorde = {...ACORDES['C1']};
+            acorde = { ...ACORDES['C1'] };
             acorde.posicao = null;
             acorde.mostrarNumero = false;
             nomeExibido = acorde.nome;
         }
     }
-    
-    // Busca do acorde
+
     if (!acorde && typeof ACORDES !== 'undefined' && ACORDES[sigla]) {
         acorde = ACORDES[sigla];
         nomeExibido = acorde.nome;
@@ -329,34 +783,32 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             nomeExibido = acorde.nome;
         }
     }
-    
+
     if (!acorde) {
         container.innerHTML = `<div style="color:red; padding:10px;">❌ Acorde "${sigla}" não encontrado</div>`;
         return;
     }
-    
+
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'position:relative; display:inline-block; text-align:center; margin:20px 10px;';
-    
-    // Cifra (nome do acorde) em cima
+
     const cifraDiv = document.createElement('div');
     cifraDiv.textContent = nomeExibido;
     cifraDiv.style.cssText = 'position:absolute; top:-3px; left:50%; transform:translateX(-50%); font-size:25px; font-weight:bold; color:#e94560; background:white; padding:0px 8px; border-radius:20px; white-space:nowrap;';
     wrapper.appendChild(cifraDiv);
-    
+
     const canvas = document.createElement('canvas');
     canvas.width = 140;
     canvas.height = 190;
     const ctx = canvas.getContext('2d');
-    
+
     ctx.fillStyle = '#ffffff';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
+
     const startX = 28, startY = 45, stringSpacing = 18, fretSpacing = 26;
     const numFrets = 5;
-    
-    // Desenha cordas
+
     ctx.strokeStyle = '#333';
     ctx.lineWidth = 1.5;
     for (let i = 0; i < 6; i++) {
@@ -365,33 +817,27 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.lineTo(startX + i * stringSpacing, startY + numFrets * fretSpacing);
         ctx.stroke();
     }
-    
-    // Desenha trastes
+
     for (let i = 0; i <= numFrets; i++) {
         ctx.beginPath();
         ctx.moveTo(startX, startY + i * fretSpacing);
         ctx.lineTo(startX + 5 * stringSpacing, startY + i * fretSpacing);
         ctx.stroke();
     }
-    
-    // PESTANA
+
     const temPestana = acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0;
-    const casaInicialVal = acorde.casaInicial || 1;
     const casaBase = acorde.pestanaCasa || acorde.casaInicial || 1;
     const mostrarNumero = acorde.mostrarNumero !== false;
-    
     let cordasNaPestana = [];
-    
+
     if (temPestana) {
         cordasNaPestana = acorde.pestanaCordas;
         const casaPestana = acorde.pestanaCasa || acorde.casaInicialParaPestana || 1;
         const pestanaY = startY + (casaPestana - 1) * fretSpacing + (fretSpacing / 2);
         const primeiraCorda = Math.min(...cordasNaPestana);
         const ultimaCorda = Math.max(...cordasNaPestana);
-        
         const xInicio = startX + primeiraCorda * stringSpacing - 2;
         const xFim = startX + ultimaCorda * stringSpacing + 2;
-        
         ctx.beginPath();
         ctx.moveTo(xInicio, pestanaY);
         ctx.lineTo(xFim, pestanaY);
@@ -400,11 +846,9 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.strokeStyle = '#2c3e50';
         ctx.stroke();
     }
-    
-    // NÚMERO LATERAL
+
     let numeroMostrar = null;
     let textoMostrar = null;
-    
     if (acorde.mostrarPosicao === true && acorde.posicao) {
         numeroMostrar = acorde.posicao;
         textoMostrar = acorde.textoPosicao || (acorde.posicao + 'ª');
@@ -412,29 +856,26 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         numeroMostrar = acorde.pestanaCasa || acorde.casaInicial || 1;
         textoMostrar = numeroMostrar + 'ª';
     }
-    
     if (numeroMostrar !== null && textoMostrar !== null && acorde.mostrarNumero !== false) {
         ctx.font = 'bold 14px Arial';
         ctx.fillStyle = '#333';
         const yPos = startY + (numeroMostrar - 1) * fretSpacing + fretSpacing / 2 + 2;
         ctx.fillText(textoMostrar, startX - 28, yPos);
     }
-    
-    // DESENHAR NOTAS (BOLINHAS)
+
     ctx.lineWidth = 1.5;
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
         const casaRelativa = casa - casaBase + 1;
         const estaNaPestana = temPestana && cordasNaPestana.includes(i) && casa === casaBase;
-        
+
         if (casa === 0) {
             const y = startY - 10;
             ctx.beginPath();
             ctx.arc(x, y, 5, 0, 2 * Math.PI);
             ctx.strokeStyle = '#333';
             ctx.stroke();
-        }
-        else if (casa === -1) {
+        } else if (casa === -1) {
             const y = startY - 10;
             ctx.strokeStyle = '#e94560';
             ctx.lineWidth = 2;
@@ -443,15 +884,13 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4);
             ctx.stroke();
             ctx.lineWidth = 1.5;
-        }
-        else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
+        } else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
             if (!estaNaPestana) {
                 const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
                 ctx.beginPath();
                 ctx.arc(x, y, 8, 0, 2 * Math.PI);
                 ctx.fillStyle = '#1a1a2e';
                 ctx.fill();
-                
                 const dedo = (acorde.dedos && acorde.dedos[i]) ? acorde.dedos[i] : '';
                 if (dedo) {
                     ctx.fillStyle = '#ffffff';
@@ -463,28 +902,24 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             }
         }
     });
-    
-wrapper.appendChild(canvas);
 
-// Nome do acorde (ID) centralizado abaixo do diagrama
-const idDiv = document.createElement('div');
-// Só mostra o ID se for acorde dinâmico (formato com ;)
-if (sigla.includes(';')) {
-    const primeiroNumero = sigla.split(';')[0];
-    idDiv.textContent = primeiroNumero;
-    idDiv.style.cssText = 'text-align: center; width: 100%; margin-top: -18px; font-size: 20px; font-weight: bold; color: #e94560;';
-} else {
-    idDiv.textContent = '';
-    idDiv.style.display = 'none';
-}
+    wrapper.appendChild(canvas);
 
-wrapper.appendChild(idDiv);
-
-container.appendChild(wrapper);
+    const idDiv = document.createElement('div');
+    if (sigla.includes(';')) {
+        const primeiroNumero = sigla.split(';')[0];
+        idDiv.textContent = primeiroNumero;
+        idDiv.style.cssText = 'text-align: center; width: 100%; margin-top: -18px; font-size: 20px; font-weight: bold; color: #e94560;';
+    } else {
+        idDiv.textContent = '';
+        idDiv.style.display = 'none';
+    }
+    wrapper.appendChild(idDiv);
+    container.appendChild(wrapper);
 }
 
 // ============================================
-// FUNÇÕES DE SALVAR E CARREGAR
+// FUNÇÕES DE SALVAR E CARREGAR DADOS
 // ============================================
 function salvarDados() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
@@ -498,7 +933,7 @@ function carregarDados() {
         try {
             dados = JSON.parse(localData);
             console.log("✅ Dados carregados:", dados.listas.length, "listas");
-        } catch(e) {
+        } catch (e) {
             console.error("Erro ao carregar:", e);
             dados = obterDadosPadrao();
         }
@@ -518,7 +953,7 @@ function carregarDados() {
 function renderizarListaAulas() {
     if (!listaAulas) return;
     listaAulas.innerHTML = '';
-    
+
     const novaListaBtn = document.createElement('button');
     novaListaBtn.textContent = '+ Nova Lista';
     novaListaBtn.style.background = '#e94560';
@@ -532,7 +967,7 @@ function renderizarListaAulas() {
     novaListaBtn.style.fontWeight = 'bold';
     novaListaBtn.onclick = () => criarLista(null);
     listaAulas.appendChild(novaListaBtn);
-    
+
     if (!dados.listas || dados.listas.length === 0) {
         const emptyMsg = document.createElement('div');
         emptyMsg.textContent = '📭 Nenhuma lista. Clique em "+ Nova Lista" para começar.';
@@ -542,7 +977,7 @@ function renderizarListaAulas() {
         listaAulas.appendChild(emptyMsg);
         return;
     }
-    
+
     function renderizarListaRecursiva(lista, caminho, nivel = 0) {
         const listaDiv = document.createElement('div');
         listaDiv.style.marginBottom = '10px';
@@ -551,7 +986,7 @@ function renderizarListaAulas() {
             listaDiv.style.borderLeft = '2px solid #e94560';
             listaDiv.style.paddingLeft = '10px';
         }
-        
+
         const headerDiv = document.createElement('div');
         headerDiv.style.display = 'flex';
         headerDiv.style.justifyContent = 'space-between';
@@ -561,19 +996,19 @@ function renderizarListaAulas() {
         headerDiv.style.borderRadius = '5px';
         headerDiv.style.cursor = 'pointer';
         headerDiv.style.marginTop = '5px';
-        
+
         const tituloSpan = document.createElement('span');
         tituloSpan.style.fontWeight = 'bold';
         tituloSpan.style.color = '#e94560';
-        
+
         const pathKey = obterChaveDoCaminho(caminho);
         const isExpanded = expandedPaths.has(pathKey);
         tituloSpan.innerHTML = isExpanded ? `📂 ${lista.nome}` : `📁 ${lista.nome}`;
-        
+
         const botoesDiv = document.createElement('div');
         botoesDiv.style.display = 'flex';
         botoesDiv.style.gap = '5px';
-        
+
         const addSubListBtn = document.createElement('button');
         addSubListBtn.textContent = '📁+';
         addSubListBtn.style.padding = '4px 8px';
@@ -584,7 +1019,7 @@ function renderizarListaAulas() {
         addSubListBtn.style.color = 'white';
         addSubListBtn.style.fontSize = '11px';
         addSubListBtn.onclick = (e) => { e.stopPropagation(); criarLista(caminho); };
-        
+
         const addCardBtn = document.createElement('button');
         addCardBtn.textContent = '+';
         addCardBtn.style.padding = '4px 10px';
@@ -594,7 +1029,7 @@ function renderizarListaAulas() {
         addCardBtn.style.cursor = 'pointer';
         addCardBtn.style.color = 'white';
         addCardBtn.onclick = (e) => { e.stopPropagation(); criarCartao(caminho); };
-        
+
         const editListBtn = document.createElement('button');
         editListBtn.textContent = '✏️';
         editListBtn.style.padding = '4px 8px';
@@ -604,7 +1039,7 @@ function renderizarListaAulas() {
         editListBtn.style.cursor = 'pointer';
         editListBtn.style.color = 'white';
         editListBtn.onclick = (e) => { e.stopPropagation(); renomearLista(caminho); };
-        
+
         const deleteListBtn = document.createElement('button');
         deleteListBtn.textContent = '🗑️';
         deleteListBtn.style.padding = '4px 8px';
@@ -614,20 +1049,20 @@ function renderizarListaAulas() {
         deleteListBtn.style.cursor = 'pointer';
         deleteListBtn.style.color = 'white';
         deleteListBtn.onclick = (e) => { e.stopPropagation(); excluirLista(caminho); };
-        
+
         botoesDiv.appendChild(addSubListBtn);
         botoesDiv.appendChild(addCardBtn);
         botoesDiv.appendChild(editListBtn);
         botoesDiv.appendChild(deleteListBtn);
         headerDiv.appendChild(tituloSpan);
         headerDiv.appendChild(botoesDiv);
-        
+
         const contentContainer = document.createElement('div');
         contentContainer.className = 'cards-container';
         contentContainer.style.paddingLeft = '10px';
         contentContainer.style.marginTop = '5px';
         contentContainer.style.display = isExpanded ? 'block' : 'none';
-        
+
         if (lista.cards && lista.cards.length > 0) {
             for (let cardIdx = 0; cardIdx < lista.cards.length; cardIdx++) {
                 const card = lista.cards[cardIdx];
@@ -642,16 +1077,16 @@ function renderizarListaAulas() {
                 cardDiv.style.margin = '3px 0';
                 cardDiv.style.borderRadius = '3px';
                 cardDiv.style.cursor = 'pointer';
-                
+
                 const cardTitle = document.createElement('span');
                 cardTitle.textContent = `📄 ${card.texto}`;
                 cardTitle.style.fontSize = '12px';
                 cardTitle.style.flex = '1';
-                
+
                 const cardActions = document.createElement('div');
                 cardActions.style.display = 'flex';
                 cardActions.style.gap = '5px';
-                
+
                 const editCardBtn = document.createElement('button');
                 editCardBtn.textContent = '✏️';
                 editCardBtn.style.padding = '2px 6px';
@@ -662,7 +1097,7 @@ function renderizarListaAulas() {
                 editCardBtn.style.color = 'white';
                 editCardBtn.style.fontSize = '10px';
                 editCardBtn.onclick = (e) => { e.stopPropagation(); renomearCartao(caminho, cardIdx); };
-                
+
                 const deleteCardBtn = document.createElement('button');
                 deleteCardBtn.textContent = '🗑️';
                 deleteCardBtn.style.padding = '2px 6px';
@@ -673,7 +1108,7 @@ function renderizarListaAulas() {
                 deleteCardBtn.style.color = 'white';
                 deleteCardBtn.style.fontSize = '10px';
                 deleteCardBtn.onclick = (e) => { e.stopPropagation(); excluirCartao(caminho, cardIdx); };
-                
+
                 cardActions.appendChild(editCardBtn);
                 cardActions.appendChild(deleteCardBtn);
                 cardDiv.appendChild(cardTitle);
@@ -682,7 +1117,7 @@ function renderizarListaAulas() {
                 contentContainer.appendChild(cardDiv);
             }
         }
-        
+
         if (lista.sublistas && lista.sublistas.length > 0) {
             for (let subIdx = 0; subIdx < lista.sublistas.length; subIdx++) {
                 const subPath = [...caminho, subIdx];
@@ -690,7 +1125,7 @@ function renderizarListaAulas() {
                 contentContainer.appendChild(subDiv);
             }
         }
-        
+
         if ((!lista.cards || lista.cards.length === 0) && (!lista.sublistas || lista.sublistas.length === 0)) {
             const emptyMsg = document.createElement('div');
             emptyMsg.textContent = '📭 Nenhum conteúdo. Clique em "+" para adicionar cartão ou "📁+" para sub-lista.';
@@ -700,7 +1135,7 @@ function renderizarListaAulas() {
             emptyMsg.style.textAlign = 'center';
             contentContainer.appendChild(emptyMsg);
         }
-        
+
         headerDiv.onclick = (e) => {
             if (e.target.tagName === 'BUTTON') return;
             if (expandedPaths.has(pathKey)) {
@@ -713,12 +1148,12 @@ function renderizarListaAulas() {
                 tituloSpan.innerHTML = `📂 ${lista.nome}`;
             }
         };
-        
+
         listaDiv.appendChild(headerDiv);
         listaDiv.appendChild(contentContainer);
         return listaDiv;
     }
-    
+
     dados.listas.forEach((lista, idx) => {
         const listaDiv = renderizarListaRecursiva(lista, [idx], 0);
         listaDiv.setAttribute('data-lista-idx', idx);
@@ -788,7 +1223,6 @@ function excluirLista(caminho) {
                 expandedPaths.delete(key);
             }
         }
-        
         if (caminho.length === 1) dados.listas.splice(caminho[0], 1);
         else {
             const paiPath = caminho.slice(0, -1);
@@ -895,14 +1329,14 @@ function aplicarCoresAcordesLetras() {
 function processarABCComEspacamento(id, code, tipo) {
     const elemento = document.getElementById(id);
     if (!elemento) return;
-    
+
     const staffsep = document.getElementById("staffsepRange")?.value || 60;
     const sysstaffsep = document.getElementById("sysstaffsepRange")?.value || 80;
-    
+
     let linhas = code.split('\n');
     let novasLinhas = [];
     let hasStaffsep = false, hasSysstaffsep = false;
-    
+
     for (let linha of linhas) {
         if (linha.trim().startsWith('%%staffsep')) {
             novasLinhas.push(`%%staffsep ${staffsep}`);
@@ -914,12 +1348,12 @@ function processarABCComEspacamento(id, code, tipo) {
             novasLinhas.push(linha);
         }
     }
-    
+
     if (!hasStaffsep && linhas.length > 0) novasLinhas.unshift(`%%staffsep ${staffsep}`);
     if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
-    
+
     let codigoProcessado = novasLinhas.join('\n');
-    
+
     try {
         elemento.innerHTML = "";
         ABCJS.renderAbc(id, codigoProcessado, { add_classes: true, staffwidth: 800, responsive: 'resize' });
@@ -929,10 +1363,9 @@ function processarABCComEspacamento(id, code, tipo) {
                 if (coresAtivas) aplicarCoresNasNotas();
                 ajustarAcordes();
                 ajustarLetras();
-                ;
             }, 200);
         }
-    } catch(e) {
+    } catch (e) {
         elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
     }
 }
@@ -975,6 +1408,7 @@ function ajustarLetrasX() {
         }
     });
 }
+
 function atualizarStaffSep() { renderizar(); }
 function atualizarSysStaffSep() { renderizar(); }
 function atualizarIntensidadeCores() { if (coresAtivas) aplicarCoresNasNotas(); }
@@ -994,27 +1428,27 @@ function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, 
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'display: inline-block; margin: 10px auto; text-align: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);';
-    
+
     const title = document.createElement('div');
     title.style.cssText = 'font-size: 1.6em; font-weight: bold; color: #e94560; margin-bottom: 10px;';
     title.textContent = nome;
     wrapper.appendChild(title);
-    
+
     const pianoDiv = document.createElement('div');
     pianoDiv.style.cssText = 'display: flex; position: relative; background: #131212; padding: 3px; border-radius: 4px;';
-    
+
     const escala = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const startMatch = startOitava.match(/^([A-G])(\d+)$/);
     const endMatch = endOitava.match(/^([A-G])(\d+)$/);
-    
+
     if (!startMatch || !endMatch) {
         container.innerHTML = '<div style="color:red">Erro no range</div>';
         return;
     }
-    
-    const pretasMap = { 'C#3':0,'D#3':1,'F#3':3,'G#3':4,'A#3':5,'C#4':7,'D#4':8,'F#4':10,'G#4':11,'A#4':12,'C#5':14,'D#5':15,'F#5':17,'G#5':18,'A#5':19 };
+
+    const pretasMap = { 'C#3': 0, 'D#3': 1, 'F#3': 3, 'G#3': 4, 'A#3': 5, 'C#4': 7, 'D#4': 8, 'F#4': 10, 'G#4': 11, 'A#4': 12, 'C#5': 14, 'D#5': 15, 'F#5': 17, 'G#5': 18, 'A#5': 19 };
     const whiteKeyWidth = 37, whiteKeyHeight = 120, blackKeyWidth = 25, blackKeyHeight = 79, blackKeyOffset = 34;
-    
+
     const teclasNoRange = [];
     for (let oct = parseInt(startMatch[2]); oct <= parseInt(endMatch[2]); oct++) {
         for (let i = 0; i < escala.length; i++) {
@@ -1025,7 +1459,7 @@ function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, 
             }
         }
     }
-    
+
     const whiteKeys = teclasNoRange.filter(t => !t.nota.includes('#'));
     const blackKeys = [];
     teclasNoRange.forEach(t => {
@@ -1034,7 +1468,7 @@ function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, 
             if (pos !== undefined) blackKeys.push({ ...t, pos });
         }
     });
-    
+
     function getDedo(notaNome, oitava) {
         const notaCompleta = notaNome + oitava;
         for (let i = 0; i < notasAcorde.length; i++) {
@@ -1042,7 +1476,7 @@ function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, 
         }
         return null;
     }
-    
+
     whiteKeys.forEach(tecla => {
         const dedo = getDedo(tecla.nota, tecla.oitava);
         const isActive = dedo !== null;
@@ -1056,7 +1490,7 @@ function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, 
         }
         pianoDiv.appendChild(whiteKey);
     });
-    
+
     blackKeys.forEach(tecla => {
         const dedo = getDedo(tecla.nota, tecla.oitava);
         const isActive = dedo !== null;
@@ -1070,7 +1504,7 @@ function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, 
         }
         pianoDiv.appendChild(blackKey);
     });
-    
+
     wrapper.appendChild(pianoDiv);
     container.appendChild(wrapper);
 }
@@ -1081,12 +1515,10 @@ function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, 
 function desenharAcordePianoPersonalizado(container, sigla, nome) {
     const acordesPersonalizados = JSON.parse(localStorage.getItem("acordes_piano_personalizados") || "{}");
     const acorde = acordesPersonalizados[sigla];
-    
     if (!acorde) {
         container.innerHTML = `<div style="color:red; padding:10px;">❌ Acorde personalizado não encontrado</div>`;
         return;
     }
-    
     const notasAtivas = acorde.notasNomes || [];
     const dedos = acorde.fingersTreble ? acorde.fingersTreble.split(/\s+/) : [];
     desenharTecladoPianoSimples(container, nome, notasAtivas, acorde.startOitava || 'C3', acorde.endOitava || 'C5', dedos);
@@ -1096,27 +1528,27 @@ function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, 
     container.innerHTML = '';
     const wrapper = document.createElement('div');
     wrapper.style.cssText = 'display: inline-block; margin: 10px auto; text-align: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);';
-    
+
     const title = document.createElement('div');
     title.style.cssText = 'font-size: 1.6em; font-weight: bold; color: #e94560; margin-bottom: 10px;';
     title.textContent = nome;
     wrapper.appendChild(title);
-    
+
     const pianoDiv = document.createElement('div');
     pianoDiv.style.cssText = 'display: flex; position: relative; background: #131212; padding: 3px; border-radius: 4px;';
-    
+
     const escala = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
     const startMatch = startOitava.match(/^([A-G])(\d+)$/);
     const endMatch = endOitava.match(/^([A-G])(\d+)$/);
-    
+
     if (!startMatch || !endMatch) {
         container.innerHTML = '<div style="color:red">Erro no range</div>';
         return;
     }
-    
-    const pretasMap = { 'C#3':0,'D#3':1,'F#3':3,'G#3':4,'A#3':5,'C#4':7,'D#4':8,'F#4':10,'G#4':11,'A#4':12,'C#5':14,'D#5':15,'F#5':17,'G#5':18,'A#5':19 };
+
+    const pretasMap = { 'C#3': 0, 'D#3': 1, 'F#3': 3, 'G#3': 4, 'A#3': 5, 'C#4': 7, 'D#4': 8, 'F#4': 10, 'G#4': 11, 'A#4': 12, 'C#5': 14, 'D#5': 15, 'F#5': 17, 'G#5': 18, 'A#5': 19 };
     const whiteKeyWidth = 37, whiteKeyHeight = 120, blackKeyWidth = 25, blackKeyHeight = 79, blackKeyOffset = 34;
-    
+
     const teclasNoRange = [];
     for (let oct = parseInt(startMatch[2]); oct <= parseInt(endMatch[2]); oct++) {
         for (let i = 0; i < escala.length; i++) {
@@ -1127,7 +1559,7 @@ function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, 
             }
         }
     }
-    
+
     const whiteKeys = teclasNoRange.filter(t => !t.nota.includes('#'));
     const blackKeys = [];
     teclasNoRange.forEach(t => {
@@ -1136,16 +1568,16 @@ function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, 
             if (pos !== undefined) blackKeys.push({ ...t, pos });
         }
     });
-    
+
     function getDedo(notaNome, idx) {
         if (dedosTreble && dedosTreble.length > 0) {
             const notaIndex = notasAtivas.indexOf(notaNome);
             if (notaIndex !== -1 && dedosTreble[notaIndex]) return dedosTreble[notaIndex];
         }
-        const mapa = { 'C':'1', 'D':'2', 'E':'3', 'F':'4', 'G':'5', 'A':'1', 'B':'2', 'C#':'2', 'D#':'3', 'F#':'4', 'G#':'5', 'A#':'1' };
+        const mapa = { 'C': '1', 'D': '2', 'E': '3', 'F': '4', 'G': '5', 'A': '1', 'B': '2', 'C#': '2', 'D#': '3', 'F#': '4', 'G#': '5', 'A#': '1' };
         return mapa[notaNome] || null;
     }
-    
+
     whiteKeys.forEach(tecla => {
         const isActive = notasAtivas.includes(tecla.nota);
         const dedo = isActive ? getDedo(tecla.nota) : null;
@@ -1159,7 +1591,7 @@ function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, 
         }
         pianoDiv.appendChild(whiteKey);
     });
-    
+
     blackKeys.forEach(tecla => {
         const isActive = notasAtivas.includes(tecla.nota);
         const dedo = isActive ? getDedo(tecla.nota) : null;
@@ -1173,7 +1605,7 @@ function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, 
         }
         pianoDiv.appendChild(blackKey);
     });
-    
+
     wrapper.appendChild(pianoDiv);
     container.appendChild(wrapper);
 }
@@ -1184,7 +1616,7 @@ function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, 
 function renderizar() {
     console.log("Renderizando...");
     let conteudo = editor.value || '';
-    
+
     try {
         let processado = conteudo;
         const acordes = [];
@@ -1192,44 +1624,44 @@ function renderizar() {
         const abcInfantis = [];
         const abcNormais = [];
         const pianosCustom = [];
-        
+
         processado = processado.replace(/\[Acorde:([^\]]+)\]([\s\S]*?)\[\/Acorde\]/g, (match, sigla, nome) => {
             const id = 'chord-' + Date.now() + '-' + acordes.length;
             acordes.push({ id, sigla: sigla.trim(), nome: nome ? nome.trim() : '' });
             return `<div id="${id}" class="chord-diagram"></div>`;
         });
-        
+
         processado = processado.replace(/\[PIANO:([^\]]+)\]([\s\S]*?)\[\/PIANO\]/g, (match, sigla, nome) => {
             const id = 'piano-' + Date.now() + '-' + pianos.length;
             pianos.push({ id, sigla: sigla.trim(), nome: nome.trim() });
             return `<div id="${id}" class="piano-diagram-container"></div>`;
         });
-        
+
         processado = processado.replace(/\[PIANO-CUSTOM:([^\]]+)\]([\s\S]*?)\[\/PIANO-CUSTOM\]/g, (match, sigla, nome) => {
             const id = 'piano-custom-' + Date.now() + '-' + pianosCustom.length;
             pianosCustom.push({ id, sigla: sigla.trim(), nome: nome.trim() });
             return `<div id="${id}" class="piano-diagram-container"></div>`;
         });
-        
+
         processado = processado.replace(/\[ABC-INFANTIL\]([\s\S]*?)\[\/ABC-INFANTIL\]/g, (match, code) => {
             const id = 'abc-inf-' + Date.now() + '-' + abcInfantis.length;
             abcInfantis.push({ id, code: code.trim() });
             return `<div id="${id}" class="abc-container"></div>`;
         });
-        
+
         processado = processado.replace(/\[ABC\]([\s\S]*?)\[\/ABC\]/g, (match, code) => {
             const id = 'abc-' + Date.now() + '-' + abcNormais.length;
             abcNormais.push({ id, code: code.trim() });
             return `<div id="${id}" class="abc-container"></div>`;
         });
-        
+
         preview.innerHTML = marked.parse(processado);
-        
+
         acordes.forEach(a => {
             const el = document.getElementById(a.id);
             if (el) desenharAcorde(el, a.sigla, a.nome);
         });
-        
+
         pianos.forEach(p => {
             const el = document.getElementById(p.id);
             if (el && window.ACORDES_PIANO && window.ACORDES_PIANO[p.sigla]) {
@@ -1237,28 +1669,26 @@ function renderizar() {
                 desenharTecladoPiano(el, p.sigla, a.nome, a.notas, a.startOitava, a.endOitava, a.dedosTreble);
             }
         });
-        
+
         pianosCustom.forEach(p => {
             const el = document.getElementById(p.id);
             if (el) desenharAcordePianoPersonalizado(el, p.sigla, p.nome);
         });
-        
+
         abcNormais.forEach(a => {
             const el = document.getElementById(a.id);
             if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'normal');
         });
-        
+
         abcInfantis.forEach(a => {
             const el = document.getElementById(a.id);
             if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'infantil');
         });
-        
-        // ========== NOVO: Processar Escalas e Arpejos ==========
+
         if (typeof window.escalasArpejos !== 'undefined' && window.escalasArpejos.renderizar) {
             window.escalasArpejos.renderizar(preview);
         }
-        // ======================================================
-        
+
     } catch (e) {
         console.error("Erro na renderização:", e);
         preview.innerHTML = '<p style="color:red;">❌ Erro ao renderizar: ' + e.message + '</p>';
@@ -1315,8 +1745,7 @@ function inserirAcorde() {
         '4 - Editor de Acordes\n\n' +
         'Digite o número da opção:'
     );
-    
-    // Opção 1: Biblioteca Básica
+
     if (opcao === '1') {
         const sigla = prompt('Digite a sigla do acorde (C, G, D, Am, Em, F):', 'C');
         if (sigla && window.ACORDES && window.ACORDES[sigla]) {
@@ -1324,10 +1753,7 @@ function inserirAcorde() {
         } else if (sigla) {
             alert(`❌ Acorde "${sigla}" não encontrado! Use: C, G, D, Am, Em, F`);
         }
-    }
-    
-    // Opção 2: Minha Biblioteca
-    else if (opcao === '2') {
+    } else if (opcao === '2') {
         if (typeof bibliotecaAcordes !== 'undefined' && Object.keys(bibliotecaAcordes).length > 0) {
             const lista = Object.entries(bibliotecaAcordes)
                 .map(([sigla, acorde]) => `${sigla} - ${acorde.nome}`)
@@ -1341,10 +1767,7 @@ function inserirAcorde() {
         } else {
             alert('📭 Nenhum acorde salvo! Use a opção 4 para criar.');
         }
-    }
-    
-    // Opção 3: Acorde Dinâmico
-    else if (opcao === '3') {
+    } else if (opcao === '3') {
         const formato = prompt(
             '🎸 Acorde Dinâmico\n\n' +
             'Formatos:\n' +
@@ -1353,7 +1776,6 @@ function inserirAcorde() {
             '• 1;3;5 = Dó Maior (corda base 5)\n\n' +
             'Digite o formato:'
         );
-        
         if (formato && typeof window.processarAcordeDinamico === 'function') {
             const acordeTemp = window.processarAcordeDinamico(formato, '');
             if (acordeTemp) {
@@ -1364,13 +1786,9 @@ function inserirAcorde() {
         } else if (formato) {
             alert('❌ Módulo de acordes sonoros não carregado!');
         }
-    }
-    
-    // Opção 4: Editor de Acordes
-    else if (opcao === '4') {
+    } else if (opcao === '4') {
         abrirEditorAcordes();
-    }
-    else if (opcao !== null) {
+    } else if (opcao !== null) {
         alert('Opção inválida! Digite 1, 2, 3 ou 4');
     }
 }
@@ -1468,40 +1886,123 @@ function resetarAcordes() {
 
 function exportHTML() { alert("📄 Exportação HTML em desenvolvimento"); }
 function exportAppHTML() { alert("📱 Exportação App em desenvolvimento"); }
-function gerarPreviewAcordes() {}
-function salvarAcordeNaBiblioteca() {}
-function copiarCodigoAcordes() {}
+function gerarPreviewAcordes() { }
+function salvarAcordeNaBiblioteca() { }
+function copiarCodigoAcordes() { }
 
-function toast(msg, tipo) {
-    const t = document.createElement("div");
-    t.textContent = msg;
-    const bgColor = tipo === 'success' ? '#2ed573' : '#3a86ff';
-    t.style.cssText = `position:fixed; bottom:20px; right:20px; background:${bgColor}; color:white; padding:12px 20px; border-radius:8px; z-index:9999; animation:fadeOut 3s forwards; font-weight:bold;`;
-    document.body.appendChild(t);
-    setTimeout(() => t.remove(), 3000);
+function toast(msg, tipo = 'info') {
+    const el = document.createElement('div');
+    el.textContent = msg;
+    const bg = tipo === 'error' ? '#e94560' : tipo === 'success' ? '#2ed573' : '#3a86ff';
+    el.style.cssText = `position:fixed; bottom:20px; right:20px; background:${bg}; color:white; padding:12px 20px; border-radius:8px; z-index:9999; animation:fadeOut 3s forwards; font-weight:bold;`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
 }
 
+// ============================================
+// EXPORTAÇÃO DE ARQUIVOS (TXT, MD, HTML)
+// ============================================
 
+function obterConteudoAtual() {
+    const editor = document.getElementById('editor');
+    return editor ? editor.value : '';
+}
 
+function obterTituloAtual() {
+    if (listaAtual !== null && cartaoAtual !== null) {
+        const lista = obterListaPorCaminho(listaAtual);
+        if (lista && lista.cards[cartaoAtual]) {
+            return lista.cards[cartaoAtual].texto || 'aula';
+        }
+    }
+    return 'aula';
+}
 
+function exportarArquivo(conteudo, extensao, mimeType = 'text/plain') {
+    if (!conteudo) {
+        alert('❌ Não há conteúdo para exportar.');
+        return;
+    }
+    const blob = new Blob([conteudo], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const titulo = obterTituloAtual().replace(/\s+/g, '_');
+    link.download = `${titulo}.${extensao}`;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast(`✅ Arquivo ${extensao.toUpperCase()} exportado!`, 'success');
+}
 
+function exportarTXT() {
+    const conteudo = obterConteudoAtual();
+    exportarArquivo(conteudo, 'txt', 'text/plain');
+}
 
+function exportarMD() {
+    const conteudo = obterConteudoAtual();
+    exportarArquivo(conteudo, 'md', 'text/markdown');
+}
+
+function exportarHTML() {
+    const preview = document.getElementById('preview');
+    if (!preview) {
+        alert('❌ Pré-visualização não encontrada.');
+        return;
+    }
+    const htmlContent = `<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${obterTituloAtual()}</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: white; }
+    .chord-diagram canvas { max-width: 140px; height: auto; }
+    .abcjs-container { max-width: 100%; overflow-x: auto; }
+    .abcjs-container svg { max-width: 100%; height: auto; }
+    .piano-diagram-container { display: inline-block; margin: 10px; }
+    ${document.querySelector('style')?.innerHTML || ''}
+  </style>
+</head>
+<body>
+  ${preview.innerHTML}
+</body>
+</html>`;
+    exportarArquivo(htmlContent, 'html', 'text/html');
+}
+
+function exportarEstruturaJSON() {
+    const json = JSON.stringify(dados, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'pro_maestro_backup.json';
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast('✅ Estrutura completa exportada em JSON!', 'success');
+}
 
 // ============================================
 // INICIALIZAÇÃO
 // ============================================
 function init() {
     console.log("Inicializando o sistema...");
-    
     if (typeof window.processarAcordeDinamico !== 'function') {
         console.warn('⚠️ acordes_dinamicos.js não carregado. Acordes sonoros não funcionam.');
     } else {
         console.log('✅ Módulo de acordes sonoros carregado!');
         adicionarBotaoSalvarDinamico();
     }
-    
     carregarDados();
-    
+
     if (editor) {
         editor.addEventListener('input', () => {
             clearTimeout(timeoutRenderTimer);
@@ -1518,6 +2019,3 @@ document.addEventListener('DOMContentLoaded', init);
 const styleToast = document.createElement('style');
 styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
 document.head.appendChild(styleToast);
-
-
-
