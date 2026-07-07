@@ -2019,3 +2019,180 @@ document.addEventListener('DOMContentLoaded', init);
 const styleToast = document.createElement('style');
 styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
 document.head.appendChild(styleToast);
+
+
+// ============================================================
+// EXPLORADOR DE ARQUIVOS DO GITHUB
+// ============================================================
+
+// Alterna visibilidade do explorador
+function toggleGithubExplorer() {
+    const content = document.getElementById('githubExplorerContent');
+    if (content) {
+        content.style.display = content.style.display === 'none' ? 'block' : 'none';
+    }
+}
+
+// Lista arquivos do GitHub e exibe na UI
+async function listarArquivosGitHubUI() {
+    const pastaInput = document.getElementById('githubPastaInput');
+    const listaDiv = document.getElementById('githubFileList');
+    
+    if (!pastaInput || !listaDiv) {
+        console.error('Elementos do explorador não encontrados');
+        return;
+    }
+    
+    // Verifica se o GitHub está configurado
+    if (!window.githubToken || !window.githubRepo) {
+        listaDiv.innerHTML = '<p style="color:#e94560;">❌ Configure o GitHub primeiro (🔑).</p>';
+        return;
+    }
+    
+    let pasta = pastaInput.value.trim();
+    if (pasta && !pasta.endsWith('/')) pasta += '/';
+    
+    listaDiv.innerHTML = '<p style="color:#aaa;">⏳ Carregando...</p>';
+    
+    try {
+        const url = `https://api.github.com/repos/${window.githubRepo}/contents/${pasta}?ref=${window.githubBranch}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `token ${window.githubToken}` }
+        });
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                listaDiv.innerHTML = `<p style="color:#e94560;">❌ Pasta "${pasta || 'raiz'}" não encontrada.</p>`;
+            } else {
+                const error = await response.json();
+                listaDiv.innerHTML = `<p style="color:#e94560;">❌ Erro: ${error.message}</p>`;
+            }
+            return;
+        }
+        
+        const data = await response.json();
+        
+        // Organiza: pastas primeiro, depois arquivos
+        const pastas = data.filter(item => item.type === 'dir');
+        const arquivos = data.filter(item => item.type === 'file');
+        
+        if (data.length === 0) {
+            listaDiv.innerHTML = '<p style="color:#888;">📭 Pasta vazia.</p>';
+            return;
+        }
+        
+        let html = '<div style="font-size:12px;">';
+        
+        // Pastas
+        if (pastas.length > 0) {
+            html += '<div style="color:#f39c12; font-weight:bold; margin:5px 0;">📁 Pastas:</div>';
+            pastas.forEach(pasta => {
+                html += `<div style="padding:3px 8px; color:#f39c12; cursor:pointer;" 
+                              onclick="document.getElementById('githubPastaInput').value='${pasta.path}/'; listarArquivosGitHubUI();">
+                              📁 ${pasta.name}/
+                         </div>`;
+            });
+        }
+        
+        // Arquivos
+        if (arquivos.length > 0) {
+            html += '<div style="color:#3a86ff; font-weight:bold; margin:5px 0;">📄 Arquivos:</div>';
+            const extensoes = ['.txt', '.md', '.html', '.css', '.js', '.json', '.csv', '.xml'];
+            const arquivosFiltrados = arquivos.filter(f => 
+                extensoes.some(ext => f.name.endsWith(ext))
+            );
+            
+            if (arquivosFiltrados.length === 0) {
+                html += '<div style="color:#888; padding:5px;">Nenhum arquivo de texto encontrado.</div>';
+            } else {
+                arquivosFiltrados.forEach(arquivo => {
+                    const icone = arquivo.name.endsWith('.md') ? '📝' :
+                                 arquivo.name.endsWith('.html') ? '🌐' :
+                                 arquivo.name.endsWith('.txt') ? '📄' : '📎';
+                    html += `<div style="padding:4px 8px; cursor:pointer; border-bottom:1px solid #222; display:flex; justify-content:space-between; align-items:center;"
+                                  onclick="abrirArquivoDoGitHub('${arquivo.path}')">
+                                  <span>${icone} ${arquivo.name}</span>
+                                  <span style="font-size:10px; color:#666;">${formatarTamanho(arquivo.size)}</span>
+                             </div>`;
+                });
+            }
+        }
+        
+        html += '</div>';
+        listaDiv.innerHTML = html;
+        
+    } catch (err) {
+        listaDiv.innerHTML = `<p style="color:#e94560;">❌ Erro: ${err.message}</p>`;
+        console.error('Erro ao listar arquivos:', err);
+    }
+}
+
+// Formata o tamanho do arquivo
+function formatarTamanho(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+// Abre um arquivo do GitHub diretamente no editor
+async function abrirArquivoDoGitHub(caminho) {
+    if (!window.githubToken || !window.githubRepo) {
+        toast('Configure o GitHub primeiro (🔑).', 'error');
+        return;
+    }
+    
+    toast(`⏳ Baixando "${caminho.split('/').pop()}"...`, 'info');
+    
+    try {
+        const url = `https://api.github.com/repos/${window.githubRepo}/contents/${caminho}?ref=${window.githubBranch}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `token ${window.githubToken}` }
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            toast(`❌ Erro: ${error.message}`, 'error');
+            return;
+        }
+        
+        const data = await response.json();
+        const conteudo = decodeURIComponent(escape(atob(data.content)));
+        const nomeArquivo = caminho.split('/').pop();
+        
+        // Abre no editor
+        if (listaAtual === null || cartaoAtual === null) {
+            // Cria uma lista "Temporários" se não existir
+            let listaTemp = dados.listas.find(l => l.nome === 'Temporários');
+            if (!listaTemp) {
+                listaTemp = { nome: 'Temporários', cards: [], sublistas: [] };
+                dados.listas.push(listaTemp);
+            }
+            const novoCard = {
+                texto: nomeArquivo.replace(/\.[^.]+$/, ''),
+                conteudo: conteudo,
+                ultimaModificacao: Date.now()
+            };
+            listaTemp.cards.push(novoCard);
+            const idx = dados.listas.indexOf(listaTemp);
+            const cardIdx = listaTemp.cards.length - 1;
+            salvarDados();
+            carregarAula([idx], cardIdx);
+            toast(`✅ "${nomeArquivo}" aberto!`, 'success');
+        } else {
+            const lista = obterListaPorCaminho(listaAtual);
+            if (lista && lista.cards[cartaoAtual]) {
+                lista.cards[cartaoAtual].conteudo = conteudo;
+                lista.cards[cartaoAtual].texto = nomeArquivo.replace(/\.[^.]+$/, '');
+                lista.cards[cartaoAtual].ultimaModificacao = Date.now();
+                salvarDados();
+                editor.value = conteudo;
+                renderizar();
+                toast(`✅ "${nomeArquivo}" carregado!`, 'success');
+            }
+        }
+        
+    } catch (err) {
+        toast(`❌ Erro ao abrir: ${err.message}`, 'error');
+        console.error('Erro ao abrir arquivo:', err);
+    }
+}
