@@ -2252,3 +2252,229 @@ function atualizarExploradorGitHub() {
         listarArquivosGitHubUI(pastaInput.value);
     }
 }
+// ============================================================
+// FUNÇÕES: INSERIR ACORDE POR NÚMERO, COPIAR E COLAR
+// ============================================================
+
+// ============================================
+// FUNÇÃO INSERIR ACORDE POR NÚMERO (🎸 Inserir)
+// ============================================
+function inserirAcordePorNumero() {
+    const inputField = document.getElementById('buscaAcordeRapida');
+    if (!inputField) {
+        console.error("❌ Campo buscaAcordeRapida não encontrado!");
+        toast('❌ Campo de busca não encontrado.', 'error');
+        return;
+    }
+    
+    const numero = inputField.value.trim();
+    if (!numero || numero < 1) {
+        toast('⚠️ Digite um número válido.', 'warning');
+        return;
+    }
+    
+    // Busca o nome do acorde em várias fontes
+    let nomeAcorde = null;
+    
+    // 1. Busca nos ACORDES básicos
+    if (typeof ACORDES !== 'undefined' && ACORDES[numero]) {
+        nomeAcorde = ACORDES[numero].nome;
+    }
+    
+    // 2. Busca na biblioteca de acordes
+    if (!nomeAcorde && typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[numero]) {
+        nomeAcorde = bibliotecaAcordes[numero].nome;
+    }
+    
+    // 3. Busca em FORMAS_INFINITAS
+    if (!nomeAcorde && typeof FORMAS_INFINITAS !== 'undefined' && FORMAS_INFINITAS[numero]) {
+        nomeAcorde = FORMAS_INFINITAS[numero].nome;
+    }
+    
+    // 4. Processa como acorde dinâmico
+    if (!nomeAcorde && typeof window.processarAcordeDinamico === 'function') {
+        const acordeTemp = window.processarAcordeDinamico(numero, '');
+        if (acordeTemp && acordeTemp.nome) {
+            nomeAcorde = acordeTemp.nome;
+        }
+    }
+    
+    if (!nomeAcorde) {
+        toast(`❌ Acorde ${numero} não encontrado!`, 'error');
+        console.error(`❌ Acorde ${numero} não encontrado!`);
+        return;
+    }
+    
+    // Gera o código no formato [Acorde:numero;1]Nome[/Acorde]
+    const codigoFinal = `[Acorde:${numero};1]${nomeAcorde}[/Acorde]`;
+    
+    // Insere no editor
+    const editor = document.getElementById('editor');
+    if (!editor) {
+        toast('❌ Editor não encontrado.', 'error');
+        return;
+    }
+    
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const texto = editor.value;
+    
+    // Se houver texto selecionado, substitui; senão, insere no cursor
+    if (start !== end) {
+        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(end);
+        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
+    } else {
+        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(start);
+        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
+    }
+    
+    // Atualiza a visualização e salva
+    if (typeof renderizar === 'function') renderizar();
+    if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
+    
+    // Limpa o campo e foca no editor
+    inputField.value = '';
+    editor.focus();
+    
+    toast(`✅ Acorde "${nomeAcorde}" inserido!`, 'success');
+}
+
+// ============================================
+// FUNÇÃO COPIAR EDITOR (📋 Copiar)
+// ============================================
+function copiarEditor(event) {
+    const editor = document.getElementById('editor');
+    if (!editor) {
+        toast('❌ Editor não encontrado.', 'error');
+        return;
+    }
+    
+    // Seleciona todo o texto
+    editor.select();
+    editor.setSelectionRange(0, editor.value.length);
+    
+    try {
+        // Tenta copiar usando a API moderna
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(editor.value)
+                .then(() => {
+                    toast('✅ Texto copiado!', 'success');
+                    // Feedback visual no botão
+                    if (event && event.target) {
+                        const btn = event.target;
+                        const textoOriginal = btn.textContent;
+                        btn.textContent = '✅ Copiado!';
+                        setTimeout(() => {
+                            btn.textContent = textoOriginal;
+                        }, 1500);
+                    }
+                })
+                .catch(err => {
+                    console.error('Erro ao copiar:', err);
+                    // Fallback para método antigo
+                    document.execCommand('copy');
+                    toast('✅ Texto copiado! (método alternativo)', 'success');
+                });
+        } else {
+            // Fallback para navegadores mais antigos
+            const sucesso = document.execCommand('copy');
+            if (sucesso) {
+                toast('✅ Texto copiado!', 'success');
+                if (event && event.target) {
+                    const btn = event.target;
+                    const textoOriginal = btn.textContent;
+                    btn.textContent = '✅ Copiado!';
+                    setTimeout(() => {
+                        btn.textContent = textoOriginal;
+                    }, 1500);
+                }
+            } else {
+                toast('❌ Falha ao copiar.', 'error');
+            }
+        }
+    } catch (err) {
+        console.error('Erro ao copiar:', err);
+        toast('❌ Erro ao copiar: ' + err.message, 'error');
+    }
+    
+    // Remove a seleção
+    editor.setSelectionRange(0, 0);
+    editor.focus();
+}
+
+// ============================================
+// FUNÇÃO COLAR EDITOR (📄 Colar)
+// ============================================
+function colarEditor(event) {
+    const editor = document.getElementById('editor');
+    if (!editor) {
+        toast('❌ Editor não encontrado.', 'error');
+        return;
+    }
+    
+    editor.focus();
+    
+    // Método 1: Usar Clipboard API (moderno)
+    if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText()
+            .then(text => {
+                if (text) {
+                    const start = editor.selectionStart;
+                    const end = editor.selectionEnd;
+                    const currentText = editor.value;
+                    editor.value = currentText.substring(0, start) + text + currentText.substring(end);
+                    
+                    if (typeof renderizar === 'function') renderizar();
+                    if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
+                    
+                    toast('✅ Texto colado!', 'success');
+                    if (event && event.target) {
+                        const btn = event.target;
+                        const textoOriginal = btn.textContent;
+                        btn.textContent = '✅ Colado!';
+                        setTimeout(() => {
+                            btn.textContent = textoOriginal;
+                        }, 1500);
+                    }
+                }
+            })
+            .catch(err => {
+                console.log('Clipboard API falhou, usando método alternativo:', err);
+                colarComPrompt(editor);
+            });
+    } else {
+        // Método alternativo: prompt (funciona sempre)
+        colarComPrompt(editor);
+    }
+}
+
+// ============================================
+// MÉTODO ALTERNATIVO PARA COLAR (via prompt)
+// ============================================
+function colarComPrompt(editor) {
+    const textoColado = prompt('📋 Cole o texto aqui (Ctrl+V):');
+    if (textoColado !== null && textoColado !== '') {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const currentText = editor.value;
+        editor.value = currentText.substring(0, start) + textoColado + currentText.substring(end);
+        
+        if (typeof renderizar === 'function') renderizar();
+        if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
+        
+        editor.focus();
+        toast('✅ Texto colado via prompt!', 'success');
+        
+        // Feedback visual no botão
+        const btn = document.activeElement;
+        if (btn && btn.tagName === 'BUTTON') {
+            const textoOriginal = btn.textContent;
+            btn.textContent = '✅ Colado!';
+            setTimeout(() => {
+                btn.textContent = textoOriginal;
+            }, 1500);
+        }
+    }
+}
+
+console.log('✅ Funções de Copiar/Colar/Inserir carregadas!');
