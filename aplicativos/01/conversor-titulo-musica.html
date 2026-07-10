@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversor de Partituras</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f7f6;
+            color: #333;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+            background: #fff;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        label {
+            font-weight: bold;
+            display: block;
+            margin-bottom: 5px;
+            color: #34495e;
+        }
+        textarea {
+            width: 100%;
+            height: 350px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+            box-sizing: border-box;
+        }
+        .config-box {
+            background: #ecf0f1;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+        .config-group input {
+            width: 100%;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+        }
+        .actions {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin: 5px;
+        }
+        button:hover { background-color: #2980b9; }
+        button.btn-success { background-color: #2ecc71; }
+        button.btn-success:hover { background-color: #27ae60; }
+        button.btn-secondary { background-color: #95a5a6; }
+        button.btn-secondary:hover { background-color: #7f8c8d; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Conversor de Lista de Músicas</h1>
+    
+    <div class="config-box">
+        <div class="config-group">
+            <label for="defaultBook">Livro (Book) Padrão:</label>
+            <input type="text" id="defaultBook" value="7029 - PDF">
+        </div>
+        <div class="config-group">
+            <label for="pdfFolder">Pasta dos PDFs:</label>
+            <input type="text" id="pdfFolder" value="partituras/">
+        </div>
+        <div class="config-group">
+            <label for="fallbackComposer">Se não houver compositor:</label>
+            <input type="text" id="fallbackComposer" value="" placeholder="Deixar vazio">
+        </div>
+    </div>
+
+    <div class="grid">
+        <div>
+            <label for="inputText">Entrada (Cole sua lista aqui):</label>
+            <textarea id="inputText" placeholder="Exemplo de entrada:&#10;135 - Johnny has gone to France - Ireland&#10;136 - Johnny Wilmot's fiddle&#10;137 - Johnny with the queer thing - Ireland"></textarea>
+        </div>
+        <div>
+            <label for="outputText">Saída Formatada (Objetos JS):</label>
+            <textarea id="outputText" readonly placeholder="O resultado aparecerá aqui..."></textarea>
+        </div>
+    </div>
+
+    <div class="actions">
+        <button onclick="processarDados()">Converter ⚙️</button>
+        <button class="btn-secondary" onclick="copiarTexto()">Copiar Conteúdo 📋</button>
+        <button class="btn-success" onclick="exportarFile('json')">Baixar .JSON 💾</button>
+        <button class="btn-success" onclick="exportarFile('txt')">Baixar .TXT 📄</button>
+    </div>
+</div>
+
+<script>
+function processarDados() {
+    const input = document.getElementById('inputText').value;
+    const defaultBook = document.getElementById('defaultBook').value;
+    const pdfFolder = document.getElementById('pdfFolder').value;
+    const fallbackComposer = document.getElementById('fallbackComposer').value;
+    
+    if (!input.trim()) {
+        alert('Por favor, insira algum texto na entrada.');
+        return;
+    }
+
+    const linhas = input.split('\n');
+    let resultadoArray = [];
+
+    linhas.forEach(linha => {
+        if (!linha.trim()) return;
+
+        // Divide a linha usando o hífen como separador
+        const partes = linha.split(/\s*[-–]\s*/);
+
+        if (partes.length >= 2) {
+            const id = partes[0].trim();
+            const musica = partes[1].trim();
+            
+            // Se existir a terceira parte, ela é o compositor. Caso contrário, usa o valor reserva (vazio por padrão)
+            const compositor = partes[2] ? partes[2].trim() : fallbackComposer;
+            
+            // Formata o título: "ID - Nome da Música"
+            const tituloFormatado = `${id} - ${musica}`;
+
+            // Gera a string do objeto exatamente no formato que você precisa
+            const objetoStr = `{ id: ${id}, title: "${tituloFormatado}", composer: "${compositor}", book: "${defaultBook}", pdfUrl: "${pdfFolder}${id}.pdf", youtubeUrl: "", mp3Url: "" },`;
+            
+            resultadoArray.push(objetoStr);
+        }
+    });
+
+    // Une as linhas geradas
+    const resultadoFinal = resultadoArray.join('\n');
+    document.getElementById('outputText').value = resultadoFinal;
+}
+
+function copiarTexto() {
+    const output = document.getElementById('outputText');
+    if (!output.value) return;
+    output.select();
+    document.execCommand('copy');
+    alert('Copiado com sucesso!');
+}
+
+function exportarFile(tipo) {
+    const conteudo = document.getElementById('outputText').value;
+    if (!conteudo) {
+        alert('Gere o conteúdo antes de exportar.');
+        return;
+    }
+
+    let finalConteudo = conteudo;
+    let filename = "lista_partituras." + tipo;
+    let mimeType = "text/plain";
+
+    // Se for JSON, remove a última vírgula e envolve em colchetes para ser um JSON válido
+    if (tipo === 'json') {
+        // Remove a última vírgula da string para não quebrar a sintaxe JSON
+        let jsonValido = conteudo.trim();
+        if(jsonValido.endsWith(',')) {
+            jsonValido = jsonValido.slice(0, -1);
+        }
+        // Converte as chaves sem aspas para o padrão rigoroso de JSON (opcional, mas garante compatibilidade)
+        // Como o formato pedido usa { id: ... } sem aspas nas chaves, manteremos como texto estruturado dentro de colchetes []
+        finalConteudo = "[\n" + jsonValido + "\n]";
+        mimeType = "application/json";
+    }
+
+    const blob = new Blob([finalConteudo], { type: mimeType + ";charset=utf-8;" });
+    const link = document.createElement("a");
+    
+    if (link.download !== undefined) {
+        const url = URL.createObjectURL(blob);
+        link.setAttribute("href", url);
+        link.setAttribute("download", filename);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+    }
+}
+</script>
+
+</body>
+</html>
