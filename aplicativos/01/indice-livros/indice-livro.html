@@ -28,7 +28,7 @@
 
         h1 {
             color: var(--primary-color);
-            margin-bottom: 10px;
+            margin-bottom: 5px;
         }
 
         .search-container {
@@ -36,13 +36,15 @@
             gap: 15px;
             justify-content: center;
             margin-bottom: 30px;
-            max-width: 800px;
+            max-width: 1000px;
             margin-left: auto;
             margin-right: auto;
+            flex-wrap: wrap;
         }
 
         .search-box {
             flex: 1;
+            min-width: 200px;
             display: flex;
             flex-direction: column;
         }
@@ -95,6 +97,8 @@
             list-style: none;
             padding: 0;
             margin: 0;
+            max-height: 600px;
+            overflow-y: auto; /* Adiciona barra de rolagem se houver muitos resultados */
         }
 
         .book-item {
@@ -115,6 +119,21 @@
             background-color: var(--accent-color);
             color: white;
             font-weight: bold;
+        }
+
+        .book-code {
+            display: inline-block;
+            background-color: #e1b12c;
+            color: #fff;
+            padding: 2px 6px;
+            font-size: 11px;
+            font-weight: bold;
+            border-radius: 4px;
+            margin-bottom: 4px;
+        }
+
+        .book-item.active .book-code {
+            background-color: rgba(255, 255, 255, 0.3);
         }
 
         /* Índice (Direita) */
@@ -148,12 +167,16 @@
 
     <div class="search-container">
         <div class="search-box">
-            <label for="searchTitle">Filtrar por Título do Livro</label>
-            <input type="text" id="searchTitle" placeholder="Digite o nome do livro..." disabled>
+            <label for="searchTitle">Título do Livro</label>
+            <input type="text" id="searchTitle" placeholder="Digite para buscar..." disabled>
         </div>
         <div class="search-box">
-            <label for="searchAuthor">Filtrar por Autor</label>
-            <input type="text" id="searchAuthor" placeholder="Digite o nome do autor..." disabled>
+            <label for="searchAuthor">Autor</label>
+            <input type="text" id="searchAuthor" placeholder="Digite para buscar..." disabled>
+        </div>
+        <div class="search-box">
+            <label for="searchCode">Código</label>
+            <input type="text" id="searchCode" placeholder="Ex: 7019..." disabled>
         </div>
     </div>
 
@@ -161,8 +184,10 @@
         <div id="loading" class="loading-message">Carregando catálogo...</div>
 
         <section class="panel" id="leftPanel" style="display: none;">
-            <h2>Livros</h2>
-            <ul id="bookList" class="book-list"></ul>
+            <h2>Resultados da Busca</h2>
+            <ul id="bookList" class="book-list">
+                <li class="placeholder-text">Digite pelo menos 3 caracteres em algum dos filtros acima para buscar.</li>
+            </ul>
         </section>
 
         <section class="panel" id="rightPanel" style="display: none;">
@@ -178,6 +203,7 @@
 
         const searchTitle = document.getElementById('searchTitle');
         const searchAuthor = document.getElementById('searchAuthor');
+        const searchCode = document.getElementById('searchCode');
         const bookListEl = document.getElementById('bookList');
         const indexContentEl = document.getElementById('indexContent');
         const loadingEl = document.getElementById('loading');
@@ -199,19 +225,24 @@
                     
                     searchTitle.disabled = false;
                     searchAuthor.disabled = false;
-
-                    renderBookList(catalog);
+                    searchCode.disabled = false;
                 })
                 .catch(error => {
                     loadingEl.innerHTML = `<span style="color: #e74c3c;">Erro ao carregar catálogo: ${error.message}</span>`;
                 });
         });
 
-        function renderBookList(books) {
+        function renderBookList(books, isSearching) {
             bookListEl.innerHTML = '';
             
+            if (!isSearching) {
+                bookListEl.innerHTML = '<li class="placeholder-text">Digite pelo menos 3 caracteres em algum dos filtros acima para buscar.</li>';
+                indexContentEl.innerHTML = '<p class="placeholder-text">Nenhum livro selecionado.</p>';
+                return;
+            }
+
             if (books.length === 0) {
-                bookListEl.innerHTML = '<li class="placeholder-text">Nenhum livro encontrado.</li>';
+                bookListEl.innerHTML = '<li class="placeholder-text">Nenhum livro encontrado com esses termos de busca.</li>';
                 indexContentEl.innerHTML = '<p class="placeholder-text">Nenhum livro selecionado.</p>';
                 return;
             }
@@ -219,7 +250,11 @@
             books.forEach(book => {
                 const li = document.createElement('li');
                 li.className = 'book-item';
-                li.innerHTML = `<strong>${book.titulo}</strong><br><small>Autor: ${book.autor}</small>`;
+                li.innerHTML = `
+                    <span class="book-code">${book.codigo}</span><br>
+                    <strong>${book.titulo}</strong><br>
+                    <small>Autor: ${book.autor}</small>
+                `;
                 
                 li.addEventListener('click', () => {
                     document.querySelectorAll('.book-item').forEach(item => item.classList.remove('active'));
@@ -231,7 +266,7 @@
             });
         }
 
-        // Função que busca o arquivo TXT específico sob demanda
+        // Busca o arquivo TXT específico sob demanda
         function loadBookIndex(book) {
             indexContentEl.innerHTML = '<p class="placeholder-text">Carregando índice...</p>';
 
@@ -242,6 +277,9 @@
                 })
                 .then(text => {
                     indexContentEl.innerHTML = `
+                        <div style="margin-bottom: 15px;">
+                            <span class="book-code" style="font-size: 14px; padding: 4px 8px;">Código: ${book.codigo}</span>
+                        </div>
                         <h3 style="margin-top:0; color: var(--accent-color);">${book.titulo}</h3>
                         <p><strong>Autor:</strong> ${book.autor}</p>
                         <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
@@ -256,18 +294,30 @@
         function filterBooks() {
             const titleQuery = searchTitle.value.toLowerCase();
             const authorQuery = searchAuthor.value.toLowerCase();
+            const codeQuery = searchCode.value.toLowerCase();
+
+            // Só realiza a busca se o usuário tiver digitado 3 ou mais letras em pelo menos um dos campos
+            const hasEnoughCharacters = titleQuery.length >= 3 || authorQuery.length >= 3 || codeQuery.length >= 3;
+
+            if (!hasEnoughCharacters) {
+                renderBookList([], false);
+                return;
+            }
 
             const filtered = catalog.filter(book => {
-                const matchesTitle = book.titulo.toLowerCase().includes(titleQuery);
-                const matchesAuthor = book.autor.toLowerCase().includes(authorQuery);
-                return matchesTitle && matchesAuthor;
+                const matchesTitle = titleQuery.length >= 3 ? book.titulo.toLowerCase().includes(titleQuery) : true;
+                const matchesAuthor = authorQuery.length >= 3 ? book.autor.toLowerCase().includes(authorQuery) : true;
+                const matchesCode = codeQuery.length >= 3 ? book.codigo.toLowerCase().includes(codeQuery) : true;
+
+                return matchesTitle && matchesAuthor && matchesCode;
             });
 
-            renderBookList(filtered);
+            renderBookList(filtered, true);
         }
 
         searchTitle.addEventListener('input', filterBooks);
         searchAuthor.addEventListener('input', filterBooks);
+        searchCode.addEventListener('input', filterBooks);
     </script>
 </body>
 </html>
