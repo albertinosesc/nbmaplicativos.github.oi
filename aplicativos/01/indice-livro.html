@@ -66,7 +66,7 @@
             outline: none;
         }
 
-        /* Layout de duas colunas */
+        /* Layout */
         .main-content {
             display: grid;
             grid-template-columns: 1fr 2fr;
@@ -90,7 +90,7 @@
             color: var(--primary-color);
         }
 
-        /* Lista de Livros (Esquerda) */
+        /* Lista (Esquerda) */
         .book-list {
             list-style: none;
             padding: 0;
@@ -117,7 +117,7 @@
             font-weight: bold;
         }
 
-        /* Índice do Livro (Direita) */
+        /* Índice (Direita) */
         .index-content {
             white-space: pre-line;
             line-height: 1.6;
@@ -143,7 +143,7 @@
 
     <header>
         <h1>Índice de Livros de Música</h1>
-        <p>Dados carregados automaticamente do repositório</p>
+        <p>Biblioteca Digital Compartilhada</p>
     </header>
 
     <div class="search-container">
@@ -157,26 +157,25 @@
         </div>
     </div>
 
-    <main class="main-content" id="mainContent">
-        <div id="loading" class="loading-message">Carregando índices de música...</div>
+    <main class="main-content">
+        <div id="loading" class="loading-message">Carregando catálogo...</div>
 
         <section class="panel" id="leftPanel" style="display: none;">
-            <h2>Livros Encontrados</h2>
+            <h2>Livros</h2>
             <ul id="bookList" class="book-list"></ul>
         </section>
 
         <section class="panel" id="rightPanel" style="display: none;">
-            <h2>Índice do Livro</h2>
+            <h2>Conteúdo do Índice</h2>
             <div id="indexContent" class="index-content">
-                <p class="placeholder-text">Selecione um livro na lista da esquerda para ver seu índice.</p>
+                <p class="placeholder-text">Selecione um livro na barra lateral esquerda para visualizar o índice.</p>
             </div>
         </section>
     </main>
 
     <script>
-        let database = [];
+        let catalog = [];
 
-        // Elementos do DOM
         const searchTitle = document.getElementById('searchTitle');
         const searchAuthor = document.getElementById('searchAuthor');
         const bookListEl = document.getElementById('bookList');
@@ -185,116 +184,82 @@
         const leftPanel = document.getElementById('leftPanel');
         const rightPanel = document.getElementById('rightPanel');
 
-        // Carrega o arquivo TXT automaticamente ao abrir a página
+        // Carrega o catálogo JSON inicialmente
         window.addEventListener('DOMContentLoaded', () => {
-            // "livros.txt" deve estar no mesmo diretório do index.html no GitHub
-            fetch('livros.txt')
+            fetch('livros.json')
                 .then(response => {
-                    if (!response.ok) {
-                        throw new Error('Não foi possível carregar o arquivo livros.txt');
-                    }
-                    return response.text();
+                    if (!response.ok) throw new Error('Falha ao carregar livros.json');
+                    return response.json();
                 })
-                .then(text => {
-                    parseTXT(text);
-                    
-                    // Esconde o loading e mostra os painéis
+                .then(data => {
+                    catalog = data;
                     loadingEl.style.display = 'none';
                     leftPanel.style.display = 'block';
                     rightPanel.style.display = 'block';
-
-                    // Libera os campos de busca
+                    
                     searchTitle.disabled = false;
                     searchAuthor.disabled = false;
 
-                    // Renderiza a lista inicial
-                    renderBookList(database);
+                    renderBookList(catalog);
                 })
                 .catch(error => {
-                    loadingEl.innerHTML = `<span style="color: #e74c3c;">Erro ao carregar os dados: ${error.message}</span>`;
-                    console.error(error);
+                    loadingEl.innerHTML = `<span style="color: #e74c3c;">Erro ao carregar catálogo: ${error.message}</span>`;
                 });
         });
 
-        // Processa a estrutura do arquivo TXT
-        function parseTXT(text) {
-            database = [];
-            const blocks = text.split('[LIVRO]');
-            
-            blocks.forEach(block => {
-                if (!block.trim()) return;
-
-                const lines = block.split('\n').map(line => line.trim());
-                let title = "Título Desconhecido";
-                let author = "Autor Desconhecido";
-                let indexLines = [];
-                let capturingIndex = false;
-
-                lines.forEach(line => {
-                    if (line.toLowerCase().startsWith('titulo:') || line.toLowerCase().startsWith('título:')) {
-                        title = line.substring(line.indexOf(':') + 1).trim();
-                    } else if (line.toLowerCase().startsWith('autor:')) {
-                        author = line.substring(line.indexOf(':') + 1).trim();
-                    } else if (line.toLowerCase().startsWith('indice:') || line.toLowerCase().startsWith('índice:')) {
-                        capturingIndex = true;
-                    } else if (capturingIndex) {
-                        indexLines.push(line);
-                    }
-                });
-
-                if (title !== "Título Desconhecido") {
-                    database.push({
-                        title: title,
-                        author: author,
-                        index: indexLines.join('\n').trim()
-                    });
-                }
-            });
-        }
-
-        // Renderiza a lista de livros na esquerda
         function renderBookList(books) {
             bookListEl.innerHTML = '';
             
             if (books.length === 0) {
                 bookListEl.innerHTML = '<li class="placeholder-text">Nenhum livro encontrado.</li>';
-                indexContentEl.innerHTML = '<p class="placeholder-text">Selecione um livro na lista da esquerda para ver seu índice.</p>';
+                indexContentEl.innerHTML = '<p class="placeholder-text">Nenhum livro selecionado.</p>';
                 return;
             }
 
-            books.forEach((book) => {
+            books.forEach(book => {
                 const li = document.createElement('li');
                 li.className = 'book-item';
-                li.innerHTML = `<strong>${book.title}</strong><br><small>Autor: ${book.author}</small>`;
+                li.innerHTML = `<strong>${book.titulo}</strong><br><small>Autor: ${book.autor}</small>`;
                 
                 li.addEventListener('click', () => {
                     document.querySelectorAll('.book-item').forEach(item => item.classList.remove('active'));
                     li.classList.add('active');
-                    showIndex(book);
+                    loadBookIndex(book);
                 });
 
                 bookListEl.appendChild(li);
             });
         }
 
-        // Mostra o índice na direita
-        function showIndex(book) {
-            indexContentEl.innerHTML = `
-                <h3 style="margin-top:0; color: var(--accent-color);">${book.title}</h3>
-                <p><strong>Autor:</strong> ${book.author}</p>
-                <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
-                <div style="font-family: monospace; font-size: 15px;">${book.index || 'Nenhum índice cadastrado para este livro.'}</div>
-            `;
+        // Função que busca o arquivo TXT específico sob demanda
+        function loadBookIndex(book) {
+            indexContentEl.innerHTML = '<p class="placeholder-text">Carregando índice...</p>';
+
+            fetch(book.arquivo)
+                .then(response => {
+                    if (!response.ok) throw new Error('Não foi possível encontrar o arquivo de índice deste livro.');
+                    return response.text();
+                })
+                .then(text => {
+                    indexContentEl.innerHTML = `
+                        <h3 style="margin-top:0; color: var(--accent-color);">${book.titulo}</h3>
+                        <p><strong>Autor:</strong> ${book.autor}</p>
+                        <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+                        <div style="font-family: inherit; font-size: 15px;">${text.trim() || 'Índice vazio.'}</div>
+                    `;
+                })
+                .catch(error => {
+                    indexContentEl.innerHTML = `<p style="color: #e74c3c; font-weight: bold;">Erro: ${error.message}</p>`;
+                });
         }
 
-        // Filtros de busca em tempo real
         function filterBooks() {
             const titleQuery = searchTitle.value.toLowerCase();
             const authorQuery = searchAuthor.value.toLowerCase();
 
-            const filtered = database.filter(book => {
-                const matchesTitle = book.title.toLowerCase().includes(titleQuery);
-                const matchesAuthor = book.author.toLowerCase().includes(authorQuery);
+            const filtered = catalog.filter(book => {
+                const matchesTitle = book.titulo.toLowerCase().includes(titleQuery);
+                const matchesAuthor = book.autor.toLowerCase().includes(authorQuery);
                 return matchesTitle && matchesAuthor;
             });
 
