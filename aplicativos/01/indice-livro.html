@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Índice de Livros de Música</title>
+    <style>
+        :root {
+            --primary-color: #2c3e50;
+            --accent-color: #16a085;
+            --bg-color: #f5f6fa;
+            --card-bg: #ffffff;
+            --text-color: #2f3640;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+
+        .search-container {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+            margin-bottom: 30px;
+            max-width: 800px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .search-box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .search-box label {
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: var(--primary-color);
+        }
+
+        .search-box input {
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .search-box input:focus {
+            border-color: var(--accent-color);
+            outline: none;
+        }
+
+        /* Layout de duas colunas */
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 2fr;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .panel {
+            background: var(--card-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            min-height: 400px;
+        }
+
+        .panel h2 {
+            border-bottom: 2px solid var(--accent-color);
+            padding-bottom: 10px;
+            margin-top: 0;
+            color: var(--primary-color);
+        }
+
+        /* Lista de Livros (Esquerda) */
+        .book-list {
+            list-style: none;
+            padding: 0;
+            margin: 0;
+        }
+
+        .book-item {
+            padding: 12px;
+            border-bottom: 1px solid #eee;
+            cursor: pointer;
+            transition: background 0.2s, padding-left 0.2s;
+            border-radius: 4px;
+        }
+
+        .book-item:hover {
+            background-color: #f0f2f5;
+            padding-left: 18px;
+            color: var(--accent-color);
+        }
+
+        .book-item.active {
+            background-color: var(--accent-color);
+            color: white;
+            font-weight: bold;
+        }
+
+        /* Índice do Livro (Direita) */
+        .index-content {
+            white-space: pre-line;
+            line-height: 1.6;
+            font-size: 16px;
+        }
+
+        .placeholder-text {
+            color: #7f8c8d;
+            font-style: italic;
+            text-align: center;
+            margin-top: 50px;
+        }
+
+        .loading-message {
+            text-align: center;
+            grid-column: span 2;
+            font-size: 18px;
+            color: var(--primary-color);
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <h1>Índice de Livros de Música</h1>
+        <p>Dados carregados automaticamente do repositório</p>
+    </header>
+
+    <div class="search-container">
+        <div class="search-box">
+            <label for="searchTitle">Filtrar por Título do Livro</label>
+            <input type="text" id="searchTitle" placeholder="Digite o nome do livro..." disabled>
+        </div>
+        <div class="search-box">
+            <label for="searchAuthor">Filtrar por Autor</label>
+            <input type="text" id="searchAuthor" placeholder="Digite o nome do autor..." disabled>
+        </div>
+    </div>
+
+    <main class="main-content" id="mainContent">
+        <div id="loading" class="loading-message">Carregando índices de música...</div>
+
+        <section class="panel" id="leftPanel" style="display: none;">
+            <h2>Livros Encontrados</h2>
+            <ul id="bookList" class="book-list"></ul>
+        </section>
+
+        <section class="panel" id="rightPanel" style="display: none;">
+            <h2>Índice do Livro</h2>
+            <div id="indexContent" class="index-content">
+                <p class="placeholder-text">Selecione um livro na lista da esquerda para ver seu índice.</p>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        let database = [];
+
+        // Elementos do DOM
+        const searchTitle = document.getElementById('searchTitle');
+        const searchAuthor = document.getElementById('searchAuthor');
+        const bookListEl = document.getElementById('bookList');
+        const indexContentEl = document.getElementById('indexContent');
+        const loadingEl = document.getElementById('loading');
+        const leftPanel = document.getElementById('leftPanel');
+        const rightPanel = document.getElementById('rightPanel');
+
+        // Carrega o arquivo TXT automaticamente ao abrir a página
+        window.addEventListener('DOMContentLoaded', () => {
+            // "livros.txt" deve estar no mesmo diretório do index.html no GitHub
+            fetch('livros.txt')
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Não foi possível carregar o arquivo livros.txt');
+                    }
+                    return response.text();
+                })
+                .then(text => {
+                    parseTXT(text);
+                    
+                    // Esconde o loading e mostra os painéis
+                    loadingEl.style.display = 'none';
+                    leftPanel.style.display = 'block';
+                    rightPanel.style.display = 'block';
+
+                    // Libera os campos de busca
+                    searchTitle.disabled = false;
+                    searchAuthor.disabled = false;
+
+                    // Renderiza a lista inicial
+                    renderBookList(database);
+                })
+                .catch(error => {
+                    loadingEl.innerHTML = `<span style="color: #e74c3c;">Erro ao carregar os dados: ${error.message}</span>`;
+                    console.error(error);
+                });
+        });
+
+        // Processa a estrutura do arquivo TXT
+        function parseTXT(text) {
+            database = [];
+            const blocks = text.split('[LIVRO]');
+            
+            blocks.forEach(block => {
+                if (!block.trim()) return;
+
+                const lines = block.split('\n').map(line => line.trim());
+                let title = "Título Desconhecido";
+                let author = "Autor Desconhecido";
+                let indexLines = [];
+                let capturingIndex = false;
+
+                lines.forEach(line => {
+                    if (line.toLowerCase().startsWith('titulo:') || line.toLowerCase().startsWith('título:')) {
+                        title = line.substring(line.indexOf(':') + 1).trim();
+                    } else if (line.toLowerCase().startsWith('autor:')) {
+                        author = line.substring(line.indexOf(':') + 1).trim();
+                    } else if (line.toLowerCase().startsWith('indice:') || line.toLowerCase().startsWith('índice:')) {
+                        capturingIndex = true;
+                    } else if (capturingIndex) {
+                        indexLines.push(line);
+                    }
+                });
+
+                if (title !== "Título Desconhecido") {
+                    database.push({
+                        title: title,
+                        author: author,
+                        index: indexLines.join('\n').trim()
+                    });
+                }
+            });
+        }
+
+        // Renderiza a lista de livros na esquerda
+        function renderBookList(books) {
+            bookListEl.innerHTML = '';
+            
+            if (books.length === 0) {
+                bookListEl.innerHTML = '<li class="placeholder-text">Nenhum livro encontrado.</li>';
+                indexContentEl.innerHTML = '<p class="placeholder-text">Selecione um livro na lista da esquerda para ver seu índice.</p>';
+                return;
+            }
+
+            books.forEach((book) => {
+                const li = document.createElement('li');
+                li.className = 'book-item';
+                li.innerHTML = `<strong>${book.title}</strong><br><small>Autor: ${book.author}</small>`;
+                
+                li.addEventListener('click', () => {
+                    document.querySelectorAll('.book-item').forEach(item => item.classList.remove('active'));
+                    li.classList.add('active');
+                    showIndex(book);
+                });
+
+                bookListEl.appendChild(li);
+            });
+        }
+
+        // Mostra o índice na direita
+        function showIndex(book) {
+            indexContentEl.innerHTML = `
+                <h3 style="margin-top:0; color: var(--accent-color);">${book.title}</h3>
+                <p><strong>Autor:</strong> ${book.author}</p>
+                <hr style="border: 0; border-top: 1px solid #eee; margin: 15px 0;">
+                <div style="font-family: monospace; font-size: 15px;">${book.index || 'Nenhum índice cadastrado para este livro.'}</div>
+            `;
+        }
+
+        // Filtros de busca em tempo real
+        function filterBooks() {
+            const titleQuery = searchTitle.value.toLowerCase();
+            const authorQuery = searchAuthor.value.toLowerCase();
+
+            const filtered = database.filter(book => {
+                const matchesTitle = book.title.toLowerCase().includes(titleQuery);
+                const matchesAuthor = book.author.toLowerCase().includes(authorQuery);
+                return matchesTitle && matchesAuthor;
+            });
+
+            renderBookList(filtered);
+        }
+
+        searchTitle.addEventListener('input', filterBooks);
+        searchAuthor.addEventListener('input', filterBooks);
+    </script>
+</body>
+</html>
