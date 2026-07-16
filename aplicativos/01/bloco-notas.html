@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editor de Texto Pro (Compatível)</title>
+    <title>Editor de Texto - Conectado ao Google Drive</title>
     <style>
         html, body {
             margin: 0;
@@ -52,7 +52,7 @@
             width: 100%;
         }
 
-        .row-file, .row-edit {
+        .row-file, .row-edit, .row-drive {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
@@ -108,7 +108,21 @@
         .btn-clear { background-color: #f44336; }
         .btn-clear:hover { background-color: #d32f2f; }
 
+        /* Botões do Google Drive */
+        .btn-drive-save { background-color: #ff9800; }
+        .btn-drive-save:hover { background-color: #e68a00; }
+
+        .btn-drive-fetch { background-color: #009688; }
+        .btn-drive-fetch:hover { background-color: #00796b; }
+
         #file-input {
+            display: none;
+        }
+
+        .loading-text {
+            font-size: 12px;
+            color: #666;
+            margin: 0;
             display: none;
         }
     </style>
@@ -116,31 +130,55 @@
 <body>
 
 <div class="app-container">
-    <textarea id="text-area" placeholder="Digite, cole ou abra um arquivo para começar..."></textarea>
+    <textarea id="text-area" placeholder="Digite seu texto aqui..."></textarea>
     
     <div class="controls">
+        <p id="status" class="loading-text">Processando operação no Google Drive...</p>
+
         <div class="row-edit">
             <button class="btn btn-copy" onclick="copiarTexto()">Copiar</button>
             <button class="btn btn-paste" onclick="colarTexto()">Colar</button>
             <button class="btn btn-clear" onclick="limparTexto()">Limpar</button>
         </div>
 
+        <div class="row-drive">
+            <button class="btn btn-drive-save" onclick="salvarNoGoogleDrive()">Salvar no Google Drive ☁️</button>
+            <button class="btn btn-drive-fetch" onclick="buscarDoGoogleDrive()">Buscar Arquivos do Drive 📂</button>
+        </div>
+
         <div class="row-file">
             <input type="text" id="filename-input" class="input-filename" placeholder="Nome do arquivo" value="documento">
-            <button class="btn btn-save" onclick="salvarArquivo()">Salvar</button>
+            <button class="btn btn-save" onclick="salvarArquivoLocal()">Salvar no PC/Celular</button>
             <label class="btn btn-open">
-                Abrir
-                <input type="file" id="file-input" accept=".txt" onchange="abrirArquivo(event)">
+                Abrir do Dispositivo
+                <input type="file" id="file-input" accept=".txt" onchange="abrirArquivoLocal(event)">
             </label>
         </div>
     </div>
 </div>
 
 <script>
+    // IMPORTANTE: Cole a URL do seu Google Web App criado no Passo 2 aqui dentro das aspas:
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbygnu4p1zts8D7D8L_H6rKqivnHQschSlQ9yZnCdSAJWCDfxaKyjtEYKOHZty0iXSbJ/exec";
+
     const textArea = document.getElementById('text-area');
     const filenameInput = document.getElementById('filename-input');
+    const statusText = document.getElementById('status');
 
-    function salvarArquivo() {
+    function mostrarStatus(texto, mostrar) {
+        statusText.innerText = texto;
+        statusText.style.display = mostrar ? 'block' : 'none';
+    }
+
+    // --- FUNÇÕES DO GOOGLE DRIVE ---
+
+    // Envia o arquivo de texto para a pasta do Google Drive
+    function salvarNoGoogleDrive() {
+        if (WEB_APP_URL.includes("https://script.google.com/macros/s/AKfycbygnu4p1zts8D7D8L_H6rKqivnHQschSlQ9yZnCdSAJWCDfxaKyjtEYKOHZty0iXSbJ/exec")) {
+            alert("Atenção! Você precisa colar a URL do seu Web App do Google na linha 164 do código para o botão do Drive funcionar.");
+            return;
+        }
+
         const texto = textArea.value;
         let nomeArquivo = filenameInput.value.trim();
 
@@ -152,6 +190,100 @@
             nomeArquivo += '.txt';
         }
 
+        mostrarStatus("Salvando arquivo na pasta do Google Drive...", true);
+
+        const dados = {
+            nome: nomeArquivo,
+            conteudo: texto
+        };
+
+        // Faz a requisição de salvamento ao Google Apps Script
+        fetch(WEB_APP_URL, {
+            method: 'POST',
+            mode: 'no-cors', // Necessário para evitar erros de CORS ao fazer requisições cross-origin simples no Apps Script
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(dados)
+        })
+        .then(() => {
+            mostrarStatus("", false);
+            alert("Solicitação enviada! Verifique sua pasta do Google Drive. O arquivo '" + nomeArquivo + "' deve aparecer em instantes.");
+        })
+        .catch(erro => {
+            mostrarStatus("", false);
+            console.error(erro);
+            alert("Ocorreu um erro ao tentar salvar no Google Drive.");
+        });
+    }
+
+    // Busca os arquivos TXT existentes na pasta do Drive
+    function buscarDoGoogleDrive() {
+        if (WEB_APP_URL.includes("https://script.google.com/macros/s/AKfycbygnu4p1zts8D7D8L_H6rKqivnHQschSlQ9yZnCdSAJWCDfxaKyjtEYKOHZty0iXSbJ/exec")) {
+            alert("Atenção! Você precisa colar a URL do seu Web App do Google na linha 164 do código para o botão do Drive funcionar.");
+            return;
+        }
+
+        mostrarStatus("Buscando lista de arquivos na sua pasta do Google Drive...", true);
+
+        fetch(WEB_APP_URL)
+        .then(resposta => resposta.json())
+        .then(dados => {
+            mostrarStatus("", false);
+            if (dados.status === "sucesso") {
+                if (dados.arquivos.length === 0) {
+                    alert("Nenhum arquivo TXT foi encontrado nessa pasta do Google Drive.");
+                    return;
+                }
+
+                // Cria uma lista de seleção simples para o usuário escolher o arquivo
+                let mensagem = "Escolha o número do arquivo que deseja abrir:\n\n";
+                dados.arquivos.forEach((arq, index) => {
+                    mensagem += (index + 1) + " - " + arq.nome + "\n";
+                });
+
+                const escolha = prompt(mensagem);
+                const indexEscolhido = parseInt(escolha) - 1;
+
+                if (!isNaN(indexEscolhido) && indexEscolhido >= 0 && indexEscolhido < dados.arquivos.length) {
+                    const arquivoEscolhido = dados.arquivos[indexEscolhido];
+                    
+                    // Baixa o conteúdo do arquivo escolhido usando a API do Google Drive
+                    mostrarStatus("Carregando conteúdo do arquivo...", true);
+                    fetch("https://docs.google.com/feeds/download/documents/export/Export?id=" + arquivoEscolhido.id + "&exportFormat=txt")
+                    .then(r => r.text())
+                    .then(conteudo => {
+                        mostrarStatus("", false);
+                        textArea.value = conteudo;
+                        filenameInput.value = arquivoEscolhido.nome.replace(/\.[^/.]+$/, "");
+                        alert("Arquivo '" + arquivoEscolhido.nome + "' importado com sucesso!");
+                    })
+                    .catch(() => {
+                        mostrarStatus("", false);
+                        alert("Não foi possível carregar o conteúdo desse arquivo diretamente. Mas você pode abri-lo manualmente se preferir.");
+                    });
+                }
+            } else {
+                alert("Erro ao buscar arquivos: " + dados.mensagem);
+            }
+        })
+        .catch(erro => {
+            mostrarStatus("", false);
+            console.error(erro);
+            alert("Não foi possível conectar ao Google Drive. Verifique se o seu Web App foi publicado corretamente.");
+        });
+    }
+
+
+    // --- FUNÇÕES TRADICIONAIS (LOCAIS) ---
+
+    function salvarArquivoLocal() {
+        const texto = textArea.value;
+        let nomeArquivo = filenameInput.value.trim();
+
+        if (nomeArquivo === "") nomeArquivo = "documento";
+        if (!nomeArquivo.endsWith('.txt')) nomeArquivo += '.txt';
+
         const blob = new Blob([texto], { type: 'text/plain;charset=utf-8' });
         const link = document.createElement('a');
         link.href = URL.createObjectURL(blob);
@@ -160,10 +292,9 @@
         URL.revokeObjectURL(link.href);
     }
 
-    function abrirArquivo(event) {
+    function abrirArquivoLocal(event) {
         const input = event.target;
         const file = input.files[0];
-
         if (!file) return;
 
         const leitor = new FileReader();
@@ -171,46 +302,26 @@
             textArea.value = e.target.result;
             filenameInput.value = file.name.replace(/\.[^/.]+$/, "");
         };
-
         leitor.readAsText(file);
         input.value = ''; 
     }
 
-    // NOVA FUNÇÃO COPIAR: Usa o método clássico que funciona em arquivos locais (offline)
     function copiarTexto() {
         if (textArea.value.trim() === "") {
             alert("Não há texto para copiar!");
             return;
         }
-
-        // Seleciona o texto dentro do textarea
         textArea.select();
-        textArea.setSelectionRange(0, 99999); // Para dispositivos móveis
-
+        textArea.setSelectionRange(0, 99999);
         try {
-            // Executa o comando de cópia clássico do navegador
-            const copiado = document.execCommand('copy');
-            if (copiado) {
-                alert("Texto copiado com sucesso!");
-            } else {
-                throw new Error("Não suportado");
-            }
+            document.execCommand('copy');
+            alert("Texto copiado!");
         } catch (err) {
-            // Se falhar, tenta o método moderno como plano B
-            if (navigator.clipboard) {
-                navigator.clipboard.writeText(textArea.value)
-                    .then(() => alert("Texto copiado!"))
-                    .catch(() => alert("Erro ao copiar. Use o comando manual do seu teclado/celular."));
-            } else {
-                alert("Seu navegador bloqueou a cópia automática. Por favor, selecione o texto e use Ctrl+C / Cmd+C.");
-            }
+            alert("Erro ao copiar.");
         }
-        
-        // Remove a seleção visual para não atrapalhar o usuário
         window.getSelection().removeAllRanges();
     }
 
-    // NOVA FUNÇÃO COLAR: Explica o bloqueio de segurança se falhar
     function colarTexto() {
         if (navigator.clipboard && window.isSecureContext) {
             navigator.clipboard.readText()
@@ -218,27 +329,18 @@
                     const start = textArea.selectionStart;
                     const end = textArea.selectionEnd;
                     const textoAtual = textArea.value;
-                    
                     textArea.value = textoAtual.substring(0, start) + texto + textoAtual.substring(end);
                     textArea.focus();
-                    textArea.selectionStart = textArea.selectionEnd = start + texto.length;
-                })
-                .catch(err => {
-                    alert("Acesso negado. Por favor, cole usando Ctrl+V (PC) ou pressionando a tela (Celular).");
                 });
         } else {
-            // O comando 'document.execCommand('paste')' foi descontinuado há anos por segurança,
-            // então se o navegador bloquear a API moderna, a única saída é o atalho nativo do sistema.
-            alert("Bloqueio de Segurança do Navegador:\n\nComo este aplicativo está rodando localmente (offline), o navegador impede a colagem automática.\n\n👉 Para colar seu texto, use:\n- No PC: Ctrl + V\n- No Mac: Cmd + V\n- No Celular/Tablet: Toque e segure na caixa de texto e escolha 'Colar'.");
+            alert("Use o atalho nativo para colar (Ctrl+V ou pressionando a tela).");
         }
     }
 
     function limparTexto() {
-        if (textArea.value !== "") {
-            if (confirm("Tem certeza que deseja apagar todo o texto?")) {
-                textArea.value = "";
-                textArea.focus();
-            }
+        if (textArea.value !== "" && confirm("Deseja apagar tudo?")) {
+            textArea.value = "";
+            textArea.focus();
         }
     }
 </script>
