@@ -143,7 +143,7 @@
 
         <div class="row-drive">
             <button class="btn btn-drive-save" onclick="salvarNoGoogleDrive()">Salvar no Google Drive ☁️</button>
-            <button class="btn btn-drive-fetch" onclick="buscarDoGoogleDrive()">Buscar Arquivos do Drive 📂</button>
+            <button class="btn btn-drive-fetch" onclick="buscarDoGoogleDrive()">Buscar Arquivo por Nome 📂</button>
         </div>
 
         <div class="row-file">
@@ -158,8 +158,8 @@
 </div>
 
 <script>
-    // Sua URL do Google Web App já configurada corretamente:
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbygnu4p1zts8D7D8L_H6rKqivnHQschSlQ9yZnCdSAJWCDfxaKyjtEYKOHZty0iXSbJ/exec";
+    // URL do seu novo Web App do Google Apps Script configurada
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyEBC0vHLBAEDhvV6XHyk3Uowf9xHCW3v67pSCToaaASHOH3Gmam7q1YE7fe11hBn4i/exec";
 
     const textArea = document.getElementById('text-area');
     const filenameInput = document.getElementById('filename-input');
@@ -170,29 +170,14 @@
         statusText.style.display = mostrar ? 'block' : 'none';
     }
 
-    // Validação inteligente da URL
-    function urlValida() {
-        return WEB_APP_URL !== "" && !WEB_APP_URL.includes("COLE_AQUI");
-    }
-
     // --- FUNÇÕES DO GOOGLE DRIVE ---
 
     function salvarNoGoogleDrive() {
-        if (!urlValida()) {
-            alert("Atenção! Configure uma URL válida do seu Web App na constante WEB_APP_URL.");
-            return;
-        }
-
         const texto = textArea.value;
         let nomeArquivo = filenameInput.value.trim();
 
-        if (nomeArquivo === "") {
-            nomeArquivo = "documento";
-        }
-
-        if (!nomeArquivo.endsWith('.txt')) {
-            nomeArquivo += '.txt';
-        }
+        if (nomeArquivo === "") nomeArquivo = "documento";
+        if (!nomeArquivo.endsWith('.txt')) nomeArquivo += '.txt';
 
         mostrarStatus("Salvando arquivo na pasta do Google Drive...", true);
 
@@ -221,56 +206,39 @@
     }
 
     function buscarDoGoogleDrive() {
-        if (!urlValida()) {
-            alert("Atenção! Configure uma URL válida do seu Web App na constante WEB_APP_URL.");
-            return;
+        let nomeBuscar = prompt("Digite o nome exato do arquivo que deseja buscar do Google Drive:");
+        
+        if (!nomeBuscar || nomeBuscar.trim() === "") {
+            return; 
         }
 
-        mostrarStatus("Buscando lista de arquivos na sua pasta do Google Drive...", true);
+        nomeBuscar = nomeBuscar.trim();
+        if (!nomeBuscar.endsWith('.txt')) {
+            nomeBuscar += '.txt';
+        }
 
-        fetch(WEB_APP_URL)
+        mostrarStatus("Buscando arquivo '" + nomeBuscar + "' no Google Drive...", true);
+
+        fetch(WEB_APP_URL + "?nome=" + encodeURIComponent(nomeBuscar))
         .then(resposta => resposta.json())
         .then(dados => {
             mostrarStatus("", false);
+            
             if (dados.status === "sucesso") {
-                if (dados.arquivos.length === 0) {
-                    alert("Nenhum arquivo TXT foi encontrado nessa pasta do Google Drive.");
-                    return;
-                }
-
-                let mensagem = "Escolha o número do arquivo que deseja abrir:\n\n";
-                dados.arquivos.forEach((arq, index) => {
-                    mensagem += (index + 1) + " - " + arq.nome + "\n";
-                });
-
-                const escolha = prompt(mensagem);
-                const indexEscolhido = parseInt(escolha) - 1;
-
-                if (!isNaN(indexEscolhido) && indexEscolhido >= 0 && indexEscolhido < dados.arquivos.length) {
-                    const arquivoEscolhido = dados.arquivos[indexEscolhido];
-                    
-                    mostrarStatus("Carregando conteúdo do arquivo...", true);
-                    fetch("https://docs.google.com/feeds/download/documents/export/Export?id=" + arquivoEscolhido.id + "&exportFormat=txt")
-                    .then(r => r.text())
-                    .then(conteudo => {
-                        mostrarStatus("", false);
-                        textArea.value = conteudo;
-                        filenameInput.value = arquivoEscolhido.nome.replace(/\.[^/.]+$/, "");
-                        alert("Arquivo '" + arquivoEscolhido.nome + "' importado com sucesso!");
-                    })
-                    .catch(() => {
-                        mostrarStatus("", false);
-                        alert("Não foi possível carregar o conteúdo desse arquivo diretamente. Mas você pode abri-lo manualmente se preferir.");
-                    });
-                }
+                // Insere o texto puro diretamente no editor
+                textArea.value = dados.conteudo;
+                filenameInput.value = dados.nome.replace(/\.[^/.]+$/, "");
+                alert("Arquivo '" + dados.nome + "' carregado com sucesso do Google Drive!");
+            } else if (dados.status === "nao_encontrado") {
+                alert(dados.mensagem);
             } else {
-                alert("Erro ao buscar arquivos: " + dados.mensagem);
+                alert("Erro retornado pelo servidor: " + dados.mensagem);
             }
         })
         .catch(erro => {
             mostrarStatus("", false);
             console.error(erro);
-            alert("Não foi possível conectar ao Google Drive. Verifique se o seu Web App foi publicado corretamente.");
+            alert("Não foi possível conectar ao Google Drive ou ler o arquivo. Verifique se salvou e publicou a 'Nova Versão' do script corretamente.");
         });
     }
 
