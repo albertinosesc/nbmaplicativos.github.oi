@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor de Texto Pro (Compatível)</title>
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            overflow: hidden;
+            background-color: #f4f7f6;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        .app-container {
+            position: absolute;
+            top: 1cm;
+            bottom: 1cm;
+            left: 1cm;
+            right: 1cm;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            box-sizing: border-box;
+        }
+
+        textarea {
+            flex: 1;
+            width: 100%;
+            padding: 15px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            resize: none;
+            font-size: 16px;
+            box-sizing: border-box;
+            font-family: inherit;
+            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+        }
+
+        textarea:focus {
+            outline: none;
+            border-color: #008CBA;
+        }
+
+        .controls {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .row-file, .row-edit {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        .input-filename {
+            flex: 2;
+            min-width: 180px;
+            padding: 12px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 15px;
+            box-sizing: border-box;
+        }
+
+        .btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 12px;
+            font-size: 14px;
+            font-weight: bold;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s, opacity 0.2s;
+            text-align: center;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        .btn:active {
+            opacity: 0.9;
+        }
+
+        .btn-save { background-color: #4CAF50; }
+        .btn-save:hover { background-color: #45a049; }
+
+        .btn-open {
+            background-color: #008CBA;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        .btn-open:hover { background-color: #007bb5; }
+
+        .btn-copy { background-color: #607d8b; }
+        .btn-copy:hover { background-color: #546e7a; }
+
+        .btn-paste { background-color: #9c27b0; }
+        .btn-paste:hover { background-color: #8e24aa; }
+
+        .btn-clear { background-color: #f44336; }
+        .btn-clear:hover { background-color: #d32f2f; }
+
+        #file-input {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+
+<div class="app-container">
+    <textarea id="text-area" placeholder="Digite, cole ou abra um arquivo para começar..."></textarea>
+    
+    <div class="controls">
+        <div class="row-edit">
+            <button class="btn btn-copy" onclick="copiarTexto()">Copiar</button>
+            <button class="btn btn-paste" onclick="colarTexto()">Colar</button>
+            <button class="btn btn-clear" onclick="limparTexto()">Limpar</button>
+        </div>
+
+        <div class="row-file">
+            <input type="text" id="filename-input" class="input-filename" placeholder="Nome do arquivo" value="documento">
+            <button class="btn btn-save" onclick="salvarArquivo()">Salvar</button>
+            <label class="btn btn-open">
+                Abrir
+                <input type="file" id="file-input" accept=".txt" onchange="abrirArquivo(event)">
+            </label>
+        </div>
+    </div>
+</div>
+
+<script>
+    const textArea = document.getElementById('text-area');
+    const filenameInput = document.getElementById('filename-input');
+
+    function salvarArquivo() {
+        const texto = textArea.value;
+        let nomeArquivo = filenameInput.value.trim();
+
+        if (nomeArquivo === "") {
+            nomeArquivo = "documento";
+        }
+
+        if (!nomeArquivo.endsWith('.txt')) {
+            nomeArquivo += '.txt';
+        }
+
+        const blob = new Blob([texto], { type: 'text/plain;charset=utf-8' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = nomeArquivo;
+        link.click();
+        URL.revokeObjectURL(link.href);
+    }
+
+    function abrirArquivo(event) {
+        const input = event.target;
+        const file = input.files[0];
+
+        if (!file) return;
+
+        const leitor = new FileReader();
+        leitor.onload = function(e) {
+            textArea.value = e.target.result;
+            filenameInput.value = file.name.replace(/\.[^/.]+$/, "");
+        };
+
+        leitor.readAsText(file);
+        input.value = ''; 
+    }
+
+    // NOVA FUNÇÃO COPIAR: Usa o método clássico que funciona em arquivos locais (offline)
+    function copiarTexto() {
+        if (textArea.value.trim() === "") {
+            alert("Não há texto para copiar!");
+            return;
+        }
+
+        // Seleciona o texto dentro do textarea
+        textArea.select();
+        textArea.setSelectionRange(0, 99999); // Para dispositivos móveis
+
+        try {
+            // Executa o comando de cópia clássico do navegador
+            const copiado = document.execCommand('copy');
+            if (copiado) {
+                alert("Texto copiado com sucesso!");
+            } else {
+                throw new Error("Não suportado");
+            }
+        } catch (err) {
+            // Se falhar, tenta o método moderno como plano B
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(textArea.value)
+                    .then(() => alert("Texto copiado!"))
+                    .catch(() => alert("Erro ao copiar. Use o comando manual do seu teclado/celular."));
+            } else {
+                alert("Seu navegador bloqueou a cópia automática. Por favor, selecione o texto e use Ctrl+C / Cmd+C.");
+            }
+        }
+        
+        // Remove a seleção visual para não atrapalhar o usuário
+        window.getSelection().removeAllRanges();
+    }
+
+    // NOVA FUNÇÃO COLAR: Explica o bloqueio de segurança se falhar
+    function colarTexto() {
+        if (navigator.clipboard && window.isSecureContext) {
+            navigator.clipboard.readText()
+                .then(texto => {
+                    const start = textArea.selectionStart;
+                    const end = textArea.selectionEnd;
+                    const textoAtual = textArea.value;
+                    
+                    textArea.value = textoAtual.substring(0, start) + texto + textoAtual.substring(end);
+                    textArea.focus();
+                    textArea.selectionStart = textArea.selectionEnd = start + texto.length;
+                })
+                .catch(err => {
+                    alert("Acesso negado. Por favor, cole usando Ctrl+V (PC) ou pressionando a tela (Celular).");
+                });
+        } else {
+            // O comando 'document.execCommand('paste')' foi descontinuado há anos por segurança,
+            // então se o navegador bloquear a API moderna, a única saída é o atalho nativo do sistema.
+            alert("Bloqueio de Segurança do Navegador:\n\nComo este aplicativo está rodando localmente (offline), o navegador impede a colagem automática.\n\n👉 Para colar seu texto, use:\n- No PC: Ctrl + V\n- No Mac: Cmd + V\n- No Celular/Tablet: Toque e segure na caixa de texto e escolha 'Colar'.");
+        }
+    }
+
+    function limparTexto() {
+        if (textArea.value !== "") {
+            if (confirm("Tem certeza que deseja apagar todo o texto?")) {
+                textArea.value = "";
+                textArea.focus();
+            }
+        }
+    }
+</script>
+
+</body>
+</html>
