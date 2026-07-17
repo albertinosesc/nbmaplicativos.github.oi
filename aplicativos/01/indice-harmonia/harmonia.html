@@ -200,7 +200,6 @@
             color: #2f3640;
         }
 
-        /* Estilo para destacar a música isolada */
         mark.highlight {
             background-color: #f1c40f;
             color: #000;
@@ -209,7 +208,6 @@
             font-weight: bold;
         }
 
-        /* Aviso de linhas ocultadas */
         .filter-alert {
             background-color: #e8f8f5;
             border-left: 4px solid var(--accent-color);
@@ -342,11 +340,10 @@
     </div>
 
     <div id="adminView" class="view-section">
-        <!-- O Painel Admin continua o mesmo para gerar a estrutura padrão -->
         <div class="admin-container">
-            <h2>Gerador de Cadastro de Índices</h2>
+            <h2>Gerador de Cadastro de Índices (Linear)</h2>
             <div style="background-color: #f8f9fa; border-left: 4px solid var(--admin-color); padding: 15px; margin-bottom: 20px; font-size: 14px;">
-                Insira os dados para gerar a estrutura correta para o seu arquivo <code>livros.json</code>.
+                Insira os dados abaixo. O JSON gerado sairá perfeitamente formatado em uma única linha estruturada.
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 15px;">
@@ -360,11 +357,11 @@
                 </div>
             </div>
 
-            <button class="admin-btn" onclick="generateJSON()">Converter para JSON</button>
+            <button class="admin-btn" onclick="generateJSON()">Converter para JSON Linear</button>
             <button class="admin-btn copy-btn" id="copyBtn" onclick="copyJSON()" style="display: none;">Copiar JSON</button>
 
             <div class="result-container" id="resultContainer" style="display: none;">
-                <textarea id="jsonOutput" class="admin-textarea" readonly></textarea>
+                <textarea id="jsonOutput" class="admin-textarea" readonly style="height: 100px;"></textarea>
             </div>
         </div>
     </div>
@@ -461,31 +458,21 @@
                     let alertHTML = '';
 
                     if (musicQuery.length > 0) {
-                        // NOVIDADE: Divide o arquivo TXT linha por linha para filtrar
                         const lines = text.split('\n');
                         const queryLower = musicQuery.toLowerCase();
-                        
-                        // Filtra apenas as linhas que dão match com a pesquisa
                         const matchedLines = lines.filter(line => line.toLowerCase().includes(queryLower));
 
                         if (matchedLines.length > 0) {
                             alertHTML = `<div class="filter-alert">🔍 Exibindo apenas as linhas correspondentes à música buscada ("${musicQuery}").</div>`;
-                            
-                            // Reconstrói o bloco de texto apenas com as correspondências
                             let filteredText = matchedLines.join('\n');
-                            
-                            // Aplica a marcação amarela no termo
                             const regex = new RegExp(`(${escapeRegExp(musicQuery)})`, 'gi');
                             filteredText = filteredText.replace(regex, '<mark class="highlight">$1</mark>');
-                            
                             finalDisplayHTML = `<div class="txt-display">${filteredText}</div>`;
                         } else {
-                            // Caso a indexação do json tenha a palavra mas por algum motivo o .txt não tenha idêntico
                             alertHTML = `<div class="filter-alert" style="background-color: #fdf2e9; border-left-color: #e67e22; color: #d35400;">⚠️ Termo encontrado no índice, mas não mapeado de forma exata dentro das linhas do .txt. Exibindo arquivo completo:</div>`;
                             finalDisplayHTML = `<div class="txt-display">${text}</div>`;
                         }
                     } else {
-                        // Sem filtro de música: Exibe o .txt completo normalmente
                         finalDisplayHTML = `<div class="txt-display">${text || 'Arquivo de texto vazio.'}</div>`;
                     }
 
@@ -548,23 +535,31 @@
         searchHarmony.addEventListener('input', filterBooks);
         searchMusic.addEventListener('input', filterBooks);
 
-        // ================= ADMIN =================
+        // ================= ADMIN ATUALIZADO (LINEAR) =================
         function generateJSON() {
             const rawText = document.getElementById('rawInput').value.trim();
             const rawIndex = document.getElementById('rawIndex').value.trim();
-            if (!rawText) return alert("Preencha a identificação!");
+            
+            if (!rawText) return alert("Por favor, preencha a linha de identificação!");
             const parts = rawText.split('-').map(p => p.trim());
-            if (parts.length < 3) return alert("Formato inválido!");
+            if (parts.length < 3) return alert("Formato inválido! Use: Código - Progressão - Harmonia");
 
             const entryObject = {
                 codigo: parts[0],
                 progressao: parts[1],
                 harmonia: parts[2],
                 arquivo: `livros/${parts[0]}.txt`,
+                // Tratamento especial para preservar as quebras de linha (\n) escapadas dentro de uma string linear
                 indice_busca: rawIndex
             };
 
-            document.getElementById('jsonOutput').value = "[\n" + JSON.stringify(entryObject, null, 4) + "\n]";
+            // Transforma o objeto em string rígida e escapa as quebras de linha físicas transformando-as em texto '\n'
+            let objectString = JSON.stringify(entryObject);
+
+            // Formata a exibição do painel para sair já envelopado em colchetes e com a vírgula para fácil inserção em lote
+            let resultLinear = "[\n    " + objectString + ",\n]";
+
+            document.getElementById('jsonOutput').value = resultLinear;
             document.getElementById('resultContainer').style.display = 'block';
             document.getElementById('copyBtn').style.display = 'inline-block';
         }
