@@ -110,6 +110,7 @@
 
         .search-box.music-search input {
             border-color: var(--accent-color);
+            background-color: #fffdf0; /* Leve destaque no fundo do campo */
         }
 
         /* Layout */
@@ -196,6 +197,15 @@
             line-height: 1.5;
             margin-top: 10px;
             color: #2f3640;
+        }
+
+        /* Estilo para destacar a música buscada dentro do arquivo de texto */
+        mark.highlight {
+            background-color: #f1c40f;
+            color: #000;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-weight: bold;
         }
 
         .placeholder-text {
@@ -436,9 +446,10 @@
                 return;
             }
 
-            items.forEach(item => {
+            items.forEach((item, index) => {
                 const li = document.createElement('li');
                 li.className = 'book-item';
+                li.id = 'book-item-' + index;
                 li.innerHTML = `
                     <div>
                         <span class="badge badge-code">Cod: ${item.codigo}</span>
@@ -455,6 +466,16 @@
 
                 bookListEl.appendChild(li);
             });
+
+            // NOVIDADE: Se a busca retornar itens e houver texto no campo "Música" ou se houver só 1 resultado, 
+            // abre o primeiro item automaticamente!
+            if (items.length > 0) {
+                const firstListItem = document.getElementById('book-item-0');
+                if (firstListItem) {
+                    firstListItem.classList.add('active');
+                    loadBookIndex(items[0]);
+                }
+            }
         }
 
         function loadBookIndex(item) {
@@ -466,13 +487,27 @@
                     return response.text();
                 })
                 .then(text => {
+                    // Trata o texto para destacar a palavra digitada na busca por música
+                    let formattedText = text || 'Arquivo de texto vazio.';
+                    const musicQuery = searchMusic.value.trim();
+
+                    if (musicQuery.length > 0) {
+                        try {
+                            // Cria uma expressão regular que ignora maiúsculas/minúsculas para grifar o termo
+                            const regex = new RegExp(`(${escapeRegExp(musicQuery)})`, 'gi');
+                            formattedText = formattedText.replace(regex, '<mark class="highlight">$1</mark>');
+                        } catch(e) {
+                            console.error("Erro ao realçar trecho:", e);
+                        }
+                    }
+
                     indexContentEl.innerHTML = `
                         <div style="margin-bottom: 4px;">
                             <span class="badge badge-code" style="margin: 0 4px 0 0;">Código: ${item.codigo}</span>
                         </div>
                         <h3 style="color: var(--accent-color); font-size: 18px; font-weight: bold;">Harmonia: ${item.harmonia}</h3>
                         <p style="color: #555; font-size: 15px; margin-bottom: 10px;">Progressão: ${item.progressao}</p>
-                        <div class="txt-display">${text || 'Arquivo de texto vazio.'}</div>
+                        <div class="txt-display">${formattedText}</div>
                     `;
                 })
                 .catch(error => {
@@ -485,13 +520,17 @@
                 });
         }
 
+        // Função auxiliar para evitar problemas com caracteres especiais na regex de realce
+        function escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+
         function filterBooks() {
             const codeQuery = searchCode.value.trim().toLowerCase();
             const progressionQuery = searchProgression.value.trim().toLowerCase();
             const harmonyQuery = searchHarmony.value.trim().toLowerCase();
             const musicQuery = searchMusic.value.trim().toLowerCase();
 
-            // MUDANÇA AQUI: Agora basta ter pelo menos 1 caractere em QUALQUER um dos campos
             const hasInput = codeQuery.length > 0 || 
                              progressionQuery.length > 0 || 
                              harmonyQuery.length > 0 || 
@@ -503,10 +542,15 @@
             }
 
             const filtered = catalog.filter(item => {
-                const matchesCode = codeQuery.length > 0 ? String(item.codigo).toLowerCase().includes(codeQuery) : true;
-                const matchesProgression = progressionQuery.length > 0 ? String(item.progressao).toLowerCase().includes(progressionQuery) : true;
-                const matchesHarmony = harmonyQuery.length > 0 ? String(item.harmonia).toLowerCase().includes(harmonyQuery) : true;
-                const matchesMusic = musicQuery.length > 0 ? (item.indice_busca && item.indice_busca.toLowerCase().includes(musicQuery)) : true;
+                const itemCode = item.codigo ? String(item.codigo).toLowerCase() : '';
+                const itemProgression = item.progressao ? String(item.progressao).toLowerCase() : '';
+                const itemHarmony = item.harmonia ? String(item.harmonia).toLowerCase() : '';
+                const itemMusic = item.indice_busca ? String(item.indice_busca).toLowerCase() : '';
+
+                const matchesCode = codeQuery.length > 0 ? itemCode.includes(codeQuery) : true;
+                const matchesProgression = progressionQuery.length > 0 ? itemProgression.includes(progressionQuery) : true;
+                const matchesHarmony = harmonyQuery.length > 0 ? itemHarmony.includes(harmonyQuery) : true;
+                const matchesMusic = musicQuery.length > 0 ? itemMusic.includes(musicQuery) : true;
 
                 return matchesCode && matchesProgression && matchesHarmony && matchesMusic;
             });
