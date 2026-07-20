@@ -26,8 +26,18 @@
       margin: 0 auto;
     }
 
+    .header-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
     h1, h2, h3 {
       color: var(--primary);
+      margin: 0;
     }
 
     .card {
@@ -48,7 +58,7 @@
       margin-bottom: 4px;
     }
 
-    input[type="text"], input[type="password"], select {
+    input[type="text"], select {
       width: 100%;
       padding: 8px;
       border: 1px solid var(--border);
@@ -64,6 +74,8 @@
       border-radius: 4px;
       cursor: pointer;
       font-weight: bold;
+      text-decoration: none;
+      display: inline-block;
       transition: background 0.2s;
     }
 
@@ -138,39 +150,18 @@
 <body>
 
 <div class="container">
-  <h1>Acompanhamento de Transposição nas 12 Tonalidades</h1>
-
-  <!-- CONFIGURAÇÃO DO GITHUB -->
-  <div class="card">
-    <h3>Configuração de Conexão (GitHub)</h3>
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px;">
-      <div class="form-group">
-        <label>Usuário GitHub:</label>
-        <input type="text" id="ghUser" placeholder="ex: seu-usuario">
-      </div>
-      <div class="form-group">
-        <label>Repositório:</label>
-        <input type="text" id="ghRepo" placeholder="ex: minhas-musicas">
-      </div>
-      <div class="form-group">
-        <label>Branch:</label>
-        <input type="text" id="ghBranch" value="main">
-      </div>
-      <div class="form-group">
-        <label>Token do GitHub:</label>
-        <input type="password" id="ghToken" placeholder="ghp_...">
-      </div>
-    </div>
-    <button class="btn" onclick="salvarConfiguracoes()">Salvar Configurações</button>
-    <a href="index.html" class="btn">Voltar para Músicas</a>
+  
+  <div class="header-bar">
+    <h1>Desenvolvimento Musical do Aluno</h1>
+    <a href="index.html" class="btn">Voltar para o Aplicativo</a>
   </div>
 
   <!-- SELEÇÃO / CRIAÇÃO DE ALUNO -->
   <div class="card">
-    <h3>Aluno</h3>
-    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+    <h3>Selecionar Aluno</h3>
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end; margin-top: 10px;">
       <div style="flex: 1; min-width: 200px;">
-        <label>Nome do Aluno:</label>
+        <label for="nomeAluno">Nome do Aluno:</label>
         <input type="text" id="nomeAluno" placeholder="Ex: João Silva">
       </div>
       <button class="btn" onclick="carregarDadosAluno()">Buscar / Carregar Aluno</button>
@@ -184,6 +175,7 @@
     <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;">
       <h3>Planilha de Tonalidades (Escala Cromática)</h3>
       <button class="btn" onclick="adicionarLinhaMusica()">+ Adicionar Música</button>
+      <a href="index.html" class="btn">Voltar para Músicas</a>
     </div>
 
     <div class="table-container">
@@ -216,24 +208,20 @@
 </div>
 
 <script>
-  // As 12 Tonalidades da Escala Cromática
-  const TONALIDADES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
-  let shaArquivoAtual = null; // Guarda a revisão do arquivo no GitHub para atualização
-
-  // Carregar credenciais salvas no navegador
-  window.onload = function() {
-    document.getElementById('ghUser').value = localStorage.getItem('ghUser') || '';
-    document.getElementById('ghRepo').value = localStorage.getItem('ghRepo') || '';
-    document.getElementById('ghBranch').value = localStorage.getItem('ghBranch') || 'main';
-    document.getElementById('ghToken').value = localStorage.getItem('ghToken') || '';
+  // CONFIGURAÇÕES FIXAS DO SEU REPOSITÓRIO GITHUB
+  const GH_CONFIG = {
+    user: "albertinosesc",       // Altere para o seu usuário do GitHub
+    repo: "minhas-musicas",   // Altere para o nome do seu repositório (ex: minhas-musicas)
+    branch: "main"                 // Nome da branch (geralmente 'main' ou 'master')
   };
 
-  function salvarConfiguracoes() {
-    localStorage.setItem('ghUser', document.getElementById('ghUser').value.trim());
-    localStorage.setItem('ghRepo', document.getElementById('ghRepo').value.trim());
-    localStorage.setItem('ghBranch', document.getElementById('ghBranch').value.trim());
-    localStorage.setItem('ghToken', document.getElementById('ghToken').value.trim());
-    exibirStatus("Configurações salvas no navegador!", "green");
+  // As 12 Tonalidades da Escala Cromática
+  const TONALIDADES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
+  let shaArquivoAtual = null; 
+
+  // Função para obter o Token do GitHub salvo no navegador
+  function obterToken() {
+    return localStorage.getItem('ghToken') || localStorage.getItem('github_token') || '';
   }
 
   function exibirStatus(mensagem, cor = "black") {
@@ -252,14 +240,12 @@
     const tbody = document.getElementById('corpoTabela');
     const tr = document.createElement('tr');
 
-    // Coluna do Nome da Música
     let htmlTdMusica = `
       <td class="musica-input">
         <input type="text" value="${nomeMusica}" placeholder="Ex: Música 34" onchange="atualizarProgressoLinha(this.parentElement.parentElement)">
       </td>
     `;
 
-    // 12 Colunas de Checkbox para as Tonalidades
     let htmlCheckboxes = "";
     TONALIDADES.forEach(tom => {
       const marcado = tonsTocados.includes(tom) ? "checked" : "";
@@ -270,14 +256,12 @@
       `;
     });
 
-    // Coluna do Progresso (X/12)
     let htmlProgresso = `
       <td>
         <span class="badge-progresso">0 / 12</span>
       </td>
     `;
 
-    // Botão de Excluir Linha
     let htmlAcoes = `
       <td>
         <button style="background:none; border:none; color:red; cursor:pointer; font-weight:bold;" onclick="removerLinha(this)">✕</button>
@@ -311,41 +295,41 @@
   // LER DADOS DO ALUNO NO GITHUB
   async function carregarDadosAluno() {
     const nomeAluno = document.getElementById('nomeAluno').value.trim();
-    const user = document.getElementById('ghUser').value.trim();
-    const repo = document.getElementById('ghRepo').value.trim();
-    const branch = document.getElementById('ghBranch').value.trim();
-    const token = document.getElementById('ghToken').value.trim();
+    const token = obterToken();
 
     if (!nomeAluno) {
       alert("Por favor, digite o nome do aluno.");
       return;
     }
 
+    if (!token) {
+      alert("Token do GitHub não encontrado! Abra o aplicativo principal primeiro para configurar o Token.");
+      return;
+    }
+
     exibirStatus("Buscando registro do aluno no GitHub...", "blue");
     const caminho = obterCaminhoArquivoAluno(nomeAluno);
-    const url = `https://api.github.com/repos/${user}/${repo}/contents/${caminho}?ref=${branch}`;
+    const url = `https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`;
 
     try {
       const response = await fetch(url, {
         headers: { 'Authorization': `token ${token}` }
       });
 
-      // Limpa a tabela atual
       document.getElementById('corpoTabela').innerHTML = "";
 
       if (response.status === 404) {
-        exibirStatus("Aluno novo! Nenhum registro prévio encontrado no GitHub. Preencha a tabela e clique em Salvar.", "orange");
+        exibirStatus("Aluno novo! Nenhum registro encontrado. Monte a tabela e clique em Salvar.", "orange");
         shaArquivoAtual = null;
-        adicionarLinhaMusica(); // Adiciona uma linha em branco para começar
+        adicionarLinhaMusica();
         return;
       }
 
       if (!response.ok) throw new Error("Erro ao acessar o GitHub.");
 
       const data = await response.json();
-      shaArquivoAtual = data.sha; // Guarda o SHA necessário para atualizar o arquivo depois
+      shaArquivoAtual = data.sha;
 
-      // Decodifica o conteúdo Base64 retornado pelo GitHub
       const conteudoJson = JSON.parse(decodeURIComponent(escape(atob(data.content))));
 
       if (conteudoJson.musicas && conteudoJson.musicas.length > 0) {
@@ -359,24 +343,25 @@
 
     } catch (err) {
       console.error(err);
-      exibirStatus("Falha ao buscar dados do aluno. Verifique suas credenciais do GitHub.", "red");
+      exibirStatus("Falha ao buscar dados do aluno. Verifique se o Token no app principal está correto.", "red");
     }
   }
 
   // SALVAR / GRAVAR DADOS DO ALUNO NO GITHUB
   async function salvarDadosAluno() {
     const nomeAluno = document.getElementById('nomeAluno').value.trim();
-    const user = document.getElementById('ghUser').value.trim();
-    const repo = document.getElementById('ghRepo').value.trim();
-    const branch = document.getElementById('ghBranch').value.trim();
-    const token = document.getElementById('ghToken').value.trim();
+    const token = obterToken();
 
     if (!nomeAluno) {
       alert("Informe o nome do aluno antes de salvar.");
       return;
     }
 
-    // Coleta as informações da Tabela
+    if (!token) {
+      alert("Token do GitHub não encontrado!");
+      return;
+    }
+
     const linhas = document.querySelectorAll('#corpoTabela tr');
     const musicas = [];
 
@@ -400,20 +385,19 @@
     };
 
     const caminho = obterCaminhoArquivoAluno(nomeAluno);
-    const url = `https://api.github.com/repos/${user}/${repo}/contents/${caminho}`;
+    const url = `https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`;
 
-    // Converte o objeto para JSON e depois para Base64 (padrão da API do GitHub)
     const jsonString = JSON.stringify(dadosParaSalvar, null, 2);
     const conteudoBase64 = btoa(unescape(encodeURIComponent(jsonString)));
 
     const body = {
       message: `Atualizando registro do aluno: ${nomeAluno}`,
       content: conteudoBase64,
-      branch: branch
+      branch: GH_CONFIG.branch
     };
 
     if (shaArquivoAtual) {
-      body.sha = shaArquivoAtual; // Se o arquivo já existe, precisa enviar o SHA
+      body.sha = shaArquivoAtual;
     }
 
     exibirStatus("Enviando dados para o GitHub...", "blue");
@@ -437,9 +421,14 @@
       }
     } catch (err) {
       console.error(err);
-      exibirStatus("Erro ao salvar progresso no GitHub. Verifique o Token e permissões.", "red");
+      exibirStatus("Erro ao salvar no GitHub. Verifique as permissões do Token.", "red");
     }
   }
+
+  // Carrega uma linha em branco por padrão ao abrir
+  window.onload = function() {
+    adicionarLinhaMusica();
+  };
 </script>
 
 </body>
