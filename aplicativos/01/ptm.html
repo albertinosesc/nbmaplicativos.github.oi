@@ -88,6 +88,8 @@
     .file-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; max-height: 200px; overflow-y: auto; }
     .file-item { background: var(--bg-color); padding: 6px 12px; border-radius: 4px; border: 1px solid var(--border); cursor: pointer; font-size: 0.85rem; font-weight: 500; }
     .file-item:hover { background: var(--primary); color: white; border-color: var(--primary); }
+
+    .token-status { font-size: 0.85rem; font-weight: 600; margin-left: 5px; width: 100%; }
   </style>
 </head>
 <body>
@@ -95,20 +97,23 @@
   <header>
     <h1><i class="fa-solid fa-music"></i> Partituras ABC - albertinosesc/minhas-musicas</h1>
   </header>
-<!-- Cole este bloco no topo ou no menu da sua página principal (index.html) -->
-<div style="margin-bottom: 20px; display: flex; gap: 10px;">
-  <a href="registro.html" class="btn" style="background-color: #27ae60; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold;">
-    📋 Registro de Alunos
-  </a>
-  <a href="tutorial.html" class="btn" style="background-color: #2c3e50; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold;">
-    ❓ Tutorial / Ajuda
-  </a>
-</div>
+
+  <!-- Navegação Principal -->
+  <div style="margin-bottom: 20px; display: flex; gap: 10px;">
+    <a href="registro.html" class="btn" style="background-color: #27ae60; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+      📋 Registro de Alunos
+    </a>
+    <a href="tutorial.html" class="btn" style="background-color: #2c3e50; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+      ❓ Tutorial / Ajuda
+    </a>
+  </div>
+
   <!-- Autenticação GitHub -->
   <section class="github-auth-panel">
     <i class="fa-brands fa-github" style="font-size: 1.2rem;"></i>
-    <input type="password" id="gh-token" placeholder="Cole aqui seu Token do GitHub (necessário para salvar)">
-    <small style="color: #6b7280;">*O token fica gravado apenas no seu navegador.</small>
+    <input type="password" id="gh-token" placeholder="Cole aqui seu Token do GitHub (ghp_...)" style="flex: 2;">
+    <button class="btn-success" onclick="validarEAutenticarToken()"><i class="fa-solid fa-key"></i> Confirmar Token</button>
+    <div id="token-status-msg" class="token-status" style="color: #6b7280;">*O token fica gravado apenas no seu navegador.</div>
   </section>
 
   <!-- Painel de Controle Principal -->
@@ -119,7 +124,6 @@
     <button onclick="toggleFileList()"><i class="fa-solid fa-list-ol"></i> Listar Músicas</button>
     <button class="btn-accent" onclick="toggleFingeringTools()"><i class="fa-solid fa-sliders"></i> Ferramentas de Digitação</button>
     <button onclick="toggleFullscreen()"><i class="fa-solid fa-expand"></i> Tela Cheia</button>
-    
   </section>
 
   <!-- Lista de Arquivos do Repositório -->
@@ -202,15 +206,58 @@ w: 1 2 3 4 | 5 4 3 2
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
-      if (savedToken) document.getElementById("gh-token").value = savedToken;
-      
-      document.getElementById("gh-token").addEventListener("change", (e) => {
+      if (savedToken) {
+        document.getElementById("gh-token").value = savedToken;
+        validarEAutenticarToken(true); // Valida silenciosamente ao carregar
+      }
+
+      // Salva no localStorage em tempo real ao digitar
+      document.getElementById("gh-token").addEventListener("input", (e) => {
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
 
       saveOriginalFingeringState();
       renderMusic();
     };
+
+    // VALIDAÇÃO E CONFIRMAÇÃO DO TOKEN DO GITHUB
+    async function validarEAutenticarToken(silencioso = false) {
+      const tokenInput = document.getElementById("gh-token");
+      const token = tokenInput.value.trim();
+      const statusMsg = document.getElementById("token-status-msg");
+
+      if (!token) {
+        statusMsg.style.color = "#dc2626";
+        statusMsg.innerText = "Por favor, digite ou cole um token válido.";
+        return;
+      }
+
+      // Garante gravação imediata
+      localStorage.setItem("gh_pat_token", token);
+
+      if (!silencioso) {
+        statusMsg.style.color = "#2563eb";
+        statusMsg.innerText = "Verificando token na API do GitHub...";
+      }
+
+      try {
+        const res = await fetch("https://api.github.com/user", {
+          headers: { "Authorization": `token ${token}` }
+        });
+
+        if (res.ok) {
+          const userData = await res.json();
+          statusMsg.style.color = "#16a34a";
+          statusMsg.innerHTML = `<i class="fa-solid fa-circle-check"></i> Token Autenticado com sucesso! Usuário ligado: <strong>${userData.login}</strong>`;
+        } else {
+          statusMsg.style.color = "#dc2626";
+          statusMsg.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Token Inválido ou sem permissão. Verifique se o token tem a permissão 'repo'.`;
+        }
+      } catch (err) {
+        statusMsg.style.color = "#dc2626";
+        statusMsg.innerText = "Erro ao conectar com o GitHub para testar o token.";
+      }
+    }
 
     function renderMusic() {
       const abcText = document.getElementById("abc-source").value;
@@ -274,7 +321,7 @@ w: 1 2 3 4 | 5 4 3 2
         document.getElementById("abc-source").value = text;
         document.getElementById("song-number").value = songNum;
         
-        saveOriginalFingeringState(); // Atualiza a memória original
+        saveOriginalFingeringState();
         renderMusic();
       } catch (err) {
         alert(err.message);
@@ -284,11 +331,11 @@ w: 1 2 3 4 | 5 4 3 2
     // Grava o arquivo no GitHub
     async function saveSongToGitHub() {
       const songNum = document.getElementById("song-number").value.trim();
-      const token = document.getElementById("gh-token").value.trim();
+      const token = document.getElementById("gh-token").value.trim() || localStorage.getItem("gh_pat_token");
       const content = document.getElementById("abc-source").value;
 
       if (!songNum) return alert("Informe o número da música para salvar.");
-      if (!token) return alert("Por favor, informe seu Personal Access Token do GitHub.");
+      if (!token) return alert("Por favor, informe e confirme seu Personal Access Token do GitHub.");
 
       const fileName = `${songNum}.abc`;
       const apiUrl = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${fileName}`;
@@ -326,7 +373,7 @@ w: 1 2 3 4 | 5 4 3 2
 
         if (!putRes.ok) {
           const errData = await putRes.json();
-          throw new Error(errData.message || "Erro ao salvar no GitHub.");
+          throw new Error(errData.message || "Erro ao salvar no GitHub. Verifique as permissões do seu token.");
         }
 
         alert(`Música ${fileName} salva com sucesso no GitHub!`);
