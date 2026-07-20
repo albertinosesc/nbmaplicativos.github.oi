@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <title>Painel Admin - Gestão Musical</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; max-width: 800px; margin: auto; background-color: #f4f6f9; }
+    h1 { color: #333; }
+    
+    /* Navegação por Abas */
+    .tabs { display: flex; gap: 10px; border-bottom: 2px solid #ccc; margin-bottom: 20px; }
+    .tab-btn { padding: 10px 20px; border: none; background: #e0e0e0; cursor: pointer; border-radius: 6px 6px 0 0; font-weight: bold; }
+    .tab-btn.active { background: #007bff; color: white; }
+
+    /* Conteúdo das Abas */
+    .tab-content { display: none; background: white; padding: 20px; border-radius: 0 0 8px 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .tab-content.active { display: block; }
+
+    .form-group { margin-bottom: 15px; }
+    label { display: block; font-weight: bold; margin-bottom: 5px; }
+    input[type="text"] { width: 100%; padding: 8px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 4px; }
+    
+    button.btn-submit { background-color: #28a745; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; font-size: 1em; }
+    button.btn-danger { background-color: #dc3545; color: white; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+
+    /* Listagens */
+    .lista-itens { margin-top: 20px; }
+    .item-card { display: flex; justify-content: space-between; align-items: center; padding: 10px; border-bottom: 1px solid #eee; }
+  </style>
+</head>
+<body>
+
+  <h1>Painel do Administrador</h1>
+
+  <!-- Abas de Navegação -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="trocarAba('tonalidades')">Tonalidades / Exercícios</button>
+    <button class="tab-btn" onclick="trocarAba('conceitos')">Conceitos Teóricos</button>
+    <button class="tab-btn" onclick="trocarAba('alunos')">Alunos</button>
+  </div>
+
+  <!-- ABA 1: TONALIDADES -->
+  <div id="aba-tonalidades" class="tab-content active">
+    <h3>Novo Exercício de Tonalidades</h3>
+    <div class="form-group">
+      <label>Título do Exercício:</label>
+      <input type="text" id="ton_titulo" placeholder="Ex: Escala Maior">
+    </div>
+    <div class="form-group">
+      <label>Tonalidades (separadas por vírgula):</label>
+      <input type="text" id="ton_itens" placeholder="Ex: C, G, D, A, E">
+    </div>
+    <button class="btn-submit" onclick="adicionarTonalidade()">Cadastrar Tonalidade</button>
+
+    <div class="lista-itens">
+      <h4>Cadastrados Recentemente:</h4>
+      <div id="lista-tonalidades"></div>
+    </div>
+  </div>
+
+  <!-- ABA 2: CONCEITOS TEÓRICOS -->
+  <div id="aba-conceitos" class="tab-content">
+    <h3>Novo Conceito Teórico</h3>
+    <div class="form-group">
+      <label>Título do Conceito / Aula:</label>
+      <input type="text" id="conc_titulo" placeholder="Ex: Intervalos Consonantes e Dissonantes">
+    </div>
+    <button class="btn-submit" onclick="adicionarConceito()">Cadastrar Conceito</button>
+
+    <div class="lista-itens">
+      <h4>Cadastrados Recentemente:</h4>
+      <div id="lista-conceitos"></div>
+    </div>
+  </div>
+
+  <!-- ABA 3: ALUNOS -->
+  <div id="aba-alunos" class="tab-content">
+    <h3>Cadastrar Aluno</h3>
+    <div class="form-group">
+      <label>Nome do Aluno:</label>
+      <input type="text" id="aluno_nome" placeholder="Ex: João Silva">
+    </div>
+    <button class="btn-submit" onclick="adicionarAluno()">Cadastrar Aluno</button>
+
+    <div class="lista-itens">
+      <h4>Alunos Cadastrados:</h4>
+      <div id="lista-alunos"></div>
+    </div>
+  </div>
+
+  <script>
+    // Estrutura principal unificada de dados
+    let adminData = {
+      alunos: [],
+      conteudos: {
+        tonalidades: [],
+        conceitos: []
+      }
+    };
+
+    // Alternar visualização entre as abas
+    function trocarAba(nomeAba) {
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+
+      event.currentTarget.classList.add('active');
+      document.getElementById(`aba-${nomeAba}`).classList.add('active');
+    }
+
+    // --- CARREGAR DADOS ---
+    async function carregarDados() {
+      try {
+        const res = await fetch('./admin/admin_config.json');
+        if (res.ok) {
+          adminData = await res.json();
+          renderizarTudo();
+        }
+      } catch (e) {
+        console.warn("Criando nova configuração ou executando localmente.");
+      }
+    }
+
+    // --- RENDERING DAS LISTAS ---
+    function renderizarTudo() {
+      // Tonalidades
+      const containerTon = document.getElementById('lista-tonalidades');
+      containerTon.innerHTML = adminData.conteudos.tonalidades.map(t => `
+        <div class="item-card">
+          <div>
+            <strong>${t.titulo}</strong> <br>
+            <small>Tonalidades: ${t.tonalidades.join(', ')}</small>
+          </div>
+          <button class="btn-danger" onclick="removerItem('tonalidades', '${t.id}')">Excluir</button>
+        </div>
+      `).join('');
+
+      // Conceitos
+      const containerConc = document.getElementById('lista-conceitos');
+      containerConc.innerHTML = adminData.conteudos.conceitos.map(c => `
+        <div class="item-card">
+          <div><strong>${c.titulo}</strong></div>
+          <button class="btn-danger" onclick="removerItem('conceitos', '${c.id}')">Excluir</button>
+        </div>
+      `).join('');
+
+      // Alunos
+      const containerAlunos = document.getElementById('lista-alunos');
+      containerAlunos.innerHTML = adminData.alunos.map(a => `
+        <div class="item-card">
+          <div><strong>${a.nome}</strong> (ID: ${a.id})</div>
+          <button class="btn-danger" onclick="removerAluno(${a.id})">Excluir</button>
+        </div>
+      `).join('');
+    }
+
+    // --- AÇÕES DE CADASTRO ---
+    function adicionarTonalidade() {
+      const titulo = document.getElementById('ton_titulo').value.trim();
+      const tonsRaw = document.getElementById('ton_itens').value;
+      if (!titulo) return alert('Digite o título!');
+
+      const tonalidadesArr = tonsRaw.split(',').map(t => t.trim()).filter(t => t !== '');
+
+      const novoItem = {
+        id: "t_" + Date.now(),
+        titulo: titulo,
+        tonalidades: tonalidadesArr
+      };
+
+      adminData.conteudos.tonalidades.push(novoItem);
+      limparEAtualizar('ton_titulo', 'ton_itens');
+    }
+
+    function adicionarConceito() {
+      const titulo = document.getElementById('conc_titulo').value.trim();
+      if (!titulo) return alert('Digite o título do conceito!');
+
+      const novoConceito = {
+        id: "c_" + Date.now(),
+        titulo: titulo
+      };
+
+      adminData.conteudos.conceitos.push(novoConceito);
+      limparEAtualizar('conc_titulo');
+    }
+
+    function adicionarAluno() {
+      const nome = document.getElementById('aluno_nome').value.trim();
+      if (!nome) return alert('Digite o nome do aluno!');
+
+      const novoAluno = {
+        id: Date.now(),
+        nome: nome
+      };
+
+      adminData.alunos.push(novoAluno);
+      limparEAtualizar('aluno_nome');
+    }
+
+    // --- REMOÇÕES ---
+    function removerItem(tipo, id) {
+      adminData.conteudos[tipo] = adminData.conteudos[tipo].filter(item => item.id !== id);
+      renderizarTudo();
+      console.log("JSON Atualizado:", JSON.stringify(adminData, null, 2));
+    }
+
+    function removerAluno(id) {
+      adminData.alunos = adminData.alunos.filter(a => a.id !== id);
+      renderizarTudo();
+      console.log("JSON Atualizado:", JSON.stringify(adminData, null, 2));
+    }
+
+    function limparEAtualizar(...ids) {
+      ids.forEach(id => document.getElementById(id).value = '');
+      renderizarTudo();
+      console.log("Salvar este objeto no JSON:", JSON.stringify(adminData, null, 2));
+    }
+
+    carregarDados();
+  </script>
+</body>
+</html>
