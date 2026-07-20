@@ -11,8 +11,8 @@
   <style>
     :root {
       --primary: #2563eb;
-      --accent: #28a745;
-      --danger: #dc3545;
+      --accent: #27ae60;
+      --danger: #dc2626;
       --bg: #f4f6f8;
       --card: #ffffff;
       --border: #e5e7eb;
@@ -74,9 +74,7 @@
     li:last-child { border-bottom: none; }
 
     .status-ok { color: var(--accent); font-weight: bold; }
-    .status-pending { color: var(--danger); }
-    .status-badge { background: #e0f2fe; color: #0369a1; padding: 3px 8px; border-radius: 12px; font-size: 0.8rem; font-weight: 600; }
-    
+    .status-pending { color: var(--danger); font-weight: bold; }
     .status-msg { margin-top: 10px; font-size: 0.85rem; font-weight: 500; }
   </style>
 </head>
@@ -157,6 +155,15 @@
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
     }
 
+    // Função utilitária para decodificar Base64 com suporte a acentos/UTF-8
+    function decodificarBase64UTF8(str) {
+      try {
+        return decodeURIComponent(atob(str).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+      } catch (e) {
+        return atob(str);
+      }
+    }
+
     async function validarEAutenticarToken(silencioso = false) {
       const token = obterToken();
       const statusMsg = document.getElementById("token-status-msg");
@@ -207,7 +214,6 @@
         const arquivos = await res.json();
         const alunosSet = new Set();
 
-        // Extrai o nome limpo do aluno a partir dos arquivos aluno_*.json ou teoria_*.json
         arquivos.forEach(arq => {
           if (arq.name.endsWith('.json')) {
             let nomeLimpo = arq.name.replace('aluno_', '').replace('teoria_', '').replace('.json', '');
@@ -222,7 +228,6 @@
 
         select.innerHTML = '<option value="">-- Selecione o Aluno --</option>';
         alunosSet.forEach(alunoSlug => {
-          // Formata o slug para exibição agradável (ex: joao_silva -> Joao Silva)
           let nomeFormatado = alunoSlug.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
           select.innerHTML += `<option value="${alunoSlug}">${nomeFormatado}</option>`;
         });
@@ -255,14 +260,14 @@
 
         if (resTeoria.ok) {
           const dataTeoria = await resTeoria.json();
-          const jsonTeoria = JSON.parse(decodeURIComponent(escape(atob(dataTeoria.content))));
+          const jsonTeoria = JSON.parse(decodificarBase64UTF8(dataTeoria.content));
 
           if (jsonTeoria.conceitos && jsonTeoria.conceitos.length > 0) {
             containerTeoria.innerHTML = '';
             jsonTeoria.conceitos.forEach(c => {
               containerTeoria.innerHTML += `
                 <li>
-                  <span>${c.titulo}</span>
+                  <span>${c.titulo || c.nome}</span>
                   <span class="${c.concluido ? 'status-ok' : 'status-pending'}">
                     ${c.concluido ? '✓ Concluído' : '✗ Pendente'}
                   </span>
@@ -287,21 +292,21 @@
 
         if (resTonalidades.ok) {
           const dataTon = await resTonalidades.json();
-          const jsonTon = JSON.parse(decodeURIComponent(escape(atob(dataTon.content))));
+          const jsonTon = JSON.parse(decodificarBase64UTF8(dataTon.content));
 
           if (jsonTon.musicas && jsonTon.musicas.length > 0) {
             containerTonalidades.innerHTML = '';
             
             jsonTon.musicas.forEach(m => {
-              // Conta quantas tonalidades estão como true
-              const tonConcluidas = Object.keys(m.tonalidades || {}).filter(k => m.tonalidades[k] === true);
-              const totalConcluidas = tonConcluidas.length;
+              // Garante a leitura correta do array tonalidadesConcluidas
+              const tons = Array.isArray(m.tonalidadesConcluidas) ? m.tonalidadesConcluidas : [];
+              const totalConcluidas = tons.length;
 
               containerTonalidades.innerHTML += `
                 <li>
-                  <span><strong>${m.titulo}</strong></span>
+                  <span><strong>${m.nome || m.titulo}</strong></span>
                   <span class="${totalConcluidas > 0 ? 'status-ok' : 'status-pending'}">
-                    ${totalConcluidas > 0 ? `${tonConcluidas.join(', ')} (${totalConcluidas}/12)` : 'Nenhuma'}
+                    ${totalConcluidas > 0 ? `${tons.join(', ')} (${totalConcluidas}/12)` : '0 / 12'}
                   </span>
                 </li>
               `;
