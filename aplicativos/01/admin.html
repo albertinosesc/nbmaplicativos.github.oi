@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Painel Admin - Gestão de Exercícios</title>
+  <title>Painel Admin - Gerenciador de Lotes de Exercícios</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     :root { --primary: #2563eb; --accent: #27ae60; --danger: #dc2626; --bg: #f4f6f8; --card: #ffffff; --border: #e5e7eb; --text: #1f2937; }
@@ -11,7 +11,7 @@
     body { background-color: var(--bg); color: var(--text); padding: 20px; max-width: 1000px; margin: 0 auto; }
     .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
     .card { background: var(--card); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
-    input, textarea, button { padding: 9px 13px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
+    input, button { padding: 9px 13px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
     input[type="text"], input[type="password"] { width: 100%; }
     button { background-color: var(--primary); color: white; border: none; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
     button:hover { opacity: 0.9; }
@@ -24,7 +24,7 @@
 <body>
 
   <div class="header-bar">
-    <h2><i class="fa-solid fa-user-gear"></i> Administração - Lotes de Exercícios</h2>
+    <h2><i class="fa-solid fa-user-gear"></i> Administração - Criar e Editar Lotes</h2>
     <div>
       <a href="registro.html" style="background-color: var(--primary); color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold;">
         <i class="fa-solid fa-address-book"></i> Ir para Registro do Aluno
@@ -32,36 +32,37 @@
     </div>
   </div>
 
-  <!-- AUTH -->
+  <!-- AUTENTICAÇÃO GITHUB -->
   <div class="card">
     <h3><i class="fa-brands fa-github"></i> Autenticação GitHub</h3>
     <div style="display: flex; gap: 10px; margin-top: 10px;">
       <input type="password" id="gh-token" placeholder="Cole seu Token (ghp_...)">
-      <button class="btn-success" onclick="validarToken()"><i class="fa-solid fa-key"></i> Autenticar</button>
+      <button class="btn-success" onclick="validarToken()"><i class="fa-solid fa-key"></i> Autenticar Token</button>
     </div>
     <div id="auth-status" class="status-msg"></div>
   </div>
 
-  <!-- GERENCIAR LOTE -->
+  <!-- CADASTRO E IDENTIFICAÇÃO DO LOTE -->
   <div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-      <h3>Cadastrar Exercícios do Lote Padrão</h3>
-      <div>
-        <button onclick="carregarLoteGitHub()"><i class="fa-solid fa-cloud-arrow-down"></i> Carregar do GitHub</button>
-        <button class="btn-success" onclick="salvarLoteGitHub()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar Lote no GitHub</button>
-      </div>
+    <h3>Identificação do Lote</h3>
+    <div style="display: flex; gap: 10px; margin-top: 10px; margin-bottom: 20px; align-items: center;">
+      <label style="font-weight: bold; white-width: nowrap;">Nome do Lote:</label>
+      <input type="text" id="nomeLote" placeholder="Ex: escala, modulo1, arpejos..." style="flex: 1;">
+      <button onclick="carregarLoteGitHub()"><i class="fa-solid fa-magnifying-glass"></i> Carregar do GitHub</button>
+      <button class="btn-success" onclick="salvarLoteGitHub()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar Lote no GitHub</button>
     </div>
 
-    <div id="lista-exercicios">
-      <!-- Linhas adicionadas dinamicamente -->
+    <h4>Exercícios do Lote</h4>
+    <div id="lista-exercicios" style="margin-top: 10px;">
+      <!-- Exercícios renderizados dinamicamente -->
     </div>
 
-    <button style="margin-top: 10px;" onclick="adicionarCampoExercício()"><i class="fa-solid fa-plus"></i> Adicionar Mais Um Exercício</button>
+    <button style="margin-top: 10px;" onclick="adicionarCampoExercicio()"><i class="fa-solid fa-plus"></i> Adicionar Exercício</button>
     <div id="statusMsg" class="status-msg"></div>
   </div>
 
   <script>
-    const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main", path: "dados/exercicios_padrao.json" };
+    const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     let shaArquivo = null;
 
     window.onload = function() {
@@ -70,10 +71,16 @@
         document.getElementById("gh-token").value = savedToken;
         validarToken(true);
       }
+      adicionarCampoExercicio();
     };
 
     function obterToken() {
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
+    }
+
+    function formatarCaminhoLote(nomeLote) {
+      const id = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      return `lotes/lote_${id}.json`;
     }
 
     async function validarToken(silencioso = false) {
@@ -95,12 +102,12 @@
       } catch (err) { status.innerText = "Erro ao conectar."; }
     }
 
-    function adicionarCampoExercício(valor = "") {
+    function adicionarCampoExercicio(valor = "") {
       const container = document.getElementById("lista-exercicios");
       const div = document.createElement("div");
       div.className = "item-row";
       div.innerHTML = `
-        <input type="text" class="input-exercicio" value="${valor}" placeholder="Ex: Escala Maior - Módulo 1">
+        <input type="text" class="input-exercicio" value="${valor}" placeholder="Ex: Exercício 1, Exercício 2...">
         <button class="btn-danger" onclick="this.parentElement.remove()"><i class="fa-solid fa-trash"></i></button>
       `;
       container.appendChild(div);
@@ -108,21 +115,26 @@
 
     async function carregarLoteGitHub() {
       const token = obterToken();
-      if (!token) return alert("Informe o Token primeiro.");
+      const nomeLote = document.getElementById("nomeLote").value.trim();
+
+      if (!token) return alert("Informe e confirme o Token primeiro.");
+      if (!nomeLote) return alert("Digite o nome do lote que deseja carregar.");
 
       const status = document.getElementById("statusMsg");
       status.style.color = "blue";
-      status.innerText = "Baixando lote do GitHub...";
+      status.innerText = `Buscando lote '${nomeLote}' no GitHub...`;
+
+      const caminho = formatarCaminhoLote(nomeLote);
 
       try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${GH_CONFIG.path}?ref=${GH_CONFIG.branch}`, {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
           headers: { 'Authorization': `token ${token}` }
         });
 
         if (res.status === 404) {
           status.style.color = "orange";
-          status.innerText = "Nenhum lote padrão existente. Crie um novo abaixo.";
-          adicionarCampoExercício();
+          status.innerText = `Lote '${nomeLote}' não existe no GitHub. Você pode criar novos exercícios e salvar.`;
+          shaArquivo = null;
           return;
         }
 
@@ -132,46 +144,51 @@
 
         document.getElementById("lista-exercicios").innerHTML = "";
         if (json.exercicios && json.exercicios.length > 0) {
-          json.exercicios.forEach(ex => adicionarCampoExercício(ex));
+          json.exercicios.forEach(ex => adicionarCampoExercicio(ex));
         } else {
-          adicionarCampoExercício();
+          adicionarCampoExercicio();
         }
         status.style.color = "green";
-        status.innerText = "Lote carregado com sucesso!";
+        status.innerText = `Lote '${nomeLote}' carregado com sucesso!`;
       } catch (err) {
         status.style.color = "red";
-        status.innerText = "Erro ao carregar do GitHub.";
+        status.innerText = "Erro ao carregar o lote do GitHub.";
       }
     }
 
     async function salvarLoteGitHub() {
       const token = obterToken();
-      if (!token) return alert("Informe o Token primeiro.");
+      const nomeLote = document.getElementById("nomeLote").value.trim();
+
+      if (!token) return alert("Informe e confirme o Token primeiro.");
+      if (!nomeLote) return alert("Por favor, informe o nome do lote antes de salvar.");
 
       const inputs = document.querySelectorAll(".input-exercicio");
       const lista = Array.from(inputs).map(i => i.value.trim()).filter(i => i.length > 0);
 
-      if (lista.length === 0) return alert("Adicione pelo menos um exercício.");
+      if (lista.length === 0) return alert("Adicione pelo menos um exercício ao lote.");
 
       const status = document.getElementById("statusMsg");
       status.style.color = "blue";
-      status.innerText = "Salvando lote no GitHub...";
+      status.innerText = `Salvando lote '${nomeLote}' no GitHub...`;
 
-      const conteudoJson = JSON.stringify({ exercicios: lista }, null, 2);
+      const conteudoJson = JSON.stringify({ nomeLote: nomeLote, exercicios: lista }, null, 2);
       const utf8Bytes = new TextEncoder().encode(conteudoJson);
       let binaryStr = "";
       utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
       const base64 = btoa(binaryStr);
 
+      const caminho = formatarCaminhoLote(nomeLote);
+
       const body = {
-        message: "Atualizando lote de exercícios padrão",
+        message: `Salvando lote de exercícios: ${nomeLote}`,
         content: base64,
         branch: GH_CONFIG.branch
       };
       if (shaArquivo) body.sha = shaArquivo;
 
       try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${GH_CONFIG.path}`, {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`, {
           method: 'PUT',
           headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(body)
@@ -181,9 +198,9 @@
           const resData = await res.json();
           shaArquivo = resData.content.sha;
           status.style.color = "green";
-          status.innerText = "Lote de exercícios salvo com sucesso no GitHub!";
+          status.innerText = `Lote '${nomeLote}' salvo com sucesso no GitHub!`;
         } else {
-          throw new Error("Erro na resposta da API");
+          throw new Error("Erro de resposta da API do GitHub.");
         }
       } catch (err) {
         status.style.color = "red";
