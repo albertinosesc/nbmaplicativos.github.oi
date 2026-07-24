@@ -255,10 +255,43 @@
       width: 100%; 
     }
 
-    /* Player de Áudio Sintetizado ABCJS */
+    /* Player de Áudio - Estilos inline (sem CSS externo) */
     #audio-player {
       margin-bottom: 10px;
       width: 100%;
+    }
+    
+    #audio-player .abcjs-inline-audio {
+      background: #f8fafc;
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 8px 12px;
+      margin: 5px 0;
+    }
+    
+    #audio-player .abcjs-inline-audio button {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 0 2px;
+    }
+    
+    #audio-player .abcjs-inline-audio button:hover {
+      background: #0369a1;
+    }
+    
+    #audio-player .abcjs-inline-audio .abcjs-progress {
+      height: 4px;
+      background: #e5e7eb;
+      margin: 4px 0;
+    }
+    
+    #audio-player .abcjs-inline-audio .abcjs-progress-filled {
+      height: 4px;
+      background: #0284c7;
     }
 
     .tune-select-box {
@@ -278,36 +311,6 @@
       border-radius: 6px;
       border: 1px solid #bae6fd;
       margin-bottom: 10px;
-    }
-
-    /* Estilos para o player de áudio sem o CSS externo */
-    .abcjs-inline-audio {
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 12px;
-      margin: 5px 0;
-    }
-    .abcjs-inline-audio button {
-      background: #0284c7;
-      color: white;
-      border: none;
-      padding: 4px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin: 0 2px;
-    }
-    .abcjs-inline-audio button:hover {
-      background: #0369a1;
-    }
-    .abcjs-inline-audio .abcjs-progress {
-      height: 4px;
-      background: #e5e7eb;
-      margin: 4px 0;
-    }
-    .abcjs-inline-audio .abcjs-progress-filled {
-      height: 4px;
-      background: #0284c7;
     }
   </style>
 </head>
@@ -359,7 +362,7 @@
     <!-- Tempo BPM -->
     <div style="display: flex; align-items: center; gap: 4px;">
       <label for="tempo-input" style="font-size: 0.85rem; font-weight: 600;">BPM:</label>
-      <input type="number" id="tempo-input" value="120" min="30" max="300" style="width: 70px; flex: none;" onchange="renderMusic()">
+      <input type="number" id="tempo-input" value="120" min="30" max="300" style="width: 70px; flex: none;">
     </div>
 
     <!-- Transposição -->
@@ -372,7 +375,7 @@
     <!-- Seleção de Instrumento MIDI -->
     <div style="display: flex; align-items: center; gap: 4px;">
       <label for="midi-program" style="font-size: 0.85rem; font-weight: 600;">Timbre:</label>
-      <select id="midi-program" onchange="renderMusic()">
+      <select id="midi-program">
         <option value="0">Piano Acústico</option>
         <option value="24">Violão de Nylon</option>
         <option value="40">Violino</option>
@@ -489,8 +492,6 @@ w: 1 2 3 4 | 5 1 2 3
     let synthController = null;
     let tunesBlocks = [];
     let audioContext = null;
-    let currentVisualObj = null;
-    let currentAbcCode = "";
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -502,6 +503,10 @@ w: 1 2 3 4 | 5 1 2 3
       document.getElementById("gh-token").addEventListener("input", (e) => {
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
+
+      // Botão para aplicar BPM e MIDI
+      document.getElementById("tempo-input").addEventListener("change", renderMusic);
+      document.getElementById("midi-program").addEventListener("change", renderMusic);
 
       saveOriginalFingeringState();
       parseAndPopulateSelect();
@@ -586,53 +591,51 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    /* CORREÇÃO: Renderiza a música com transposição SEM precisar de clef */
+    /* CORREÇÃO: Extrai BPM do código ABC ou usa 120 */
+    function getBpmFromAbc(abcCode) {
+      const qMatch = abcCode.match(/^Q:\s*(\d+)/m);
+      if (qMatch) {
+        return parseInt(qMatch[1]);
+      }
+      return parseInt(document.getElementById("tempo-input").value) || 120;
+    }
+
+    /* CORREÇÃO: Renderiza a música com transposição SEMPRE funcionando */
     function renderMusic() {
       const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
       let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
       
-      const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
+      // Extrai BPM do código ou usa o valor do input
+      const bpm = getBpmFromAbc(currentAbc);
+      document.getElementById("tempo-input").value = bpm;
+      
       const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
 
-      // Remove comandos Q: e %%MIDI existentes
-      currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^%%MIDI\s+.*$/gm, "").replace(/^\s*[\r\n]+/gm, "");
+      // Remove %%MIDI existente
+      currentAbc = currentAbc.replace(/^%%MIDI\s+.*$/gm, "").replace(/^\s*[\r\n]+/gm, "");
 
-      // Adiciona Q: (BPM) - SEMPRE antes de K: ou no início
+      // Adiciona %%MIDI program (timbre)
       const kMatch = currentAbc.match(/^(K:.*)$/m);
       if (kMatch) {
-        currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
-      } else {
-        // Se não tiver K:, adiciona no início
-        currentAbc = `Q:${bpm}\n` + currentAbc;
-      }
-
-      // Adiciona %%MIDI program - SEMPRE depois de K: ou no final
-      const kMatch2 = currentAbc.match(/^(K:.*)$/m);
-      if (kMatch2) {
         currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
       } else {
         currentAbc = currentAbc + `\n%%MIDI program ${midiProgram}`;
       }
 
-      currentAbcCode = currentAbc;
-
       const paperDiv = document.getElementById("paper");
       paperDiv.innerHTML = "";
       
       try {
-        // CORREÇÃO: Aplica transposição visual SEMPRE, independente de clef
-        const visual = ABCJS.renderAbc("paper", currentAbc, {
+        // CORREÇÃO: Aplica transposição visual SEMPRE
+        ABCJS.renderAbc("paper", currentAbc, {
           responsive: "resize",
           add_classes: true,
           paddingtop: 0, paddingbottom: 0, paddingright: 0, paddingleft: 0,
           visualTranspose: currentTranspose
         });
-        
-        currentVisualObj = visual && visual.length > 0 ? visual[0] : null;
       } catch (e) {
         console.error("Erro ao renderizar:", e);
         paperDiv.innerHTML = "<p style='color:red;'>Erro ao renderizar a partitura. Verifique o código ABC.</p>";
-        currentVisualObj = null;
       }
     }
 
@@ -644,23 +647,18 @@ w: 1 2 3 4 | 5 1 2 3
       const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
       let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
       
-      const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
+      // Extrai BPM do código ou usa o valor do input
+      const bpm = getBpmFromAbc(currentAbc);
+      document.getElementById("tempo-input").value = bpm;
+      
       const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
 
-      // Remove comandos Q: e %%MIDI existentes
-      currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^%%MIDI\s+.*$/gm, "").replace(/^\s*[\r\n]+/gm, "");
+      // Remove %%MIDI existente
+      currentAbc = currentAbc.replace(/^%%MIDI\s+.*$/gm, "").replace(/^\s*[\r\n]+/gm, "");
 
-      // Adiciona Q: (BPM)
+      // Adiciona %%MIDI program (timbre)
       const kMatch = currentAbc.match(/^(K:.*)$/m);
       if (kMatch) {
-        currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
-      } else {
-        currentAbc = `Q:${bpm}\n` + currentAbc;
-      }
-
-      // Adiciona %%MIDI program
-      const kMatch2 = currentAbc.match(/^(K:.*)$/m);
-      if (kMatch2) {
         currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
       } else {
         currentAbc = currentAbc + `\n%%MIDI program ${midiProgram}`;
@@ -698,8 +696,7 @@ w: 1 2 3 4 | 5 1 2 3
         return;
       }
 
-      const visualObjForAudio = visual[0];
-      currentVisualObj = visualObjForAudio;
+      const visualObj = visual[0];
 
       // Cria o contexto de áudio
       if (!audioContext) {
@@ -728,7 +725,7 @@ w: 1 2 3 4 | 5 1 2 3
       try {
         const createSynth = new ABCJS.synth.CreateSynth();
         await createSynth.init({
-          visualObj: visualObjForAudio,
+          visualObj: visualObj,
           audioContext: audioContext,
           options: {
             qpm: bpm,
@@ -738,7 +735,7 @@ w: 1 2 3 4 | 5 1 2 3
           }
         });
 
-        await synthController.setTune(visualObjForAudio, true);
+        await synthController.setTune(visualObj, true);
         await synthController.play();
       } catch (err) {
         console.error("Erro ao tocar áudio:", err);
@@ -750,39 +747,26 @@ w: 1 2 3 4 | 5 1 2 3
       const lines = abc.split("\n");
       let currentVoice = "1";
       const result = [];
-      let hasVoiceDeclaration = false;
 
       for (let line of lines) {
         const vMatch = line.match(/^V:\s*([^\s]+)/);
         if (vMatch) {
           currentVoice = vMatch[1];
-          hasVoiceDeclaration = true;
-          // Mantém a declaração V:
-          result.push(line);
-          continue;
         }
 
         // Mantém cabeçalhos
-        if (line.match(/^(X:|T:|K:|L:|M:|Q:|%%MIDI)/)) {
+        if (line.match(/^(X:|T:|K:|L:|M:|V:|Q:|%%MIDI)/)) {
           result.push(line);
           continue;
         }
 
-        // Se é uma linha de música
-        if (line.trim().length > 0) {
-          // Se tem declaração de voz, verifica se está permitida
-          if (hasVoiceDeclaration) {
-            if (allowedVoices.includes(currentVoice)) {
-              result.push(line);
-            }
-          } else {
-            // Se não tem declaração, assume voz 1 se permitida
-            if (allowedVoices.includes('1')) {
-              result.push(line);
-            }
+        // Se é uma linha de música, verifica a voz
+        if (line.trim().length > 0 && !line.trim().startsWith("%")) {
+          if (allowedVoices.includes(currentVoice)) {
+            result.push(line);
           }
         } else {
-          // Mantém linhas vazias
+          // Mantém linhas vazias e comentários
           result.push(line);
         }
       }
@@ -890,7 +874,6 @@ w: 1 2 3 4 | 5 1 2 3
       
       saveOriginalFingeringState();
       parseAndPopulateSelect();
-      renderMusic();
     }
 
     async function saveSongToGitHub() {
