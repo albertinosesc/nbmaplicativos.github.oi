@@ -145,7 +145,7 @@
       <table>
         <thead>
           <tr>
-            <th style="width: 260px;">Música / Exercício</th>
+            <th style="width: 260px;">Exercício</th>
             <th>C</th> <th>C#</th> <th>D</th> <th>D#</th> <th>E</th> <th>F</th>
             <th>F#</th> <th>G</th> <th>G#</th> <th>A</th> <th>A#</th> <th>B</th>
             <th>Progresso</th>
@@ -210,11 +210,11 @@
       return `alunos/aluno_${nomeFormatado}.json`;
     }
 
-    function adicionarLinhaMusica(nomeMusica = "", tonalidadesConcluidas = []) {
+    function adicionarLinhaMusica(nomeExercício = "", tonalidadesConcluidas = []) {
       const tbody = document.getElementById('corpoTabela');
       const tr = document.createElement('tr');
 
-      let tdNome = `<td><input type="text" value="${nomeMusica}" placeholder="Nome do Exercício / Música" style="width:100%;"></td>`;
+      let tdNome = `<td><input type="text" value="${nomeExercício}" placeholder="Nome do Exercício" style="width:100%;"></td>`;
       let tdCheckboxes = "";
       TONALIDADES.forEach(tom => {
         const checado = tonalidadesConcluidas.includes(tom) ? "checked" : "";
@@ -296,18 +296,24 @@
     function exportarArquivoJSONLocal() {
       const nomeAluno = document.getElementById('nomeAluno').value.trim() || "Aluno_Anonimo";
       const linhas = document.querySelectorAll('#corpoTabela tr');
-      const musicas = [];
+      const exercicios = [];
 
       linhas.forEach(tr => {
         const nomeInput = tr.querySelector('input[type="text"]').value.trim();
         if (nomeInput) {
           const checkboxesMarcados = tr.querySelectorAll('.checkbox-tonalidade:checked');
           const tonsTocados = Array.from(checkboxesMarcados).map(cb => cb.getAttribute('data-tom'));
-          musicas.push({ nome: nomeInput, tonalidadesConcluidas: tonsTocados });
+          
+          const tonsObjetos = TONALIDADES.map(tom => ({
+            tom: tom,
+            concluido: tonsTocados.includes(tom)
+          }));
+
+          exercicios.push({ nome: nomeInput, tons: tonsObjetos });
         }
       });
 
-      const dados = { aluno: nomeAluno, atualizadoEm: new Date().toISOString(), musicas: musicas };
+      const dados = { aluno: nomeAluno, atualizadoEm: new Date().toISOString(), exercicios: exercicios };
       const blob = new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
@@ -325,11 +331,14 @@
           const json = JSON.parse(e.target.result);
           if (json.aluno) document.getElementById('nomeAluno').value = json.aluno;
 
-          if (json.musicas && Array.isArray(json.musicas)) {
-            if (confirm("Deseja substituir a lista atual pela importada? (Cancele para apenas adicionar no final)")) {
+          if (json.exercicios && Array.isArray(json.exercicios)) {
+            if (confirm("Deseja substituir a lista atual pela importada?")) {
               document.getElementById('corpoTabela').innerHTML = "";
             }
-            json.musicas.forEach(m => adicionarLinhaMusica(m.nome, m.tonalidadesConcluidas || []));
+            json.exercicios.forEach(ex => {
+              const tonsConcluidos = ex.tons ? ex.tons.filter(t => t.concluido).map(t => t.tom) : (ex.tonalidadesConcluidas || []);
+              adicionarLinhaMusica(ex.nome, tonsConcluidos);
+            });
             exibirStatus("Arquivo JSON carregado com sucesso!", "green");
           }
         } catch (err) {
@@ -369,8 +378,11 @@
         shaArquivoAtual = data.sha;
         const conteudoJson = JSON.parse(decodeURIComponent(escape(atob(data.content))));
 
-        if (conteudoJson.musicas && conteudoJson.musicas.length > 0) {
-          conteudoJson.musicas.forEach(m => adicionarLinhaMusica(m.nome, m.tonalidadesConcluidas));
+        if (conteudoJson.exercicios && conteudoJson.exercicios.length > 0) {
+          conteudoJson.exercicios.forEach(ex => {
+            const tonsConcluidos = ex.tons ? ex.tons.filter(t => t.concluido).map(t => t.tom) : (ex.tonalidadesConcluidas || []);
+            adicionarLinhaMusica(ex.nome, tonsConcluidos);
+          });
           exibirStatus("Registro do aluno carregado com sucesso!", "green");
         } else {
           adicionarLinhaMusica();
@@ -388,21 +400,27 @@
       if (!token) return alert("Informe e confirme o Token antes de salvar.");
 
       const linhas = document.querySelectorAll('#corpoTabela tr');
-      const musicas = [];
+      const exercicios = [];
 
       linhas.forEach(tr => {
         const nomeInput = tr.querySelector('input[type="text"]').value.trim();
         if (nomeInput) {
           const checkboxesMarcados = tr.querySelectorAll('.checkbox-tonalidade:checked');
           const tonsTocados = Array.from(checkboxesMarcados).map(cb => cb.getAttribute('data-tom'));
-          musicas.push({ nome: nomeInput, tonalidadesConcluidas: tonsTocados });
+          
+          const tonsObjetos = TONALIDADES.map(tom => ({
+            tom: tom,
+            concluido: tonsTocados.includes(tom)
+          }));
+
+          exercicios.push({ nome: nomeInput, tons: tonsObjetos });
         }
       });
 
       const dadosParaSalvar = {
         aluno: nomeAluno,
         atualizadoEm: new Date().toISOString(),
-        musicas: musicas
+        exercicios: exercicios
       };
 
       const caminho = obterCaminhoArquivoAluno(nomeAluno);
@@ -414,7 +432,7 @@
       const conteudoBase64 = btoa(binaryStr);
 
       const body = {
-        message: `Atualizando registro do aluno: ${nomeAluno}`,
+        message: `Atualizando tonalidades do aluno: ${nomeAluno}`,
         content: conteudoBase64,
         branch: GH_CONFIG.branch
       };
