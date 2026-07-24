@@ -8,7 +8,7 @@
   <!-- FontAwesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- ABCJS (JS principal + CSS para controles de áudio) -->
+  <!-- ABCJS - Versão estável -->
   <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-audio.css">
 
@@ -460,7 +460,7 @@ w: 1 2 3 4 | 5 1 2 3
   <script>
     const GH_USER = "albertinosesc";
     const GH_REPO = "minhas-musicas";
-    const MUSIC_PATH = "musicas"; // Pasta onde as músicas estão armazenadas
+    const MUSIC_PATH = "musicas";
 
     let originalFingeringLines = [];
     let currentTranspose = 0;
@@ -528,13 +528,11 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    /* Divide o código ABC por tags X: para separar fisicamente as músicas */
     function parseAndPopulateSelect() {
       const abcText = document.getElementById("abc-source").value;
       const tunePicker = document.getElementById("tune-picker");
       const savedIndex = parseInt(tunePicker.value) || 0;
 
-      // Separa o texto no início de cada linha com X:
       const rawBlocks = abcText.split(/(?=\nX:|^X:)/g).filter(b => b.trim().length > 0);
       tunesBlocks = rawBlocks;
 
@@ -566,55 +564,40 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    /* CORREÇÃO: Renderiza a música com transposição independente de clef */
+    /* CORREÇÃO: Renderiza a música com transposição */
     function renderMusic() {
       const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
       let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
       
-      // Obtém BPM e MIDI program
       const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
       const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
 
-      // Remove comandos Q: e %%MIDI existentes para evitar duplicação
+      // Remove comandos Q: e %%MIDI existentes
       currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^%%MIDI\s+.*$/gm, "").replace(/^\s*[\r\n]+/gm, "");
 
-      // Adiciona Q: (BPM) - coloca antes do K: ou no final
+      // Adiciona Q: (BPM)
       const kMatch = currentAbc.match(/^(K:.*)$/m);
       if (kMatch) {
         currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
       } else {
-        // Se não tiver K:, adiciona antes do primeiro campo ou no final
-        const firstLine = currentAbc.match(/^(X:.*)$/m);
-        if (firstLine) {
-          currentAbc = currentAbc.replace(/^(X:.*)$/m, `$1\nQ:${bpm}`);
-        } else {
-          currentAbc = `Q:${bpm}\n` + currentAbc;
-        }
+        currentAbc = `Q:${bpm}\n` + currentAbc;
       }
 
-      // Adiciona %%MIDI program (timbre)
+      // Adiciona %%MIDI program
       const kMatch2 = currentAbc.match(/^(K:.*)$/m);
       if (kMatch2) {
         currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
       } else {
-        // Se não tiver K:, adiciona antes do Q: ou no final
-        const qMatch = currentAbc.match(/^(Q:.*)$/m);
-        if (qMatch) {
-          currentAbc = currentAbc.replace(/^(Q:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
-        } else {
-          currentAbc = currentAbc + `\n%%MIDI program ${midiProgram}`;
-        }
+        currentAbc = currentAbc + `\n%%MIDI program ${midiProgram}`;
       }
 
-      // Armazena o código processado
       currentAbcCode = currentAbc;
 
-      // CORREÇÃO: Renderiza SEMPRE com transposição visual
       const paperDiv = document.getElementById("paper");
       paperDiv.innerHTML = "";
       
       try {
-        // Aplicar transposição visual
+        // CORREÇÃO: Aplica transposição visual
         const visual = ABCJS.renderAbc("paper", currentAbc, {
           responsive: "resize",
           add_classes: true,
@@ -630,7 +613,7 @@ w: 1 2 3 4 | 5 1 2 3
       }
     }
 
-    /* CORREÇÃO: Executa o áudio COM transposição */
+    /* CORREÇÃO: Play com transposição no áudio */
     async function playAudio(mode) {
       // Para áudio em execução
       stopAudio();
@@ -638,7 +621,6 @@ w: 1 2 3 4 | 5 1 2 3
       const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
       let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
       
-      // Obtém BPM e MIDI program
       const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
       const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
 
@@ -650,28 +632,18 @@ w: 1 2 3 4 | 5 1 2 3
       if (kMatch) {
         currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
       } else {
-        const firstLine = currentAbc.match(/^(X:.*)$/m);
-        if (firstLine) {
-          currentAbc = currentAbc.replace(/^(X:.*)$/m, `$1\nQ:${bpm}`);
-        } else {
-          currentAbc = `Q:${bpm}\n` + currentAbc;
-        }
+        currentAbc = `Q:${bpm}\n` + currentAbc;
       }
 
-      // Adiciona %%MIDI program (timbre)
+      // Adiciona %%MIDI program
       const kMatch2 = currentAbc.match(/^(K:.*)$/m);
       if (kMatch2) {
         currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
       } else {
-        const qMatch = currentAbc.match(/^(Q:.*)$/m);
-        if (qMatch) {
-          currentAbc = currentAbc.replace(/^(Q:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
-        } else {
-          currentAbc = currentAbc + `\n%%MIDI program ${midiProgram}`;
-        }
+        currentAbc = currentAbc + `\n%%MIDI program ${midiProgram}`;
       }
 
-      // Filtragem de vozes para os diferentes modos
+      // CORREÇÃO: Filtragem de vozes
       let filteredAbc = currentAbc;
       if (mode === 'm1') {
         filteredAbc = filterVoices(currentAbc, ['1']);
@@ -683,7 +655,7 @@ w: 1 2 3 4 | 5 1 2 3
         filteredAbc = filterChords(currentAbc);
       }
 
-      // Renderiza para obter o visualObj com a transposição
+      // Renderiza para obter o visualObj
       const paperDiv = document.getElementById("paper");
       paperDiv.innerHTML = "";
       
@@ -706,7 +678,7 @@ w: 1 2 3 4 | 5 1 2 3
       const visualObjForAudio = visual[0];
       currentVisualObj = visualObjForAudio;
 
-      // Cria ou resgata o contexto de áudio
+      // Cria o contexto de áudio
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
@@ -737,7 +709,8 @@ w: 1 2 3 4 | 5 1 2 3
           audioContext: audioContext,
           options: {
             qpm: bpm,
-            midiTranspose: currentTranspose, // CORREÇÃO: Transposição no áudio
+            // CORREÇÃO: Transposição aplicada no áudio
+            midiTranspose: currentTranspose,
             program: midiProgram
           }
         });
@@ -746,42 +719,29 @@ w: 1 2 3 4 | 5 1 2 3
         await synthController.play();
       } catch (err) {
         console.error("Erro ao tocar áudio:", err);
-        // Tenta recuperar
-        try {
-          if (audioContext && audioContext.state === 'suspended') {
-            await audioContext.resume();
-          }
-        } catch (e2) {
-          console.error("Erro na recuperação:", e2);
-        }
       }
     }
 
-    /* CORREÇÃO: Filtra apenas as vozes especificadas */
+    /* CORREÇÃO: Filtra vozes corretamente */
     function filterVoices(abc, allowedVoices) {
       const lines = abc.split("\n");
       let currentVoice = "1";
       const result = [];
-      let inVoiceSection = false;
 
       for (let line of lines) {
         const vMatch = line.match(/^V:\s*([^\s]+)/);
         if (vMatch) {
           currentVoice = vMatch[1];
-          inVoiceSection = true;
         }
 
-        // Mantém cabeçalhos e linhas de comando
+        // Mantém cabeçalhos
         if (line.match(/^(X:|T:|K:|L:|M:|V:|Q:|%%MIDI)/)) {
           result.push(line);
           continue;
         }
 
-        // Se for uma linha de música, verifica se a voz atual está permitida
-        if (inVoiceSection && allowedVoices.includes(currentVoice)) {
-          result.push(line);
-        } else if (!inVoiceSection && allowedVoices.includes('1')) {
-          // Se não tiver V: definido, assume voz 1
+        // Mantém apenas linhas da voz permitida
+        if (allowedVoices.includes(currentVoice)) {
           result.push(line);
         }
       }
@@ -789,19 +749,19 @@ w: 1 2 3 4 | 5 1 2 3
       return result.join("\n");
     }
 
-    /* CORREÇÃO: Filtra apenas acordes (remove melodias) */
+    /* CORREÇÃO: Filtra apenas acordes */
     function filterChords(abc) {
       const lines = abc.split("\n");
       const result = [];
 
       for (let line of lines) {
-        // Mantém cabeçalhos e linhas de comando
+        // Mantém cabeçalhos
         if (line.match(/^(X:|T:|K:|L:|M:|V:|Q:|%%MIDI)/)) {
           result.push(line);
           continue;
         }
 
-        // Mantém apenas acordes (linhas com aspas que indicam cifras)
+        // Mantém apenas linhas com cifras (entre aspas)
         if (line.trim().match(/^"[A-G][^"]*"/)) {
           result.push(line);
         }
@@ -856,28 +816,23 @@ w: 1 2 3 4 | 5 1 2 3
       panel.classList.toggle("active");
     }
 
-    /* CORREÇÃO: Busca música na pasta musicas/ */
+    /* CORREÇÃO: Busca na pasta musicas/ */
     async function fetchSong(numToFetch = null) {
       const songNum = numToFetch || document.getElementById("song-number").value.trim();
       if (!songNum) return alert("Digite o número da música.");
 
-      // Tenta buscar em musicas/ e depois na raiz
       const paths = [
         `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${MUSIC_PATH}/${songNum}.abc`,
-        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${MUSIC_PATH}/${songNum}.txt`,
-        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${songNum}.abc`,
-        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${songNum}.txt`
+        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${songNum}.abc`
       ];
 
       let text = null;
-      let foundPath = null;
 
       for (const path of paths) {
         try {
           const response = await fetch(path);
           if (response.ok) {
             text = await response.text();
-            foundPath = path;
             break;
           }
         } catch (e) {
@@ -886,7 +841,7 @@ w: 1 2 3 4 | 5 1 2 3
       }
 
       if (!text) {
-        alert(`Música "${songNum}" não encontrada nas pastas: musicas/ ou raiz.`);
+        alert(`Música "${songNum}" não encontrada.`);
         return;
       }
 
@@ -895,12 +850,10 @@ w: 1 2 3 4 | 5 1 2 3
       
       saveOriginalFingeringState();
       parseAndPopulateSelect();
-      
-      // Aplica a transposição atual após carregar
       renderMusic();
     }
 
-    /* CORREÇÃO: Salva música na pasta musicas/ */
+    /* CORREÇÃO: Salva na pasta musicas/ */
     async function saveSongToGitHub() {
       const songNum = document.getElementById("song-number").value.trim();
       const token = document.getElementById("gh-token").value.trim() || localStorage.getItem("gh_pat_token");
@@ -909,7 +862,6 @@ w: 1 2 3 4 | 5 1 2 3
       if (!songNum) return alert("Informe o número da música para salvar.");
       if (!token) return alert("Por favor, informe e confirme seu Personal Access Token do GitHub.");
 
-      // Salva na pasta musicas/
       const fileName = `${MUSIC_PATH}/${songNum}.abc`;
       const apiUrl = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${fileName}`;
 
@@ -946,7 +898,7 @@ w: 1 2 3 4 | 5 1 2 3
 
         if (!putRes.ok) {
           const errData = await putRes.json();
-          throw new Error(errData.message || "Erro ao salvar no GitHub. Verifique as permissões do seu token.");
+          throw new Error(errData.message || "Erro ao salvar no GitHub.");
         }
 
         alert(`Música ${songNum}.abc salva com sucesso na pasta '${MUSIC_PATH}/'!`);
@@ -955,7 +907,7 @@ w: 1 2 3 4 | 5 1 2 3
       }
     }
 
-    /* CORREÇÃO: Lista arquivos da pasta musicas/ */
+    /* CORREÇÃO: Lista da pasta musicas/ */
     async function toggleFileList() {
       const panel = document.getElementById("file-list-panel");
       panel.classList.toggle("active");
@@ -969,31 +921,7 @@ w: 1 2 3 4 | 5 1 2 3
           const res = await fetch(apiUrl);
           
           if (!res.ok) {
-            // Tenta listar da raiz se não encontrar a pasta
-            const rootRes = await fetch(`https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/`);
-            if (rootRes.ok) {
-              const rootFiles = await rootRes.json();
-              const songFiles = rootFiles
-                .filter(f => f.name.endsWith('.abc') || f.name.endsWith('.txt'))
-                .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-
-              if (songFiles.length === 0) {
-                container.innerHTML = "Nenhuma música encontrada no repositório.";
-                return;
-              }
-
-              container.innerHTML = "";
-              songFiles.forEach(file => {
-                const numName = file.name.replace(/\.(abc|txt)$/, '');
-                const btn = document.createElement("div");
-                btn.className = "file-item";
-                btn.innerText = file.name;
-                btn.onclick = () => fetchSong(numName);
-                container.appendChild(btn);
-              });
-              return;
-            }
-            throw new Error("Não foi possível listar os arquivos.");
+            throw new Error("Pasta 'musicas/' não encontrada.");
           }
 
           const files = await res.json();
