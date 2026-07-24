@@ -261,6 +261,13 @@
       border-radius: 6px;
       padding: 6px 12px;
     }
+
+    .tune-select-box {
+      background: #fff;
+      font-weight: bold;
+      color: #0369a1;
+      border-color: #0284c7;
+    }
   </style>
 </head>
 <body>
@@ -290,7 +297,7 @@
 
   <!-- Painel de Controle Principal -->
   <section class="control-panel">
-    <input type="number" id="song-number" placeholder="Número da música (ex: 1)" min="1">
+    <input type="number" id="song-number" placeholder="Número do Arquivo (ex: 1)" min="1">
     <button onclick="fetchSong()"><i class="fa-solid fa-download"></i> Buscar</button>
     <button class="btn-success" onclick="saveSongToGitHub()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar no GitHub</button>
     <button onclick="toggleFileList()"><i class="fa-solid fa-list-ol"></i> Listar Músicas</button>
@@ -298,11 +305,14 @@
     <button onclick="toggleFullscreen()"><i class="fa-solid fa-expand"></i> Tela Cheia</button>
   </section>
 
-  <!-- Painel Áudio & Transposição -->
+  <!-- Painel Áudio & Transposição & Seleção de Faixa -->
   <section class="control-panel" style="background: #e0f2fe; border: 1px solid #bae6fd;">
-    <div style="display: flex; align-items: center; gap: 8px;">
-      <i class="fa-solid fa-play-circle" style="color: #0284c7; font-size: 1.2rem;"></i>
-      <strong>Controles de Áudio:</strong>
+    <!-- Seletor de Música Interna (Múltiplos X:) -->
+    <div id="tune-picker-container" style="display: flex; align-items: center; gap: 8px;">
+      <label for="tune-picker" style="font-size: 0.85rem; font-weight: 700; color: #0369a1;"><i class="fa-solid fa-list-check"></i> Selecionar Música:</label>
+      <select id="tune-picker" class="tune-select-box" onchange="renderSelectedTune()">
+        <option value="0">1ª Música</option>
+      </select>
     </div>
 
     <!-- Tempo BPM -->
@@ -385,14 +395,22 @@
   <main class="main-layout">
     <div class="editor-container">
       <div class="section-title">Código ABC</div>
-      <textarea id="abc-source" spellcheck="false" oninput="renderMusic()">
+      <textarea id="abc-source" spellcheck="false" oninput="parseAndRenderAll()">
 X:1
-T:Música
+T:Primeira Música
 L:1/4
 K:C clef=none stafflines=1
 V:1 stem=up
 C D E F | G A B c |
 w: 1 2 3 4 | 5 4 3 2
+
+X:2
+T:Segunda Música
+L:1/4
+K:G clef=none stafflines=1
+V:1 stem=up
+G A B c | d e f g |
+w: 1 2 3 4 | 5 1 2 3
 </textarea>
     </div>
 
@@ -410,6 +428,7 @@ w: 1 2 3 4 | 5 4 3 2
     let originalFingeringLines = [];
     let currentTranspose = 0;
     let synthController = null;
+    let parsedTunesList = [];
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -423,7 +442,7 @@ w: 1 2 3 4 | 5 4 3 2
       });
 
       saveOriginalFingeringState();
-      renderMusic();
+      parseAndRenderAll();
     };
 
     async function validarEAutenticarToken(silencioso = false) {
@@ -469,12 +488,53 @@ w: 1 2 3 4 | 5 4 3 2
       renderMusic();
     }
 
+    /* Processa todo o texto ABC, identifica cada música (X:) e popula o menu dropdown */
+    function parseAndRenderAll() {
+      const abcText = document.getElementById("abc-source").value;
+      const tunePicker = document.getElementById("tune-picker");
+      const selectedIndex = parseInt(tunePicker.value) || 0;
+
+      // Realiza o parse de todas as faixas contidas no código ABC
+      parsedTunesList = ABCJS.parseOnly(abcText);
+
+      tunePicker.innerHTML = "";
+
+      if (parsedTunesList && parsedTunesList.length > 0) {
+        parsedTunesList.forEach((tune, idx) => {
+          const title = (tune.metaText && tune.metaText.title) ? tune.metaText.title : `Música ${idx + 1}`;
+          const option = document.createElement("option");
+          option.value = idx;
+          option.innerText = `${idx + 1}. ${title}`;
+          tunePicker.appendChild(option);
+        });
+
+        // Mantém a música que já estava selecionada (se ainda existir)
+        if (selectedIndex < parsedTunesList.length) {
+          tunePicker.value = selectedIndex;
+        } else {
+          tunePicker.value = 0;
+        }
+      } else {
+        const option = document.createElement("option");
+        option.value = 0;
+        option.innerText = "1. Nenhuma música válida";
+        tunePicker.appendChild(option);
+      }
+
+      renderMusic();
+    }
+
+    function renderSelectedTune() {
+      renderMusic();
+    }
+
     function renderMusic() {
       const abcText = document.getElementById("abc-source").value;
       const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
       const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
+      const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
 
-      // Renderiza a Partitura
+      // Renderiza apenas a partitura da música escolhida no seletor
       const visualObj = ABCJS.renderAbc("paper", abcText, {
         responsive: "resize",
         add_classes: true,
@@ -482,8 +542,22 @@ w: 1 2 3 4 | 5 4 3 2
         visualTranspose: currentTranspose
       });
 
-      // Configura e Inicializa o Player de Áudio
-      if (ABCJS.synth.isSupported() && visualObj && visualObj.length > 0) {
+      // Seleciona a faixa ativa
+      const activeTuneIndex = (visualObj && visualObj[selectedIndex]) ? selectedIndex : 0;
+      
+      // Oculta/Exibe os SVG das músicas que não estão selecionadas
+      const paperElement = document.getElementById("paper");
+      const svgNodes = paperElement.querySelectorAll("svg");
+      svgNodes.forEach((node, idx) => {
+        if (idx === activeTuneIndex) {
+          node.style.display = "block";
+        } else {
+          node.style.display = "none";
+        }
+      });
+
+      // Configura o sintetizador para tocar apenas a música ativa selecionada
+      if (ABCJS.synth.isSupported() && visualObj && visualObj[activeTuneIndex]) {
         if (!synthController) {
           synthController = new ABCJS.synth.SynthController();
           synthController.load("#audio-player", null, {
@@ -497,7 +571,7 @@ w: 1 2 3 4 | 5 4 3 2
 
         const createSynth = new ABCJS.synth.CreateSynth();
         createSynth.init({
-          visualObj: visualObj[0],
+          visualObj: visualObj[activeTuneIndex],
           options: {
             midiTranspose: currentTranspose,
             bpm: bpm,
@@ -505,7 +579,7 @@ w: 1 2 3 4 | 5 4 3 2
             pan: 0
           }
         }).then(() => {
-          synthController.setTune(visualObj[0], false).catch((err) => {
+          synthController.setTune(visualObj[activeTuneIndex], false).catch((err) => {
             console.warn("Erro ao definir música no tocador:", err);
           });
         }).catch((err) => {
@@ -538,7 +612,7 @@ w: 1 2 3 4 | 5 4 3 2
       });
 
       textarea.value = restoredLines.join("\n");
-      renderMusic();
+      parseAndRenderAll();
     }
 
     function toggleFingeringTools() {
@@ -564,7 +638,7 @@ w: 1 2 3 4 | 5 4 3 2
         document.getElementById("song-number").value = songNum;
         
         saveOriginalFingeringState();
-        renderMusic();
+        parseAndRenderAll();
       } catch (err) {
         alert(err.message);
       }
@@ -701,7 +775,7 @@ w: 1 2 3 4 | 5 4 3 2
       });
 
       textarea.value = updatedLines.join("\n");
-      renderMusic();
+      parseAndRenderAll();
     }
 
     function toggleFullscreen() {
