@@ -165,11 +165,12 @@
       if (!token) return alert("Informe e confirme o Token do GitHub.");
 
       const entradaUsuario = prompt(
-        "Digite o nome do lote ou o caminho completo do arquivo no GitHub:\n\n" +
+        "Digite o número ou nome do lote de músicas:\n\n" +
         "Exemplos:\n" +
-        "- 'pop' (busca em base/musicas_pop.json ou lotes/lote_pop.json)\n" +
-        "- 'base/musicas_base.json'\n" +
-        "- 'lotes/meu_repertorio.json'"
+        "- '12' (busca em lotes/lote_musica_12.json ou lotes/lote_12.json)\n" +
+        "- 'lote_musica_12'\n" +
+        "- 'pop' (busca em lotes/lote_pop.json)\n" +
+        "- 'lotes/lote_musica_12.json'"
       );
 
       if (!entradaUsuario || entradaUsuario.trim() === "") return;
@@ -177,15 +178,18 @@
       const entradaLimpa = entradaUsuario.trim();
       let caminhosParaTestar = [];
 
-      // Se o usuário especificou caminho ou extensão .json, usa diretamente
+      // Se o usuário especificou caminho completo ou extensão .json, usa diretamente
       if (entradaLimpa.endsWith(".json") || entradaLimpa.includes("/")) {
         caminhosParaTestar.push(entradaLimpa);
       } else {
-        // COMO DEVE FICAR (PADRONIZADO):
-const slug = normalizarNome(entradaLimpa);
-caminhosParaTestar.push(`lotes/${slug}.json`);        // Busca direto lotes/nome.json
-caminhosParaTestar.push(`lotes/lote_${slug}.json`);   // Mantém compatibilidade com o padrão antigo
-caminhosParaTestar.push(`base/${slug}.json`);
+        const slug = normalizarNome(entradaLimpa);
+        
+        // Padrões específicos para arquivos de música (ex: lote_musica_12.json)
+        caminhosParaTestar.push(`lotes/lote_musica_${slug}.json`);
+        caminhosParaTestar.push(`lotes/lote_${slug}.json`);
+        caminhosParaTestar.push(`lotes/${slug}.json`);
+        caminhosParaTestar.push(`base/musica_${slug}.json`);
+        caminhosParaTestar.push(`base/${slug}.json`);
       }
 
       exibirStatus(`Buscando lote no GitHub...`, "blue");
@@ -218,14 +222,14 @@ caminhosParaTestar.push(`base/${slug}.json`);
         const jsonStr = new TextDecoder('utf-8').decode(bytes);
         const loteJson = JSON.parse(jsonStr);
 
-        // Suporta múltiplos formatos (Array puro ou objetos com repertorio/musicas/lista)
+        // Suporta múltiplos formatos de JSON (Array direto ou estruturas com chaves específicas)
         let novasMusicas = [];
         if (Array.isArray(loteJson)) {
           novasMusicas = loteJson;
-        } else if (Array.isArray(loteJson.repertorio)) {
-          novasMusicas = loteJson.repertorio;
         } else if (Array.isArray(loteJson.musicas)) {
           novasMusicas = loteJson.musicas;
+        } else if (Array.isArray(loteJson.repertorio)) {
+          novasMusicas = loteJson.repertorio;
         } else if (Array.isArray(loteJson.lista)) {
           novasMusicas = loteJson.lista;
         }
