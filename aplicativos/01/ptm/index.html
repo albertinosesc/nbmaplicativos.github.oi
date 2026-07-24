@@ -470,8 +470,8 @@ w: 1 2 3 4 | 5 1 2 3
     let synthController = null;
     let tunesBlocks = [];
     let audioContext = null;
-    let visualObj = null;
-    let currentAbcCode = "";
+    let visualObj = null; // ← VARIÁVEL GLOBAL PARA GUARDAR O visualObj
+    let midiOriginal = null;
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -567,7 +567,7 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    /* CORREÇÃO 1: Renderiza com BPM e MIDI */
+    /* CORREÇÃO: Renderiza e GUARDA o visualObj */
     function renderMusic() {
       const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
       let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
@@ -575,6 +575,7 @@ w: 1 2 3 4 | 5 1 2 3
       const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
       const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
 
+      // ====== LÓGICA DO CÓDIGO FUNCIONANTE ======
       // Verifica se já tem Q:
       const hasQ = /^Q:.*/m.test(currentAbc);
       if (!hasQ) {
@@ -592,6 +593,7 @@ w: 1 2 3 4 | 5 1 2 3
         }
       }
 
+      // Remove %%MIDI existente e adiciona novo
       currentAbc = currentAbc.replace(/^%%MIDI\s+program\s+\d+.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
       
       const kMatch2 = currentAbc.match(/^(K:.*)$/m);
@@ -606,8 +608,7 @@ w: 1 2 3 4 | 5 1 2 3
         }
       }
 
-      currentAbcCode = currentAbc;
-
+      // ====== RENDERIZA E GUARDA visualObj ======
       const paperDiv = document.getElementById("paper");
       paperDiv.innerHTML = "";
       
@@ -618,11 +619,13 @@ w: 1 2 3 4 | 5 1 2 3
         visualTranspose: currentTranspose
       });
       
+      // GUARDA o visualObj para usar no áudio (IGUAL AO CÓDIGO FUNCIONANTE)
       visualObj = visual && visual.length > 0 ? visual[0] : null;
     }
 
-    /* CORREÇÃO 2: Play com transposição no áudio */
+    /* CORREÇÃO: Play usando o visualObj guardado (IGUAL AO CÓDIGO FUNCIONANTE) */
     async function playAudio(mode) {
+      // ====== IGUAL AO CÓDIGO FUNCIONANTE ======
       if (!visualObj) {
         // Se não tiver visualObj, renderiza primeiro
         renderMusic();
@@ -630,69 +633,6 @@ w: 1 2 3 4 | 5 1 2 3
       }
       
       stopAudio();
-
-      const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
-      let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
-      
-      const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
-      const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
-
-      // Verifica se já tem Q:
-      const hasQ = /^Q:.*/m.test(currentAbc);
-      if (!hasQ) {
-        currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
-        const kMatch = currentAbc.match(/^(K:.*)$/m);
-        if (kMatch) {
-          currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
-        } else {
-          const tMatch = currentAbc.match(/^(T:.*)$/m);
-          if (tMatch) {
-            currentAbc = currentAbc.replace(/^(T:.*)$/m, `$1\nQ:${bpm}`);
-          } else {
-            currentAbc = `Q:${bpm}\n` + currentAbc;
-          }
-        }
-      }
-
-      currentAbc = currentAbc.replace(/^%%MIDI\s+program\s+\d+.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
-      
-      const kMatch2 = currentAbc.match(/^(K:.*)$/m);
-      if (kMatch2) {
-        currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
-      } else {
-        const qMatch = currentAbc.match(/^(Q:.*)$/m);
-        if (qMatch) {
-          currentAbc = currentAbc.replace(/^(Q:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
-        } else {
-          currentAbc = `%%MIDI program ${midiProgram}\n` + currentAbc;
-        }
-      }
-
-      // CORREÇÃO 3: Filtragem de vozes usando a abordagem do código funcionante
-      let filteredAbc = currentAbc;
-      if (mode === 'chords') {
-        // Para acordes, usamos voicesOff
-        // Não filtramos o ABC, apenas passamos a opção
-      } else if (mode === 'm1') {
-        filteredAbc = filterVoices(currentAbc, ['1']);
-      } else if (mode === 'm2') {
-        filteredAbc = filterVoices(currentAbc, ['2']);
-      } else if (mode === 'm1_m2') {
-        filteredAbc = filterVoices(currentAbc, ['1', '2']);
-      }
-
-      // Renderiza para obter o visualObj com transposição
-      const paperDiv = document.getElementById("paper");
-      paperDiv.innerHTML = "";
-      
-      const visual = ABCJS.renderAbc("paper", filteredAbc, {
-        responsive: "resize",
-        visualTranspose: currentTranspose
-      });
-
-      if (!visual || visual.length === 0) return;
-
-      const visualObjForAudio = visual[0];
 
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -705,6 +645,10 @@ w: 1 2 3 4 | 5 1 2 3
         return;
       }
 
+      const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
+      const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
+
+      // ====== CONFIGURA O SYNTH (IGUAL AO CÓDIGO FUNCIONANTE) ======
       if (!synthController) {
         synthController = new ABCJS.synth.SynthController();
         synthController.load("#audio-player", null, {
@@ -719,66 +663,51 @@ w: 1 2 3 4 | 5 1 2 3
       try {
         const createSynth = new ABCJS.synth.CreateSynth();
         
-        // CORREÇÃO 4: Opções de áudio - igual ao código funcionante
+        // ====== OPÇÕES IGUAIS AO CÓDIGO FUNCIONANTE ======
         let audioOptions = {
           qpm: bpm,
           midiTranspose: currentTranspose,
           program: midiProgram
         };
         
-        // Adiciona opções específicas do modo
+        // ====== COMANDOS IGUAIS AO CÓDIGO FUNCIONANTE ======
         if (mode === 'chords') {
           audioOptions.voicesOff = true;
-        } else if (mode === 'm1' || mode === 'm2' || mode === 'm1_m2') {
+        } else if (mode === 'm1') {
+          audioOptions.chordsOff = true;
+          audioOptions.voicesOff = [1];
+        } else if (mode === 'm2') {
+          audioOptions.chordsOff = true;
+          audioOptions.voicesOff = [0];
+        } else if (mode === 'm1_m2') {
           audioOptions.chordsOff = true;
         }
+        // 'all' - não adiciona opções extras
 
         await createSynth.init({
-          visualObj: visualObjForAudio,
+          visualObj: visualObj, // ← USA O visualObj GUARDADO
           audioContext: audioContext,
+          millisecondsPerMeasure: visualObj.millisecondsPerMeasure ? visualObj.millisecondsPerMeasure() : undefined,
           options: audioOptions
         });
 
-        await synthController.setTune(visualObjForAudio, true);
-        await synthController.play();
+        await createSynth.prime();
+        createSynth.start();
+        
+        // Guarda a referência para parar depois
+        synthController = createSynth;
+        
       } catch (err) {
         console.error("Erro ao tocar áudio:", err);
       }
     }
 
-    /* CORREÇÃO 5: Filtra vozes corretamente */
-    function filterVoices(abc, allowedVoices) {
-      const lines = abc.split("\n");
-      let currentVoice = "1";
-      const result = [];
-
-      for (let line of lines) {
-        const vMatch = line.match(/^V:\s*([^\s]+)/);
-        if (vMatch) {
-          currentVoice = vMatch[1];
-        }
-
-        // Mantém cabeçalhos
-        if (line.match(/^(X:|T:|K:|L:|M:|V:|Q:|%%MIDI)/)) {
-          result.push(line);
-          continue;
-        }
-
-        // Mantém apenas linhas da voz permitida
-        if (allowedVoices.includes(currentVoice)) {
-          result.push(line);
-        }
-      }
-
-      return result.join("\n");
-    }
-
     function stopAudio() {
       if (synthController) {
         try {
-          synthController.pause();
+          synthController.stop();
         } catch (e) {
-          console.warn("Erro ao pausar:", e);
+          console.warn("Erro ao parar:", e);
         }
         synthController = null;
       }
