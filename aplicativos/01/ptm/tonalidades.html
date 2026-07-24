@@ -96,9 +96,9 @@
       </a>
       <a href="admin.html" class="btn" style="background-color: #0d9488; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-user-gear"></i> Painel Admin
-        <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
-  <i class="fa-solid fa-users"></i> Alunos
-</a>
+      </a>
+      <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-users"></i> Alunos
       </a>
     </div>
   </div>
@@ -129,14 +129,14 @@
       <h3>Lista de Exercícios & Tonalidades</h3>
       
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <!-- IMPORTAR LOTE DO GITHUB COM NOME PERSONALIZADO -->
+        <!-- IMPORTAR LOTE DO GITHUB -->
         <button class="btn-secondary" onclick="solicitarEImportarLoteGitHub()"><i class="fa-solid fa-cloud-arrow-down"></i> Importar Lote (GitHub)</button>
 
         <!-- IMPORTAR E EXPORTAR FILE LOCAL -->
-        <button class="btn-secondary" onclick="document.getElementById('fileInput').click()"><i class="fa-solid fa-file-import"></i> Importar JSON</button>
+        <button class="btn-secondary" onclick="document.getElementById('fileInput').click()"><i class="fa-solid fa-file-import"></i> Importar JSON Local</button>
         <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="importarArquivoJSONLocal(event)">
 
-        <button class="btn-secondary" onclick="exportarArquivoJSONLocal()"><i class="fa-solid fa-file-export"></i> Exportar JSON</button>
+        <button class="btn-secondary" onclick="exportarArquivoJSONLocal()"><i class="fa-solid fa-file-export"></i> Exportar JSON Local</button>
 
         <!-- AÇÕES DA TABELA -->
         <button onclick="adicionarLinhaMusica()"><i class="fa-solid fa-plus"></i> Adicionar Exercício</button>
@@ -254,18 +254,34 @@
       }
     }
 
-    // --- IMPORTAR LOTE ESPECÍFICO DO GITHUB ---
+    // --- IMPORTAR QUALQUER LOTE OU ARQUIVO DO GITHUB ---
     async function solicitarEImportarLoteGitHub() {
       const token = obterToken();
       if (!token) return alert("Por favor, informe e confirme o Token do GitHub primeiro.");
 
-      const nomeLote = prompt("Digite o NOME DO LOTE que deseja importar (Ex: escala, modulo1, arpejos):");
-      if (!nomeLote || nomeLote.trim() === "") return;
+      const entradaUsuario = prompt(
+        "Digite o nome do lote ou o caminho completo do arquivo no GitHub:\n\n" +
+        "Exemplos:\n" +
+        "- 'escala' (busca em lotes/lote_escala.json)\n" +
+        "- 'lotes/meu_lote.json'\n" +
+        "- 'base/musicas.json'"
+      );
 
-      const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-      const caminhoLote = `lotes/lote_${idFormatado}.json`;
+      if (!entradaUsuario || entradaUsuario.trim() === "") return;
 
-      exibirStatus(`Buscando lote '${nomeLote}' no GitHub...`, "blue");
+      const entradaLimpa = entradaUsuario.trim();
+      let caminhoLote = "";
+
+      // Se contém barra ou termina com .json, usa o caminho exato digitado
+      if (entradaLimpa.endsWith(".json") || entradaLimpa.includes("/")) {
+        caminhoLote = entradaLimpa;
+      } else {
+        // Caso contrário, formata no padrão da pasta lotes
+        const idFormatado = entradaLimpa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+        caminhoLote = `lotes/lote_${idFormatado}.json`;
+      }
+
+      exibirStatus(`Buscando '${caminhoLote}' no GitHub...`, "blue");
 
       try {
         const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminhoLote}?ref=${GH_CONFIG.branch}`, {
@@ -273,25 +289,54 @@
         });
 
         if (res.status === 404) {
-          return exibirStatus(`Lote '${nomeLote}' não foi encontrado no GitHub. Crie-o primeiro no Painel Admin.`, "orange");
+          return exibirStatus(`O arquivo '${caminhoLote}' não foi encontrado no repositório.`, "orange");
         }
+
+        if (!res.ok) throw new Error("Erro na requisição com o GitHub.");
 
         const data = await res.json();
-        const json = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+        
+        // Decodificação segura em UTF-8
+        const base64Clean = data.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const json = JSON.parse(jsonStr);
 
-        if (json.exercicios && json.exercicios.length > 0) {
-          json.exercicios.forEach(exNome => {
-            const inputsExistentes = Array.from(document.querySelectorAll('#corpoTabela tr input[type="text"]')).map(i => i.value.trim());
-            if (!inputsExistentes.includes(exNome)) {
-              adicionarLinhaMusica(exNome, []);
+        // Suporta múltiplos formatos de estrutura JSON
+        let listaExercicios = [];
+        if (Array.isArray(json)) {
+          listaExercicios = json;
+        } else if (Array.isArray(json.exercicios)) {
+          listaExercicios = json.exercicios;
+        } else if (Array.isArray(json.repertorio)) {
+          listaExercicios = json.repertorio;
+        } else if (Array.isArray(json.lista)) {
+          listaExercicios = json.lista;
+        }
+
+        if (listaExercicios.length > 0) {
+          let adicionados = 0;
+          listaExercicios.forEach(item => {
+            const exNome = typeof item === 'string' ? item : (item.nome || item.exercicio || "");
+            
+            if (exNome) {
+              const inputsExistentes = Array.from(document.querySelectorAll('#corpoTabela tr input[type="text"]'))
+                                           .map(i => i.value.trim().toLowerCase());
+              
+              if (!inputsExistentes.includes(exNome.trim().toLowerCase())) {
+                adicionarLinhaMusica(exNome, []);
+                adicionados++;
+              }
             }
           });
-          exibirStatus(`Lote '${nomeLote}' importado com sucesso!`, "green");
+
+          exibirStatus(`${adicionados} item(ns) importado(s) de '${caminhoLote}'!`, "green");
         } else {
-          exibirStatus(`O lote '${nomeLote}' está vazio.`, "orange");
+          exibirStatus(`O arquivo '${caminhoLote}' foi localizado, mas não contém uma lista válida.`, "orange");
         }
       } catch (err) {
-        exibirStatus("Erro ao importar o lote do GitHub.", "red");
+        console.error(err);
+        exibirStatus("Erro ao importar: " + err.message, "red");
       }
     }
 
@@ -379,7 +424,11 @@
 
         const data = await response.json();
         shaArquivoAtual = data.sha;
-        const conteudoJson = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+
+        const base64Clean = data.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const conteudoJson = JSON.parse(jsonStr);
 
         if (conteudoJson.exercicios && conteudoJson.exercicios.length > 0) {
           conteudoJson.exercicios.forEach(ex => {
