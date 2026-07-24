@@ -8,11 +8,10 @@
   <!-- FontAwesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- ABCJS - SEM o CSS de áudio -->
+  <!-- ABCJS -->
   <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
 
   <style>
-    /* TODOS OS ESTILOS EXISTENTES... */
     :root {
       --bg-color: #f4f6f8;
       --card-bg: #ffffff;
@@ -253,41 +252,7 @@
     }
 
     #audio-player {
-      margin-bottom: 10px;
-      width: 100%;
-    }
-    
-    #audio-player .abcjs-inline-audio {
-      background: #f8fafc;
-      border: 1px solid #e5e7eb;
-      border-radius: 6px;
-      padding: 8px 12px;
-      margin: 5px 0;
-    }
-    
-    #audio-player .abcjs-inline-audio button {
-      background: #0284c7;
-      color: white;
-      border: none;
-      padding: 4px 12px;
-      border-radius: 4px;
-      cursor: pointer;
-      margin: 0 2px;
-    }
-    
-    #audio-player .abcjs-inline-audio button:hover {
-      background: #0369a1;
-    }
-    
-    #audio-player .abcjs-inline-audio .abcjs-progress {
-      height: 4px;
-      background: #e5e7eb;
-      margin: 4px 0;
-    }
-    
-    #audio-player .abcjs-inline-audio .abcjs-progress-filled {
-      height: 4px;
-      background: #0284c7;
+      display: none !important;
     }
 
     .tune-select-box {
@@ -307,6 +272,31 @@
       border-radius: 6px;
       border: 1px solid #bae6fd;
       margin-bottom: 10px;
+    }
+
+    .audio-indicator {
+      font-size: 0.8rem;
+      color: #0284c7;
+      font-weight: bold;
+      margin-left: 8px;
+      display: none;
+    }
+    .audio-indicator.active {
+      display: inline;
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+
+    .bpm-highlight {
+      background-color: #fef3c7;
+      border: 1px solid #f59e0b;
+      border-radius: 3px;
+      padding: 2px 6px;
+      font-weight: bold;
     }
   </style>
 </head>
@@ -352,7 +342,7 @@
 
     <div style="display: flex; align-items: center; gap: 4px;">
       <label for="tempo-input" style="font-size: 0.85rem; font-weight: 600;">BPM:</label>
-      <input type="number" id="tempo-input" value="120" min="30" max="300" style="width: 70px; flex: none;" oninput="renderMusic()">
+      <input type="number" id="tempo-input" value="120" min="30" max="300" style="width: 70px; flex: none;" oninput="updateBpmAndRender(this.value)">
     </div>
 
     <div style="display: flex; align-items: center; gap: 4px;">
@@ -419,8 +409,13 @@
 
   <main class="main-layout">
     <div class="editor-container">
-      <div class="section-title">Código ABC</div>
-      <textarea id="abc-source" spellcheck="false" oninput="parseAndPopulateSelect()">
+      <div class="section-title">
+        Código ABC
+        <span style="font-size:0.8rem; color:#888; font-weight:normal;">
+          <i class="fa-solid fa-info-circle"></i> BPM: <span id="bpmDisplay" class="bpm-highlight">120</span>
+        </span>
+      </div>
+      <textarea id="abc-source" spellcheck="false" oninput="onTextareaChange()">
 X:1
 T:Primeira Música
 L:1/4
@@ -452,6 +447,7 @@ w: 1 2 3 4 | 5 1 2 3
         <button class="btn-play-custom" onclick="playAudio('m1')"><i class="fa-solid fa-user"></i> Melodia 1</button>
         <button class="btn-play-custom" onclick="playAudio('m2')"><i class="fa-solid fa-user-group"></i> Melodia 2</button>
         <button class="btn-neutral" onclick="stopAudio()"><i class="fa-solid fa-square"></i> Parar</button>
+        <span class="audio-indicator" id="audioIndicator">🔊 Tocando...</span>
       </div>
 
       <div id="audio-player"></div>
@@ -470,8 +466,8 @@ w: 1 2 3 4 | 5 1 2 3
     let synthController = null;
     let tunesBlocks = [];
     let audioContext = null;
-    let visualObj = null; // ← VARIÁVEL GLOBAL PARA GUARDAR O visualObj
-    let midiOriginal = null;
+    let visualObj = null;
+    let isUpdating = false;
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -486,6 +482,8 @@ w: 1 2 3 4 | 5 1 2 3
 
       saveOriginalFingeringState();
       parseAndPopulateSelect();
+      
+      document.getElementById('bpmDisplay').textContent = document.getElementById('tempo-input').value;
     };
 
     async function validarEAutenticarToken(silencioso = false) {
@@ -531,6 +529,148 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
+    /* ======================================== */
+    /* CORREÇÃO: Atualiza BPM, Textarea e Partitura */
+    /* ======================================== */
+    function updateBpmAndRender(newBpm) {
+      if (isUpdating) return;
+      isUpdating = true;
+      
+      // 1. Atualiza o display do BPM
+      document.getElementById('bpmDisplay').textContent = newBpm;
+      
+      const textarea = document.getElementById('abc-source');
+      let text = textarea.value;
+      
+      // 2. Atualiza o textarea (código ABC)
+      const qLineMatch = text.match(/^(Q:\s*)(\d+)/m);
+      
+      if (qLineMatch) {
+        // Substitui o valor do BPM na linha Q:
+        text = text.replace(/^Q:\s*\d+/m, `Q:${newBpm}`);
+        textarea.value = text;
+      } else {
+        // Se não tem Q:, adiciona após o K: ou no início
+        const kMatch = text.match(/^(K:.*)$/m);
+        if (kMatch) {
+          text = text.replace(/^(K:.*)$/m, `$1\nQ:${newBpm}`);
+        } else {
+          text = `Q:${newBpm}\n` + text;
+        }
+        textarea.value = text;
+      }
+      
+      // 3. Re-renderiza a partitura (visualização)
+      // Força a atualização do tunesBlocks com o novo texto
+      const rawBlocks = textarea.value.split(/(?=\nX:|^X:)/g).filter(b => b.trim().length > 0);
+      tunesBlocks = rawBlocks;
+      
+      // 4. Renderiza a música atual com o novo BPM
+      renderMusicDirect(textarea.value);
+      
+      isUpdating = false;
+    }
+
+    /* ======================================== */
+    /* Renderização direta com o código fornecido */
+    /* ======================================== */
+    function renderMusicDirect(abcCode) {
+      const bpm = parseInt(document.getElementById('tempo-input').value) || 120;
+      const midiProgram = parseInt(document.getElementById('midi-program').value) || 0;
+      
+      let currentAbc = abcCode;
+      
+      // Verifica se já tem Q:
+      const hasQ = /^Q:.*/m.test(currentAbc);
+      if (!hasQ) {
+        currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
+        const kMatch = currentAbc.match(/^(K:.*)$/m);
+        if (kMatch) {
+          currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
+        } else {
+          const tMatch = currentAbc.match(/^(T:.*)$/m);
+          if (tMatch) {
+            currentAbc = currentAbc.replace(/^(T:.*)$/m, `$1\nQ:${bpm}`);
+          } else {
+            currentAbc = `Q:${bpm}\n` + currentAbc;
+          }
+        }
+      }
+
+      // Remove %%MIDI existente e adiciona novo
+      currentAbc = currentAbc.replace(/^%%MIDI\s+program\s+\d+.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
+      
+      const kMatch2 = currentAbc.match(/^(K:.*)$/m);
+      if (kMatch2) {
+        currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
+      } else {
+        const qMatch = currentAbc.match(/^(Q:.*)$/m);
+        if (qMatch) {
+          currentAbc = currentAbc.replace(/^(Q:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
+        } else {
+          currentAbc = `%%MIDI program ${midiProgram}\n` + currentAbc;
+        }
+      }
+
+      const paperDiv = document.getElementById("paper");
+      paperDiv.innerHTML = "";
+      
+      const visual = ABCJS.renderAbc("paper", currentAbc, {
+        responsive: "resize",
+        add_classes: true,
+        paddingtop: 0, paddingbottom: 0, paddingright: 0, paddingleft: 0,
+        visualTranspose: currentTranspose
+      });
+      
+      visualObj = visual && visual.length > 0 ? visual[0] : null;
+    }
+
+    /* ======================================== */
+    /* Quando o usuário edita o textarea */
+    /* ======================================== */
+    function onTextareaChange() {
+      if (isUpdating) return;
+      
+      const textarea = document.getElementById('abc-source');
+      const text = textarea.value;
+      
+      // Extrai o BPM do código
+      const bpmMatch = text.match(/^Q:\s*(\d+)/m);
+      if (bpmMatch) {
+        const bpm = bpmMatch[1];
+        document.getElementById('tempo-input').value = bpm;
+        document.getElementById('bpmDisplay').textContent = bpm;
+      }
+      
+      // Reconstroi os blocos e renderiza
+      const rawBlocks = text.split(/(?=\nX:|^X:)/g).filter(b => b.trim().length > 0);
+      tunesBlocks = rawBlocks;
+      
+      // Atualiza o seletor
+      const tunePicker = document.getElementById('tune-picker');
+      const currentIndex = parseInt(tunePicker.value) || 0;
+      
+      tunePicker.innerHTML = "";
+      if (tunesBlocks.length > 0) {
+        tunesBlocks.forEach((block, idx) => {
+          const titleMatch = block.match(/^T:(.*)$/m);
+          const title = titleMatch ? titleMatch[1].trim() : `Música ${idx + 1}`;
+          const option = document.createElement("option");
+          option.value = idx;
+          option.innerText = `${idx + 1}. ${title}`;
+          tunePicker.appendChild(option);
+        });
+        if (currentIndex < tunesBlocks.length) {
+          tunePicker.value = currentIndex;
+        } else {
+          tunePicker.value = 0;
+        }
+      }
+      
+      // Renderiza a música atual
+      renderMusic();
+    }
+
     function parseAndPopulateSelect() {
       const abcText = document.getElementById("abc-source").value;
       const tunePicker = document.getElementById("tune-picker");
@@ -567,67 +707,19 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    /* CORREÇÃO: Renderiza e GUARDA o visualObj */
     function renderMusic() {
       const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
-      let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
+      const currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
       
-      const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
-      const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
-
-      // ====== LÓGICA DO CÓDIGO FUNCIONANTE ======
-      // Verifica se já tem Q:
-      const hasQ = /^Q:.*/m.test(currentAbc);
-      if (!hasQ) {
-        currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
-        const kMatch = currentAbc.match(/^(K:.*)$/m);
-        if (kMatch) {
-          currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
-        } else {
-          const tMatch = currentAbc.match(/^(T:.*)$/m);
-          if (tMatch) {
-            currentAbc = currentAbc.replace(/^(T:.*)$/m, `$1\nQ:${bpm}`);
-          } else {
-            currentAbc = `Q:${bpm}\n` + currentAbc;
-          }
-        }
-      }
-
-      // Remove %%MIDI existente e adiciona novo
-      currentAbc = currentAbc.replace(/^%%MIDI\s+program\s+\d+.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
+      renderMusicDirect(currentAbc);
       
-      const kMatch2 = currentAbc.match(/^(K:.*)$/m);
-      if (kMatch2) {
-        currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
-      } else {
-        const qMatch = currentAbc.match(/^(Q:.*)$/m);
-        if (qMatch) {
-          currentAbc = currentAbc.replace(/^(Q:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
-        } else {
-          currentAbc = `%%MIDI program ${midiProgram}\n` + currentAbc;
-        }
-      }
-
-      // ====== RENDERIZA E GUARDA visualObj ======
-      const paperDiv = document.getElementById("paper");
-      paperDiv.innerHTML = "";
-      
-      const visual = ABCJS.renderAbc("paper", currentAbc, {
-        responsive: "resize",
-        add_classes: true,
-        paddingtop: 0, paddingbottom: 0, paddingright: 0, paddingleft: 0,
-        visualTranspose: currentTranspose
-      });
-      
-      // GUARDA o visualObj para usar no áudio (IGUAL AO CÓDIGO FUNCIONANTE)
-      visualObj = visual && visual.length > 0 ? visual[0] : null;
+      // Atualiza o display do BPM
+      const bpm = parseInt(document.getElementById('tempo-input').value) || 120;
+      document.getElementById('bpmDisplay').textContent = bpm;
     }
 
-    /* CORREÇÃO: Play usando o visualObj guardado (IGUAL AO CÓDIGO FUNCIONANTE) */
     async function playAudio(mode) {
-      // ====== IGUAL AO CÓDIGO FUNCIONANTE ======
       if (!visualObj) {
-        // Se não tiver visualObj, renderiza primeiro
         renderMusic();
         if (!visualObj) return;
       }
@@ -648,29 +740,17 @@ w: 1 2 3 4 | 5 1 2 3
       const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
       const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
 
-      // ====== CONFIGURA O SYNTH (IGUAL AO CÓDIGO FUNCIONANTE) ======
-      if (!synthController) {
-        synthController = new ABCJS.synth.SynthController();
-        synthController.load("#audio-player", null, {
-          displayLoop: true,
-          displayRestart: true,
-          displayPlay: true,
-          displayProgress: true,
-          displayWarp: false
-        });
-      }
+      document.getElementById('audioIndicator').classList.add('active');
 
       try {
         const createSynth = new ABCJS.synth.CreateSynth();
         
-        // ====== OPÇÕES IGUAIS AO CÓDIGO FUNCIONANTE ======
         let audioOptions = {
           qpm: bpm,
           midiTranspose: currentTranspose,
           program: midiProgram
         };
         
-        // ====== COMANDOS IGUAIS AO CÓDIGO FUNCIONANTE ======
         if (mode === 'chords') {
           audioOptions.voicesOff = true;
         } else if (mode === 'm1') {
@@ -682,10 +762,9 @@ w: 1 2 3 4 | 5 1 2 3
         } else if (mode === 'm1_m2') {
           audioOptions.chordsOff = true;
         }
-        // 'all' - não adiciona opções extras
 
         await createSynth.init({
-          visualObj: visualObj, // ← USA O visualObj GUARDADO
+          visualObj: visualObj,
           audioContext: audioContext,
           millisecondsPerMeasure: visualObj.millisecondsPerMeasure ? visualObj.millisecondsPerMeasure() : undefined,
           options: audioOptions
@@ -694,11 +773,11 @@ w: 1 2 3 4 | 5 1 2 3
         await createSynth.prime();
         createSynth.start();
         
-        // Guarda a referência para parar depois
         synthController = createSynth;
         
       } catch (err) {
         console.error("Erro ao tocar áudio:", err);
+        document.getElementById('audioIndicator').classList.remove('active');
       }
     }
 
@@ -714,6 +793,7 @@ w: 1 2 3 4 | 5 1 2 3
       if (audioContext && audioContext.state === 'running') {
         audioContext.suspend();
       }
+      document.getElementById('audioIndicator').classList.remove('active');
     }
 
     function saveOriginalFingeringState() {
@@ -778,6 +858,12 @@ w: 1 2 3 4 | 5 1 2 3
 
       document.getElementById("abc-source").value = text;
       document.getElementById("song-number").value = songNum;
+      
+      const bpmMatch = text.match(/^Q:\s*(\d+)/m);
+      if (bpmMatch) {
+        document.getElementById("tempo-input").value = bpmMatch[1];
+        document.getElementById('bpmDisplay').textContent = bpmMatch[1];
+      }
       
       saveOriginalFingeringState();
       parseAndPopulateSelect();
