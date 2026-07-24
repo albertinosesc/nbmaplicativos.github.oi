@@ -47,7 +47,7 @@
       <a href="conceitos.html" style="background-color: #27ae60; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-brain"></i> Conceitos</a>
       <a href="tonalidades.html" style="background-color: #2563eb; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-sliders"></i> Tonalidades</a>
       <a href="relatorio.html" style="background-color: #e67e22; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-file-lines"></i> Relatório</a>
-      <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+      <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-users"></i> Alunos
       </a>
     </div>
@@ -64,7 +64,7 @@
       <input type="text" id="nomeAluno" placeholder="Nome do aluno...">
       <button onclick="carregarMusicasAluno()"><i class="fa-solid fa-magnifying-glass"></i> Carregar Aluno</button>
       <button style="background-color: #16a34a;" onclick="salvarMusicasAluno()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar no GitHub</button>
-      <!-- NOVO BOTÃO ADICIONADO AQUI -->
+      <!-- BOTÃO DE IMPORTAÇÃO DE LOTE FLEXÍVEL -->
       <button style="background-color: #0284c7;" onclick="importarLoteGithub()"><i class="fa-solid fa-file-import"></i> Importar Lote GitHub</button>
     </div>
 
@@ -113,6 +113,12 @@
       return nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
     }
 
+    function exibirStatus(msg, cor = "black") {
+      const statusEl = document.getElementById('statusMsg');
+      statusEl.style.color = cor;
+      statusEl.innerText = msg;
+    }
+
     async function carregarMusicasAluno() {
       const nomeAluno = document.getElementById('nomeAluno').value.trim();
       const token = obterToken();
@@ -123,6 +129,8 @@
       const slug = normalizarNome(nomeAluno);
       const caminho = `alunos/musica_${slug}.json`;
 
+      exibirStatus("Buscando dados do aluno...", "blue");
+
       try {
         const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
           headers: { 'Authorization': `token ${token}` }
@@ -131,63 +139,119 @@
         if (res.ok) {
           const data = await res.json();
           shaArquivoAtual = data.sha;
-          const json = JSON.parse(decodeURIComponent(escape(atob(data.content))));
+
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          const json = JSON.parse(jsonStr);
+
           repertorioAtual = json.repertorio || [];
+          exibirStatus(`Músicas de "${nomeAluno}" carregadas com sucesso!`, "green");
         } else {
           shaArquivoAtual = null;
           repertorioAtual = [];
+          exibirStatus("Aluno novo ou sem repertório salvo.", "orange");
         }
 
         renderizarTabela();
-        document.getElementById('statusMsg').style.color = "green";
-        document.getElementById('statusMsg').innerText = `Músicas de "${nomeAluno}" carregadas!`;
       } catch (e) {
-        alert("Erro ao carregar do GitHub: " + e.message);
+        exibirStatus("Erro ao carregar do GitHub: " + e.message, "red");
       }
     }
 
-    /* NOVA FUNÇÃO ADICIONADA PARA IMPORTAR O LOTE BASE DO GITHUB */
+    // --- IMPORTAR QUALQUER LOTE OU ARQUIVO DO GITHUB ---
     async function importarLoteGithub() {
       const token = obterToken();
       if (!token) return alert("Informe e confirme o Token do GitHub.");
 
-      // Caminho padrão do arquivo base de músicas no repositório (ajuste se necessário)
-      const caminhoLote = `base/musicas_base.json`;
+      const entradaUsuario = prompt(
+        "Digite o nome do lote ou o caminho completo do arquivo no GitHub:\n\n" +
+        "Exemplos:\n" +
+        "- 'pop' (busca em base/musicas_pop.json ou lotes/lote_pop.json)\n" +
+        "- 'base/musicas_base.json'\n" +
+        "- 'lotes/meu_repertorio.json'"
+      );
+
+      if (!entradaUsuario || entradaUsuario.trim() === "") return;
+
+      const entradaLimpa = entradaUsuario.trim();
+      let caminhosParaTestar = [];
+
+      // Se o usuário especificou caminho ou extensão .json, usa diretamente
+      if (entradaLimpa.endsWith(".json") || entradaLimpa.includes("/")) {
+        caminhosParaTestar.push(entradaLimpa);
+      } else {
+        // Se digitou só o nome (ex: "rock"), tenta no padrão de base e depois de lotes
+        const slug = normalizarNome(entradaLimpa);
+        caminhosParaTestar.push(`base/musicas_${slug}.json`);
+        caminhosParaTestar.push(`lotes/lote_${slug}.json`);
+        caminhosParaTestar.push(`base/${slug}.json`);
+      }
+
+      exibirStatus(`Buscando lote no GitHub...`, "blue");
+
+      let dadosArquivo = null;
+      let caminhoEncontrado = "";
+
+      for (const caminho of caminhosParaTestar) {
+        try {
+          const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+            headers: { 'Authorization': `token ${token}` }
+          });
+          if (res.ok) {
+            dadosArquivo = await res.json();
+            caminhoEncontrado = caminho;
+            break;
+          }
+        } catch (e) {
+          // Tenta a próxima opção
+        }
+      }
+
+      if (!dadosArquivo) {
+        return exibirStatus(`Não foi possível encontrar o lote '${entradaLimpa}' no repositório.`, "orange");
+      }
 
       try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminhoLote}?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
+        const base64Clean = dadosArquivo.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const loteJson = JSON.parse(jsonStr);
 
-        if (!res.ok) throw new Error("Arquivo base não encontrado no repositório (base/musicas_base.json).");
+        // Suporta múltiplos formatos (Array puro ou objetos com repertorio/musicas/lista)
+        let novasMusicas = [];
+        if (Array.isArray(loteJson)) {
+          novasMusicas = loteJson;
+        } else if (Array.isArray(loteJson.repertorio)) {
+          novasMusicas = loteJson.repertorio;
+        } else if (Array.isArray(loteJson.musicas)) {
+          novasMusicas = loteJson.musicas;
+        } else if (Array.isArray(loteJson.lista)) {
+          novasMusicas = loteJson.lista;
+        }
 
-        const data = await res.json();
-        const loteJson = JSON.parse(decodeURIComponent(escape(atob(data.content))));
-        const novasMusicas = loteJson.repertorio || loteJson.musicas || loteJson;
-
-        if (Array.isArray(novasMusicas)) {
+        if (novasMusicas.length > 0) {
           let inseridos = 0;
           novasMusicas.forEach(m => {
-            const nomeStr = typeof m === 'string' ? m : m.nome;
-            // Evita duplicados
+            const nomeStr = typeof m === 'string' ? m : (m.nome || m.titulo || m.musica || "");
+            
             if (nomeStr && !repertorioAtual.some(item => item.nome.toLowerCase() === nomeStr.toLowerCase())) {
               repertorioAtual.push({
                 nome: nomeStr,
-                status: m.status || "Em Estudo",
-                obs: m.obs || ""
+                status: (typeof m === 'object' && m.status) ? m.status : "Em Estudo",
+                obs: (typeof m === 'object' && m.obs) ? m.obs : ""
               });
               inseridos++;
             }
           });
 
           renderizarTabela();
-          document.getElementById('statusMsg').style.color = "green";
-          document.getElementById('statusMsg').innerText = `${inseridos} músicas importadas do lote base com sucesso!`;
+          exibirStatus(`${inseridos} música(s) importada(s) com sucesso de '${caminhoEncontrado}'!`, "green");
         } else {
-          alert("O formato do JSON importado não é válido (esperava uma lista/array).");
+          exibirStatus(`O arquivo '${caminhoEncontrado}' foi localizado, mas está vazio ou em formato inválido.`, "orange");
         }
       } catch (e) {
-        alert("Erro ao importar lote: " + e.message);
+        exibirStatus("Erro ao processar arquivo de lote: " + e.message, "red");
       }
     }
 
@@ -263,6 +327,8 @@
       };
       if (shaArquivoAtual) body.sha = shaArquivoAtual;
 
+      exibirStatus("Enviando dados para o GitHub...", "blue");
+
       try {
         const putRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`, {
           method: 'PUT',
@@ -273,14 +339,12 @@
         if (putRes.ok) {
           const resData = await putRes.json();
           shaArquivoAtual = resData.content.sha;
-          document.getElementById('statusMsg').style.color = "green";
-          document.getElementById('statusMsg').innerText = "Músicas salvas com sucesso no GitHub!";
+          exibirStatus("Músicas salvas com sucesso no GitHub!", "green");
         } else {
           throw new Error("Erro ao gravar arquivo.");
         }
       } catch (err) {
-        document.getElementById('statusMsg').style.color = "red";
-        document.getElementById('statusMsg').innerText = "Erro ao salvar: " + err.message;
+        exibirStatus("Erro ao salvar: " + err.message, "red");
       }
     }
   </script>
