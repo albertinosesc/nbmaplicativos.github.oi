@@ -362,7 +362,7 @@
     <!-- Tempo BPM -->
     <div style="display: flex; align-items: center; gap: 4px;">
       <label for="tempo-input" style="font-size: 0.85rem; font-weight: 600;">BPM:</label>
-      <input type="number" id="tempo-input" value="120" min="30" max="300" style="width: 70px; flex: none;">
+      <input type="number" id="tempo-input" value="120" min="30" max="300" style="width: 70px; flex: none;" onchange="renderMusic()">
     </div>
 
     <!-- Transposição -->
@@ -375,7 +375,7 @@
     <!-- Seleção de Instrumento MIDI -->
     <div style="display: flex; align-items: center; gap: 4px;">
       <label for="midi-program" style="font-size: 0.85rem; font-weight: 600;">Timbre:</label>
-      <select id="midi-program">
+      <select id="midi-program" onchange="renderMusic()">
         <option value="0">Piano Acústico</option>
         <option value="24">Violão de Nylon</option>
         <option value="40">Violino</option>
@@ -492,6 +492,7 @@ w: 1 2 3 4 | 5 1 2 3
     let synthController = null;
     let tunesBlocks = [];
     let audioContext = null;
+    let visualObj = null;
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -503,10 +504,6 @@ w: 1 2 3 4 | 5 1 2 3
       document.getElementById("gh-token").addEventListener("input", (e) => {
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
-
-      // Botão para aplicar BPM e MIDI
-      document.getElementById("tempo-input").addEventListener("change", renderMusic);
-      document.getElementById("midi-program").addEventListener("change", renderMusic);
 
       saveOriginalFingeringState();
       parseAndPopulateSelect();
@@ -591,80 +588,108 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    /* CORREÇÃO: Extrai BPM do código ABC ou usa 120 */
-    function getBpmFromAbc(abcCode) {
-      const qMatch = abcCode.match(/^Q:\s*(\d+)/m);
-      if (qMatch) {
-        return parseInt(qMatch[1]);
-      }
-      return parseInt(document.getElementById("tempo-input").value) || 120;
-    }
-
-    /* CORREÇÃO: Renderiza a música com transposição SEMPRE funcionando */
+    /* CORREÇÃO: Renderiza a música com BPM e MIDI */
     function renderMusic() {
       const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
       let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
       
-      // Extrai BPM do código ou usa o valor do input
-      const bpm = getBpmFromAbc(currentAbc);
-      document.getElementById("tempo-input").value = bpm;
-      
+      const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
       const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
 
-      // Remove %%MIDI existente
-      currentAbc = currentAbc.replace(/^%%MIDI\s+.*$/gm, "").replace(/^\s*[\r\n]+/gm, "");
+      // Verifica se já tem Q:
+      const hasQ = /^Q:.*/m.test(currentAbc);
+      if (!hasQ) {
+        // Remove Q: existente
+        currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
+        const kMatch = currentAbc.match(/^(K:.*)$/m);
+        if (kMatch) {
+          currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
+        } else {
+          const tMatch = currentAbc.match(/^(T:.*)$/m);
+          if (tMatch) {
+            currentAbc = currentAbc.replace(/^(T:.*)$/m, `$1\nQ:${bpm}`);
+          } else {
+            currentAbc = `Q:${bpm}\n` + currentAbc;
+          }
+        }
+      }
 
-      // Adiciona %%MIDI program (timbre)
-      const kMatch = currentAbc.match(/^(K:.*)$/m);
-      if (kMatch) {
+      // Remove %%MIDI existente
+      currentAbc = currentAbc.replace(/^%%MIDI\s+program\s+\d+.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
+      
+      // Adiciona %%MIDI program
+      const kMatch2 = currentAbc.match(/^(K:.*)$/m);
+      if (kMatch2) {
         currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
       } else {
-        currentAbc = currentAbc + `\n%%MIDI program ${midiProgram}`;
+        const qMatch = currentAbc.match(/^(Q:.*)$/m);
+        if (qMatch) {
+          currentAbc = currentAbc.replace(/^(Q:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
+        } else {
+          currentAbc = `%%MIDI program ${midiProgram}\n` + currentAbc;
+        }
       }
 
       const paperDiv = document.getElementById("paper");
       paperDiv.innerHTML = "";
       
-      try {
-        // CORREÇÃO: Aplica transposição visual SEMPRE
-        ABCJS.renderAbc("paper", currentAbc, {
-          responsive: "resize",
-          add_classes: true,
-          paddingtop: 0, paddingbottom: 0, paddingright: 0, paddingleft: 0,
-          visualTranspose: currentTranspose
-        });
-      } catch (e) {
-        console.error("Erro ao renderizar:", e);
-        paperDiv.innerHTML = "<p style='color:red;'>Erro ao renderizar a partitura. Verifique o código ABC.</p>";
-      }
+      // CORREÇÃO: Aplica transposição visual
+      const visual = ABCJS.renderAbc("paper", currentAbc, {
+        responsive: "resize",
+        add_classes: true,
+        paddingtop: 0, paddingbottom: 0, paddingright: 0, paddingleft: 0,
+        visualTranspose: currentTranspose
+      });
+      
+      visualObj = visual && visual.length > 0 ? visual[0] : null;
     }
 
-    /* CORREÇÃO: Play com transposição SEMPRE funcionando */
+    /* CORREÇÃO: Play com transposição no áudio */
     async function playAudio(mode) {
-      // Para áudio em execução
+      if (!visualObj) return;
+      
       stopAudio();
 
       const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
       let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
       
-      // Extrai BPM do código ou usa o valor do input
-      const bpm = getBpmFromAbc(currentAbc);
-      document.getElementById("tempo-input").value = bpm;
-      
+      const bpm = parseInt(document.getElementById("tempo-input").value) || 120;
       const midiProgram = parseInt(document.getElementById("midi-program").value) || 0;
 
-      // Remove %%MIDI existente
-      currentAbc = currentAbc.replace(/^%%MIDI\s+.*$/gm, "").replace(/^\s*[\r\n]+/gm, "");
-
-      // Adiciona %%MIDI program (timbre)
-      const kMatch = currentAbc.match(/^(K:.*)$/m);
-      if (kMatch) {
-        currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
-      } else {
-        currentAbc = currentAbc + `\n%%MIDI program ${midiProgram}`;
+      // Verifica se já tem Q:
+      const hasQ = /^Q:.*/m.test(currentAbc);
+      if (!hasQ) {
+        currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
+        const kMatch = currentAbc.match(/^(K:.*)$/m);
+        if (kMatch) {
+          currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
+        } else {
+          const tMatch = currentAbc.match(/^(T:.*)$/m);
+          if (tMatch) {
+            currentAbc = currentAbc.replace(/^(T:.*)$/m, `$1\nQ:${bpm}`);
+          } else {
+            currentAbc = `Q:${bpm}\n` + currentAbc;
+          }
+        }
       }
 
-      // CORREÇÃO: Filtragem de vozes
+      // Remove %%MIDI existente
+      currentAbc = currentAbc.replace(/^%%MIDI\s+program\s+\d+.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
+      
+      // Adiciona %%MIDI program
+      const kMatch2 = currentAbc.match(/^(K:.*)$/m);
+      if (kMatch2) {
+        currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
+      } else {
+        const qMatch = currentAbc.match(/^(Q:.*)$/m);
+        if (qMatch) {
+          currentAbc = currentAbc.replace(/^(Q:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
+        } else {
+          currentAbc = `%%MIDI program ${midiProgram}\n` + currentAbc;
+        }
+      }
+
+      // Filtragem de vozes
       let filteredAbc = currentAbc;
       if (mode === 'm1') {
         filteredAbc = filterVoices(currentAbc, ['1']);
@@ -676,27 +701,18 @@ w: 1 2 3 4 | 5 1 2 3
         filteredAbc = filterChords(currentAbc);
       }
 
-      // Renderiza para obter o visualObj
+      // Renderiza para obter o visualObj com transposição
       const paperDiv = document.getElementById("paper");
       paperDiv.innerHTML = "";
       
-      let visual;
-      try {
-        visual = ABCJS.renderAbc("paper", filteredAbc, {
-          responsive: "resize",
-          visualTranspose: currentTranspose
-        });
-      } catch (e) {
-        console.error("Erro ao renderizar para áudio:", e);
-        return;
-      }
+      const visual = ABCJS.renderAbc("paper", filteredAbc, {
+        responsive: "resize",
+        visualTranspose: currentTranspose
+      });
 
-      if (!visual || visual.length === 0) {
-        console.error("Erro ao renderizar para áudio");
-        return;
-      }
+      if (!visual || visual.length === 0) return;
 
-      const visualObj = visual[0];
+      const visualObjForAudio = visual[0];
 
       // Cria o contexto de áudio
       if (!audioContext) {
@@ -725,24 +741,24 @@ w: 1 2 3 4 | 5 1 2 3
       try {
         const createSynth = new ABCJS.synth.CreateSynth();
         await createSynth.init({
-          visualObj: visualObj,
+          visualObj: visualObjForAudio,
           audioContext: audioContext,
           options: {
             qpm: bpm,
-            // CORREÇÃO: Transposição aplicada no áudio SEMPRE
+            // CORREÇÃO: Transposição aplicada no áudio
             midiTranspose: currentTranspose,
             program: midiProgram
           }
         });
 
-        await synthController.setTune(visualObj, true);
+        await synthController.setTune(visualObjForAudio, true);
         await synthController.play();
       } catch (err) {
         console.error("Erro ao tocar áudio:", err);
       }
     }
 
-    /* CORREÇÃO: Filtra vozes corretamente */
+    /* CORREÇÃO: Filtra vozes */
     function filterVoices(abc, allowedVoices) {
       const lines = abc.split("\n");
       let currentVoice = "1";
@@ -760,13 +776,8 @@ w: 1 2 3 4 | 5 1 2 3
           continue;
         }
 
-        // Se é uma linha de música, verifica a voz
-        if (line.trim().length > 0 && !line.trim().startsWith("%")) {
-          if (allowedVoices.includes(currentVoice)) {
-            result.push(line);
-          }
-        } else {
-          // Mantém linhas vazias e comentários
+        // Mantém apenas linhas da voz permitida
+        if (allowedVoices.includes(currentVoice)) {
           result.push(line);
         }
       }
