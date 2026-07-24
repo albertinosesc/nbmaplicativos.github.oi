@@ -64,15 +64,20 @@
     }
 
     label { font-weight: 600; font-size: 0.9rem; }
-    
     .help-text { font-size: 0.8rem; color: #6b7280; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 15px; }
+    th, td { border: 1px solid var(--border); padding: 10px; text-align: left; }
+    th { background-color: #f8fafc; font-weight: 600; }
+
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 12px; font-size: 0.75rem; font-weight: bold; background: #e0f2fe; color: #0369a1; }
   </style>
 </head>
 <body>
 
   <!-- NAVEGAÇÃO COMPLETA -->
   <div class="header-bar">
-    <h2><i class="fa-solid fa-user-gear"></i> Painel Admin - Criador de Lotes</h2>
+    <h2><i class="fa-solid fa-user-gear"></i> Painel Admin - Gestão de Lotes</h2>
     <div>
       <a href="index.html" class="btn" style="background-color: #2563eb; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-music"></i> TPM
@@ -105,7 +110,48 @@
     </div>
   </div>
 
-  <!-- CRIADOR DE LOTES -->
+  <!-- BUSCAR, EDITAR E SOBRESCREVER LOTE EXISTENTE -->
+  <div class="card">
+    <h3 style="margin-bottom: 15px;"><i class="fa-solid fa-magnifying-glass"></i> Buscar, Editar e Sobrescrever Lote</h3>
+    
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+      <input type="text" id="buscaIdLote" placeholder="Digite o ID do Lote (Ex: modulo1, iniciante_pop, campo_harmonico)">
+      <button onclick="buscarLoteExistente()"><i class="fa-solid fa-search"></i> Buscar Lote</button>
+      <button class="btn-success" onclick="sobrescreverLoteGitHub()"><i class="fa-solid fa-floppy-disk"></i> Salvar / Sobrescrever Lote</button>
+    </div>
+
+    <!-- Painel Informativo do Lote Carregado -->
+    <div id="infoLoteEdicao" style="display: none; margin-bottom: 15px; background: #f8fafc; padding: 10px; border-radius: 6px; border: 1px solid var(--border);">
+      <span class="badge" id="badgeCaminho">Arquivo: -</span>
+      <span class="badge" id="badgeTipo" style="background:#fef3c7; color:#b45309; margin-left:8px;">Tipo: -</span>
+      <span class="badge" id="badgeTotal" style="background:#dcfce7; color:#15803d; margin-left:8px;">0 Itens</span>
+    </div>
+
+    <!-- Adicionar Item no Lote Carregado -->
+    <div id="painelNovoItem" style="display: none; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 15px; margin-bottom: 15px;">
+      <input type="text" id="novoItemTitulo" placeholder="Nome do item / música / conceito">
+      <input type="text" id="novoItemTom" placeholder="Tom (Opções/Músicas: C, G, Am...)" style="max-width: 150px; display: none;">
+      <button class="btn-success" onclick="adicionarItemAoLote()"><i class="fa-solid fa-plus"></i> Adicionar Item</button>
+    </div>
+
+    <div id="statusBuscaMsg" class="status-msg"></div>
+
+    <table id="tbl-lote-itens">
+      <thead>
+        <tr>
+          <th style="width: 60px; text-align: center;">#</th>
+          <th>Descrição / Nome do Item</th>
+          <th id="thTom" style="width: 150px; display: none;">Tom</th>
+          <th style="width: 90px; text-align: center;">Ações</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="4" style="text-align:center; color:#9ca3af;">Nenhum lote carregado. Busque um lote acima.</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- CRIADOR / CADASTRADOR DE NOVO LOTE -->
   <div class="card">
     <h3 style="margin-bottom: 15px;"><i class="fa-solid fa-folder-plus"></i> Cadastrar Novo Lote Padrão</h3>
     
@@ -126,14 +172,14 @@
 
     <div class="form-group">
       <label for="itensLote">Itens do Lote (Um por linha):</label>
-      <textarea id="itensLote" rows="10" placeholder="Digite os itens aqui, um por linha..."></textarea>
+      <textarea id="itensLote" rows="8" placeholder="Digite os itens aqui, um por linha..."></textarea>
       <span id="dicaFormatacao" class="help-text">
         * Para Conceitos/Teoria: Escreva apenas o título de cada conceito por linha.
       </span>
     </div>
 
-    <button class="btn-success" onclick="salvarLoteGitHub()" style="font-size: 1rem; padding: 10px 20px;">
-      <i class="fa-solid fa-cloud-arrow-up"></i> Salvar Lote no GitHub
+    <button class="btn-success" onclick="salvarNovoLoteGitHub()" style="font-size: 1rem; padding: 10px 20px;">
+      <i class="fa-solid fa-cloud-arrow-up"></i> Salvar Novo Lote no GitHub
     </button>
 
     <div id="statusMsg" class="status-msg"></div>
@@ -141,7 +187,15 @@
 
   <script>
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
-    let shaLoteExistente = null;
+    
+    // Estado do Lote em Edição
+    let loteAtual = {
+      id: "",
+      tipo: "",
+      caminho: "",
+      sha: null,
+      itens: [] // array de objetos ou strings
+    };
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -180,10 +234,16 @@
       } catch (err) { statusMsg.innerText = "Erro ao validar token."; }
     }
 
-    function exibirStatus(mensagem, cor = "black") {
-      const el = document.getElementById('statusMsg');
-      el.style.color = cor;
-      el.innerText = mensagem;
+    function exibirStatus(mensagem, cor = "black", alvo = "statusMsg") {
+      const el = document.getElementById(alvo);
+      if (el) {
+        el.style.color = cor;
+        el.innerText = mensagem;
+      }
+    }
+
+    function normalizarId(texto) {
+      return texto.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
     }
 
     function atualizarDicasFormulario() {
@@ -199,11 +259,217 @@
       }
     }
 
-    function normalizarId(texto) {
-      return texto.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+    // --- BUSCAR LOTE EXISTENTE ---
+    async function buscarLoteExistente() {
+      const token = obterToken();
+      const termoBusca = document.getElementById('buscaIdLote').value.trim();
+
+      if (!termoBusca) return alert("Digite o ID do Lote para buscar.");
+      if (!token) return alert("Informe e confirme o Token do GitHub.");
+
+      const idSlug = normalizarId(termoBusca);
+      
+      // Testa variações comuns de arquivos
+      const caminhosParaTestar = [
+        `lotes/${idSlug}.json`,
+        `lotes/lote_musica_${idSlug}.json`,
+        `lotes/lote_${idSlug}.json`
+      ];
+
+      exibirStatus("Buscando lote no GitHub...", "blue", "statusBuscaMsg");
+
+      let dadosArquivo = null;
+      let caminhoEncontrado = "";
+
+      for (const caminho of caminhosParaTestar) {
+        try {
+          const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+            headers: { 'Authorization': `token ${token}` }
+          });
+          if (res.ok) {
+            dadosArquivo = await res.json();
+            caminhoEncontrado = caminho;
+            break;
+          }
+        } catch (e) {}
+      }
+
+      if (dadosArquivo) {
+        loteAtual.sha = dadosArquivo.sha;
+        loteAtual.caminho = caminhoEncontrado;
+
+        const base64Clean = dadosArquivo.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const jsonContent = JSON.parse(jsonStr);
+
+        loteAtual.id = jsonContent.id || idSlug;
+        loteAtual.tipo = jsonContent.tipo || (jsonContent.musicas ? "musicas" : jsonContent.conceitos ? "teoria" : "tonalidades");
+
+        // Normalização da estrutura de itens
+        let listaBruta = jsonContent.musicas || jsonContent.conceitos || jsonContent.exercicios || jsonContent.repertorio || jsonContent.lista || [];
+        
+        if (loteAtual.tipo === 'musicas') {
+          loteAtual.itens = listaBruta.map(item => {
+            if (typeof item === 'string') return { nome: item, tom: "C" };
+            return { nome: item.nome || item.titulo || item.musica || "", tom: item.tom || "C" };
+          });
+        } else {
+          loteAtual.itens = listaBruta.map(item => typeof item === 'string' ? item : (item.nome || item.titulo || ""));
+        }
+
+        exibirStatus(`Lote '${loteAtual.id}' carregado com sucesso!`, "green", "statusBuscaMsg");
+        renderizarPainelEdicao();
+      } else {
+        exibirStatus(`Nenhum lote encontrado com o ID '${idSlug}'. Verifique o nome digitado.`, "red", "statusBuscaMsg");
+      }
     }
 
-    async function salvarLoteGitHub() {
+    function renderizarPainelEdicao() {
+      document.getElementById('infoLoteEdicao').style.display = 'block';
+      document.getElementById('painelNovoItem').style.display = 'flex';
+      
+      document.getElementById('badgeCaminho').innerText = `Arquivo: ${loteAtual.caminho}`;
+      document.getElementById('badgeTipo').innerText = `Tipo: ${loteAtual.tipo.toUpperCase()}`;
+      document.getElementById('badgeTotal').innerText = `${loteAtual.itens.length} Itens`;
+
+      const inputTom = document.getElementById('novoItemTom');
+      const thTom = document.getElementById('thTom');
+      
+      if (loteAtual.tipo === 'musicas') {
+        inputTom.style.display = 'block';
+        thTom.style.display = 'table-cell';
+      } else {
+        inputTom.style.display = 'none';
+        thTom.style.display = 'none';
+      }
+
+      renderizarTabelaItens();
+    }
+
+    function renderizarTabelaItens() {
+      const tbody = document.querySelector('#tbl-lote-itens tbody');
+      tbody.innerHTML = "";
+
+      if (loteAtual.itens.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#9ca3af;">Lote sem itens cadastrados.</td></tr>';
+        return;
+      }
+
+      loteAtual.itens.forEach((item, index) => {
+        if (loteAtual.tipo === 'musicas') {
+          tbody.innerHTML += `
+            <tr>
+              <td style="text-align:center; font-weight:bold; color:#6b7280;">${index + 1}</td>
+              <td>
+                <input type="text" value="${item.nome}" style="width:100%;" onchange="atualizarItemLote(${index}, 'nome', this.value)">
+              </td>
+              <td>
+                <input type="text" value="${item.tom || 'C'}" style="width:100%;" onchange="atualizarItemLote(${index}, 'tom', this.value)">
+              </td>
+              <td style="text-align:center;">
+                <button class="btn-danger" style="padding: 4px 8px;" onclick="removerItemLote(${index})"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>
+          `;
+        } else {
+          tbody.innerHTML += `
+            <tr>
+              <td style="text-align:center; font-weight:bold; color:#6b7280;">${index + 1}</td>
+              <td colspan="2">
+                <input type="text" value="${item}" style="width:100%;" onchange="atualizarItemLote(${index}, 'texto', this.value)">
+              </td>
+              <td style="text-align:center;">
+                <button class="btn-danger" style="padding: 4px 8px;" onclick="removerItemLote(${index})"><i class="fa-solid fa-trash"></i></button>
+              </td>
+            </tr>
+          `;
+        }
+      });
+    }
+
+    function adicionarItemAoLote() {
+      const inputNome = document.getElementById('novoItemTitulo');
+      const inputTom = document.getElementById('novoItemTom');
+      const valorNome = inputNome.value.trim();
+
+      if (!valorNome) return alert("Digite a descrição ou nome do item.");
+
+      if (loteAtual.tipo === 'musicas') {
+        loteAtual.itens.push({ nome: valorNome, tom: inputTom.value.trim() || "C" });
+      } else {
+        loteAtual.itens.push(valorNome);
+      }
+
+      inputNome.value = "";
+      inputTom.value = "";
+      document.getElementById('badgeTotal').innerText = `${loteAtual.itens.length} Itens`;
+      renderizarTabelaItens();
+    }
+
+    function atualizarItemLote(index, campo, valor) {
+      if (loteAtual.tipo === 'musicas') {
+        loteAtual.itens[index][campo] = valor.trim();
+      } else {
+        loteAtual.itens[index] = valor.trim();
+      }
+    }
+
+    function removerItemLote(index) {
+      loteAtual.itens.splice(index, 1);
+      document.getElementById('badgeTotal').innerText = `${loteAtual.itens.length} Itens`;
+      renderizarTabelaItens();
+    }
+
+    // --- SOBRESCREVER LOTE CARREGADO ---
+    async function sobrescreverLoteGitHub() {
+      const token = obterToken();
+      if (!token) return alert("Informe e confirme o Token do GitHub.");
+      if (!loteAtual.caminho) return alert("Busque e carregue um lote existente primeiro.");
+
+      let estruturaJson = { id: loteAtual.id, tipo: loteAtual.tipo };
+
+      if (loteAtual.tipo === 'teoria') estruturaJson.conceitos = loteAtual.itens;
+      else if (loteAtual.tipo === 'tonalidades') estruturaJson.exercicios = loteAtual.itens;
+      else if (loteAtual.tipo === 'musicas') estruturaJson.musicas = loteAtual.itens;
+
+      exibirStatus("Sobrescrevendo lote no GitHub...", "blue", "statusBuscaMsg");
+
+      try {
+        const jsonString = JSON.stringify(estruturaJson, null, 2);
+        const utf8Bytes = new TextEncoder().encode(jsonString);
+        let binaryStr = "";
+        utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+        const conteudoBase64 = btoa(binaryStr);
+
+        const body = {
+          message: `Atualizando e sobrescrevendo lote [${loteAtual.tipo}]: ${loteAtual.id}`,
+          content: conteudoBase64,
+          branch: GH_CONFIG.branch,
+          sha: loteAtual.sha
+        };
+
+        const putRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${loteAtual.caminho}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (putRes.ok) {
+          const resData = await putRes.json();
+          loteAtual.sha = resData.content.sha; // Atualiza o SHA retornado
+          exibirStatus(`Lote '${loteAtual.id}' atualizado e sobrescrito com SUCESSO!`, "green", "statusBuscaMsg");
+        } else {
+          const errData = await putRes.json();
+          throw new Error(errData.message || "Erro ao sobrescrever lote.");
+        }
+      } catch (err) {
+        exibirStatus("Erro ao salvar: " + err.message, "red", "statusBuscaMsg");
+      }
+    }
+
+    // --- SALVAR NOVO LOTE DO FORMULÁRIO INFERIOR ---
+    async function salvarNovoLoteGitHub() {
       const token = obterToken();
       const tipo = document.getElementById('tipoLote').value;
       const nomeLote = document.getElementById('nomeLote').value.trim();
@@ -216,17 +482,14 @@
       const idLote = normalizarId(nomeLote);
       const linhas = conteudoTexto.split('\n').map(l => l.trim()).filter(l => l !== '');
 
-      let caminhoArquivo = "";
+      let caminhoArquivo = `lotes/${idLote}.json`;
       let estruturaJson = {};
 
       if (tipo === 'teoria') {
-        caminhoArquivo = `lotes/${idLote}.json`;
         estruturaJson = { id: idLote, tipo: "teoria", conceitos: linhas };
       } else if (tipo === 'tonalidades') {
-        caminhoArquivo = `lotes/${idLote}.json`;
         estruturaJson = { id: idLote, tipo: "tonalidades", exercicios: linhas };
       } else if (tipo === 'musicas') {
-        caminhoArquivo = `lotes/${idLote}.json`;
         const musicasFormatadas = linhas.map(l => {
           if (l.includes('|')) {
             const partes = l.split('|');
@@ -237,7 +500,7 @@
         estruturaJson = { id: idLote, tipo: "musicas", musicas: musicasFormatadas };
       }
 
-      exibirStatus("Verificando se o lote já existe no GitHub...", "blue");
+      exibirStatus("Verificando se o lote já existe no GitHub...", "blue", "statusMsg");
 
       try {
         let sha = null;
@@ -263,7 +526,7 @@
         };
         if (sha) body.sha = sha;
 
-        exibirStatus("Gravando lote no GitHub...", "blue");
+        exibirStatus("Gravando lote no GitHub...", "blue", "statusMsg");
 
         const putRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminhoArquivo}`, {
           method: 'PUT',
@@ -272,13 +535,13 @@
         });
 
         if (putRes.ok) {
-          exibirStatus(`Lote '${idLote}' criado/atualizado com SUCESSO no GitHub!`, "green");
+          exibirStatus(`Lote '${idLote}' criado/atualizado com SUCESSO no GitHub!`, "green", "statusMsg");
         } else {
           const errData = await putRes.json();
           throw new Error(errData.message || "Erro ao salvar lote.");
         }
       } catch (err) {
-        exibirStatus("Erro: " + err.message, "red");
+        exibirStatus("Erro: " + err.message, "red", "statusMsg");
       }
     }
   </script>
