@@ -116,7 +116,7 @@
     <div id="painelEdicaoTextarea" style="display: none;">
       <div class="form-group">
         <label for="tipoLoteEdit">Tipo do Lote Carregado:</label>
-        <select id="tipoLoteEdit" onchange="atualizarDicaTextareaEdicao()">
+        <select id="tipoLoteEdit">
           <option value="teoria">Conceitos Teóricos (Teoria)</option>
           <option value="tonalidades">Tonalidades / Exercícios Práticos</option>
           <option value="musicas">Repertório de Músicas</option>
@@ -124,9 +124,9 @@
       </div>
 
       <div class="form-group">
-        <label for="itensLoteEdit">Itens do Lote (Edite linha por linha):</label>
+        <label for="itensLoteEdit">Itens do Lote (Edite escrevendo um por linha):</label>
         <textarea id="itensLoteEdit" rows="10" placeholder="Carregando itens..."></textarea>
-        <span id="dicaFormatacaoEdit" class="help-text"></span>
+        <span class="help-text">* Digite um item por linha.</span>
       </div>
 
       <button class="btn-success" onclick="sobrescreverLoteGitHub()" style="font-size: 1rem; padding: 10px 20px;">
@@ -143,7 +143,7 @@
     
     <div class="form-group">
       <label for="tipoLote">Tipo de Lote:</label>
-      <select id="tipoLote" onchange="atualizarDicasFormulario()">
+      <select id="tipoLote">
         <option value="teoria">Conceitos Teóricos (Teoria)</option>
         <option value="tonalidades">Tonalidades / Exercícios Práticos</option>
         <option value="musicas">Repertório de Músicas</option>
@@ -159,9 +159,7 @@
     <div class="form-group">
       <label for="itensLote">Itens do Lote (Um por linha):</label>
       <textarea id="itensLote" rows="10" placeholder="Digite os itens aqui, um por linha..."></textarea>
-      <span id="dicaFormatacao" class="help-text">
-        * Para Conceitos/Teoria: Escreva apenas o título de cada conceito por linha.
-      </span>
+      <span class="help-text">* Digite apenas o nome de um item por linha.</span>
     </div>
 
     <button class="btn-success" onclick="salvarLoteGitHub()" style="font-size: 1rem; padding: 10px 20px;">
@@ -174,7 +172,6 @@
   <script>
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     
-    // Armazena dados do lote carregado no textarea
     let loteCarregado = {
       id: "",
       caminho: "",
@@ -191,8 +188,6 @@
       document.getElementById("gh-token").addEventListener("input", (e) => {
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
-
-      atualizarDicasFormulario();
     };
 
     function obterToken() {
@@ -226,32 +221,6 @@
 
     function normalizarId(texto) {
       return texto.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-    }
-
-    function atualizarDicasFormulario() {
-      const tipo = document.getElementById('tipoLote').value;
-      const dica = document.getElementById('dicaFormatacao');
-
-      if (tipo === 'teoria') {
-        dica.innerText = "* Para Teoria: Digite o nome de um assunto por linha (Ex: Escala Maior, Armadura de Clave).";
-      } else if (tipo === 'tonalidades') {
-        dica.innerText = "* Para Tonalidades: Digite o nome do exercício por linha (Ex: Escala Maior, Arpejos Triades).";
-      } else if (tipo === 'musicas') {
-        dica.innerText = "* Para Músicas: Digite o nome da música por linha ou 'Nome da Musica | Tom' (Ex: Asa Branca | C).";
-      }
-    }
-
-    function atualizarDicaTextareaEdicao() {
-      const tipo = document.getElementById('tipoLoteEdit').value;
-      const dica = document.getElementById('dicaFormatacaoEdit');
-
-      if (tipo === 'teoria') {
-        dica.innerText = "* Edite escrevendo um conceito por linha.";
-      } else if (tipo === 'tonalidades') {
-        dica.innerText = "* Edite escrevendo um exercício por linha.";
-      } else if (tipo === 'musicas') {
-        dica.innerText = "* Edite no formato 'Nome da Musica | Tom' ou apenas 'Nome da Musica'.";
-      }
     }
 
     // --- CARREGAR LOTE NO TEXTAREA ---
@@ -304,23 +273,20 @@
       const tipo = jsonContent.tipo || (jsonContent.musicas ? 'musicas' : jsonContent.conceitos ? 'teoria' : 'tonalidades');
       document.getElementById('tipoLoteEdit').value = tipo;
 
-      let linhas = [];
+      let listaItens = [];
 
       if (tipo === 'teoria') {
-        linhas = jsonContent.conceitos || [];
+        listaItens = jsonContent.conceitos || [];
       } else if (tipo === 'tonalidades') {
-        linhas = jsonContent.exercicios || [];
+        listaItens = jsonContent.exercicios || [];
       } else if (tipo === 'musicas') {
         const musicas = jsonContent.musicas || [];
-        linhas = musicas.map(m => {
-          if (typeof m === 'string') return m;
-          return `${m.nome} | ${m.tom || 'C'}`;
-        });
+        // Converte para apenas nomes (caso o JSON antigo tivesse objetos com .nome)
+        listaItens = musicas.map(m => (typeof m === 'object' && m.nome) ? m.nome : m);
       }
 
-      document.getElementById('itensLoteEdit').value = linhas.join('\n');
+      document.getElementById('itensLoteEdit').value = listaItens.join('\n');
       document.getElementById('painelEdicaoTextarea').style.display = 'block';
-      atualizarDicaTextareaEdicao();
       exibirStatus(`Lote '${idLote}' carregado com sucesso! Edite abaixo e clique em Salvar.`, "green", "statusBuscaMsg");
     }
 
@@ -342,13 +308,7 @@
       } else if (tipo === 'tonalidades') {
         estruturaJson.exercicios = linhas;
       } else if (tipo === 'musicas') {
-        estruturaJson.musicas = linhas.map(l => {
-          if (l.includes('|')) {
-            const partes = l.split('|');
-            return { nome: partes[0].trim(), tom: partes[1].trim() };
-          }
-          return { nome: l, tom: "C" };
-        });
+        estruturaJson.musicas = linhas;
       }
 
       exibirStatus("Sobrescrevendo alterações no GitHub...", "blue", "statusBuscaMsg");
@@ -375,7 +335,7 @@
 
         if (putRes.ok) {
           const checkData = await putRes.json();
-          loteCarregado.sha = checkData.content.sha; // Atualiza o SHA para futuras alterações
+          loteCarregado.sha = checkData.content.sha;
           exibirStatus(`Lote '${loteCarregado.id}' sobrescrito com SUCESSO no GitHub!`, "green", "statusBuscaMsg");
         } else {
           const errData = await putRes.json();
@@ -401,21 +361,14 @@
       const linhas = conteudoTexto.split('\n').map(l => l.trim()).filter(l => l !== '');
 
       let caminhoArquivo = `lotes/${idLote}.json`;
-      let estruturaJson = {};
+      let estruturaJson = { id: idLote, tipo: tipo };
 
       if (tipo === 'teoria') {
-        estruturaJson = { id: idLote, tipo: "teoria", conceitos: linhas };
+        estruturaJson.conceitos = linhas;
       } else if (tipo === 'tonalidades') {
-        estruturaJson = { id: idLote, tipo: "tonalidades", exercicios: linhas };
+        estruturaJson.exercicios = linhas;
       } else if (tipo === 'musicas') {
-        const musicasFormatadas = linhas.map(l => {
-          if (l.includes('|')) {
-            const partes = l.split('|');
-            return { nome: partes[0].trim(), tom: partes[1].trim() };
-          }
-          return { nome: l, tom: "C" };
-        });
-        estruturaJson = { id: idLote, tipo: "musicas", musicas: musicasFormatadas };
+        estruturaJson.musicas = linhas;
       }
 
       exibirStatus("Verificando se o lote já existe no GitHub...", "blue");
