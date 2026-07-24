@@ -298,6 +298,24 @@
       padding: 2px 6px;
       font-weight: bold;
     }
+
+    /* Indicador de extensão do arquivo */
+    .file-extension-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      margin-left: 8px;
+    }
+    .file-extension-badge.abc {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    .file-extension-badge.txt {
+      background: #fef3c7;
+      color: #92400e;
+    }
   </style>
 </head>
 <body>
@@ -324,7 +342,13 @@
   </section>
 
   <section class="control-panel">
-    <input type="number" id="song-number" placeholder="Número do Arquivo (ex: 1)" min="1">
+    <div style="display: flex; align-items: center; gap: 8px; flex: 1;">
+      <input type="number" id="song-number" placeholder="Número do Arquivo (ex: 1)" min="1" style="flex: 1;">
+      <select id="file-extension" style="width: auto; padding: 8px 8px;">
+        <option value="abc">.abc</option>
+        <option value="txt">.txt</option>
+      </select>
+    </div>
     <button onclick="fetchSong()"><i class="fa-solid fa-download"></i> Buscar</button>
     <button class="btn-success" onclick="saveSongToGitHub()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar no GitHub</button>
     <button onclick="toggleFileList()"><i class="fa-solid fa-list-ol"></i> Listar Músicas</button>
@@ -413,6 +437,7 @@
         Código ABC
         <span style="font-size:0.8rem; color:#888; font-weight:normal;">
           <i class="fa-solid fa-info-circle"></i> BPM: <span id="bpmDisplay" class="bpm-highlight">120</span>
+          <span id="fileExtDisplay" class="file-extension-badge abc">.abc</span>
         </span>
       </div>
       <textarea id="abc-source" spellcheck="false" oninput="onTextareaChange()">
@@ -468,6 +493,7 @@ w: 1 2 3 4 | 5 1 2 3
     let audioContext = null;
     let visualObj = null;
     let isUpdating = false;
+    let currentExtension = 'abc';
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -480,10 +506,18 @@ w: 1 2 3 4 | 5 1 2 3
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
 
+      // Atualiza extensão quando o select mudar
+      document.getElementById("file-extension").addEventListener("change", function() {
+        currentExtension = this.value;
+        document.getElementById('fileExtDisplay').textContent = '.' + this.value;
+        document.getElementById('fileExtDisplay').className = 'file-extension-badge ' + this.value;
+      });
+
       saveOriginalFingeringState();
       parseAndPopulateSelect();
       
       document.getElementById('bpmDisplay').textContent = document.getElementById('tempo-input').value;
+      document.getElementById('fileExtDisplay').textContent = '.abc';
     };
 
     async function validarEAutenticarToken(silencioso = false) {
@@ -529,28 +563,21 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    /* ======================================== */
-    /* CORREÇÃO: Atualiza BPM, Textarea e Partitura */
-    /* ======================================== */
     function updateBpmAndRender(newBpm) {
       if (isUpdating) return;
       isUpdating = true;
       
-      // 1. Atualiza o display do BPM
       document.getElementById('bpmDisplay').textContent = newBpm;
       
       const textarea = document.getElementById('abc-source');
       let text = textarea.value;
       
-      // 2. Atualiza o textarea (código ABC)
       const qLineMatch = text.match(/^(Q:\s*)(\d+)/m);
       
       if (qLineMatch) {
-        // Substitui o valor do BPM na linha Q:
         text = text.replace(/^Q:\s*\d+/m, `Q:${newBpm}`);
         textarea.value = text;
       } else {
-        // Se não tem Q:, adiciona após o K: ou no início
         const kMatch = text.match(/^(K:.*)$/m);
         if (kMatch) {
           text = text.replace(/^(K:.*)$/m, `$1\nQ:${newBpm}`);
@@ -560,27 +587,20 @@ w: 1 2 3 4 | 5 1 2 3
         textarea.value = text;
       }
       
-      // 3. Re-renderiza a partitura (visualização)
-      // Força a atualização do tunesBlocks com o novo texto
       const rawBlocks = textarea.value.split(/(?=\nX:|^X:)/g).filter(b => b.trim().length > 0);
       tunesBlocks = rawBlocks;
       
-      // 4. Renderiza a música atual com o novo BPM
       renderMusicDirect(textarea.value);
       
       isUpdating = false;
     }
 
-    /* ======================================== */
-    /* Renderização direta com o código fornecido */
-    /* ======================================== */
     function renderMusicDirect(abcCode) {
       const bpm = parseInt(document.getElementById('tempo-input').value) || 120;
       const midiProgram = parseInt(document.getElementById('midi-program').value) || 0;
       
       let currentAbc = abcCode;
       
-      // Verifica se já tem Q:
       const hasQ = /^Q:.*/m.test(currentAbc);
       if (!hasQ) {
         currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
@@ -597,7 +617,6 @@ w: 1 2 3 4 | 5 1 2 3
         }
       }
 
-      // Remove %%MIDI existente e adiciona novo
       currentAbc = currentAbc.replace(/^%%MIDI\s+program\s+\d+.*$/gm, "").replace(/^\s*[\r\n]/gm, "");
       
       const kMatch2 = currentAbc.match(/^(K:.*)$/m);
@@ -625,16 +644,12 @@ w: 1 2 3 4 | 5 1 2 3
       visualObj = visual && visual.length > 0 ? visual[0] : null;
     }
 
-    /* ======================================== */
-    /* Quando o usuário edita o textarea */
-    /* ======================================== */
     function onTextareaChange() {
       if (isUpdating) return;
       
       const textarea = document.getElementById('abc-source');
       const text = textarea.value;
       
-      // Extrai o BPM do código
       const bpmMatch = text.match(/^Q:\s*(\d+)/m);
       if (bpmMatch) {
         const bpm = bpmMatch[1];
@@ -642,11 +657,9 @@ w: 1 2 3 4 | 5 1 2 3
         document.getElementById('bpmDisplay').textContent = bpm;
       }
       
-      // Reconstroi os blocos e renderiza
       const rawBlocks = text.split(/(?=\nX:|^X:)/g).filter(b => b.trim().length > 0);
       tunesBlocks = rawBlocks;
       
-      // Atualiza o seletor
       const tunePicker = document.getElementById('tune-picker');
       const currentIndex = parseInt(tunePicker.value) || 0;
       
@@ -667,7 +680,6 @@ w: 1 2 3 4 | 5 1 2 3
         }
       }
       
-      // Renderiza a música atual
       renderMusic();
     }
 
@@ -713,9 +725,189 @@ w: 1 2 3 4 | 5 1 2 3
       
       renderMusicDirect(currentAbc);
       
-      // Atualiza o display do BPM
       const bpm = parseInt(document.getElementById('tempo-input').value) || 120;
       document.getElementById('bpmDisplay').textContent = bpm;
+    }
+
+    /* ======================================== */
+    /* CORREÇÃO: Busca .abc OU .txt */
+    /* ======================================== */
+    async function fetchSong(numToFetch = null) {
+      const songNum = numToFetch || document.getElementById("song-number").value.trim();
+      if (!songNum) return alert("Digite o número da música.");
+
+      // Pega a extensão selecionada
+      const ext = document.getElementById("file-extension").value;
+      currentExtension = ext;
+      document.getElementById('fileExtDisplay').textContent = '.' + ext;
+      document.getElementById('fileExtDisplay').className = 'file-extension-badge ' + ext;
+
+      // Tenta buscar na pasta musicas/ com a extensão selecionada
+      const paths = [
+        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${MUSIC_PATH}/${songNum}.${ext}`,
+        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${songNum}.${ext}`
+      ];
+
+      // Se for .abc, tenta também .txt como fallback (e vice-versa)
+      const fallbackExt = ext === 'abc' ? 'txt' : 'abc';
+      paths.push(
+        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${MUSIC_PATH}/${songNum}.${fallbackExt}`,
+        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${songNum}.${fallbackExt}`
+      );
+
+      let text = null;
+      let foundExt = ext;
+
+      for (const path of paths) {
+        try {
+          const response = await fetch(path);
+          if (response.ok) {
+            text = await response.text();
+            // Atualiza a extensão encontrada
+            if (path.includes('.txt')) {
+              foundExt = 'txt';
+            } else if (path.includes('.abc')) {
+              foundExt = 'abc';
+            }
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+
+      if (!text) {
+        alert(`Música "${songNum}" não encontrada nos formatos .abc ou .txt.`);
+        return;
+      }
+
+      // Atualiza a extensão encontrada
+      currentExtension = foundExt;
+      document.getElementById("file-extension").value = foundExt;
+      document.getElementById('fileExtDisplay').textContent = '.' + foundExt;
+      document.getElementById('fileExtDisplay').className = 'file-extension-badge ' + foundExt;
+
+      document.getElementById("abc-source").value = text;
+      document.getElementById("song-number").value = songNum;
+      
+      const bpmMatch = text.match(/^Q:\s*(\d+)/m);
+      if (bpmMatch) {
+        document.getElementById("tempo-input").value = bpmMatch[1];
+        document.getElementById('bpmDisplay').textContent = bpmMatch[1];
+      }
+      
+      saveOriginalFingeringState();
+      parseAndPopulateSelect();
+    }
+
+    /* ======================================== */
+    /* CORREÇÃO: Salva com a extensão selecionada */
+    /* ======================================== */
+    async function saveSongToGitHub() {
+      const songNum = document.getElementById("song-number").value.trim();
+      const token = document.getElementById("gh-token").value.trim() || localStorage.getItem("gh_pat_token");
+      const content = document.getElementById("abc-source").value;
+      const ext = document.getElementById("file-extension").value;
+
+      if (!songNum) return alert("Informe o número da música para salvar.");
+      if (!token) return alert("Por favor, informe e confirme seu Personal Access Token do GitHub.");
+
+      const fileName = `${MUSIC_PATH}/${songNum}.${ext}`;
+      const apiUrl = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${fileName}`;
+
+      try {
+        let sha = null;
+        const getRes = await fetch(apiUrl, {
+          headers: { "Authorization": `token ${token}` }
+        });
+
+        if (getRes.ok) {
+          const fileData = await getRes.json();
+          sha = fileData.sha;
+        }
+
+        const utf8Bytes = new TextEncoder().encode(content);
+        let binaryStr = "";
+        utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+        const base64Content = btoa(binaryStr);
+
+        const payload = {
+          message: `Atualizando música ${songNum}.${ext} via aplicativo web`,
+          content: base64Content
+        };
+        if (sha) payload.sha = sha;
+
+        const putRes = await fetch(apiUrl, {
+          method: "PUT",
+          headers: {
+            "Authorization": `token ${token}`,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        if (!putRes.ok) {
+          const errData = await putRes.json();
+          throw new Error(errData.message || "Erro ao salvar no GitHub.");
+        }
+
+        alert(`Música ${songNum}.${ext} salva com sucesso na pasta '${MUSIC_PATH}/'!`);
+      } catch (err) {
+        alert("Erro ao salvar: " + err.message);
+      }
+    }
+
+    /* ======================================== */
+    /* CORREÇÃO: Lista .abc E .txt */
+    /* ======================================== */
+    async function toggleFileList() {
+      const panel = document.getElementById("file-list-panel");
+      panel.classList.toggle("active");
+
+      if (panel.classList.contains("active")) {
+        const container = document.getElementById("file-list-content");
+        container.innerHTML = "Carregando arquivos...";
+
+        try {
+          const apiUrl = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${MUSIC_PATH}/`;
+          const res = await fetch(apiUrl);
+          
+          if (!res.ok) {
+            throw new Error("Pasta 'musicas/' não encontrada.");
+          }
+
+          const files = await res.json();
+
+          // Aceita .abc E .txt
+          const songFiles = files
+            .filter(f => f.name.endsWith('.abc') || f.name.endsWith('.txt'))
+            .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
+
+          if (songFiles.length === 0) {
+            container.innerHTML = "Nenhuma música encontrada na pasta 'musicas/'.";
+            return;
+          }
+
+          container.innerHTML = "";
+          songFiles.forEach(file => {
+            const numName = file.name.replace(/\.(abc|txt)$/, '');
+            const ext = file.name.split('.').pop();
+            const btn = document.createElement("div");
+            btn.className = "file-item";
+            btn.innerHTML = `${file.name} <span style="font-size:0.7rem;color:#888;">(${ext})</span>`;
+            btn.onclick = () => {
+              document.getElementById("file-extension").value = ext;
+              document.getElementById('fileExtDisplay').textContent = '.' + ext;
+              document.getElementById('fileExtDisplay').className = 'file-extension-badge ' + ext;
+              fetchSong(numName);
+            };
+            container.appendChild(btn);
+          });
+
+        } catch (err) {
+          container.innerHTML = "Erro ao carregar lista: " + err.message;
+        }
+      }
     }
 
     async function playAudio(mode) {
@@ -826,143 +1018,6 @@ w: 1 2 3 4 | 5 1 2 3
     function toggleFingeringTools() {
       const panel = document.getElementById("fingering-tools-panel");
       panel.classList.toggle("active");
-    }
-
-    async function fetchSong(numToFetch = null) {
-      const songNum = numToFetch || document.getElementById("song-number").value.trim();
-      if (!songNum) return alert("Digite o número da música.");
-
-      const paths = [
-        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${MUSIC_PATH}/${songNum}.abc`,
-        `https://raw.githubusercontent.com/${GH_USER}/${GH_REPO}/main/${songNum}.abc`
-      ];
-
-      let text = null;
-
-      for (const path of paths) {
-        try {
-          const response = await fetch(path);
-          if (response.ok) {
-            text = await response.text();
-            break;
-          }
-        } catch (e) {
-          continue;
-        }
-      }
-
-      if (!text) {
-        alert(`Música "${songNum}" não encontrada.`);
-        return;
-      }
-
-      document.getElementById("abc-source").value = text;
-      document.getElementById("song-number").value = songNum;
-      
-      const bpmMatch = text.match(/^Q:\s*(\d+)/m);
-      if (bpmMatch) {
-        document.getElementById("tempo-input").value = bpmMatch[1];
-        document.getElementById('bpmDisplay').textContent = bpmMatch[1];
-      }
-      
-      saveOriginalFingeringState();
-      parseAndPopulateSelect();
-    }
-
-    async function saveSongToGitHub() {
-      const songNum = document.getElementById("song-number").value.trim();
-      const token = document.getElementById("gh-token").value.trim() || localStorage.getItem("gh_pat_token");
-      const content = document.getElementById("abc-source").value;
-
-      if (!songNum) return alert("Informe o número da música para salvar.");
-      if (!token) return alert("Por favor, informe e confirme seu Personal Access Token do GitHub.");
-
-      const fileName = `${MUSIC_PATH}/${songNum}.abc`;
-      const apiUrl = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${fileName}`;
-
-      try {
-        let sha = null;
-        const getRes = await fetch(apiUrl, {
-          headers: { "Authorization": `token ${token}` }
-        });
-
-        if (getRes.ok) {
-          const fileData = await getRes.json();
-          sha = fileData.sha;
-        }
-
-        const utf8Bytes = new TextEncoder().encode(content);
-        let binaryStr = "";
-        utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
-        const base64Content = btoa(binaryStr);
-
-        const payload = {
-          message: `Atualizando música ${songNum}.abc via aplicativo web`,
-          content: base64Content
-        };
-        if (sha) payload.sha = sha;
-
-        const putRes = await fetch(apiUrl, {
-          method: "PUT",
-          headers: {
-            "Authorization": `token ${token}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify(payload)
-        });
-
-        if (!putRes.ok) {
-          const errData = await putRes.json();
-          throw new Error(errData.message || "Erro ao salvar no GitHub.");
-        }
-
-        alert(`Música ${songNum}.abc salva com sucesso na pasta '${MUSIC_PATH}/'!`);
-      } catch (err) {
-        alert("Erro ao salvar: " + err.message);
-      }
-    }
-
-    async function toggleFileList() {
-      const panel = document.getElementById("file-list-panel");
-      panel.classList.toggle("active");
-
-      if (panel.classList.contains("active")) {
-        const container = document.getElementById("file-list-content");
-        container.innerHTML = "Carregando arquivos...";
-
-        try {
-          const apiUrl = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${MUSIC_PATH}/`;
-          const res = await fetch(apiUrl);
-          
-          if (!res.ok) {
-            throw new Error("Pasta 'musicas/' não encontrada.");
-          }
-
-          const files = await res.json();
-
-          const songFiles = files
-            .filter(f => f.name.endsWith('.abc') || f.name.endsWith('.txt'))
-            .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }));
-
-          if (songFiles.length === 0) {
-            container.innerHTML = "Nenhuma música encontrada na pasta 'musicas/'.";
-            return;
-          }
-
-          container.innerHTML = "";
-          songFiles.forEach(file => {
-            const numName = file.name.replace(/\.(abc|txt)$/, '');
-            const btn = document.createElement("div");
-            btn.className = "file-item";
-            btn.innerText = file.name;
-            btn.onclick = () => fetchSong(numName);
-            container.appendChild(btn);
-          });
-
-        } catch (err) {
-          container.innerHTML = "Erro ao carregar lista: " + err.message;
-        }
-      }
     }
 
     function applyTransform(selectId, groupSize) {
