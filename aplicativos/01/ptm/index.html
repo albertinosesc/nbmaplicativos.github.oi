@@ -8,9 +8,8 @@
   <!-- FontAwesome -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- ABCJS - Versão estável -->
+  <!-- ABCJS -->
   <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-audio.css">
 
   <style>
     :root {
@@ -261,13 +260,6 @@
       margin-bottom: 10px;
       width: 100%;
     }
-    
-    .abcjs-inline-audio {
-      background: #f8fafc;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      padding: 6px 12px;
-    }
 
     .tune-select-box {
       background: #fff;
@@ -286,6 +278,36 @@
       border-radius: 6px;
       border: 1px solid #bae6fd;
       margin-bottom: 10px;
+    }
+
+    /* Estilos para o player de áudio sem o CSS externo */
+    .abcjs-inline-audio {
+      background: #f8fafc;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 6px 12px;
+      margin: 5px 0;
+    }
+    .abcjs-inline-audio button {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 4px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin: 0 2px;
+    }
+    .abcjs-inline-audio button:hover {
+      background: #0369a1;
+    }
+    .abcjs-inline-audio .abcjs-progress {
+      height: 4px;
+      background: #e5e7eb;
+      margin: 4px 0;
+    }
+    .abcjs-inline-audio .abcjs-progress-filled {
+      height: 4px;
+      background: #0284c7;
     }
   </style>
 </head>
@@ -564,7 +586,7 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    /* CORREÇÃO: Renderiza a música com transposição */
+    /* CORREÇÃO: Renderiza a música com transposição SEM precisar de clef */
     function renderMusic() {
       const selectedIndex = parseInt(document.getElementById("tune-picker").value) || 0;
       let currentAbc = tunesBlocks[selectedIndex] || document.getElementById("abc-source").value;
@@ -575,15 +597,16 @@ w: 1 2 3 4 | 5 1 2 3
       // Remove comandos Q: e %%MIDI existentes
       currentAbc = currentAbc.replace(/^Q:.*$/gm, "").replace(/^%%MIDI\s+.*$/gm, "").replace(/^\s*[\r\n]+/gm, "");
 
-      // Adiciona Q: (BPM)
+      // Adiciona Q: (BPM) - SEMPRE antes de K: ou no início
       const kMatch = currentAbc.match(/^(K:.*)$/m);
       if (kMatch) {
         currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
       } else {
+        // Se não tiver K:, adiciona no início
         currentAbc = `Q:${bpm}\n` + currentAbc;
       }
 
-      // Adiciona %%MIDI program
+      // Adiciona %%MIDI program - SEMPRE depois de K: ou no final
       const kMatch2 = currentAbc.match(/^(K:.*)$/m);
       if (kMatch2) {
         currentAbc = currentAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
@@ -597,7 +620,7 @@ w: 1 2 3 4 | 5 1 2 3
       paperDiv.innerHTML = "";
       
       try {
-        // CORREÇÃO: Aplica transposição visual
+        // CORREÇÃO: Aplica transposição visual SEMPRE, independente de clef
         const visual = ABCJS.renderAbc("paper", currentAbc, {
           responsive: "resize",
           add_classes: true,
@@ -613,7 +636,7 @@ w: 1 2 3 4 | 5 1 2 3
       }
     }
 
-    /* CORREÇÃO: Play com transposição no áudio */
+    /* CORREÇÃO: Play com transposição SEMPRE funcionando */
     async function playAudio(mode) {
       // Para áudio em execução
       stopAudio();
@@ -709,7 +732,7 @@ w: 1 2 3 4 | 5 1 2 3
           audioContext: audioContext,
           options: {
             qpm: bpm,
-            // CORREÇÃO: Transposição aplicada no áudio
+            // CORREÇÃO: Transposição aplicada no áudio SEMPRE
             midiTranspose: currentTranspose,
             program: midiProgram
           }
@@ -727,21 +750,39 @@ w: 1 2 3 4 | 5 1 2 3
       const lines = abc.split("\n");
       let currentVoice = "1";
       const result = [];
+      let hasVoiceDeclaration = false;
 
       for (let line of lines) {
         const vMatch = line.match(/^V:\s*([^\s]+)/);
         if (vMatch) {
           currentVoice = vMatch[1];
-        }
-
-        // Mantém cabeçalhos
-        if (line.match(/^(X:|T:|K:|L:|M:|V:|Q:|%%MIDI)/)) {
+          hasVoiceDeclaration = true;
+          // Mantém a declaração V:
           result.push(line);
           continue;
         }
 
-        // Mantém apenas linhas da voz permitida
-        if (allowedVoices.includes(currentVoice)) {
+        // Mantém cabeçalhos
+        if (line.match(/^(X:|T:|K:|L:|M:|Q:|%%MIDI)/)) {
+          result.push(line);
+          continue;
+        }
+
+        // Se é uma linha de música
+        if (line.trim().length > 0) {
+          // Se tem declaração de voz, verifica se está permitida
+          if (hasVoiceDeclaration) {
+            if (allowedVoices.includes(currentVoice)) {
+              result.push(line);
+            }
+          } else {
+            // Se não tem declaração, assume voz 1 se permitida
+            if (allowedVoices.includes('1')) {
+              result.push(line);
+            }
+          }
+        } else {
+          // Mantém linhas vazias
           result.push(line);
         }
       }
@@ -816,7 +857,6 @@ w: 1 2 3 4 | 5 1 2 3
       panel.classList.toggle("active");
     }
 
-    /* CORREÇÃO: Busca na pasta musicas/ */
     async function fetchSong(numToFetch = null) {
       const songNum = numToFetch || document.getElementById("song-number").value.trim();
       if (!songNum) return alert("Digite o número da música.");
@@ -853,7 +893,6 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    /* CORREÇÃO: Salva na pasta musicas/ */
     async function saveSongToGitHub() {
       const songNum = document.getElementById("song-number").value.trim();
       const token = document.getElementById("gh-token").value.trim() || localStorage.getItem("gh_pat_token");
@@ -907,7 +946,6 @@ w: 1 2 3 4 | 5 1 2 3
       }
     }
 
-    /* CORREÇÃO: Lista da pasta musicas/ */
     async function toggleFileList() {
       const panel = document.getElementById("file-list-panel");
       panel.classList.toggle("active");
