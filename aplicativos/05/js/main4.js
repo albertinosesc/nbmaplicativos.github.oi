@@ -271,17 +271,17 @@ function processarABCComEspacamento(id, code, tipo) {
             // Processa cores nas letras (funciona com [b], [r], etc.)
             aplicarCoresNasLetras();
             
-            // Processa cores nas notas (funciona com [Nb], [Nr], etc.)
-            aplicarCoresNasNotasComComandos();
-            
             // Processa cores nas cifras
             aplicarCoresNasCifras();
+            
+            // Processa cores nas notas
+            aplicarCoresNasNotasComComandos();
             
             if (tipo === 'infantil') {
                 ajustarAcordes();
                 ajustarLetras();
             }
-        }, 300);
+        }, 500);
         
     } catch (e) {
         elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
@@ -297,25 +297,107 @@ function aplicarCoresNasLetras() {
     document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
         const textoOriginal = el.textContent || "";
         
-        // Procura por [b], [r], [g], etc. (códigos de cor simples)
+        // Procura por [b], [r], [g], etc.
         const match = textoOriginal.match(/\[(r|o|y|g|b|i|v)\]/i);
         
         if (match) {
             const codigoCor = match[1].toLowerCase();
             const cor = obterCorPorCodigo(codigoCor);
             el.style.fill = cor;
-            
-            // Remove o comando
             el.textContent = textoOriginal.replace(/\[(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+    });
+}
+
+// ============================================
+// APLICAR CORES NAS CIFRAS (CORRIGIDO)
+// ============================================
+function aplicarCoresNasCifras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        // Procura por cores no formato "[Cb]" ou "Cb" (sem colchetes)
+        // O ABCjs pode remover os colchetes, então procuramos de várias formas
+        let cor = null;
+        let textoLimpo = textoOriginal;
+        
+        // Tenta encontrar [Cb], [Cr], etc.
+        let match = textoOriginal.match(/\[C(r|o|y|g|b|i|v)\]/i);
+        if (match) {
+            cor = obterCorPorCodigo(match[1].toLowerCase());
+            textoLimpo = textoOriginal.replace(/\[C(r|o|y|g|b|i|v)\]/gi, "").trim();
         } else {
-            // Verifica comandos compostos [Lr], [Lb], etc.
-            const matchComposto = textoOriginal.match(/\[L(r|o|y|g|b|i|v)\]/i);
-            if (matchComposto) {
-                const codigoCor = matchComposto[1].toLowerCase();
-                const cor = obterCorPorCodigo(codigoCor);
-                el.style.fill = cor;
-                el.textContent = textoOriginal.replace(/\[L(r|o|y|g|b|i|v)\]/gi, "").trim();
+            // Tenta encontrar padrão "Cb" (sem colchetes)
+            match = textoOriginal.match(/C(r|o|y|g|b|i|v)/i);
+            if (match) {
+                cor = obterCorPorCodigo(match[1].toLowerCase());
+                textoLimpo = textoOriginal.replace(/C(r|o|y|g|b|i|v)/gi, "").trim();
             }
+        }
+        
+        if (cor) {
+            el.style.fill = cor;
+            el.textContent = textoLimpo;
+        }
+    });
+}
+// ============================================
+// FUNÇÃO PARA DEBUG - Mostra o conteúdo dos elementos
+// ============================================
+function debugCores() {
+    console.log("=== DEBUG CORES ===");
+    console.log("Letras:");
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        console.log("  Letra:", el.textContent, "fill:", el.style.fill);
+    });
+    console.log("Cifras:");
+    document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
+        console.log("  Cifra:", el.textContent, "fill:", el.style.fill);
+    });
+    console.log("Notas:");
+    document.querySelectorAll("#preview .abcjs-note").forEach(el => {
+        const cabeca = el.querySelector("ellipse, circle") || el.querySelector("path");
+        console.log("  Nota:", el.textContent, "fill:", cabeca?.style?.fill);
+    });
+}
+// ============================================
+// APLICAR CORES NAS NOTAS (CORRIGIDO)
+// ============================================
+function aplicarCoresNasNotasComComandos() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
+        const textoNota = nota.textContent || "";
+        
+        // Procura por [Nr], [Nb], etc.
+        let match = textoNota.match(/\[N(r|o|y|g|b|i|v)\]/i);
+        let cor = null;
+        let textoLimpo = textoNota;
+        
+        if (match) {
+            cor = obterCorPorCodigo(match[1].toLowerCase());
+            textoLimpo = textoNota.replace(/\[N(r|o|y|g|b|i|v)\]/gi, "").trim();
+        } else {
+            // Tenta encontrar padrão "Nr" (sem colchetes)
+            match = textoNota.match(/N(r|o|y|g|b|i|v)/i);
+            if (match) {
+                cor = obterCorPorCodigo(match[1].toLowerCase());
+                textoLimpo = textoNota.replace(/N(r|o|y|g|b|i|v)/gi, "").trim();
+            }
+        }
+        
+        const cabeca = nota.querySelector("ellipse, circle") || nota.querySelector("path");
+        
+        if (cor && cabeca) {
+            cabeca.style.fill = cor;
+            cabeca.style.fillOpacity = "1";
+            nota.textContent = textoLimpo;
+        } else if (cabeca) {
+            // Sem comando: nota preta
+            cabeca.style.fill = "#000000";
+            cabeca.style.fillOpacity = "1";
         }
     });
 }
