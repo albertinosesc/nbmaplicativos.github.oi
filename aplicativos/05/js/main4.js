@@ -268,8 +268,15 @@ function processarABCComEspacamento(id, code, tipo) {
         
         // Aplica cores após renderizar
         setTimeout(() => {
-            aplicarCoresAcordesLetras();
+            // Processa cores nas letras (funciona com [b], [r], etc.)
+            aplicarCoresNasLetras();
+            
+            // Processa cores nas notas (funciona com [Nb], [Nr], etc.)
             aplicarCoresNasNotasComComandos();
+            
+            // Processa cores nas cifras
+            aplicarCoresNasCifras();
+            
             if (tipo === 'infantil') {
                 ajustarAcordes();
                 ajustarLetras();
@@ -279,6 +286,94 @@ function processarABCComEspacamento(id, code, tipo) {
     } catch (e) {
         elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
     }
+}
+
+// ============================================
+// APLICAR CORES NAS LETRAS (funciona com [b], [r], etc.)
+// ============================================
+function aplicarCoresNasLetras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        // Procura por [b], [r], [g], etc. (códigos de cor simples)
+        const match = textoOriginal.match(/\[(r|o|y|g|b|i|v)\]/i);
+        
+        if (match) {
+            const codigoCor = match[1].toLowerCase();
+            const cor = obterCorPorCodigo(codigoCor);
+            el.style.fill = cor;
+            
+            // Remove o comando
+            el.textContent = textoOriginal.replace(/\[(r|o|y|g|b|i|v)\]/gi, "").trim();
+        } else {
+            // Verifica comandos compostos [Lr], [Lb], etc.
+            const matchComposto = textoOriginal.match(/\[L(r|o|y|g|b|i|v)\]/i);
+            if (matchComposto) {
+                const codigoCor = matchComposto[1].toLowerCase();
+                const cor = obterCorPorCodigo(codigoCor);
+                el.style.fill = cor;
+                el.textContent = textoOriginal.replace(/\[L(r|o|y|g|b|i|v)\]/gi, "").trim();
+            }
+        }
+    });
+}
+
+// ============================================
+// APLICAR CORES NAS CIFRAS (funciona com [Cr], [Cb], etc.)
+// ============================================
+function aplicarCoresNasCifras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        // Procura por [Cr], [Cb], etc.
+        const match = textoOriginal.match(/\[C(r|o|y|g|b|i|v)\]/i);
+        
+        if (match) {
+            const codigoCor = match[1].toLowerCase();
+            const cor = obterCorPorCodigo(codigoCor);
+            el.style.fill = cor;
+            el.textContent = textoOriginal.replace(/\[C(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+    });
+}
+
+// ============================================
+// APLICAR CORES NAS NOTAS COM COMANDOS (funciona com [Nr], [Nb], etc.)
+// ============================================
+function aplicarCoresNasNotasComComandos() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
+        const textoNota = nota.textContent || "";
+        
+        // Procura por [Nr], [Nb], etc.
+        const match = textoNota.match(/\[N(r|o|y|g|b|i|v)\]/i);
+        
+        const cabeca = nota.querySelector("ellipse, circle") || nota.querySelector("path");
+        
+        if (match) {
+            const codigoCor = match[1].toLowerCase();
+            const cor = obterCorPorCodigo(codigoCor);
+            
+            if (cabeca) {
+                cabeca.style.fill = cor;
+                cabeca.style.fillOpacity = "1";
+            }
+            
+            // Remove o comando do texto
+            nota.textContent = textoNota.replace(/\[N(r|o|y|g|b|i|v)\]/gi, "").trim();
+        } else {
+            // Sem comando: nota preta
+            if (cabeca) {
+                cabeca.style.fill = "#000000";
+                cabeca.style.fillOpacity = "1";
+            }
+        }
+    });
 }
 
 // ============================================
