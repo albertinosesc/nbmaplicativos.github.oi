@@ -242,7 +242,9 @@ function toggleCoresNotas() {
 // ============================================
 function ajustarAcordes() {
     const valor = parseFloat(document.getElementById("acordeRange")?.value || -8);
-    document.getElementById("acordeValue").innerText = valor;
+    const acordeValue = document.getElementById("acordeValue");
+    if (acordeValue) acordeValue.innerText = valor;
+    
     document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
         let yAtual = parseFloat(el.getAttribute("y"));
         if (!isNaN(yAtual)) {
@@ -254,7 +256,9 @@ function ajustarAcordes() {
 
 function ajustarLetras() {
     const valor = parseFloat(document.getElementById("letraRange")?.value || 12);
-    document.getElementById("letraValue").innerText = valor;
+    const letraValue = document.getElementById("letraValue");
+    if (letraValue) letraValue.innerText = valor;
+    
     document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
         let yAtual = parseFloat(el.getAttribute("y"));
         if (!isNaN(yAtual)) {
@@ -266,7 +270,9 @@ function ajustarLetras() {
 
 function ajustarLetrasX() {
     const valor = parseFloat(document.getElementById("letraXRange")?.value || 5);
-    document.getElementById("letraXValue").innerText = valor;
+    const letraXValue = document.getElementById("letraXValue");
+    if (letraXValue) letraXValue.innerText = valor;
+    
     document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
         let xAtual = parseFloat(el.getAttribute("x"));
         if (!isNaN(xAtual)) {
@@ -301,27 +307,13 @@ function renderizar() {
     try {
         let processado = conteudo;
         const acordes = [];
-        const pianos = [];
         const abcInfantis = [];
         const abcNormais = [];
-        const pianosCustom = [];
 
         processado = processado.replace(/\[Acorde:([^\]]+)\]([\s\S]*?)\[\/Acorde\]/g, (match, sigla, nome) => {
             const id = 'chord-' + Date.now() + '-' + acordes.length;
             acordes.push({ id, sigla: sigla.trim(), nome: nome ? nome.trim() : '' });
             return `<div id="${id}" class="chord-diagram"></div>`;
-        });
-
-        processado = processado.replace(/\[PIANO:([^\]]+)\]([\s\S]*?)\[\/PIANO\]/g, (match, sigla, nome) => {
-            const id = 'piano-' + Date.now() + '-' + pianos.length;
-            pianos.push({ id, sigla: sigla.trim(), nome: nome.trim() });
-            return `<div id="${id}" class="piano-diagram-container"></div>`;
-        });
-
-        processado = processado.replace(/\[PIANO-CUSTOM:([^\]]+)\]([\s\S]*?)\[\/PIANO-CUSTOM\]/g, (match, sigla, nome) => {
-            const id = 'piano-custom-' + Date.now() + '-' + pianosCustom.length;
-            pianosCustom.push({ id, sigla: sigla.trim(), nome: nome.trim() });
-            return `<div id="${id}" class="piano-diagram-container"></div>`;
         });
 
         processado = processado.replace(/\[ABC-INFANTIL\]([\s\S]*?)\[\/ABC-INFANTIL\]/g, (match, code) => {
@@ -336,22 +328,28 @@ function renderizar() {
             return `<div id="${id}" class="abc-container"></div>`;
         });
 
+        // Processar com Marked
         preview.innerHTML = marked.parse(processado);
 
+        // Desenhar acordes
         acordes.forEach(a => {
             const el = document.getElementById(a.id);
             if (el) desenharAcorde(el, a.sigla, a.nome);
         });
 
-        // Simplificado para o exemplo
+        // Processar ABC
         abcNormais.forEach(a => {
             const el = document.getElementById(a.id);
-            if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'normal');
+            if (el && typeof ABCJS !== 'undefined') {
+                processarABCComEspacamento(a.id, a.code, 'normal');
+            }
         });
 
         abcInfantis.forEach(a => {
             const el = document.getElementById(a.id);
-            if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'infantil');
+            if (el && typeof ABCJS !== 'undefined') {
+                processarABCComEspacamento(a.id, a.code, 'infantil');
+            }
         });
 
     } catch (e) {
@@ -364,14 +362,27 @@ function renderizar() {
 // DESENHAR ACORDE (SIMPLIFICADO)
 // ============================================
 function desenharAcorde(container, sigla, nomeParam = '') {
-    container.innerHTML = `<div style="padding:10px; color:#e94560;">🎸 ${nomeParam || sigla}</div>`;
+    // Tenta buscar o acorde da biblioteca
+    let nome = nomeParam || sigla;
+    let acorde = null;
+    
+    if (typeof ACORDES !== 'undefined' && ACORDES[sigla]) {
+        acorde = ACORDES[sigla];
+        nome = acorde.nome;
+    } else if (typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[sigla]) {
+        acorde = bibliotecaAcordes[sigla];
+        nome = acorde.nome;
+    }
+    
+    container.innerHTML = `<div style="padding:10px; color:#e94560; text-align:center; font-weight:bold; font-size:1.2em;">🎸 ${nome}</div>`;
 }
 
 // ============================================
-// FUNÇÕES DE SALVAR E CARREGAR DADOS (SIMPLIFICADAS)
+// FUNÇÕES DE SALVAR E CARREGAR DADOS
 // ============================================
 function salvarDados() {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+    renderizarListaAulas();
 }
 
 function carregarDados() {
@@ -388,6 +399,131 @@ function carregarDados() {
 }
 
 // ============================================
+// RENDERIZAR LISTA DE AULAS (SIDEBAR)
+// ============================================
+function renderizarListaAulas() {
+    if (!listaAulas) return;
+    listaAulas.innerHTML = '';
+
+    const novaListaBtn = document.createElement('button');
+    novaListaBtn.textContent = '+ Nova Lista';
+    novaListaBtn.style.background = '#e94560';
+    novaListaBtn.style.marginBottom = '15px';
+    novaListaBtn.style.width = '100%';
+    novaListaBtn.style.padding = '10px';
+    novaListaBtn.style.cursor = 'pointer';
+    novaListaBtn.style.border = 'none';
+    novaListaBtn.style.borderRadius = '5px';
+    novaListaBtn.style.color = 'white';
+    novaListaBtn.style.fontWeight = 'bold';
+    novaListaBtn.onclick = () => criarLista(null);
+    listaAulas.appendChild(novaListaBtn);
+
+    if (!dados.listas || dados.listas.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.textContent = '📭 Nenhuma lista. Clique em "+ Nova Lista" para começar.';
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.padding = '20px';
+        emptyMsg.style.color = '#999';
+        listaAulas.appendChild(emptyMsg);
+        return;
+    }
+
+    dados.listas.forEach((lista, idx) => {
+        const listaDiv = document.createElement('div');
+        listaDiv.style.marginBottom = '10px';
+        listaDiv.style.padding = '8px';
+        listaDiv.style.background = '#0f3460';
+        listaDiv.style.borderRadius = '5px';
+        
+        const headerDiv = document.createElement('div');
+        headerDiv.style.display = 'flex';
+        headerDiv.style.justifyContent = 'space-between';
+        headerDiv.style.alignItems = 'center';
+        
+        const tituloSpan = document.createElement('span');
+        tituloSpan.style.fontWeight = 'bold';
+        tituloSpan.style.color = '#e94560';
+        tituloSpan.textContent = `📁 ${lista.nome}`;
+        
+        const addCardBtn = document.createElement('button');
+        addCardBtn.textContent = '+ Cartão';
+        addCardBtn.style.padding = '4px 10px';
+        addCardBtn.style.background = '#2ecc71';
+        addCardBtn.style.border = 'none';
+        addCardBtn.style.borderRadius = '3px';
+        addCardBtn.style.cursor = 'pointer';
+        addCardBtn.style.color = 'white';
+        addCardBtn.onclick = () => criarCartao([idx]);
+        
+        headerDiv.appendChild(tituloSpan);
+        headerDiv.appendChild(addCardBtn);
+        listaDiv.appendChild(headerDiv);
+        
+        const cardsContainer = document.createElement('div');
+        cardsContainer.style.marginTop = '5px';
+        cardsContainer.style.paddingLeft = '10px';
+        
+        if (lista.cards && lista.cards.length > 0) {
+            lista.cards.forEach((card, cardIdx) => {
+                const cardDiv = document.createElement('div');
+                cardDiv.style.display = 'flex';
+                cardDiv.style.justifyContent = 'space-between';
+                cardDiv.style.alignItems = 'center';
+                cardDiv.style.background = '#1a1a2e';
+                cardDiv.style.borderLeft = '3px solid #e94560';
+                cardDiv.style.padding = '6px 8px';
+                cardDiv.style.margin = '3px 0';
+                cardDiv.style.borderRadius = '3px';
+                cardDiv.style.cursor = 'pointer';
+                
+                const cardTitle = document.createElement('span');
+                cardTitle.textContent = `📄 ${card.texto}`;
+                cardTitle.style.fontSize = '12px';
+                cardTitle.style.flex = '1';
+                
+                cardDiv.appendChild(cardTitle);
+                cardDiv.onclick = () => carregarAula([idx], cardIdx);
+                cardsContainer.appendChild(cardDiv);
+            });
+        }
+        
+        listaDiv.appendChild(cardsContainer);
+        listaAulas.appendChild(listaDiv);
+    });
+}
+
+// ============================================
+// FUNÇÕES DE CRIAÇÃO
+// ============================================
+function criarLista(caminho) {
+    const nome = prompt("Nome da nova lista:");
+    if (nome && nome.trim()) {
+        const novaListaObj = { nome: nome.trim(), cards: [], sublistas: [] };
+        dados.listas.push(novaListaObj);
+        salvarDados();
+        alert(`✅ Lista "${nome.trim()}" criada!`);
+    }
+}
+
+function criarCartao(caminho) {
+    const nome = prompt("Nome do novo cartão:");
+    if (nome && nome.trim()) {
+        const lista = obterListaPorCaminho(caminho);
+        if (lista) {
+            if (!lista.cards) lista.cards = [];
+            lista.cards.push({
+                texto: nome.trim(),
+                conteudo: `# ${nome.trim()}\n\nDigite seu conteúdo aqui...`,
+                ultimaModificacao: Date.now()
+            });
+            salvarDados();
+            alert(`✅ Cartão "${nome.trim()}" criado!`);
+        }
+    }
+}
+
+// ============================================
 // FUNÇÃO OBTER LISTA POR CAMINHO
 // ============================================
 function obterListaPorCaminho(caminho) {
@@ -400,11 +536,40 @@ function obterListaPorCaminho(caminho) {
     return atual;
 }
 
+function carregarAula(caminho, cardIdx) {
+    const lista = obterListaPorCaminho(caminho);
+    if (!lista || !lista.cards[cardIdx]) return;
+    const card = lista.cards[cardIdx];
+    listaAtual = caminho;
+    cartaoAtual = cardIdx;
+    editor.value = card.conteudo;
+    if (timeoutRenderTimer) clearTimeout(timeoutRenderTimer);
+    renderizar();
+}
+
 // ============================================
 // FUNÇÃO PARA ALTERNAR SIDEBAR
 // ============================================
 function toggleSidebar() {
-    document.getElementById('sidebar')?.classList.toggle('collapsed');
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        sidebar.classList.toggle('collapsed');
+    }
+}
+
+// ============================================
+// FUNÇÃO INSERIR ABC
+// ============================================
+function inserirABC() {
+    const start = editor.selectionStart;
+    editor.value = editor.value.substring(0, start) + `[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC DEF | GAB c |]\n[/ABC]\n` + editor.value.substring(start);
+    renderizar();
+}
+
+function inserirABCInfantil() {
+    const start = editor.selectionStart;
+    editor.value = editor.value.substring(0, start) + `[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/8\nK:C\n[Nr]C [No]D [Ny]E [Ng]F | [Nb]G [Ni]A [Nv]B c |\nw: [Lr]Dó [Lo]Ré [Ly]Mi [Lg]Fá | [Lb]Sol [Li]Lá [Lv]Si Dó\n[/ABC-INFANTIL]\n` + editor.value.substring(start);
+    renderizar();
 }
 
 // ============================================
@@ -423,9 +588,11 @@ function init() {
         });
     }
     
-    // Renderiza um exemplo inicial
+    // Renderiza um exemplo inicial se o editor estiver vazio
     if (editor.value === '') {
         editor.value = `[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/8\nK:C\n[Nr]C [No]D [Ny]E [Ng]F | [Nb]G [Ni]A [Nv]B c |\nw: [Lr]Dó [Lo]Ré [Ly]Mi [Lg]Fá | [Lb]Sol [Li]Lá [Lv]Si Dó\n[/ABC-INFANTIL]`;
+        renderizar();
+    } else {
         renderizar();
     }
 }
