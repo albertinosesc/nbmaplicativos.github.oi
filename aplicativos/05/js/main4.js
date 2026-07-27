@@ -52,11 +52,11 @@ function obterCorPorCodigo(codigo) {
 // FUNÇÃO INTERPRETAR COMANDO DE COR (NOVA)
 // ============================================
 function interpretarComandoCor(texto) {
-
     if (!texto) {
         return {
             elementos: [],
-            cor: "#000000"
+            cor: "#000000",
+            textoLimpo: ""
         };
     }
 
@@ -80,7 +80,8 @@ function interpretarComandoCor(texto) {
     if (!match) {
         return {
             elementos: [],
-            cor: "#000000"
+            cor: "#000000",
+            textoLimpo: texto
         };
     }
 
@@ -101,12 +102,18 @@ function interpretarComandoCor(texto) {
         elementos.push("cifra");
     }
 
+    // Remove o comando do texto
+    const textoLimpo = texto.replace(
+        /\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/gi,
+        ""
+    ).trim();
+
     return {
         elementos: elementos,
-        cor: obterCorPorCodigo(codigoCor)
+        cor: obterCorPorCodigo(codigoCor),
+        textoLimpo: textoLimpo
     };
 }
-
 // ============================================
 // CONFIGURAR GITHUB (botão 🔑)
 // ============================================
@@ -1387,30 +1394,76 @@ function aplicarCoresNasNotas() {
 // APLICAR CORES ACORDES E LETRAS (MODIFICADA)
 // ============================================
 function aplicarCoresAcordesLetras() {
-
     if (!coresAtivas) return;
 
     // ================================
-    // CIFRAS
+    // CIFRAS (acordes acima da pauta)
     // ================================
     document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
-
         const textoOriginal = el.textContent || "";
         const resultado = interpretarComandoCor(textoOriginal);
 
-        if (
-            resultado.elementos.includes("cifra")
-        ) {
+        if (resultado.elementos.includes("cifra")) {
             el.style.fill = resultado.cor;
         }
 
-        // Remove somente o comando visualmente
-        el.textContent = textoOriginal.replace(
-            /\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/gi,
-            ""
-        );
+        // Atualiza o texto sem o comando
+        if (resultado.textoLimpo) {
+            el.textContent = resultado.textoLimpo;
+        }
     });
 
+    // ================================
+    // LETRAS (abaixo da pauta)
+    // ================================
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        const resultado = interpretarComandoCor(textoOriginal);
+
+        if (resultado.elementos.includes("letra")) {
+            el.style.fill = resultado.cor;
+        }
+
+        // Atualiza o texto sem o comando
+        if (resultado.textoLimpo) {
+            el.textContent = resultado.textoLimpo;
+        }
+    });
+}
+function aplicarCoresNasNotasComComandos() {
+    if (!coresAtivas) return;
+
+    // Processa cada nota individualmente
+    document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
+        // Pega o texto da nota
+        const textoNota = nota.textContent || "";
+        
+        // Verifica se há algum comando de cor no texto
+        const match = textoNota.match(/\[(N)(r|o|y|g|b|i|v)\]/i);
+        
+        if (match) {
+            const codigoCor = match[2].toLowerCase();
+            const cor = obterCorPorCodigo(codigoCor);
+            
+            // Colore a cabeça da nota
+            const cabeca = nota.querySelector("ellipse, circle") || nota.querySelector("path");
+            if (cabeca) {
+                cabeca.style.fill = cor;
+                cabeca.style.fillOpacity = "1";
+            }
+            
+            // Remove o comando do texto
+            nota.textContent = textoNota.replace(/\[N(r|o|y|g|b|i|v)\]/gi, "").trim();
+        } else {
+            // Se não tiver comando, mantém preta
+            const cabeca = nota.querySelector("ellipse, circle") || nota.querySelector("path");
+            if (cabeca) {
+                cabeca.style.fill = "#000000";
+                cabeca.style.fillOpacity = "1";
+            }
+        }
+    });
+}
 
     // ================================
     // LETRAS
@@ -1464,16 +1517,23 @@ function processarABCComEspacamento(id, code, tipo) {
     if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
 
     let codigoProcessado = novasLinhas.join('\n');
-   codigoProcessado = codigoProcessado.replace(/"%"/g, '"％"');
+    codigoProcessado = codigoProcessado.replace(/"%"/g, '"％"');
+    
     try {
         elemento.innerHTML = "";
         ABCJS.renderAbc(id, codigoProcessado, { add_classes: true, staffwidth: 800, responsive: 'resize' });
+        
         if (tipo === 'infantil') {
             setTimeout(() => {
                 aplicarCoresAcordesLetras();
-                if (coresAtivas) aplicarCoresNasNotas();
+                aplicarCoresNasNotasComComandos(); // Nova função
                 ajustarAcordes();
                 ajustarLetras();
+            }, 200);
+        } else {
+            setTimeout(() => {
+                aplicarCoresAcordesLetras();
+                aplicarCoresNasNotasComComandos(); // Nova função
             }, 200);
         }
     } catch (e) {
