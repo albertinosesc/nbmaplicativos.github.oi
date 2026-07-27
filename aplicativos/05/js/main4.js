@@ -35,13 +35,13 @@ const listaAulas = document.getElementById('listaAulas');
 // ============================================
 function obterCorPorCodigo(codigo) {
     const cores = {
-        r: "#FF0000",
-        o: "#FF6600",
-        y: "#FFDD00",
-        g: "#00CC00",
-        b: "#0066FF",
-        i: "#4B0082",
-        v: "#8B00FF"
+        r: "#FF0000", // vermelho
+        o: "#FF6600", // laranja
+        y: "#FFDD00", // amarelo
+        g: "#00CC00", // verde
+        u: "#0066FF", // azul (usando 'u' em vez de 'b' para evitar conflito com bemol)
+        i: "#4B0082", // índigo
+        v: "#8B00FF"  // violeta
     };
     return cores[codigo.toLowerCase()] || "#000000";
 }
@@ -112,26 +112,47 @@ function aplicarCoresNasLetras() {
 // ============================================
 // APLICAR CORES NAS CIFRAS (funciona com [Cb], [Cr], etc.)
 // ============================================
+function aplicarCoresNasLetras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        // Procura por [u], [r], [g], etc. (agora 'u' para azul)
+        const match = textoOriginal.match(/\[(r|o|y|g|u|i|v)\]/i);
+        
+        if (match) {
+            const codigoCor = match[1].toLowerCase();
+            const cor = obterCorPorCodigo(codigoCor);
+            el.style.fill = cor;
+            el.textContent = textoOriginal.replace(/\[(r|o|y|g|u|i|v)\]/gi, "").trim();
+        }
+    });
+}
+
+// ============================================
+// APLICAR CORES NAS CIFRAS (MODIFICADA - usa 'u' em vez de 'b')
+// ============================================
 function aplicarCoresNasCifras() {
     if (!coresAtivas) return;
 
     document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
         const textoOriginal = el.textContent || "";
         
-        // Procura por [Cb], [Cr], etc.
-        let match = textoOriginal.match(/\[C(r|o|y|g|b|i|v)\]/i);
+        // Procura por [Cu], [Cr], etc. (agora 'u' para azul)
+        let match = textoOriginal.match(/\[C(r|o|y|g|u|i|v)\]/i);
         let cor = null;
         let textoLimpo = textoOriginal;
         
         if (match) {
             cor = obterCorPorCodigo(match[1].toLowerCase());
-            textoLimpo = textoOriginal.replace(/\[C(r|o|y|g|b|i|v)\]/gi, "").trim();
+            textoLimpo = textoOriginal.replace(/\[C(r|o|y|g|u|i|v)\]/gi, "").trim();
         } else {
-            // Tenta sem colchetes: "Cb", "Cr", etc.
-            match = textoOriginal.match(/C(r|o|y|g|b|i|v)/i);
+            // Tenta sem colchetes: "Cu", "Cr", etc.
+            match = textoOriginal.match(/C(r|o|y|g|u|i|v)/i);
             if (match) {
                 cor = obterCorPorCodigo(match[1].toLowerCase());
-                textoLimpo = textoOriginal.replace(/C(r|o|y|g|b|i|v)/gi, "").trim();
+                textoLimpo = textoOriginal.replace(/C(r|o|y|g|u|i|v)/gi, "").trim();
             }
         }
         
@@ -143,7 +164,7 @@ function aplicarCoresNasCifras() {
 }
 
 // ============================================
-// APLICAR CORES NAS NOTAS (funciona com [Nb], [Nr], etc.)
+// APLICAR CORES NAS NOTAS (MODIFICADA - usa 'u' em vez de 'b')
 // ============================================
 function aplicarCoresNasNotas() {
     if (!coresAtivas) return;
@@ -151,20 +172,20 @@ function aplicarCoresNasNotas() {
     document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
         const textoNota = nota.textContent || "";
         
-        // Procura por [Nb], [Nr], etc.
-        let match = textoNota.match(/\[N(r|o|y|g|b|i|v)\]/i);
+        // Procura por [Nu], [Nr], etc. (agora 'u' para azul)
+        let match = textoNota.match(/\[N(r|o|y|g|u|i|v)\]/i);
         let cor = null;
         let textoLimpo = textoNota;
         
         if (match) {
             cor = obterCorPorCodigo(match[1].toLowerCase());
-            textoLimpo = textoNota.replace(/\[N(r|o|y|g|b|i|v)\]/gi, "").trim();
+            textoLimpo = textoNota.replace(/\[N(r|o|y|g|u|i|v)\]/gi, "").trim();
         } else {
-            // Tenta sem colchetes: "Nb", "Nr", etc.
-            match = textoNota.match(/N(r|o|y|g|b|i|v)/i);
+            // Tenta sem colchetes: "Nu", "Nr", etc.
+            match = textoNota.match(/N(r|o|y|g|u|i|v)/i);
             if (match) {
                 cor = obterCorPorCodigo(match[1].toLowerCase());
-                textoLimpo = textoNota.replace(/N(r|o|y|g|b|i|v)/gi, "").trim();
+                textoLimpo = textoNota.replace(/N(r|o|y|g|u|i|v)/gi, "").trim();
             }
         }
         
@@ -179,37 +200,6 @@ function aplicarCoresNasNotas() {
             cabeca.style.fill = "#000000";
             cabeca.style.fillOpacity = "1";
         }
-    });
-}
-
-// ============================================
-// APLICAR CORES NAS CIFRAS E LETRAS (MANTIDA PARA COMPATIBILIDADE)
-// ============================================
-function aplicarCoresAcordesLetras() {
-    if (!coresAtivas) return;
-
-    // CIFRAS
-    document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
-        const textoOriginal = el.textContent || "";
-        const resultado = interpretarComandoCor(textoOriginal);
-
-        if (resultado.elementos.includes("cifra")) {
-            el.style.fill = resultado.cor;
-        }
-
-        el.textContent = textoOriginal.replace(/\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/gi, "").trim();
-    });
-
-    // LETRAS
-    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
-        const textoOriginal = el.textContent || "";
-        const resultado = interpretarComandoCor(textoOriginal);
-
-        if (resultado.elementos.includes("letra")) {
-            el.style.fill = resultado.cor;
-        }
-
-        el.textContent = textoOriginal.replace(/\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/gi, "").trim();
     });
 }
 
