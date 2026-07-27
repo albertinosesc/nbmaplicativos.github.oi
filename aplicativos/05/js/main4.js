@@ -39,7 +39,7 @@ function obterCorPorCodigo(codigo) {
         o: "#FF6600", // laranja
         y: "#FFDD00", // amarelo
         g: "#00CC00", // verde
-        u: "#0066FF", // azul (usando 'u' em vez de 'b' para evitar conflito com bemol)
+        u: "#0066FF", // azul
         i: "#4B0082", // índigo
         v: "#8B00FF"  // violeta
     };
@@ -65,7 +65,8 @@ function interpretarComandoCor(texto) {
         return { elementos: [], cor: "#000000", textoLimpo: "" };
     }
 
-    const match = texto.match(/\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/i);
+    // Agora usa {} em vez de []
+    const match = texto.match(/\{(LN?C?|LC|CN)(r|o|y|g|u|i|v)\}/i);
 
     if (!match) {
         return { elementos: [], cor: "#000000", textoLimpo: texto };
@@ -79,7 +80,7 @@ function interpretarComandoCor(texto) {
     if (comando.includes("L")) elementos.push("letra");
     if (comando.includes("C")) elementos.push("cifra");
 
-    const textoLimpo = texto.replace(/\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/gi, "").trim();
+    const textoLimpo = texto.replace(/\{(LN?C?|LC|CN)(r|o|y|g|u|i|v)\}/gi, "").trim();
 
     return {
         elementos: elementos,
@@ -89,7 +90,7 @@ function interpretarComandoCor(texto) {
 }
 
 // ============================================
-// APLICAR CORES NAS LETRAS (funciona com [b], [r], etc.)
+// APLICAR CORES NAS LETRAS (usa {r}, {u}, etc.)
 // ============================================
 function aplicarCoresNasLetras() {
     if (!coresAtivas) return;
@@ -97,41 +98,20 @@ function aplicarCoresNasLetras() {
     document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
         const textoOriginal = el.textContent || "";
         
-        // Procura por [b], [r], [g], etc.
-        const match = textoOriginal.match(/\[(r|o|y|g|b|i|v)\]/i);
+        // Procura por {r}, {u}, {g}, etc.
+        const match = textoOriginal.match(/\{(r|o|y|g|u|i|v)\}/i);
         
         if (match) {
             const codigoCor = match[1].toLowerCase();
             const cor = obterCorPorCodigo(codigoCor);
             el.style.fill = cor;
-            el.textContent = textoOriginal.replace(/\[(r|o|y|g|b|i|v)\]/gi, "").trim();
+            el.textContent = textoOriginal.replace(/\{(r|o|y|g|u|i|v)\}/gi, "").trim();
         }
     });
 }
 
 // ============================================
-// APLICAR CORES NAS CIFRAS (funciona com [Cb], [Cr], etc.)
-// ============================================
-function aplicarCoresNasLetras() {
-    if (!coresAtivas) return;
-
-    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
-        const textoOriginal = el.textContent || "";
-        
-        // Procura por [u], [r], [g], etc. (agora 'u' para azul)
-        const match = textoOriginal.match(/\[(r|o|y|g|u|i|v)\]/i);
-        
-        if (match) {
-            const codigoCor = match[1].toLowerCase();
-            const cor = obterCorPorCodigo(codigoCor);
-            el.style.fill = cor;
-            el.textContent = textoOriginal.replace(/\[(r|o|y|g|u|i|v)\]/gi, "").trim();
-        }
-    });
-}
-
-// ============================================
-// APLICAR CORES NAS CIFRAS (MODIFICADA - usa 'u' em vez de 'b')
+// APLICAR CORES NAS CIFRAS (usa {Cr}, {Cu}, etc.)
 // ============================================
 function aplicarCoresNasCifras() {
     if (!coresAtivas) return;
@@ -139,21 +119,14 @@ function aplicarCoresNasCifras() {
     document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
         const textoOriginal = el.textContent || "";
         
-        // Procura por [Cu], [Cr], etc. (agora 'u' para azul)
-        let match = textoOriginal.match(/\[C(r|o|y|g|u|i|v)\]/i);
+        // Procura por {Cr}, {Cu}, etc.
+        let match = textoOriginal.match(/\{C(r|o|y|g|u|i|v)\}/i);
         let cor = null;
         let textoLimpo = textoOriginal;
         
         if (match) {
             cor = obterCorPorCodigo(match[1].toLowerCase());
-            textoLimpo = textoOriginal.replace(/\[C(r|o|y|g|u|i|v)\]/gi, "").trim();
-        } else {
-            // Tenta sem colchetes: "Cu", "Cr", etc.
-            match = textoOriginal.match(/C(r|o|y|g|u|i|v)/i);
-            if (match) {
-                cor = obterCorPorCodigo(match[1].toLowerCase());
-                textoLimpo = textoOriginal.replace(/C(r|o|y|g|u|i|v)/gi, "").trim();
-            }
+            textoLimpo = textoOriginal.replace(/\{C(r|o|y|g|u|i|v)\}/gi, "").trim();
         }
         
         if (cor) {
@@ -164,7 +137,7 @@ function aplicarCoresNasCifras() {
 }
 
 // ============================================
-// APLICAR CORES NAS NOTAS (MODIFICADA - usa 'u' em vez de 'b')
+// APLICAR CORES NAS NOTAS (usa {Nr}, {Nu}, etc.)
 // ============================================
 function aplicarCoresNasNotas() {
     if (!coresAtivas) return;
@@ -172,21 +145,14 @@ function aplicarCoresNasNotas() {
     document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
         const textoNota = nota.textContent || "";
         
-        // Procura por [Nu], [Nr], etc. (agora 'u' para azul)
-        let match = textoNota.match(/\[N(r|o|y|g|u|i|v)\]/i);
+        // Procura por {Nr}, {Nu}, etc.
+        let match = textoNota.match(/\{N(r|o|y|g|u|i|v)\}/i);
         let cor = null;
         let textoLimpo = textoNota;
         
         if (match) {
             cor = obterCorPorCodigo(match[1].toLowerCase());
-            textoLimpo = textoNota.replace(/\[N(r|o|y|g|u|i|v)\]/gi, "").trim();
-        } else {
-            // Tenta sem colchetes: "Nu", "Nr", etc.
-            match = textoNota.match(/N(r|o|y|g|u|i|v)/i);
-            if (match) {
-                cor = obterCorPorCodigo(match[1].toLowerCase());
-                textoLimpo = textoNota.replace(/N(r|o|y|g|u|i|v)/gi, "").trim();
-            }
+            textoLimpo = textoNota.replace(/\{N(r|o|y|g|u|i|v)\}/gi, "").trim();
         }
         
         const cabeca = nota.querySelector("ellipse, circle") || nota.querySelector("path");
@@ -204,7 +170,38 @@ function aplicarCoresNasNotas() {
 }
 
 // ============================================
-// PROCESSAR ABC COM ESPAÇAMENTO (VERSÃO CORRIGIDA)
+// APLICAR CORES NAS CIFRAS E LETRAS (MANTIDA PARA COMPATIBILIDADE)
+// ============================================
+function aplicarCoresAcordesLetras() {
+    if (!coresAtivas) return;
+
+    // CIFRAS
+    document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        const resultado = interpretarComandoCor(textoOriginal);
+
+        if (resultado.elementos.includes("cifra")) {
+            el.style.fill = resultado.cor;
+        }
+
+        el.textContent = textoOriginal.replace(/\{(LN?C?|LC|CN)(r|o|y|g|u|i|v)\}/gi, "").trim();
+    });
+
+    // LETRAS
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        const resultado = interpretarComandoCor(textoOriginal);
+
+        if (resultado.elementos.includes("letra")) {
+            el.style.fill = resultado.cor;
+        }
+
+        el.textContent = textoOriginal.replace(/\{(LN?C?|LC|CN)(r|o|y|g|u|i|v)\}/gi, "").trim();
+    });
+}
+
+// ============================================
+// PROCESSAR ABC COM ESPAÇAMENTO
 // ============================================
 function processarABCComEspacamento(id, code, tipo) {
     const elemento = document.getElementById(id);
@@ -239,18 +236,10 @@ function processarABCComEspacamento(id, code, tipo) {
         elemento.innerHTML = "";
         ABCJS.renderAbc(id, codigoProcessado, { add_classes: true, staffwidth: 800, responsive: 'resize' });
         
-        // Aplica cores após renderizar
         setTimeout(() => {
-            // 1. Letras com [b], [r], etc.
             aplicarCoresNasLetras();
-            
-            // 2. Cifras com [Cb], [Cr], etc.
             aplicarCoresNasCifras();
-            
-            // 3. Notas com [Nb], [Nr], etc.
             aplicarCoresNasNotas();
-            
-            // 4. Compatibilidade com comandos antigos
             aplicarCoresAcordesLetras();
             
             if (tipo === 'infantil') {
