@@ -1579,7 +1579,7 @@ function processarABCComEspacamento(id, code, tipo) {
     if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
 
     let codigoProcessado = novasLinhas.join('\n');
-
+   codigoProcessado = codigoProcessado.replace(/"%"(?=\s*x)/g, '"％"');
     try {
         elemento.innerHTML = "";
         ABCJS.renderAbc(id, codigoProcessado, { add_classes: true, staffwidth: 800, responsive: 'resize' });
