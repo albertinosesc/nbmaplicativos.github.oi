@@ -180,3 +180,5 @@ function inserirAcorde() {
         alert('Opção inválida! Digite 1, 2, 3 ou 4');
     }
 }
+
+console.log('✅ Acordes dinâmicos carregados');
