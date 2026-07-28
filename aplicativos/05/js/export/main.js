@@ -223,22 +223,6 @@ function inserirPiano() {
 }
 
 // ============================================
-// FUNÇÃO PARA ALTERNAR CORES
-// ============================================
-function toggleCoresNotas() {
-    coresAtivas = !coresAtivas;
-    const btn = document.getElementById("btnCores");
-    if (btn) {
-        btn.style.background = coresAtivas ? "#00CC00" : "#CC0000";
-        btn.textContent = coresAtivas ? "✅ Cores" : "❌ Cores";
-    }
-    if (coresAtivas) {
-        aplicarCoresNasNotas();
-        aplicarCoresAcordesLetras();
-    }
-}
-
-// ============================================
 // INICIALIZAÇÃO
 // ============================================
 function init() {
