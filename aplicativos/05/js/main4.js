@@ -19,234 +19,8 @@ let cartaoAtual = null;
 let timeoutRenderTimer;
 let coresAtivas = true;
 let expandedPaths = new Set();
-// ============================================================
-// FUNÇÕES: INSERIR ACORDE POR NÚMERO, COPIAR E COLAR
-// (COLOCAR LOGO APÓS AS VARIÁVEIS GLOBAIS)
-// ============================================================
 
-// ============================================
-// FUNÇÃO INSERIR ACORDE POR NÚMERO (🎸 Inserir)
-// ============================================
-function inserirAcordePorNumero() {
-    const inputField = document.getElementById('buscaAcordeRapida');
-    if (!inputField) {
-        console.error("❌ Campo buscaAcordeRapida não encontrado!");
-        toast('❌ Campo de busca não encontrado.', 'error');
-        return;
-    }
-    
-    const numero = inputField.value.trim();
-    if (!numero || numero < 1) {
-        toast('⚠️ Digite um número válido.', 'warning');
-        return;
-    }
-    
-    // Busca o nome do acorde em várias fontes
-    let nomeAcorde = null;
-    
-    // 1. Busca nos ACORDES básicos
-    if (typeof ACORDES !== 'undefined' && ACORDES[numero]) {
-        nomeAcorde = ACORDES[numero].nome;
-    }
-    
-    // 2. Busca na biblioteca de acordes
-    if (!nomeAcorde && typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[numero]) {
-        nomeAcorde = bibliotecaAcordes[numero].nome;
-    }
-    
-    // 3. Busca em FORMAS_INFINITAS
-    if (!nomeAcorde && typeof FORMAS_INFINITAS !== 'undefined' && FORMAS_INFINITAS[numero]) {
-        nomeAcorde = FORMAS_INFINITAS[numero].nome;
-    }
-    
-    // 4. Processa como acorde dinâmico
-    if (!nomeAcorde && typeof window.processarAcordeDinamico === 'function') {
-        const acordeTemp = window.processarAcordeDinamico(numero, '');
-        if (acordeTemp && acordeTemp.nome) {
-            nomeAcorde = acordeTemp.nome;
-        }
-    }
-    
-    if (!nomeAcorde) {
-        toast(`❌ Acorde ${numero} não encontrado!`, 'error');
-        console.error(`❌ Acorde ${numero} não encontrado!`);
-        return;
-    }
-    
-    // Gera o código no formato [Acorde:numero;1]Nome[/Acorde]
-    const codigoFinal = `[Acorde:${numero};1]${nomeAcorde}[/Acorde]`;
-    
-    // Insere no editor
-    const editor = document.getElementById('editor');
-    if (!editor) {
-        toast('❌ Editor não encontrado.', 'error');
-        return;
-    }
-    
-    const start = editor.selectionStart;
-    const end = editor.selectionEnd;
-    const texto = editor.value;
-    
-    // Se houver texto selecionado, substitui; senão, insere no cursor
-    if (start !== end) {
-        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(end);
-        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
-    } else {
-        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(start);
-        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
-    }
-    
-    // Atualiza a visualização e salva
-    if (typeof renderizar === 'function') renderizar();
-    if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
-    
-    // Limpa o campo e foca no editor
-    inputField.value = '';
-    editor.focus();
-    
-    toast(`✅ Acorde "${nomeAcorde}" inserido!`, 'success');
-}
-
-// ============================================
-// FUNÇÃO COPIAR EDITOR (📋 Copiar)
-// ============================================
-function copiarEditor(event) {
-    const editor = document.getElementById('editor');
-    if (!editor) {
-        toast('❌ Editor não encontrado.', 'error');
-        return;
-    }
-    
-    // Seleciona todo o texto
-    editor.select();
-    editor.setSelectionRange(0, editor.value.length);
-    
-    try {
-        // Tenta copiar usando a API moderna
-        if (navigator.clipboard && navigator.clipboard.writeText) {
-            navigator.clipboard.writeText(editor.value)
-                .then(() => {
-                    toast('✅ Texto copiado!', 'success');
-                    // Feedback visual no botão
-                    if (event && event.target) {
-                        const btn = event.target;
-                        const textoOriginal = btn.textContent;
-                        btn.textContent = '✅ Copiado!';
-                        setTimeout(() => {
-                            btn.textContent = textoOriginal;
-                        }, 1500);
-                    }
-                })
-                .catch(err => {
-                    console.error('Erro ao copiar:', err);
-                    // Fallback para método antigo
-                    document.execCommand('copy');
-                    toast('✅ Texto copiado! (método alternativo)', 'success');
-                });
-        } else {
-            // Fallback para navegadores mais antigos
-            const sucesso = document.execCommand('copy');
-            if (sucesso) {
-                toast('✅ Texto copiado!', 'success');
-                if (event && event.target) {
-                    const btn = event.target;
-                    const textoOriginal = btn.textContent;
-                    btn.textContent = '✅ Copiado!';
-                    setTimeout(() => {
-                        btn.textContent = textoOriginal;
-                    }, 1500);
-                }
-            } else {
-                toast('❌ Falha ao copiar.', 'error');
-            }
-        }
-    } catch (err) {
-        console.error('Erro ao copiar:', err);
-        toast('❌ Erro ao copiar: ' + err.message, 'error');
-    }
-    
-    // Remove a seleção
-    editor.setSelectionRange(0, 0);
-    editor.focus();
-}
-
-// ============================================
-// FUNÇÃO COLAR EDITOR (📄 Colar)
-// ============================================
-function colarEditor(event) {
-    const editor = document.getElementById('editor');
-    if (!editor) {
-        toast('❌ Editor não encontrado.', 'error');
-        return;
-    }
-    
-    editor.focus();
-    
-    // Método 1: Usar Clipboard API (moderno)
-    if (navigator.clipboard && navigator.clipboard.readText) {
-        navigator.clipboard.readText()
-            .then(text => {
-                if (text) {
-                    const start = editor.selectionStart;
-                    const end = editor.selectionEnd;
-                    const currentText = editor.value;
-                    editor.value = currentText.substring(0, start) + text + currentText.substring(end);
-                    
-                    if (typeof renderizar === 'function') renderizar();
-                    if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
-                    
-                    toast('✅ Texto colado!', 'success');
-                    if (event && event.target) {
-                        const btn = event.target;
-                        const textoOriginal = btn.textContent;
-                        btn.textContent = '✅ Colado!';
-                        setTimeout(() => {
-                            btn.textContent = textoOriginal;
-                        }, 1500);
-                    }
-                }
-            })
-            .catch(err => {
-                console.log('Clipboard API falhou, usando método alternativo:', err);
-                colarComPrompt(editor);
-            });
-    } else {
-        // Método alternativo: prompt (funciona sempre)
-        colarComPrompt(editor);
-    }
-}
-
-// ============================================
-// MÉTODO ALTERNATIVO PARA COLAR (via prompt)
-// ============================================
-function colarComPrompt(editor) {
-    const textoColado = prompt('📋 Cole o texto aqui (Ctrl+V):');
-    if (textoColado !== null && textoColado !== '') {
-        const start = editor.selectionStart;
-        const end = editor.selectionEnd;
-        const currentText = editor.value;
-        editor.value = currentText.substring(0, start) + textoColado + currentText.substring(end);
-        
-        if (typeof renderizar === 'function') renderizar();
-        if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
-        
-        editor.focus();
-        toast('✅ Texto colado via prompt!', 'success');
-        
-        // Feedback visual no botão
-        const btn = document.activeElement;
-        if (btn && btn.tagName === 'BUTTON') {
-            const textoOriginal = btn.textContent;
-            btn.textContent = '✅ Colado!';
-            setTimeout(() => {
-                btn.textContent = textoOriginal;
-            }, 1500);
-        }
-    }
-}
-
-console.log('✅ Funções de Copiar/Colar/Inserir carregadas!');
-// Exporta variáveis para o escopo global (acessível em outros scripts)
+// Exporta variáveis para o escopo global
 window.githubToken = githubToken;
 window.githubRepo = githubRepo;
 window.githubBranch = githubBranch;
@@ -256,6 +30,182 @@ const STORAGE_KEY = 'pro_maestro_listas';
 const editor = document.getElementById('editor');
 const preview = document.getElementById('preview');
 const listaAulas = document.getElementById('listaAulas');
+
+// ============================================
+// FUNÇÃO OBTER COR POR CÓDIGO
+// ============================================
+function obterCorPorCodigo(codigo) {
+    const cores = {
+        r: "#FF0000", // vermelho
+        o: "#FF6600", // laranja
+        y: "#FFDD00", // amarelo
+        g: "#00CC00", // verde
+        b: "#0066FF", // azul
+        i: "#4B0082", // índigo
+        v: "#8B00FF"  // violeta
+    };
+    return cores[codigo.toLowerCase()] || "#000000";
+}
+
+// ============================================
+// FUNÇÃO INTERPRETAR COMANDO DE COR
+// ============================================
+function interpretarComandoCor(texto) {
+    if (!texto) {
+        return { elementos: [], cor: "#000000", textoLimpo: "" };
+    }
+
+    const match = texto.match(/\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/i);
+
+    if (!match) {
+        return { elementos: [], cor: "#000000", textoLimpo: texto };
+    }
+
+    const comando = match[1].toUpperCase();
+    const codigoCor = match[2].toLowerCase();
+    const elementos = [];
+
+    if (comando.includes("N")) elementos.push("nota");
+    if (comando.includes("L")) elementos.push("letra");
+    if (comando.includes("C")) elementos.push("cifra");
+
+    const textoLimpo = texto.replace(/\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/gi, "").trim();
+
+    return {
+        elementos: elementos,
+        cor: obterCorPorCodigo(codigoCor),
+        textoLimpo: textoLimpo
+    };
+}
+
+// ============================================
+// APLICAR CORES NAS LETRAS
+// ============================================
+function aplicarCoresNasLetras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        const match = textoOriginal.match(/\[(r|o|y|g|b|i|v)\]/i);
+        
+        if (match) {
+            const codigoCor = match[1].toLowerCase();
+            const cor = obterCorPorCodigo(codigoCor);
+            el.style.fill = cor;
+            el.textContent = textoOriginal.replace(/\[(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+    });
+}
+
+// ============================================
+// APLICAR CORES NAS CIFRAS
+// ============================================
+function aplicarCoresNasCifras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        let match = textoOriginal.match(/\[C(r|o|y|g|b|i|v)\]/i);
+        let cor = null;
+        let textoLimpo = textoOriginal;
+        
+        if (match) {
+            cor = obterCorPorCodigo(match[1].toLowerCase());
+            textoLimpo = textoOriginal.replace(/\[C(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+        
+        if (cor) {
+            el.style.fill = cor;
+            el.textContent = textoLimpo;
+        }
+    });
+}
+
+// ============================================
+// APLICAR CORES NAS NOTAS
+// ============================================
+function aplicarCoresNasNotasComComandos() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
+        const textoNota = nota.textContent || "";
+        
+        let match = textoNota.match(/\[N(r|o|y|g|b|i|v)\]/i);
+        let cor = null;
+        let textoLimpo = textoNota;
+        
+        if (match) {
+            cor = obterCorPorCodigo(match[1].toLowerCase());
+            textoLimpo = textoNota.replace(/\[N(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+        
+        const cabeca = nota.querySelector("ellipse, circle") || nota.querySelector("path");
+        
+        if (cor && cabeca) {
+            cabeca.style.fill = cor;
+            cabeca.style.fillOpacity = "1";
+            nota.textContent = textoLimpo;
+        } else if (cabeca) {
+            cabeca.style.fill = "#000000";
+            cabeca.style.fillOpacity = "1";
+        }
+    });
+}
+
+// ============================================
+// APLICAR CORES ACORDES E LETRAS (COMPATIBILIDADE)
+// ============================================
+function aplicarCoresAcordesLetras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-chord, #preview .abcjs-lyric").forEach(el => {
+        let texto = el.textContent || '';
+        let cor = getCorPorTag(texto);
+        if (cor !== "#000000") el.style.fill = cor;
+        el.textContent = texto.replace(/\[(.*?)\]/g, "");
+    });
+}
+
+function getCorPorTag(texto) {
+    if (!texto) return "#000000";
+    const cores = {
+        '[r]': '#FF0000', '[o]': '#FF6600', '[y]': '#FFDD00',
+        '[g]': '#00CC00', '[b]': '#0066FF', '[i]': '#4B0082', '[v]': '#8B00FF'
+    };
+    for (const [tag, cor] of Object.entries(cores)) {
+        if (texto.includes(tag)) return cor;
+    }
+    return "#000000";
+}
+
+// ============================================
+// FUNÇÃO OBTER COR POR NOTA (COMPATIBILIDADE)
+// ============================================
+function obterCorPorNota(nota) {
+    const cores = { 
+        'C': '#FF0000', 'D': '#FF6600', 'E': '#FFDD00', 
+        'F': '#00CC00', 'G': '#0066FF', 'A': '#4B0082', 'B': '#8B00FF' 
+    };
+    return cores[nota.toUpperCase()] || '#000000';
+}
+
+function aplicarCoresNasNotas() {
+    if (!coresAtivas) return;
+    document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
+        let cabeca = nota.querySelector('ellipse, circle');
+        if (!cabeca) cabeca = nota.querySelector('path');
+        if (cabeca) {
+            let textoNota = nota.textContent || '';
+            let match = textoNota.match(/[CDEFGAB]/i);
+            if (match) {
+                cabeca.style.fill = obterCorPorNota(match[0]);
+                cabeca.style.fillOpacity = '1';
+            }
+        }
+    });
+}
 
 // ============================================
 // CONFIGURAR GITHUB (botão 🔑)
@@ -294,7 +244,6 @@ function configurarGitHub() {
         toast(`Pasta definida: "${githubPasta || 'raiz'}"`, 'info');
     }
 
-    // Sincroniza com o escopo global
     window.githubToken = githubToken;
     window.githubRepo = githubRepo;
     window.githubBranch = githubBranch;
@@ -381,7 +330,6 @@ async function enviarParaGitHub() {
     const card = lista.cards[cartaoAtual];
     const titulo = card.texto.replace(/\s+/g, '_');
 
-    // Escolher formato
     const formatoSelect = document.getElementById('formatoExport');
     const formato = formatoSelect ? formatoSelect.value : 'md';
     let extensao = formato;
@@ -423,7 +371,6 @@ ${preview.innerHTML}
     if (sucesso) toast(`✅ "${nomeArquivo}" enviado para "${pastaDestino || 'raiz'}"!`, 'success');
 }
 
-// --- Exportar e enviar TXT ---
 async function exportarEnviarTXT() {
     const conteudo = obterConteudoAtual();
     if (!conteudo) { alert('❌ Sem conteúdo para exportar.'); return; }
@@ -434,7 +381,6 @@ async function exportarEnviarTXT() {
     if (ok) toast('✅ TXT enviado para o GitHub!', 'success');
 }
 
-// --- Exportar e enviar MD ---
 async function exportarEnviarMD() {
     const conteudo = obterConteudoAtual();
     if (!conteudo) { alert('❌ Sem conteúdo para exportar.'); return; }
@@ -445,7 +391,6 @@ async function exportarEnviarMD() {
     if (ok) toast('✅ MD enviado para o GitHub!', 'success');
 }
 
-// --- Exportar e enviar HTML (pré-visualização) ---
 async function exportarEnviarHTML() {
     const preview = document.getElementById('preview');
     if (!preview) { alert('❌ Pré-visualização não encontrada.'); return; }
@@ -458,18 +403,16 @@ async function exportarEnviarHTML() {
 }
 
 // ============================================================
-// PUXAR DO GITHUB (CORRIGIDO - botão 📥)
+// PUXAR DO GITHUB (botão 📥)
 // ============================================================
 window.puxarDoGitHub = async function() {
     console.log("🔍 Iniciando puxarDoGitHub...");
 
-    // 1. Verifica configurações
     if (!window.githubToken || !window.githubRepo) {
         toast('Configure o GitHub primeiro (🔑).', 'error');
         return;
     }
 
-    // 2. Pergunta a pasta de origem no GitHub
     const pastaOrigem = prompt(
         '📂 Pasta de origem no GitHub (ex: arquivos/, conteudo/, ou vazio para raiz):',
         window.githubPasta || ''
@@ -478,7 +421,6 @@ window.puxarDoGitHub = async function() {
     let pasta = pastaOrigem.trim();
     if (pasta && !pasta.endsWith('/')) pasta += '/';
 
-    // 3. Lista arquivos da pasta
     const urlLista = `https://api.github.com/repos/${window.githubRepo}/contents/${pasta}?ref=${window.githubBranch}`;
     let arquivos = [];
     try {
@@ -536,7 +478,6 @@ window.puxarDoGitHub = async function() {
     const nomeArquivo = arquivos[0];
     console.log(`✅ Arquivo selecionado: "${nomeArquivo}"`);
 
-    // 4. Baixa o conteúdo do arquivo (em memória)
     const caminho = encodeURIComponent(pasta + nomeArquivo);
     const urlDownload = `https://api.github.com/repos/${window.githubRepo}/contents/${caminho}?ref=${window.githubBranch}`;
     let conteudo;
@@ -566,7 +507,6 @@ window.puxarDoGitHub = async function() {
         return;
     }
 
-    // 5. PERGUNTA: ABRIR NO EDITOR OU BAIXAR PARA PASTA?
     const acao = confirm(
         `📄 "${nomeArquivo}" baixado com sucesso!\n\n` +
         `Clique em "OK" para ABRIR no editor (sem salvar em disco).\n` +
@@ -574,18 +514,14 @@ window.puxarDoGitHub = async function() {
     );
 
     if (acao) {
-        // ========== ABRIR NO EDITOR ==========
-        // Verifica se já há uma aula aberta; se não, cria um cartão temporário
         if (listaAtual === null || cartaoAtual === null) {
-            // Cria uma lista "Temporários" se não existir
             let listaTemp = dados.listas.find(l => l.nome === 'Temporários');
             if (!listaTemp) {
                 listaTemp = { nome: 'Temporários', cards: [], sublistas: [] };
                 dados.listas.push(listaTemp);
             }
-            // Cria um novo cartão com o nome do arquivo
             const novoCard = {
-                texto: nomeArquivo.replace(/\.[^.]+$/, ''), // remove extensão
+                texto: nomeArquivo.replace(/\.[^.]+$/, ''),
                 conteudo: conteudo,
                 ultimaModificacao: Date.now()
             };
@@ -593,11 +529,9 @@ window.puxarDoGitHub = async function() {
             const idx = dados.listas.indexOf(listaTemp);
             const cardIdx = listaTemp.cards.length - 1;
             salvarDados();
-            // Abre o cartão recém-criado
             carregarAula([idx], cardIdx);
             toast(`✅ "${nomeArquivo}" aberto no editor!`, 'success');
         } else {
-            // Substitui o conteúdo da aula atual
             const lista = obterListaPorCaminho(listaAtual);
             if (lista && lista.cards[cartaoAtual]) {
                 lista.cards[cartaoAtual].conteudo = conteudo;
@@ -612,7 +546,6 @@ window.puxarDoGitHub = async function() {
             }
         }
     } else {
-        // ========== BAIXAR PARA PASTA ==========
         let pastaLocal;
         try {
             pastaLocal = await window.showDirectoryPicker({ mode: 'readwrite' });
@@ -633,7 +566,6 @@ window.puxarDoGitHub = async function() {
             return;
         }
 
-        // Pergunta se quer abrir a pasta no app
         const abrir = confirm(`Deseja abrir a pasta "${pastaLocal.name}" no explorador agora?`);
         if (abrir) {
             try {
@@ -751,7 +683,7 @@ function gerarHTMLCompleto(conteudoPreview) {
 }
 
 // ============================================
-// FUNÇÃO DE TELA CHEIA (CORREÇÃO)
+// FUNÇÃO DE TELA CHEIA
 // ============================================
 function toggleFullscreenPreview() {
     const previewElement = document.getElementById('preview');
@@ -920,9 +852,6 @@ function inserirCodigoAcorde(codigo) {
     salvarAulaAtual();
 }
 
-// ============================================
-// CONVERTER ACORDE DINÂMICO PARA EDITÁVEL
-// ============================================
 function converterDinamicoParaEditavel(formato) {
     if (typeof window.processarAcordeDinamico !== 'function') {
         alert('Módulo de acordes sonoros não carregado!');
@@ -1169,7 +1098,7 @@ function carregarDados() {
     }
     renderizarListaAulas();
     if (dados.listas.length > 0 && dados.listas[0].cards.length > 0) {
-        carregarAula(0, 0);
+        carregarAula([0], 0);
     }
 }
 
@@ -1505,51 +1434,6 @@ function salvarAulaAtual() {
 }
 
 // ============================================
-// FUNÇÕES DE CORES DO ABC INFANTIL
-// ============================================
-function obterCorPorNota(nota) {
-    const cores = { 'C': '#FF0000', 'D': '#FF6600', 'E': '#FFDD00', 'F': '#00CC00', 'G': '#0066FF', 'A': '#4B0082', 'B': '#8B00FF' };
-    return cores[nota.toUpperCase()] || '#000000';
-}
-
-function getCorPorTag(texto) {
-    if (!texto) return "#000000";
-    if (texto.includes("[r]")) return "#FF0000";
-    if (texto.includes("[o]")) return "#FF6600";
-    if (texto.includes("[y]")) return "#FFDD00";
-    if (texto.includes("[g]")) return "#00CC00";
-    if (texto.includes("[b]")) return "#0066FF";
-    if (texto.includes("[i]")) return "#4B0082";
-    if (texto.includes("[v]")) return "#8B00FF";
-    return "#000000";
-}
-
-function aplicarCoresNasNotas() {
-    if (!coresAtivas) return;
-    document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
-        let cabeca = nota.querySelector('ellipse, circle');
-        if (!cabeca) cabeca = nota.querySelector('path');
-        if (cabeca) {
-            let textoNota = nota.textContent || '';
-            let match = textoNota.match(/[CDEFGAB]/i);
-            if (match) {
-                cabeca.style.fill = obterCorPorNota(match[0]);
-                cabeca.style.fillOpacity = '1';
-            }
-        }
-    });
-}
-
-function aplicarCoresAcordesLetras() {
-    document.querySelectorAll("#preview .abcjs-chord, #preview .abcjs-lyric").forEach(el => {
-        let texto = el.textContent || '';
-        let cor = getCorPorTag(texto);
-        if (cor !== "#000000") el.style.fill = cor;
-        el.textContent = texto.replace(/\[(.*?)\]/g, "");
-    });
-}
-
-// ============================================
 // PROCESSAR ABC COM ESPAÇAMENTO
 // ============================================
 function processarABCComEspacamento(id, code, tipo) {
@@ -1579,18 +1463,24 @@ function processarABCComEspacamento(id, code, tipo) {
     if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
 
     let codigoProcessado = novasLinhas.join('\n');
-   codigoProcessado = codigoProcessado.replace(/"%"/g, '"％"');
+    codigoProcessado = codigoProcessado.replace(/"%"/g, '"％"');
+    
     try {
         elemento.innerHTML = "";
         ABCJS.renderAbc(id, codigoProcessado, { add_classes: true, staffwidth: 800, responsive: 'resize' });
-        if (tipo === 'infantil') {
-            setTimeout(() => {
-                aplicarCoresAcordesLetras();
-                if (coresAtivas) aplicarCoresNasNotas();
+        
+        setTimeout(() => {
+            aplicarCoresNasLetras();
+            aplicarCoresNasCifras();
+            aplicarCoresNasNotasComComandos();
+            aplicarCoresAcordesLetras();
+            
+            if (tipo === 'infantil') {
                 ajustarAcordes();
                 ajustarLetras();
-            }, 200);
-        }
+            }
+        }, 300);
+        
     } catch (e) {
         elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
     }
@@ -1601,7 +1491,9 @@ function processarABCComEspacamento(id, code, tipo) {
 // ============================================
 function ajustarAcordes() {
     const valor = parseFloat(document.getElementById("acordeRange")?.value || -8);
-    document.getElementById("acordeValue").innerText = valor;
+    const acordeValue = document.getElementById("acordeValue");
+    if (acordeValue) acordeValue.innerText = valor;
+    
     document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
         let yAtual = parseFloat(el.getAttribute("y"));
         if (!isNaN(yAtual)) {
@@ -1613,7 +1505,9 @@ function ajustarAcordes() {
 
 function ajustarLetras() {
     const valor = parseFloat(document.getElementById("letraRange")?.value || 12);
-    document.getElementById("letraValue").innerText = valor;
+    const letraValue = document.getElementById("letraValue");
+    if (letraValue) letraValue.innerText = valor;
+    
     document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
         let yAtual = parseFloat(el.getAttribute("y"));
         if (!isNaN(yAtual)) {
@@ -1625,7 +1519,9 @@ function ajustarLetras() {
 
 function ajustarLetrasX() {
     const valor = parseFloat(document.getElementById("letraXRange")?.value || 5);
-    document.getElementById("letraXValue").innerText = valor;
+    const letraXValue = document.getElementById("letraXValue");
+    if (letraXValue) letraXValue.innerText = valor;
+    
     document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
         let xAtual = parseFloat(el.getAttribute("x"));
         if (!isNaN(xAtual)) {
@@ -1637,7 +1533,7 @@ function ajustarLetrasX() {
 
 function atualizarStaffSep() { renderizar(); }
 function atualizarSysStaffSep() { renderizar(); }
-function atualizarIntensidadeCores() { if (coresAtivas) aplicarCoresNasNotas(); }
+function atualizarIntensidadeCores() { if (coresAtivas) { aplicarCoresNasNotas(); } }
 
 // ============================================
 // DESENHAR TECLADO DO PIANO
@@ -1735,9 +1631,6 @@ function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, 
     container.appendChild(wrapper);
 }
 
-// ============================================
-// DESENHAR ACORDE DE PIANO PERSONALIZADO
-// ============================================
 function desenharAcordePianoPersonalizado(container, sigla, nome) {
     const acordesPersonalizados = JSON.parse(localStorage.getItem("acordes_piano_personalizados") || "{}");
     const acorde = acordesPersonalizados[sigla];
@@ -1762,76 +1655,6 @@ function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, 
 
     const pianoDiv = document.createElement('div');
     pianoDiv.style.cssText = 'display: flex; position: relative; background: #131212; padding: 3px; border-radius: 4px;';
-
-    const escala = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const startMatch = startOitava.match(/^([A-G])(\d+)$/);
-    const endMatch = endOitava.match(/^([A-G])(\d+)$/);
-
-    if (!startMatch || !endMatch) {
-        container.innerHTML = '<div style="color:red">Erro no range</div>';
-        return;
-    }
-
-    const pretasMap = { 'C#3': 0, 'D#3': 1, 'F#3': 3, 'G#3': 4, 'A#3': 5, 'C#4': 7, 'D#4': 8, 'F#4': 10, 'G#4': 11, 'A#4': 12, 'C#5': 14, 'D#5': 15, 'F#5': 17, 'G#5': 18, 'A#5': 19 };
-    const whiteKeyWidth = 37, whiteKeyHeight = 120, blackKeyWidth = 25, blackKeyHeight = 79, blackKeyOffset = 34;
-
-    const teclasNoRange = [];
-    for (let oct = parseInt(startMatch[2]); oct <= parseInt(endMatch[2]); oct++) {
-        for (let i = 0; i < escala.length; i++) {
-            const nota = escala[i];
-            const num = (oct + 1) * 12 + i;
-            if (num >= (parseInt(startMatch[2]) + 1) * 12 + escala.indexOf(startMatch[1]) && num <= (parseInt(endMatch[2]) + 1) * 12 + escala.indexOf(endMatch[1])) {
-                teclasNoRange.push({ nota, oitava: oct });
-            }
-        }
-    }
-
-    const whiteKeys = teclasNoRange.filter(t => !t.nota.includes('#'));
-    const blackKeys = [];
-    teclasNoRange.forEach(t => {
-        if (t.nota.includes('#')) {
-            const pos = pretasMap[t.nota + t.oitava];
-            if (pos !== undefined) blackKeys.push({ ...t, pos });
-        }
-    });
-
-    function getDedo(notaNome, idx) {
-        if (dedosTreble && dedosTreble.length > 0) {
-            const notaIndex = notasAtivas.indexOf(notaNome);
-            if (notaIndex !== -1 && dedosTreble[notaIndex]) return dedosTreble[notaIndex];
-        }
-        const mapa = { 'C': '1', 'D': '2', 'E': '3', 'F': '4', 'G': '5', 'A': '1', 'B': '2', 'C#': '2', 'D#': '3', 'F#': '4', 'G#': '5', 'A#': '1' };
-        return mapa[notaNome] || null;
-    }
-
-    whiteKeys.forEach(tecla => {
-        const isActive = notasAtivas.includes(tecla.nota);
-        const dedo = isActive ? getDedo(tecla.nota) : null;
-        const whiteKey = document.createElement('div');
-        whiteKey.style.cssText = `width: ${whiteKeyWidth}px; height: ${whiteKeyHeight}px; background: ${isActive ? 'linear-gradient(to bottom, #3a86ff 0%, #2666cc 100%)' : 'linear-gradient(to bottom, #ffffff 0%, #f0f0f0 100%)'}; border: 1px solid #333; border-radius: 0 0 8px 8px; position: relative; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1; cursor: default;`;
-        if (dedo) {
-            const dedoDiv = document.createElement('div');
-            dedoDiv.textContent = dedo;
-            dedoDiv.style.cssText = `position: absolute; top: 80%; left: 50%; transform: translate(-50%, -50%); width: 23px; height: 25px; background: white; color: #3a86ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: bold; font-family: Arial; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10;`;
-            whiteKey.appendChild(dedoDiv);
-        }
-        pianoDiv.appendChild(whiteKey);
-    });
-
-    blackKeys.forEach(tecla => {
-        const isActive = notasAtivas.includes(tecla.nota);
-        const dedo = isActive ? getDedo(tecla.nota) : null;
-        const blackKey = document.createElement('div');
-        blackKey.style.cssText = `width: ${blackKeyWidth}px; height: ${blackKeyHeight}px; background: ${isActive ? 'linear-gradient(to bottom, #ff4757 0%, #cc2233 100%)' : 'linear-gradient(to bottom, #222 0%, #111 100%)'}; position: absolute; left: ${tecla.pos * whiteKeyWidth + blackKeyOffset}px; top: 0; border-radius: 0 0 5px 5px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); z-index: 2; cursor: default;`;
-        if (dedo) {
-            const dedoDiv = document.createElement('div');
-            dedoDiv.textContent = dedo;
-            dedoDiv.style.cssText = `position: absolute; top: 78%; left: 50%; transform: translate(-50%, -50%); width: 18px; height: 20px; background: white; color: #ff4757; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; font-family: Arial; box-shadow: 0 1px 3px rgba(0,0,0,0.2); z-index: 11;`;
-            blackKey.appendChild(dedoDiv);
-        }
-        pianoDiv.appendChild(blackKey);
-    });
-
     wrapper.appendChild(pianoDiv);
     container.appendChild(wrapper);
 }
@@ -2055,10 +1878,7 @@ function toggleCoresNotas() {
         btn.style.background = coresAtivas ? "#00CC00" : "#CC0000";
         btn.textContent = coresAtivas ? "✅ Cores" : "❌ Cores";
     }
-    if (coresAtivas) {
-        aplicarCoresNasNotas();
-        aplicarCoresAcordesLetras();
-    }
+    renderizar();
 }
 
 function toggleSidebar() {
@@ -2130,7 +1950,6 @@ function toast(msg, tipo = 'info') {
 // ============================================
 
 function obterConteudoAtual() {
-    const editor = document.getElementById('editor');
     return editor ? editor.value : '';
 }
 
@@ -2163,13 +1982,11 @@ function exportarArquivo(conteudo, extensao, mimeType = 'text/plain') {
 }
 
 function exportarTXT() {
-    const conteudo = obterConteudoAtual();
-    exportarArquivo(conteudo, 'txt', 'text/plain');
+    exportarArquivo(obterConteudoAtual(), 'txt', 'text/plain');
 }
 
 function exportarMD() {
-    const conteudo = obterConteudoAtual();
-    exportarArquivo(conteudo, 'md', 'text/markdown');
+    exportarArquivo(obterConteudoAtual(), 'md', 'text/markdown');
 }
 
 function exportarHTML() {
@@ -2216,59 +2033,30 @@ function exportarEstruturaJSON() {
     toast('✅ Estrutura completa exportada em JSON!', 'success');
 }
 
-// ============================================
-// INICIALIZAÇÃO
-// ============================================
-function init() {
-    console.log("Inicializando o sistema...");
-    if (typeof window.processarAcordeDinamico !== 'function') {
-        console.warn('⚠️ acordes_dinamicos.js não carregado. Acordes sonoros não funcionam.');
-    } else {
-        console.log('✅ Módulo de acordes sonoros carregado!');
-        adicionarBotaoSalvarDinamico();
-    }
-    carregarDados();
-
-    if (editor) {
-        editor.addEventListener('input', () => {
-            clearTimeout(timeoutRenderTimer);
-            timeoutRenderTimer = setTimeout(() => {
-                renderizar();
-                salvarAulaAtual();
-            }, 500);
-        });
-    }
-}
-
-document.addEventListener('DOMContentLoaded', init);
-
-const styleToast = document.createElement('style');
-styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
-document.head.appendChild(styleToast);
-
-
 // ============================================================
-// EXPLORADOR DE ARQUIVOS DO GITHUB (COM NAVEGAÇÃO POR PASTAS)
+// EXPLORADOR DE ARQUIVOS DO GITHUB
 // ============================================================
 
-// Estado do explorador
 let exploradorCaminhoAtual = '';
 
-// Alterna visibilidade do explorador
 function toggleGithubExplorer() {
     const content = document.getElementById('githubExplorerContent');
     if (content) {
         const isVisible = content.style.display !== 'none';
         content.style.display = isVisible ? 'none' : 'block';
         if (!isVisible) {
-            // Quando abrir, carrega a raiz automaticamente
             document.getElementById('githubPastaInput').value = '';
             listarArquivosGitHubUI();
         }
     }
 }
 
-// Lista arquivos do GitHub e exibe na UI (com navegação)
+function formatarTamanho(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
 async function listarArquivosGitHubUI(pastaPersonalizada = null) {
     const pastaInput = document.getElementById('githubPastaInput');
     const listaDiv = document.getElementById('githubFileList');
@@ -2278,7 +2066,6 @@ async function listarArquivosGitHubUI(pastaPersonalizada = null) {
         return;
     }
     
-    // Verifica se o GitHub está configurado
     if (!window.githubToken || !window.githubRepo) {
         listaDiv.innerHTML = '<p style="color:#e94560; text-align:center; padding:10px;">❌ Configure o GitHub primeiro (🔑).</p>';
         return;
@@ -2287,7 +2074,6 @@ async function listarArquivosGitHubUI(pastaPersonalizada = null) {
     let pasta = pastaPersonalizada !== null ? pastaPersonalizada : pastaInput.value.trim();
     if (pasta && !pasta.endsWith('/')) pasta += '/';
     
-    // Atualiza o campo de entrada com a pasta atual
     pastaInput.value = pasta;
     exploradorCaminhoAtual = pasta;
     
@@ -2311,7 +2097,6 @@ async function listarArquivosGitHubUI(pastaPersonalizada = null) {
         
         const data = await response.json();
         
-        // Organiza: pastas primeiro, depois arquivos
         const pastas = data.filter(item => item.type === 'dir');
         const arquivos = data.filter(item => item.type === 'file');
         
@@ -2322,7 +2107,6 @@ async function listarArquivosGitHubUI(pastaPersonalizada = null) {
         
         let html = '<div style="font-size:13px;">';
         
-        // Botão para voltar à raiz
         if (pasta) {
             html += `<div style="padding:5px 8px; cursor:pointer; color:#3a86ff; border-bottom:1px solid #333; margin-bottom:5px;" 
                           onclick="listarArquivosGitHubUI('')">
@@ -2330,19 +2114,16 @@ async function listarArquivosGitHubUI(pastaPersonalizada = null) {
                      </div>`;
         }
         
-        // Pastas
         if (pastas.length > 0) {
             html += '<div style="color:#f39c12; font-weight:bold; padding:5px 8px; margin-top:5px;">📁 Pastas:</div>';
             pastas.forEach(p => {
-                const nomePasta = p.name;
                 html += `<div class="folder-item" style="padding:5px 8px; cursor:pointer; color:#f39c12; border-bottom:1px solid #1a1a2e; display:flex; align-items:center; gap:8px;"
                               onclick="navegarParaPasta('${p.path}')">
-                              <span>📁</span> ${nomePasta}/
+                              <span>📁</span> ${p.name}/
                          </div>`;
             });
         }
         
-        // Arquivos
         if (arquivos.length > 0) {
             html += '<div style="color:#3a86ff; font-weight:bold; padding:5px 8px; margin-top:5px;">📄 Arquivos:</div>';
             const extensoes = ['.txt', '.md', '.html', '.css', '.js', '.json', '.csv', '.xml', '.pdf', '.png', '.jpg', '.gif', '.svg', '.mp3', '.mp4'];
@@ -2379,7 +2160,6 @@ async function listarArquivosGitHubUI(pastaPersonalizada = null) {
     }
 }
 
-// Função para navegar para uma pasta específica
 function navegarParaPasta(caminho) {
     const pastaInput = document.getElementById('githubPastaInput');
     if (pastaInput) {
@@ -2388,14 +2168,6 @@ function navegarParaPasta(caminho) {
     }
 }
 
-// Formata o tamanho do arquivo
-function formatarTamanho(bytes) {
-    if (bytes < 1024) return bytes + ' B';
-    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
-    return (bytes / 1048576).toFixed(1) + ' MB';
-}
-
-// Abre um arquivo do GitHub diretamente no editor
 async function abrirArquivoDoGitHub(caminho) {
     if (!window.githubToken || !window.githubRepo) {
         toast('Configure o GitHub primeiro (🔑).', 'error');
@@ -2418,24 +2190,19 @@ async function abrirArquivoDoGitHub(caminho) {
         
         const data = await response.json();
         
-        // Verifica se é um arquivo de texto
         const extensoesTexto = ['.txt', '.md', '.html', '.css', '.js', '.json', '.csv', '.xml', '.svg', '.yml', '.yaml'];
         const nomeArquivo = caminho.split('/').pop();
         const extensao = '.' + nomeArquivo.split('.').pop();
         
         let conteudo;
         if (extensoesTexto.some(ext => ext === extensao)) {
-            // Arquivo de texto - decodifica
             conteudo = decodeURIComponent(escape(atob(data.content)));
         } else {
-            // Arquivo binário - mostra mensagem
             toast(`⚠️ "${nomeArquivo}" é um arquivo binário. Não pode ser aberto no editor.`, 'warning');
             return;
         }
         
-        // Abre no editor
         if (listaAtual === null || cartaoAtual === null) {
-            // Cria uma lista "Temporários" se não existir
             let listaTemp = dados.listas.find(l => l.nome === 'Temporários');
             if (!listaTemp) {
                 listaTemp = { nome: 'Temporários', cards: [], sublistas: [] };
@@ -2456,4 +2223,217 @@ async function abrirArquivoDoGitHub(caminho) {
             const lista = obterListaPorCaminho(listaAtual);
             if (lista && lista.cards[cartaoAtual]) {
                 lista.cards[cartaoAtual].conteudo = conteudo;
-                lista.cards[cartaoAtual].texto = nomeArquivo.repla
+                lista.cards[cartaoAtual].texto = nomeArquivo.replace(/\.[^.]+$/, '');
+                lista.cards[cartaoAtual].ultimaModificacao = Date.now();
+                salvarDados();
+                editor.value = conteudo;
+                renderizar();
+                toast(`✅ "${nomeArquivo}" carregado!`, 'success');
+            }
+        }
+        
+    } catch (err) {
+        toast(`❌ Erro ao abrir: ${err.message}`, 'error');
+        console.error('Erro ao abrir arquivo:', err);
+    }
+}
+
+function atualizarExploradorGitHub() {
+    const pastaInput = document.getElementById('githubPastaInput');
+    if (pastaInput) {
+        listarArquivosGitHubUI(pastaInput.value);
+    }
+}
+
+// ============================================
+// FUNÇÃO INSERIR ACORDE POR NÚMERO
+// ============================================
+function inserirAcordePorNumero() {
+    const inputField = document.getElementById('buscaAcordeRapida');
+    if (!inputField) {
+        toast('❌ Campo de busca não encontrado.', 'error');
+        return;
+    }
+    
+    const numero = inputField.value.trim();
+    if (!numero || numero < 1) {
+        toast('⚠️ Digite um número válido.', 'warning');
+        return;
+    }
+    
+    let nomeAcorde = null;
+    
+    if (typeof ACORDES !== 'undefined' && ACORDES[numero]) {
+        nomeAcorde = ACORDES[numero].nome;
+    }
+    
+    if (!nomeAcorde && typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[numero]) {
+        nomeAcorde = bibliotecaAcordes[numero].nome;
+    }
+    
+    if (!nomeAcorde && typeof FORMAS_INFINITAS !== 'undefined' && FORMAS_INFINITAS[numero]) {
+        nomeAcorde = FORMAS_INFINITAS[numero].nome;
+    }
+    
+    if (!nomeAcorde && typeof window.processarAcordeDinamico === 'function') {
+        const acordeTemp = window.processarAcordeDinamico(numero, '');
+        if (acordeTemp && acordeTemp.nome) {
+            nomeAcorde = acordeTemp.nome;
+        }
+    }
+    
+    if (!nomeAcorde) {
+        toast(`❌ Acorde ${numero} não encontrado!`, 'error');
+        return;
+    }
+    
+    const codigoFinal = `[Acorde:${numero};1]${nomeAcorde}[/Acorde]`;
+    
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const texto = editor.value;
+    
+    if (start !== end) {
+        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(end);
+        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
+    } else {
+        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(start);
+        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
+    }
+    
+    renderizar();
+    salvarAulaAtual();
+    
+    inputField.value = '';
+    editor.focus();
+    
+    toast(`✅ Acorde "${nomeAcorde}" inserido!`, 'success');
+}
+
+// ============================================
+// FUNÇÃO COPIAR EDITOR
+// ============================================
+function copiarEditor(event) {
+    if (!editor) {
+        toast('❌ Editor não encontrado.', 'error');
+        return;
+    }
+    
+    editor.select();
+    editor.setSelectionRange(0, editor.value.length);
+    
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(editor.value)
+                .then(() => {
+                    toast('✅ Texto copiado!', 'success');
+                    if (event && event.target) {
+                        const btn = event.target;
+                        const textoOriginal = btn.textContent;
+                        btn.textContent = '✅ Copiado!';
+                        setTimeout(() => {
+                            btn.textContent = textoOriginal;
+                        }, 1500);
+                    }
+                })
+                .catch(() => {
+                    document.execCommand('copy');
+                    toast('✅ Texto copiado!', 'success');
+                });
+        } else {
+            document.execCommand('copy');
+            toast('✅ Texto copiado!', 'success');
+        }
+    } catch (err) {
+        toast('❌ Erro ao copiar: ' + err.message, 'error');
+    }
+    
+    editor.setSelectionRange(0, 0);
+    editor.focus();
+}
+
+// ============================================
+// FUNÇÃO COLAR EDITOR
+// ============================================
+function colarEditor(event) {
+    if (!editor) {
+        toast('❌ Editor não encontrado.', 'error');
+        return;
+    }
+    
+    editor.focus();
+    
+    if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText()
+            .then(text => {
+                if (text) {
+                    const start = editor.selectionStart;
+                    const end = editor.selectionEnd;
+                    const currentText = editor.value;
+                    editor.value = currentText.substring(0, start) + text + currentText.substring(end);
+                    renderizar();
+                    salvarAulaAtual();
+                    toast('✅ Texto colado!', 'success');
+                    if (event && event.target) {
+                        const btn = event.target;
+                        const textoOriginal = btn.textContent;
+                        btn.textContent = '✅ Colado!';
+                        setTimeout(() => {
+                            btn.textContent = textoOriginal;
+                        }, 1500);
+                    }
+                }
+            })
+            .catch(() => {
+                colarComPrompt(editor);
+            });
+    } else {
+        colarComPrompt(editor);
+    }
+}
+
+function colarComPrompt(editor) {
+    const textoColado = prompt('📋 Cole o texto aqui (Ctrl+V):');
+    if (textoColado !== null && textoColado !== '') {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const currentText = editor.value;
+        editor.value = currentText.substring(0, start) + textoColado + currentText.substring(end);
+        renderizar();
+        salvarAulaAtual();
+        editor.focus();
+        toast('✅ Texto colado via prompt!', 'success');
+    }
+}
+
+// ============================================
+// INICIALIZAÇÃO
+// ============================================
+function init() {
+    console.log("Inicializando o sistema...");
+    if (typeof window.processarAcordeDinamico !== 'function') {
+        console.warn('⚠️ acordes_dinamicos.js não carregado. Acordes sonoros não funcionam.');
+    } else {
+        console.log('✅ Módulo de acordes sonoros carregado!');
+        adicionarBotaoSalvarDinamico();
+    }
+    carregarDados();
+
+    if (editor) {
+        editor.addEventListener('input', () => {
+            clearTimeout(timeoutRenderTimer);
+            timeoutRenderTimer = setTimeout(() => {
+                renderizar();
+                salvarAulaAtual();
+            }, 500);
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+const styleToast = document.createElement('style');
+styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
+document.head.appendChild(styleToast);
+
+console.log('✅ main4.js carregado com sucesso!');
