@@ -32,19 +32,20 @@ const preview = document.getElementById('preview');
 const listaAulas = document.getElementById('listaAulas');
 
 // ============================================
-// FUNÇÃO OBTER COR POR CÓDIGO
+// MAPA DE CORES - USANDO 'u' PARA AZUL (EM VEZ DE 'b')
 // ============================================
+const CORES = {
+    r: "#FF0000", // vermelho
+    o: "#FF6600", // laranja
+    y: "#FFDD00", // amarelo
+    g: "#00CC00", // verde
+    u: "#0066FF", // azul (USANDO 'u' EM VEZ DE 'b' PARA EVITAR CONFLITO)
+    i: "#4B0082", // índigo
+    v: "#8B00FF"  // violeta
+};
+
 function obterCorPorCodigo(codigo) {
-    const cores = {
-        r: "#FF0000", // vermelho
-        o: "#FF6600", // laranja
-        y: "#FFDD00", // amarelo
-        g: "#00CC00", // verde
-        b: "#0066FF", // azul
-        i: "#4B0082", // índigo
-        v: "#8B00FF"  // violeta
-    };
-    return cores[codigo.toLowerCase()] || "#000000";
+    return CORES[codigo.toLowerCase()] || "#000000";
 }
 
 // ============================================
@@ -55,7 +56,9 @@ function interpretarComandoCor(texto) {
         return { elementos: [], cor: "#000000", textoLimpo: "" };
     }
 
-    const match = texto.match(/\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/i);
+    // Comandos: [Nr], [Lr], [Cr], [LNr], [LCr], [CNr], [LNCr]
+    // Agora com 'u' para azul
+    const match = texto.match(/\[(LN?C?|LC|CN)(r|o|y|g|u|i|v)\]/i);
 
     if (!match) {
         return { elementos: [], cor: "#000000", textoLimpo: texto };
@@ -69,7 +72,7 @@ function interpretarComandoCor(texto) {
     if (comando.includes("L")) elementos.push("letra");
     if (comando.includes("C")) elementos.push("cifra");
 
-    const textoLimpo = texto.replace(/\[(LN?C?|LC|CN)(r|o|y|g|b|i|v)\]/gi, "").trim();
+    const textoLimpo = texto.replace(/\[(LN?C?|LC|CN)(r|o|y|g|u|i|v)\]/gi, "").trim();
 
     return {
         elementos: elementos,
@@ -79,7 +82,7 @@ function interpretarComandoCor(texto) {
 }
 
 // ============================================
-// APLICAR CORES NAS LETRAS
+// APLICAR CORES NAS LETRAS - COMANDOS: [r], [u], [g], etc.
 // ============================================
 function aplicarCoresNasLetras() {
     if (!coresAtivas) return;
@@ -87,19 +90,20 @@ function aplicarCoresNasLetras() {
     document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
         const textoOriginal = el.textContent || "";
         
-        const match = textoOriginal.match(/\[(r|o|y|g|b|i|v)\]/i);
+        // Procura por [r], [u], [g], etc.
+        const match = textoOriginal.match(/\[(r|o|y|g|u|i|v)\]/i);
         
         if (match) {
             const codigoCor = match[1].toLowerCase();
             const cor = obterCorPorCodigo(codigoCor);
             el.style.fill = cor;
-            el.textContent = textoOriginal.replace(/\[(r|o|y|g|b|i|v)\]/gi, "").trim();
+            el.textContent = textoOriginal.replace(/\[(r|o|y|g|u|i|v)\]/gi, "").trim();
         }
     });
 }
 
 // ============================================
-// APLICAR CORES NAS CIFRAS
+// APLICAR CORES NAS CIFRAS - COMANDOS: [Cr], [Cu], etc.
 // ============================================
 function aplicarCoresNasCifras() {
     if (!coresAtivas) return;
@@ -107,13 +111,14 @@ function aplicarCoresNasCifras() {
     document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
         const textoOriginal = el.textContent || "";
         
-        let match = textoOriginal.match(/\[C(r|o|y|g|b|i|v)\]/i);
+        // Procura por [Cr], [Cu], etc.
+        let match = textoOriginal.match(/\[C(r|o|y|g|u|i|v)\]/i);
         let cor = null;
         let textoLimpo = textoOriginal;
         
         if (match) {
             cor = obterCorPorCodigo(match[1].toLowerCase());
-            textoLimpo = textoOriginal.replace(/\[C(r|o|y|g|b|i|v)\]/gi, "").trim();
+            textoLimpo = textoOriginal.replace(/\[C(r|o|y|g|u|i|v)\]/gi, "").trim();
         }
         
         if (cor) {
@@ -124,7 +129,7 @@ function aplicarCoresNasCifras() {
 }
 
 // ============================================
-// APLICAR CORES NAS NOTAS
+// APLICAR CORES NAS NOTAS - COMANDOS: [Nr], [Nu], etc.
 // ============================================
 function aplicarCoresNasNotasComComandos() {
     if (!coresAtivas) return;
@@ -132,13 +137,14 @@ function aplicarCoresNasNotasComComandos() {
     document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
         const textoNota = nota.textContent || "";
         
-        let match = textoNota.match(/\[N(r|o|y|g|b|i|v)\]/i);
+        // Procura por [Nr], [Nu], etc.
+        let match = textoNota.match(/\[N(r|o|y|g|u|i|v)\]/i);
         let cor = null;
         let textoLimpo = textoNota;
         
         if (match) {
             cor = obterCorPorCodigo(match[1].toLowerCase());
-            textoLimpo = textoNota.replace(/\[N(r|o|y|g|b|i|v)\]/gi, "").trim();
+            textoLimpo = textoNota.replace(/\[N(r|o|y|g|u|i|v)\]/gi, "").trim();
         }
         
         const cabeca = nota.querySelector("ellipse, circle") || nota.querySelector("path");
@@ -155,6 +161,22 @@ function aplicarCoresNasNotasComComandos() {
 }
 
 // ============================================
+// FUNÇÃO GET COR POR TAG (COMPATIBILIDADE)
+// ============================================
+function getCorPorTag(texto) {
+    if (!texto) return "#000000";
+    // Agora com 'u' para azul
+    const cores = {
+        '[r]': '#FF0000', '[o]': '#FF6600', '[y]': '#FFDD00',
+        '[g]': '#00CC00', '[u]': '#0066FF', '[i]': '#4B0082', '[v]': '#8B00FF'
+    };
+    for (const [tag, cor] of Object.entries(cores)) {
+        if (texto.includes(tag)) return cor;
+    }
+    return "#000000";
+}
+
+// ============================================
 // APLICAR CORES ACORDES E LETRAS (COMPATIBILIDADE)
 // ============================================
 function aplicarCoresAcordesLetras() {
@@ -166,18 +188,6 @@ function aplicarCoresAcordesLetras() {
         if (cor !== "#000000") el.style.fill = cor;
         el.textContent = texto.replace(/\[(.*?)\]/g, "");
     });
-}
-
-function getCorPorTag(texto) {
-    if (!texto) return "#000000";
-    const cores = {
-        '[r]': '#FF0000', '[o]': '#FF6600', '[y]': '#FFDD00',
-        '[g]': '#00CC00', '[b]': '#0066FF', '[i]': '#4B0082', '[v]': '#8B00FF'
-    };
-    for (const [tag, cor] of Object.entries(cores)) {
-        if (texto.includes(tag)) return cor;
-    }
-    return "#000000";
 }
 
 // ============================================
@@ -1470,10 +1480,10 @@ function processarABCComEspacamento(id, code, tipo) {
         ABCJS.renderAbc(id, codigoProcessado, { add_classes: true, staffwidth: 800, responsive: 'resize' });
         
         setTimeout(() => {
-            aplicarCoresNasLetras();
-            aplicarCoresNasCifras();
-            aplicarCoresNasNotasComComandos();
-            aplicarCoresAcordesLetras();
+            aplicarCoresNasLetras();      // [r], [u], [g] nas letras
+            aplicarCoresNasCifras();      // [Cr], [Cu], [Cg] nas cifras
+            aplicarCoresNasNotasComComandos(); // [Nr], [Nu], [Ng] nas notas
+            aplicarCoresAcordesLetras();  // Compatibilidade
             
             if (tipo === 'infantil') {
                 ajustarAcordes();
