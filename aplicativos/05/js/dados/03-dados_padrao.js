@@ -38,3 +38,5 @@ function obterDadosPadrao() {
         ]
     };
 }
+
+console.log('✅ Dados padrão carregados');
