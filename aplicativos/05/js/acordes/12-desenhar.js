@@ -162,3 +162,5 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     wrapper.appendChild(idDiv);
     container.appendChild(wrapper);
 }
+
+console.log('✅ Desenhar acordes carregado');
