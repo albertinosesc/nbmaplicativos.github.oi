@@ -14,6 +14,12 @@ function toggleGithubExplorer() {
     }
 }
 
+function formatarTamanho(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
 async function listarArquivosGitHubUI(pastaPersonalizada = null) {
     const pastaInput = document.getElementById('githubPastaInput');
     const listaDiv = document.getElementById('githubFileList');
@@ -201,3 +207,5 @@ function atualizarExploradorGitHub() {
         listarArquivosGitHubUI(pastaInput.value);
     }
 }
+
+console.log('✅ GitHub Explorador carregado');
