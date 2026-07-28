@@ -41,3 +41,5 @@ function configurarGitHub() {
     window.githubBranch = githubBranch;
     window.githubPasta = githubPasta;
 }
+
+console.log('✅ GitHub Config carregado');
