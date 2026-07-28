@@ -109,3 +109,5 @@ async function exportarEnviarHTML() {
     const ok = await enviarArquivoParaGitHub(nomeArquivo, htmlContent, pasta);
     if (ok) toast('✅ HTML enviado para o GitHub!', 'success');
 }
+
+console.log('✅ Export arquivos carregado');
