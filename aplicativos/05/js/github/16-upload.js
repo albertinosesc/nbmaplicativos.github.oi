@@ -171,3 +171,5 @@ ${markedContent}
 
     toast(`✅ Sincronização concluída!\nEnviados: ${enviados}\nErros: ${erros}`, 'success');
 }
+
+console.log('✅ GitHub Upload carregado');
