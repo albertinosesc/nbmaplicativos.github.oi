@@ -1,5 +1,5 @@
 // ============================================
-// main4.js - PRO MAESTRO (VERSÃO COMPLETA E CORRIGIDA)
+// main4.js - PRO MAESTRO (VERSÃO CORRIGIDA)
 // ============================================
 
 // ============================================
@@ -25,6 +25,7 @@ window.githubToken = githubToken;
 window.githubRepo = githubRepo;
 window.githubBranch = githubBranch;
 window.githubPasta = githubPasta;
+window.dados = dados;
 
 // ============================================
 // 2. REFERÊNCIAS DOM
@@ -80,6 +81,99 @@ function obterCorPorNota(nota) {
     return cores[nota.toUpperCase()] || '#000000';
 }
 
+// ============================================
+// 4. FUNÇÕES DE CORES (CORRIGIDAS - SEM DUPLICAÇÃO)
+// ============================================
+
+// Mapa de cores
+function obterCorPorCodigo(codigo) {
+    const cores = {
+        r: "#FF0000", // vermelho
+        o: "#FF6600", // laranja
+        y: "#FFDD00", // amarelo
+        g: "#00CC00", // verde
+        b: "#0066FF", // azul
+        i: "#4B0082", // índigo
+        v: "#8B00FF"  // violeta
+    };
+    return cores[codigo.toLowerCase()] || "#000000";
+}
+
+// Função principal para aplicar cores nas letras (funciona com [r], [b], [g], etc.)
+function aplicarCoresNasLetras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        // Procura por [r], [b], [g], etc.
+        const match = textoOriginal.match(/\[(r|o|y|g|b|i|v)\]/i);
+        
+        if (match) {
+            const codigoCor = match[1].toLowerCase();
+            const cor = obterCorPorCodigo(codigoCor);
+            el.style.fill = cor;
+            el.textContent = textoOriginal.replace(/\[(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+    });
+}
+
+// Função para aplicar cores nas cifras (funciona com [Cr], [Cb], etc.)
+function aplicarCoresNasCifras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        // Procura por [Cr], [Cb], etc.
+        let match = textoOriginal.match(/\[C(r|o|y|g|b|i|v)\]/i);
+        let cor = null;
+        let textoLimpo = textoOriginal;
+        
+        if (match) {
+            cor = obterCorPorCodigo(match[1].toLowerCase());
+            textoLimpo = textoOriginal.replace(/\[C(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+        
+        if (cor) {
+            el.style.fill = cor;
+            el.textContent = textoLimpo;
+        }
+    });
+}
+
+// Função para aplicar cores nas notas (funciona com [Nr], [Nb], etc.)
+function aplicarCoresNasNotas() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
+        const textoNota = nota.textContent || "";
+        
+        // Procura por [Nr], [Nb], etc.
+        let match = textoNota.match(/\[N(r|o|y|g|b|i|v)\]/i);
+        let cor = null;
+        let textoLimpo = textoNota;
+        
+        if (match) {
+            cor = obterCorPorCodigo(match[1].toLowerCase());
+            textoLimpo = textoNota.replace(/\[N(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+        
+        const cabeca = nota.querySelector("ellipse, circle") || nota.querySelector("path");
+        
+        if (cor && cabeca) {
+            cabeca.style.fill = cor;
+            cabeca.style.fillOpacity = "1";
+            nota.textContent = textoLimpo;
+        } else if (cabeca) {
+            // Sem comando: nota preta
+            cabeca.style.fill = "#000000";
+            cabeca.style.fillOpacity = "1";
+        }
+    });
+}
+
+// Função compatível com o sistema antigo (mantida para não quebrar nada)
 function getCorPorTag(texto) {
     if (!texto) return "#000000";
     const cores = {
@@ -92,13 +186,18 @@ function getCorPorTag(texto) {
     return "#000000";
 }
 
-// Estilo toast
-const styleToast = document.createElement('style');
-styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
-document.head.appendChild(styleToast);
+function aplicarCoresAcordesLetras() {
+    if (!coresAtivas) return;
+    document.querySelectorAll("#preview .abcjs-chord, #preview .abcjs-lyric").forEach(el => {
+        let texto = el.textContent || '';
+        let cor = getCorPorTag(texto);
+        if (cor !== "#000000") el.style.fill = cor;
+        el.textContent = texto.replace(/\[(.*?)\]/g, "");
+    });
+}
 
 // ============================================
-// 4. DADOS PADRÃO
+// 5. DADOS PADRÃO
 // ============================================
 
 function obterDadosPadrao() {
@@ -139,7 +238,7 @@ function obterDadosPadrao() {
 }
 
 // ============================================
-// 5. STORAGE (SALVAR/CARREGAR)
+// 6. STORAGE (SALVAR/CARREGAR)
 // ============================================
 
 function salvarDados() {
@@ -169,7 +268,7 @@ function carregarDados() {
 }
 
 // ============================================
-// 6. SIDEBAR (RENDERIZAR LISTA DE AULAS)
+// 7. SIDEBAR (RENDERIZAR LISTA DE AULAS)
 // ============================================
 
 function renderizarListaAulas() {
@@ -384,7 +483,7 @@ function renderizarListaAulas() {
 }
 
 // ============================================
-// 7. CRIAÇÃO (LISTAS E CARTÕES)
+// 8. CRIAÇÃO (LISTAS E CARTÕES)
 // ============================================
 
 function criarLista(caminho) {
@@ -502,36 +601,13 @@ function salvarAulaAtual() {
 }
 
 // ============================================
-// 8. CORES DO ABC
+// 9. FUNÇÃO OBTER COR POR CÓDIGO (JÁ DEFINIDA ACIMA)
 // ============================================
 
-function aplicarCoresNasNotas() {
-    if (!coresAtivas) return;
-    document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
-        let cabeca = nota.querySelector('ellipse, circle');
-        if (!cabeca) cabeca = nota.querySelector('path');
-        if (cabeca) {
-            let textoNota = nota.textContent || '';
-            let match = textoNota.match(/[CDEFGAB]/i);
-            if (match) {
-                cabeca.style.fill = obterCorPorNota(match[0]);
-                cabeca.style.fillOpacity = '1';
-            }
-        }
-    });
-}
-
-function aplicarCoresAcordesLetras() {
-    document.querySelectorAll("#preview .abcjs-chord, #preview .abcjs-lyric").forEach(el => {
-        let texto = el.textContent || '';
-        let cor = getCorPorTag(texto);
-        if (cor !== "#000000") el.style.fill = cor;
-        el.textContent = texto.replace(/\[(.*?)\]/g, "");
-    });
-}
+// (A função obterCorPorCodigo já está definida na seção 4)
 
 // ============================================
-// 9. PROCESSAR ABC
+// 10. PROCESSAR ABC COM ESPAÇAMENTO
 // ============================================
 
 function processarABCComEspacamento(id, code, tipo) {
@@ -562,30 +638,38 @@ function processarABCComEspacamento(id, code, tipo) {
 
     let codigoProcessado = novasLinhas.join('\n');
     codigoProcessado = codigoProcessado.replace(/"%"/g, '"％"');
+    
     try {
         elemento.innerHTML = "";
         ABCJS.renderAbc(id, codigoProcessado, { add_classes: true, staffwidth: 800, responsive: 'resize' });
-        if (tipo === 'infantil') {
-            setTimeout(() => {
-                aplicarCoresAcordesLetras();
-                if (coresAtivas) aplicarCoresNasNotas();
+        
+        // Aplica cores após renderizar - usando as funções corretas
+        setTimeout(() => {
+            aplicarCoresNasLetras();      // Para [r], [b], [g] nas letras
+            aplicarCoresNasCifras();      // Para [Cr], [Cb], [Cg] nas cifras
+            aplicarCoresNasNotas();       // Para [Nr], [Nb], [Ng] nas notas
+            aplicarCoresAcordesLetras();  // Compatibilidade com sistema antigo
+            
+            if (tipo === 'infantil') {
                 ajustarAcordes();
                 ajustarLetras();
-            }, 200);
-        }
+            }
+        }, 300);
+        
     } catch (e) {
         elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
     }
 }
 
 // ============================================
-// 10. AJUSTES
+// 11. FUNÇÕES DE AJUSTE
 // ============================================
 
 function ajustarAcordes() {
     const valor = parseFloat(document.getElementById("acordeRange")?.value || -8);
     const acordeValue = document.getElementById("acordeValue");
     if (acordeValue) acordeValue.innerText = valor;
+    
     document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
         let yAtual = parseFloat(el.getAttribute("y"));
         if (!isNaN(yAtual)) {
@@ -599,6 +683,7 @@ function ajustarLetras() {
     const valor = parseFloat(document.getElementById("letraRange")?.value || 12);
     const letraValue = document.getElementById("letraValue");
     if (letraValue) letraValue.innerText = valor;
+    
     document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
         let yAtual = parseFloat(el.getAttribute("y"));
         if (!isNaN(yAtual)) {
@@ -612,6 +697,7 @@ function ajustarLetrasX() {
     const valor = parseFloat(document.getElementById("letraXRange")?.value || 5);
     const letraXValue = document.getElementById("letraXValue");
     if (letraXValue) letraXValue.innerText = valor;
+    
     document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
         let xAtual = parseFloat(el.getAttribute("x"));
         if (!isNaN(xAtual)) {
@@ -623,10 +709,10 @@ function ajustarLetrasX() {
 
 function atualizarStaffSep() { renderizar(); }
 function atualizarSysStaffSep() { renderizar(); }
-function atualizarIntensidadeCores() { if (coresAtivas) aplicarCoresNasNotas(); }
+function atualizarIntensidadeCores() { if (coresAtivas) { aplicarCoresNasNotas(); } }
 
 // ============================================
-// 11. EDITOR (COPIAR, COLAR, FORMATAR)
+// 12. FUNÇÕES DO EDITOR
 // ============================================
 
 function copiarEditor(event) {
@@ -755,122 +841,100 @@ function inserirImagem() {
 }
 
 // ============================================
-// 12. ACORDES DINÂMICOS
+// 13. INSERIR ABC, PIANO E ACORDES
 // ============================================
 
-function salvarAcordeDinamicoNaBiblioteca() {
-    const formato = prompt(
-        '💾 SALVAR ACORDE DINÂMICO NA BIBLIOTECA\n\n' +
-        'Digite o formato do acorde sonoro que você quer salvar:\n\n' +
-        'Exemplo: 1;3 (Sol Maior)\n' +
-        'Exemplo: 2;5 (Lá Menor)\n\n' +
-        'Formato:'
-    );
-    if (!formato) return;
-    const convertido = converterDinamicoParaEditavel(formato);
-    if (!convertido) return;
-
-    const novoNome = prompt(`Nome do acorde na biblioteca (ou Enter para manter "${convertido.nome}"):`, convertido.nome);
-    if (novoNome && novoNome.trim()) {
-        convertido.acorde.nome = novoNome.trim();
-        convertido.linha = convertido.linha.replace(convertido.nome, novoNome.trim());
-    }
-
-    if (typeof bibliotecaAcordes !== 'undefined') {
-        const partes = convertido.linha.split('/').map(p => p.trim());
-        const siglaNome = partes[0];
-        const doisPontos = siglaNome.indexOf(':');
-        const sigla = siglaNome.substring(0, doisPontos).trim();
-
-        bibliotecaAcordes[sigla] = {
-            nome: convertido.acorde.nome,
-            cordas: convertido.acorde.cordas,
-            dedos: convertido.acorde.dedos,
-            pestana: convertido.acorde.pestanaCordas || convertido.acorde.pestana || false,
-            casaInicial: convertido.acorde.casaInicial,
-            baixo: convertido.acorde.baixo || sigla
-        };
-        localStorage.setItem('biblioteca_acordes', JSON.stringify(bibliotecaAcordes));
-        if (typeof atualizarBibliotecaVisual === 'function') atualizarBibliotecaVisual();
-        alert(`✅ Acorde "${sigla}" salvo na biblioteca!\n\nUse [Acorde:${sigla}] no editor.`);
-    } else {
-        alert('Erro: biblioteca de acordes não disponível');
-    }
+function inserirABC() {
+    const start = editor.selectionStart;
+    editor.value = editor.value.substring(0, start) + `[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC DEF | GAB c |]\n[/ABC]\n` + editor.value.substring(start);
+    renderizar();
+    salvarAulaAtual();
 }
 
-function adicionarBotaoSalvarDinamico() {
-    const sidebar = document.getElementById('sidebar');
-    if (sidebar) {
-        const btn = document.createElement('button');
-        btn.innerHTML = '🔄 Conversor Dinâmico';
-        btn.style.background = '#9b59b6';
-        btn.style.marginTop = '10px';
-        btn.onclick = salvarAcordeDinamicoNaBiblioteca;
-        const editorBtn = document.querySelector('#sidebar button[onclick="abrirEditorAcordes()"]');
-        if (editorBtn) {
-            editorBtn.insertAdjacentElement('afterend', btn);
-        } else {
-            sidebar.querySelector('.sidebar-content')?.appendChild(btn);
-        }
-    }
+function inserirABCInfantil() {
+    const start = editor.selectionStart;
+    editor.value = editor.value.substring(0, start) + `[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/4\nK:C\nC DEF | GAB c |]\n[/ABC-INFANTIL]\n` + editor.value.substring(start);
+    renderizar();
+    salvarAulaAtual();
 }
 
-function converterDinamicoParaEditavel(formato) {
-    if (typeof window.processarAcordeDinamico !== 'function') {
-        alert('Módulo de acordes sonoros não carregado!');
-        return null;
-    }
-    const acorde = window.processarAcordeDinamico(formato, '');
-    if (!acorde) {
-        alert(`Formato "${formato}" inválido!`);
-        return null;
-    }
-    const pestanaStr = acorde.pestana ? (Array.isArray(acorde.pestanaCordas) && acorde.pestanaCordas.length > 0 ? JSON.stringify(acorde.pestanaCordas) : 'true') : 'false';
-    const cordasStr = acorde.cordas.join(',');
-    const dedosStr = acorde.dedos.join(',');
-    const linha = `${formato}: ${acorde.nome} / ${cordasStr} / ${dedosStr} / ${pestanaStr} / ${acorde.casaInicial} / ${acorde.baixo || ''}`;
-    return { linha, acorde, formato, nome: acorde.nome };
+function inserirPiano() {
+    const sigla = prompt('Sigla (C, G, Am, F, Dm):', 'C');
+    if (!sigla) return;
+    const acordePiano = window.ACORDES_PIANO ? window.ACORDES_PIANO[sigla] : null;
+    const nome = acordePiano ? acordePiano.nome : sigla;
+    const start = editor.selectionStart;
+    const codigo = `[PIANO:${sigla}]${nome}[/PIANO]`;
+    editor.value = editor.value.substring(0, start) + codigo + editor.value.substring(start);
+    renderizar();
+    salvarAulaAtual();
 }
 
-function editarAcordeDinamico() {
-    const formato = prompt(
-        '🎸 EDITAR ACORDE DINÂMICO\n\n' +
-        'Digite o formato do acorde sonoro que você quer editar:\n\n' +
-        'Exemplos:\n' +
-        '• 1;3 = Sol Maior\n' +
-        '• 2;5 = Lá Menor\n' +
-        '• 1;3;5 = Dó Maior (corda base 5)\n\n' +
-        'Formato:'
-    );
-    if (!formato) return;
-    const convertido = converterDinamicoParaEditavel(formato);
-    if (!convertido) return;
-    abrirEditorAcordesComDados(convertido.linha, convertido.nome);
-}
-
-function abrirEditorAcordesComDados(linha, nomeSugerido) {
-    const modal = document.getElementById('modalAcordes');
-    if (!modal) {
-        alert('Editor de acordes não encontrado!');
+function inserirAcordePorNumero() {
+    const inputField = document.getElementById('buscaAcordeRapida');
+    if (!inputField) {
+        toast('❌ Campo de busca não encontrado.', 'error');
         return;
     }
-    if (typeof carregarBiblioteca === 'function') carregarBiblioteca();
-    modal.style.display = 'block';
-    const inputField = document.getElementById('acordeInput');
-    if (inputField) {
-        inputField.value = linha;
+    
+    const numero = inputField.value.trim();
+    if (!numero || numero < 1) {
+        toast('⚠️ Digite um número válido.', 'warning');
+        return;
     }
-    setTimeout(() => {
-        if (inputField) {
-            inputField.focus();
-            inputField.select();
+    
+    let nomeAcorde = null;
+    
+    if (typeof ACORDES !== 'undefined' && ACORDES[numero]) {
+        nomeAcorde = ACORDES[numero].nome;
+    }
+    
+    if (!nomeAcorde && typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[numero]) {
+        nomeAcorde = bibliotecaAcordes[numero].nome;
+    }
+    
+    if (!nomeAcorde && typeof FORMAS_INFINITAS !== 'undefined' && FORMAS_INFINITAS[numero]) {
+        nomeAcorde = FORMAS_INFINITAS[numero].nome;
+    }
+    
+    if (!nomeAcorde && typeof window.processarAcordeDinamico === 'function') {
+        const acordeTemp = window.processarAcordeDinamico(numero, '');
+        if (acordeTemp && acordeTemp.nome) {
+            nomeAcorde = acordeTemp.nome;
         }
-    }, 100);
-    setTimeout(() => {
-        if (typeof gerarPreviewAcordes === 'function') gerarPreviewAcordes();
-    }, 200);
-    alert(`✅ Acorde dinâmico convertido!\n\nAgora você pode editar e salvar na biblioteca.`);
+    }
+    
+    if (!nomeAcorde) {
+        toast(`❌ Acorde ${numero} não encontrado!`, 'error');
+        return;
+    }
+    
+    const codigoFinal = `[Acorde:${numero};1]${nomeAcorde}[/Acorde]`;
+    
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const texto = editor.value;
+    
+    if (start !== end) {
+        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(end);
+        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
+    } else {
+        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(start);
+        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
+    }
+    
+    renderizar();
+    salvarAulaAtual();
+    
+    inputField.value = '';
+    editor.focus();
+    
+    toast(`✅ Acorde "${nomeAcorde}" inserido!`, 'success');
 }
+
+// ============================================
+// 14. ACORDES DINÂMICOS
+// ============================================
 
 function inserirCodigoAcorde(codigo) {
     const start = editor.selectionStart;
@@ -894,7 +958,7 @@ function inserirAcorde() {
         if (sigla && window.ACORDES && window.ACORDES[sigla]) {
             inserirCodigoAcorde(`[Acorde:${sigla}]${window.ACORDES[sigla].nome}[/Acorde]`);
         } else if (sigla) {
-            alert(`❌ Acorde "${sigla}" não encontrado! Use: C, G, D, Am, Em, F`);
+            alert(`❌ Acorde "${sigla}" não encontrado!`);
         }
     } else if (opcao === '2') {
         if (typeof bibliotecaAcordes !== 'undefined' && Object.keys(bibliotecaAcordes).length > 0) {
@@ -908,7 +972,7 @@ function inserirAcorde() {
                 alert(`❌ Acorde "${sigla}" não encontrado!`);
             }
         } else {
-            alert('📭 Nenhum acorde salvo! Use a opção 4 para criar.');
+            alert('📭 Nenhum acorde salvo!');
         }
     } else if (opcao === '3') {
         const formato = prompt(
@@ -924,237 +988,91 @@ function inserirAcorde() {
             if (acordeTemp) {
                 inserirCodigoAcorde(`[Acorde:${formato}]${acordeTemp.nome}[/Acorde]`);
             } else {
-                alert(`❌ Formato "${formato}" inválido! Exemplo: 1;3`);
+                alert(`❌ Formato "${formato}" inválido!`);
             }
-        } else if (formato) {
-            alert('❌ Módulo de acordes sonoros não carregado!');
         }
     } else if (opcao === '4') {
         abrirEditorAcordes();
     } else if (opcao !== null) {
-        alert('Opção inválida! Digite 1, 2, 3 ou 4');
+        alert('Opção inválida!');
     }
 }
 
-// ============================================
-// 13. PIANO
-// ============================================
-
-function normalizarNota(nota) {
-    const eq = { 'Eb': 'D#', 'Bb': 'A#', 'Ab': 'G#', 'Db': 'C#', 'Gb': 'F#' };
-    for (const [bemol, sustain] of Object.entries(eq)) {
-        if (nota.startsWith(bemol)) return sustain + nota.replace(bemol, '');
-    }
-    return nota;
-}
-
-function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, endOitava, dedosTreble) {
-    container.innerHTML = '';
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display: inline-block; margin: 10px auto; text-align: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);';
-
-    const title = document.createElement('div');
-    title.style.cssText = 'font-size: 1.6em; font-weight: bold; color: #e94560; margin-bottom: 10px;';
-    title.textContent = nome;
-    wrapper.appendChild(title);
-
-    const pianoDiv = document.createElement('div');
-    pianoDiv.style.cssText = 'display: flex; position: relative; background: #131212; padding: 3px; border-radius: 4px;';
-
-    const escala = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const startMatch = startOitava.match(/^([A-G])(\d+)$/);
-    const endMatch = endOitava.match(/^([A-G])(\d+)$/);
-
-    if (!startMatch || !endMatch) {
-        container.innerHTML = '<div style="color:red">Erro no range</div>';
+function salvarAcordeDinamicoNaBiblioteca() {
+    const formato = prompt(
+        '💾 SALVAR ACORDE DINÂMICO NA BIBLIOTECA\n\n' +
+        'Digite o formato do acorde sonoro que você quer salvar:\n\n' +
+        'Exemplo: 1;3 (Sol Maior)\n' +
+        'Exemplo: 2;5 (Lá Menor)\n\n' +
+        'Formato:'
+    );
+    if (!formato) return;
+    
+    if (typeof window.processarAcordeDinamico !== 'function') {
+        alert('Módulo de acordes sonoros não carregado!');
         return;
     }
-
-    const pretasMap = { 'C#3': 0, 'D#3': 1, 'F#3': 3, 'G#3': 4, 'A#3': 5, 'C#4': 7, 'D#4': 8, 'F#4': 10, 'G#4': 11, 'A#4': 12, 'C#5': 14, 'D#5': 15, 'F#5': 17, 'G#5': 18, 'A#5': 19 };
-    const whiteKeyWidth = 37, whiteKeyHeight = 120, blackKeyWidth = 25, blackKeyHeight = 79, blackKeyOffset = 34;
-
-    const teclasNoRange = [];
-    for (let oct = parseInt(startMatch[2]); oct <= parseInt(endMatch[2]); oct++) {
-        for (let i = 0; i < escala.length; i++) {
-            const nota = escala[i];
-            const num = (oct + 1) * 12 + i;
-            if (num >= (parseInt(startMatch[2]) + 1) * 12 + escala.indexOf(startMatch[1]) && num <= (parseInt(endMatch[2]) + 1) * 12 + escala.indexOf(endMatch[1])) {
-                teclasNoRange.push({ nota, oitava: oct });
-            }
-        }
-    }
-
-    const whiteKeys = teclasNoRange.filter(t => !t.nota.includes('#'));
-    const blackKeys = [];
-    teclasNoRange.forEach(t => {
-        if (t.nota.includes('#')) {
-            const pos = pretasMap[t.nota + t.oitava];
-            if (pos !== undefined) blackKeys.push({ ...t, pos });
-        }
-    });
-
-    function getDedo(notaNome, oitava) {
-        const notaCompleta = notaNome + oitava;
-        for (let i = 0; i < notasAcorde.length; i++) {
-            if (normalizarNota(notasAcorde[i]) === normalizarNota(notaCompleta)) return dedosTreble[i] || null;
-        }
-        return null;
-    }
-
-    whiteKeys.forEach(tecla => {
-        const dedo = getDedo(tecla.nota, tecla.oitava);
-        const isActive = dedo !== null;
-        const whiteKey = document.createElement('div');
-        whiteKey.style.cssText = `width: ${whiteKeyWidth}px; height: ${whiteKeyHeight}px; background: ${isActive ? 'linear-gradient(to bottom, #3a86ff 0%, #2666cc 100%)' : 'linear-gradient(to bottom, #ffffff 0%, #f0f0f0 100%)'}; border: 1px solid #333; border-radius: 0 0 8px 8px; position: relative; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1; cursor: default;`;
-        if (dedo) {
-            const dedoDiv = document.createElement('div');
-            dedoDiv.textContent = dedo;
-            dedoDiv.style.cssText = `position: absolute; top: 80%; left: 50%; transform: translate(-50%, -50%); width: 23px; height: 25px; background: white; color: #3a86ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: bold; font-family: Arial; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10;`;
-            whiteKey.appendChild(dedoDiv);
-        }
-        pianoDiv.appendChild(whiteKey);
-    });
-
-    blackKeys.forEach(tecla => {
-        const dedo = getDedo(tecla.nota, tecla.oitava);
-        const isActive = dedo !== null;
-        const blackKey = document.createElement('div');
-        blackKey.style.cssText = `width: ${blackKeyWidth}px; height: ${blackKeyHeight}px; background: ${isActive ? 'linear-gradient(to bottom, #ff4757 0%, #cc2233 100%)' : 'linear-gradient(to bottom, #222 0%, #111 100%)'}; position: absolute; left: ${tecla.pos * whiteKeyWidth + blackKeyOffset}px; top: 0; border-radius: 0 0 5px 5px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); z-index: 2; cursor: default;`;
-        if (dedo) {
-            const dedoDiv = document.createElement('div');
-            dedoDiv.textContent = dedo;
-            dedoDiv.style.cssText = `position: absolute; top: 78%; left: 50%; transform: translate(-50%, -50%); width: 18px; height: 20px; background: white; color: #ff4757; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; font-family: Arial; box-shadow: 0 1px 3px rgba(0,0,0,0.2); z-index: 11;`;
-            blackKey.appendChild(dedoDiv);
-        }
-        pianoDiv.appendChild(blackKey);
-    });
-
-    wrapper.appendChild(pianoDiv);
-    container.appendChild(wrapper);
-}
-
-function desenharAcordePianoPersonalizado(container, sigla, nome) {
-    const acordesPersonalizados = JSON.parse(localStorage.getItem("acordes_piano_personalizados") || "{}");
-    const acorde = acordesPersonalizados[sigla];
+    
+    const acorde = window.processarAcordeDinamico(formato, '');
     if (!acorde) {
-        container.innerHTML = `<div style="color:red; padding:10px;">❌ Acorde personalizado não encontrado</div>`;
+        alert(`Formato "${formato}" inválido!`);
         return;
     }
-    const notasAtivas = acorde.notasNomes || [];
-    const dedos = acorde.fingersTreble ? acorde.fingersTreble.split(/\s+/) : [];
-    desenharTecladoPianoSimples(container, nome, notasAtivas, acorde.startOitava || 'C3', acorde.endOitava || 'C5', dedos);
+    
+    const novoNome = prompt(`Nome do acorde na biblioteca (ou Enter para manter "${acorde.nome}"):`, acorde.nome);
+    if (novoNome && novoNome.trim()) {
+        acorde.nome = novoNome.trim();
+    }
+
+    if (typeof bibliotecaAcordes !== 'undefined') {
+        bibliotecaAcordes[formato] = {
+            nome: acorde.nome,
+            cordas: acorde.cordas,
+            dedos: acorde.dedos,
+            pestana: acorde.pestanaCordas || acorde.pestana || false,
+            casaInicial: acorde.casaInicial,
+            baixo: acorde.baixo || formato
+        };
+        localStorage.setItem('biblioteca_acordes', JSON.stringify(bibliotecaAcordes));
+        if (typeof atualizarBibliotecaVisual === 'function') atualizarBibliotecaVisual();
+        alert(`✅ Acorde "${formato}" salvo na biblioteca!\n\nUse [Acorde:${formato}] no editor.`);
+    } else {
+        alert('Erro: biblioteca de acordes não disponível');
+    }
 }
 
-function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, endOitava, dedosTreble = []) {
-    container.innerHTML = '';
-    const wrapper = document.createElement('div');
-    wrapper.style.cssText = 'display: inline-block; margin: 10px auto; text-align: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);';
-
-    const title = document.createElement('div');
-    title.style.cssText = 'font-size: 1.6em; font-weight: bold; color: #e94560; margin-bottom: 10px;';
-    title.textContent = nome;
-    wrapper.appendChild(title);
-
-    const pianoDiv = document.createElement('div');
-    pianoDiv.style.cssText = 'display: flex; position: relative; background: #131212; padding: 3px; border-radius: 4px;';
-
-    const escala = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const startMatch = startOitava.match(/^([A-G])(\d+)$/);
-    const endMatch = endOitava.match(/^([A-G])(\d+)$/);
-
-    if (!startMatch || !endMatch) {
-        container.innerHTML = '<div style="color:red">Erro no range</div>';
-        return;
-    }
-
-    const pretasMap = { 'C#3': 0, 'D#3': 1, 'F#3': 3, 'G#3': 4, 'A#3': 5, 'C#4': 7, 'D#4': 8, 'F#4': 10, 'G#4': 11, 'A#4': 12, 'C#5': 14, 'D#5': 15, 'F#5': 17, 'G#5': 18, 'A#5': 19 };
-    const whiteKeyWidth = 37, whiteKeyHeight = 120, blackKeyWidth = 25, blackKeyHeight = 79, blackKeyOffset = 34;
-
-    const teclasNoRange = [];
-    for (let oct = parseInt(startMatch[2]); oct <= parseInt(endMatch[2]); oct++) {
-        for (let i = 0; i < escala.length; i++) {
-            const nota = escala[i];
-            const num = (oct + 1) * 12 + i;
-            if (num >= (parseInt(startMatch[2]) + 1) * 12 + escala.indexOf(startMatch[1]) && num <= (parseInt(endMatch[2]) + 1) * 12 + escala.indexOf(endMatch[1])) {
-                teclasNoRange.push({ nota, oitava: oct });
-            }
+function adicionarBotaoSalvarDinamico() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        const btn = document.createElement('button');
+        btn.innerHTML = '🔄 Conversor Dinâmico';
+        btn.style.background = '#9b59b6';
+        btn.style.marginTop = '10px';
+        btn.onclick = salvarAcordeDinamicoNaBiblioteca;
+        const editorBtn = document.querySelector('#sidebar button[onclick="abrirEditorAcordes()"]');
+        if (editorBtn) {
+            editorBtn.insertAdjacentElement('afterend', btn);
+        } else {
+            sidebar.querySelector('.sidebar-content')?.appendChild(btn);
         }
     }
-
-    const whiteKeys = teclasNoRange.filter(t => !t.nota.includes('#'));
-    const blackKeys = [];
-    teclasNoRange.forEach(t => {
-        if (t.nota.includes('#')) {
-            const pos = pretasMap[t.nota + t.oitava];
-            if (pos !== undefined) blackKeys.push({ ...t, pos });
-        }
-    });
-
-    function getDedo(notaNome, idx) {
-        if (dedosTreble && dedosTreble.length > 0) {
-            const notaIndex = notasAtivas.indexOf(notaNome);
-            if (notaIndex !== -1 && dedosTreble[notaIndex]) return dedosTreble[notaIndex];
-        }
-        const mapa = { 'C': '1', 'D': '2', 'E': '3', 'F': '4', 'G': '5', 'A': '1', 'B': '2', 'C#': '2', 'D#': '3', 'F#': '4', 'G#': '5', 'A#': '1' };
-        return mapa[notaNome] || null;
-    }
-
-    whiteKeys.forEach(tecla => {
-        const isActive = notasAtivas.includes(tecla.nota);
-        const dedo = isActive ? getDedo(tecla.nota) : null;
-        const whiteKey = document.createElement('div');
-        whiteKey.style.cssText = `width: ${whiteKeyWidth}px; height: ${whiteKeyHeight}px; background: ${isActive ? 'linear-gradient(to bottom, #3a86ff 0%, #2666cc 100%)' : 'linear-gradient(to bottom, #ffffff 0%, #f0f0f0 100%)'}; border: 1px solid #333; border-radius: 0 0 8px 8px; position: relative; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 1; cursor: default;`;
-        if (dedo) {
-            const dedoDiv = document.createElement('div');
-            dedoDiv.textContent = dedo;
-            dedoDiv.style.cssText = `position: absolute; top: 80%; left: 50%; transform: translate(-50%, -50%); width: 23px; height: 25px; background: white; color: #3a86ff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: bold; font-family: Arial; box-shadow: 0 2px 5px rgba(0,0,0,0.2); z-index: 10;`;
-            whiteKey.appendChild(dedoDiv);
-        }
-        pianoDiv.appendChild(whiteKey);
-    });
-
-    blackKeys.forEach(tecla => {
-        const isActive = notasAtivas.includes(tecla.nota);
-        const dedo = isActive ? getDedo(tecla.nota) : null;
-        const blackKey = document.createElement('div');
-        blackKey.style.cssText = `width: ${blackKeyWidth}px; height: ${blackKeyHeight}px; background: ${isActive ? 'linear-gradient(to bottom, #ff4757 0%, #cc2233 100%)' : 'linear-gradient(to bottom, #222 0%, #111 100%)'}; position: absolute; left: ${tecla.pos * whiteKeyWidth + blackKeyOffset}px; top: 0; border-radius: 0 0 5px 5px; box-shadow: 0 3px 8px rgba(0,0,0,0.4); z-index: 2; cursor: default;`;
-        if (dedo) {
-            const dedoDiv = document.createElement('div');
-            dedoDiv.textContent = dedo;
-            dedoDiv.style.cssText = `position: absolute; top: 78%; left: 50%; transform: translate(-50%, -50%); width: 18px; height: 20px; background: white; color: #ff4757; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; font-family: Arial; box-shadow: 0 1px 3px rgba(0,0,0,0.2); z-index: 11;`;
-            blackKey.appendChild(dedoDiv);
-        }
-        pianoDiv.appendChild(blackKey);
-    });
-
-    wrapper.appendChild(pianoDiv);
-    container.appendChild(wrapper);
 }
 
 // ============================================
-// 14. DESENHAR ACORDE (VIOLÃO)
+// 15. DESENHAR ACORDE (VIOLÃO)
 // ============================================
 
 function desenharAcorde(container, sigla, nomeParam = '') {
     let acorde = null;
     let nomeExibido = nomeParam || sigla;
 
-    if (sigla === 'C1') {
-        if (typeof ACORDES !== 'undefined' && ACORDES['C1']) {
-            acorde = { ...ACORDES['C1'] };
-            acorde.posicao = null;
-            acorde.mostrarNumero = false;
-            nomeExibido = acorde.nome;
-        }
-    }
-
-    if (!acorde && typeof ACORDES !== 'undefined' && ACORDES[sigla]) {
+    if (typeof ACORDES !== 'undefined' && ACORDES[sigla]) {
         acorde = ACORDES[sigla];
         nomeExibido = acorde.nome;
-    } else if (!acorde && typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[sigla]) {
+    } else if (typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[sigla]) {
         acorde = bibliotecaAcordes[sigla];
         nomeExibido = acorde.nome;
-    } else if (!acorde && typeof window.processarAcordeDinamico === 'function') {
+    } else if (typeof window.processarAcordeDinamico === 'function') {
         const acordeDinamico = window.processarAcordeDinamico(sigla, nomeExibido);
         if (acordeDinamico) {
             acorde = acordeDinamico;
@@ -1205,7 +1123,6 @@ function desenharAcorde(container, sigla, nomeParam = '') {
 
     const temPestana = acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0;
     const casaBase = acorde.pestanaCasa || acorde.casaInicial || 1;
-    const mostrarNumero = acorde.mostrarNumero !== false;
     let cordasNaPestana = [];
 
     if (temPestana) {
@@ -1225,27 +1142,10 @@ function desenharAcorde(container, sigla, nomeParam = '') {
         ctx.stroke();
     }
 
-    let numeroMostrar = null;
-    let textoMostrar = null;
-    if (acorde.mostrarPosicao === true && acorde.posicao) {
-        numeroMostrar = acorde.posicao;
-        textoMostrar = acorde.textoPosicao || (acorde.posicao + 'ª');
-    } else if (mostrarNumero && temPestana) {
-        numeroMostrar = acorde.pestanaCasa || acorde.casaInicial || 1;
-        textoMostrar = numeroMostrar + 'ª';
-    }
-    if (numeroMostrar !== null && textoMostrar !== null && acorde.mostrarNumero !== false) {
-        ctx.font = 'bold 14px Arial';
-        ctx.fillStyle = '#333';
-        const yPos = startY + (numeroMostrar - 1) * fretSpacing + fretSpacing / 2 + 2;
-        ctx.fillText(textoMostrar, startX - 28, yPos);
-    }
-
     ctx.lineWidth = 1.5;
     acorde.cordas.forEach((casa, i) => {
         const x = startX + i * stringSpacing;
         const casaRelativa = casa - casaBase + 1;
-        const estaNaPestana = temPestana && cordasNaPestana.includes(i) && casa === casaBase;
 
         if (casa === 0) {
             const y = startY - 10;
@@ -1263,6 +1163,7 @@ function desenharAcorde(container, sigla, nomeParam = '') {
             ctx.stroke();
             ctx.lineWidth = 1.5;
         } else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
+            const estaNaPestana = temPestana && cordasNaPestana.includes(i) && casa === casaBase;
             if (!estaNaPestana) {
                 const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
                 ctx.beginPath();
@@ -1282,22 +1183,47 @@ function desenharAcorde(container, sigla, nomeParam = '') {
     });
 
     wrapper.appendChild(canvas);
-
-    const idDiv = document.createElement('div');
-    if (sigla.includes(';')) {
-        const primeiroNumero = sigla.split(';')[0];
-        idDiv.textContent = primeiroNumero;
-        idDiv.style.cssText = 'text-align: center; width: 100%; margin-top: -18px; font-size: 20px; font-weight: bold; color: #e94560;';
-    } else {
-        idDiv.textContent = '';
-        idDiv.style.display = 'none';
-    }
-    wrapper.appendChild(idDiv);
     container.appendChild(wrapper);
 }
 
 // ============================================
-// 15. RENDERIZAÇÃO PRINCIPAL
+// 16. DESENHAR TECLADO DO PIANO
+// ============================================
+
+function normalizarNota(nota) {
+    const eq = { 'Eb': 'D#', 'Bb': 'A#', 'Ab': 'G#', 'Db': 'C#', 'Gb': 'F#' };
+    for (const [bemol, sustain] of Object.entries(eq)) {
+        if (nota.startsWith(bemol)) return sustain + nota.replace(bemol, '');
+    }
+    return nota;
+}
+
+function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, endOitava, dedosTreble) {
+    container.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display: inline-block; margin: 10px auto; text-align: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size: 1.6em; font-weight: bold; color: #e94560; margin-bottom: 10px;';
+    title.textContent = nome;
+    wrapper.appendChild(title);
+
+    const pianoDiv = document.createElement('div');
+    pianoDiv.style.cssText = 'display: flex; position: relative; background: #131212; padding: 3px; border-radius: 4px;';
+    wrapper.appendChild(pianoDiv);
+    container.appendChild(wrapper);
+}
+
+function desenharAcordePianoPersonalizado(container, sigla, nome) {
+    container.innerHTML = `<div style="padding:10px; color:#e94560;">🎹 ${nome}</div>`;
+}
+
+function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, endOitava, dedosTreble = []) {
+    container.innerHTML = `<div style="padding:10px; color:#e94560;">🎹 ${nome}</div>`;
+}
+
+// ============================================
+// 17. RENDERIZAÇÃO PRINCIPAL
 // ============================================
 
 function renderizar() {
@@ -1383,110 +1309,8 @@ function renderizar() {
 }
 
 // ============================================
-// 16. INSERIR ABC, PIANO E ACORDE POR NÚMERO
+// 18. FUNÇÕES DE UI
 // ============================================
-
-function inserirABC() {
-    const start = editor.selectionStart;
-    editor.value = editor.value.substring(0, start) + `[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC DEF | GAB c |]\n[/ABC]\n` + editor.value.substring(start);
-    renderizar();
-    salvarAulaAtual();
-}
-
-function inserirABCInfantil() {
-    const start = editor.selectionStart;
-    editor.value = editor.value.substring(0, start) + `[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/4\nK:C\nC DEF | GAB c |]\n[/ABC-INFANTIL]\n` + editor.value.substring(start);
-    renderizar();
-    salvarAulaAtual();
-}
-
-function inserirPiano() {
-    const sigla = prompt('Sigla (C, G, Am, F, Dm):', 'C');
-    if (!sigla) return;
-    const acordePiano = window.ACORDES_PIANO ? window.ACORDES_PIANO[sigla] : null;
-    const nome = acordePiano ? acordePiano.nome : sigla;
-    const start = editor.selectionStart;
-    const codigo = `[PIANO:${sigla}]${nome}[/PIANO]`;
-    editor.value = editor.value.substring(0, start) + codigo + editor.value.substring(start);
-    renderizar();
-    salvarAulaAtual();
-}
-
-function inserirAcordePorNumero() {
-    const inputField = document.getElementById('buscaAcordeRapida');
-    if (!inputField) {
-        console.error("❌ Campo buscaAcordeRapida não encontrado!");
-        toast('❌ Campo de busca não encontrado.', 'error');
-        return;
-    }
-    
-    const numero = inputField.value.trim();
-    if (!numero || numero < 1) {
-        toast('⚠️ Digite um número válido.', 'warning');
-        return;
-    }
-    
-    let nomeAcorde = null;
-    
-    if (typeof ACORDES !== 'undefined' && ACORDES[numero]) {
-        nomeAcorde = ACORDES[numero].nome;
-    }
-    
-    if (!nomeAcorde && typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[numero]) {
-        nomeAcorde = bibliotecaAcordes[numero].nome;
-    }
-    
-    if (!nomeAcorde && typeof FORMAS_INFINITAS !== 'undefined' && FORMAS_INFINITAS[numero]) {
-        nomeAcorde = FORMAS_INFINITAS[numero].nome;
-    }
-    
-    if (!nomeAcorde && typeof window.processarAcordeDinamico === 'function') {
-        const acordeTemp = window.processarAcordeDinamico(numero, '');
-        if (acordeTemp && acordeTemp.nome) {
-            nomeAcorde = acordeTemp.nome;
-        }
-    }
-    
-    if (!nomeAcorde) {
-        toast(`❌ Acorde ${numero} não encontrado!`, 'error');
-        console.error(`❌ Acorde ${numero} não encontrado!`);
-        return;
-    }
-    
-    const codigoFinal = `[Acorde:${numero};1]${nomeAcorde}[/Acorde]`;
-    
-    const start = editor.selectionStart;
-    const end = editor.selectionEnd;
-    const texto = editor.value;
-    
-    if (start !== end) {
-        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(end);
-        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
-    } else {
-        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(start);
-        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
-    }
-    
-    if (typeof renderizar === 'function') renderizar();
-    if (typeof salvarAulaAtual === 'function') salvarAulaAtual();
-    
-    inputField.value = '';
-    editor.focus();
-    
-    toast(`✅ Acorde "${nomeAcorde}" inserido!`, 'success');
-}
-
-// ============================================
-// 17. UI (BOTÕES, TOGGLES)
-// ============================================
-
-function toggleSidebar() {
-    document.getElementById('sidebar')?.classList.toggle('collapsed');
-}
-
-function toggleCategoria(menuId) {
-    document.getElementById(menuId)?.classList.toggle('collapsed');
-}
 
 function toggleCoresNotas() {
     coresAtivas = !coresAtivas;
@@ -1495,10 +1319,15 @@ function toggleCoresNotas() {
         btn.style.background = coresAtivas ? "#00CC00" : "#CC0000";
         btn.textContent = coresAtivas ? "✅ Cores" : "❌ Cores";
     }
-    if (coresAtivas) {
-        aplicarCoresNasNotas();
-        aplicarCoresAcordesLetras();
-    }
+    renderizar();
+}
+
+function toggleSidebar() {
+    document.getElementById('sidebar')?.classList.toggle('collapsed');
+}
+
+function toggleCategoria(menuId) {
+    document.getElementById(menuId)?.classList.toggle('collapsed');
 }
 
 function toggleFullscreenPreview() {
@@ -1535,13 +1364,6 @@ function toggleFullscreenPreview() {
 document.addEventListener('fullscreenchange', function() {
     const fullscreenBtn = document.getElementById('fullscreenBtn');
     if (!document.fullscreenElement && fullscreenBtn) {
-        fullscreenBtn.textContent = '⛶';
-        fullscreenBtn.style.background = '#00CC00';
-    }
-});
-document.addEventListener('webkitfullscreenchange', function() {
-    const fullscreenBtn = document.getElementById('fullscreenBtn');
-    if (!document.webkitFullscreenElement && fullscreenBtn) {
         fullscreenBtn.textContent = '⛶';
         fullscreenBtn.style.background = '#00CC00';
     }
@@ -1591,12 +1413,18 @@ function resetarAcordes() {
 // Placeholder functions
 function exportHTML() { alert("📄 Exportação HTML em desenvolvimento"); }
 function exportAppHTML() { alert("📱 Exportação App em desenvolvimento"); }
+function exportarArquivo() { alert("📤 Exportar Arquivo - Em desenvolvimento"); }
+function importarArquivo() { alert("📥 Importar Arquivo - Em desenvolvimento"); }
+function exportarPastaAtual() { alert("📤 Exportar Pasta Atual - Em desenvolvimento"); }
+function importarParaPastaAtual() { alert("📥 Importar para Pasta Atual - Em desenvolvimento"); }
+function exportarTudoSistema() { alert("📤 Exportar Sistema Completo - Em desenvolvimento"); }
+function importarTudoSistema() { alert("📥 Importar Sistema Completo - Em desenvolvimento"); }
 function gerarPreviewAcordes() { }
 function salvarAcordeNaBiblioteca() { }
 function copiarCodigoAcordes() { }
 
 // ============================================
-// 18. EXPORTAÇÃO DE ARQUIVOS
+// 19. EXPORTAÇÃO DE ARQUIVOS
 // ============================================
 
 function gerarHTMLCompleto(conteudoPreview) {
@@ -1676,7 +1504,7 @@ function exportarEstruturaJSON() {
 }
 
 // ============================================
-// 19. GITHUB (CONFIG, UPLOAD, DOWNLOAD, EXPLORADOR)
+// 20. GITHUB (CONFIG, UPLOAD, DOWNLOAD, EXPLORADOR)
 // ============================================
 
 // CONFIG
@@ -2286,7 +2114,7 @@ function atualizarExploradorGitHub() {
 }
 
 // ============================================
-// 20. INICIALIZAÇÃO
+// 21. INICIALIZAÇÃO
 // ============================================
 
 function init() {
@@ -2311,5 +2139,10 @@ function init() {
 }
 
 document.addEventListener('DOMContentLoaded', init);
+
+// Estilo do toast
+const styleToast = document.createElement('style');
+styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
+document.head.appendChild(styleToast);
 
 console.log('✅ main4.js carregado com sucesso!');
