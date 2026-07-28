@@ -28,3 +28,5 @@ window.dados = dados;
 window.listaAtual = listaAtual;
 window.cartaoAtual = cartaoAtual;
 window.coresAtivas = coresAtivas;
+
+console.log('✅ Variáveis globais carregadas');
