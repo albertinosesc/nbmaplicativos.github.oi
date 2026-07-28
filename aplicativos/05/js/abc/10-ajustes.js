@@ -41,3 +41,5 @@ function ajustarLetrasX() {
 function atualizarStaffSep() { renderizar(); }
 function atualizarSysStaffSep() { renderizar(); }
 function atualizarIntensidadeCores() { if (coresAtivas) aplicarCoresNasNotas(); }
+
+console.log('✅ Ajustes carregados');
