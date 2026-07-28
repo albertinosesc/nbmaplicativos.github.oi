@@ -85,3 +85,5 @@ function renderizar() {
         preview.innerHTML = '<p style="color:red;">❌ Erro ao renderizar: ' + e.message + '</p>';
     }
 }
+
+console.log('✅ Renderizador carregado');
