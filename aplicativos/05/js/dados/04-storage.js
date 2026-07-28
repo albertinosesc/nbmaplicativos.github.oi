@@ -27,3 +27,5 @@ function carregarDados() {
         carregarAula([0], 0);
     }
 }
+
+console.log('✅ Storage carregado');
