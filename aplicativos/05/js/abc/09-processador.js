@@ -45,3 +45,5 @@ function processarABCComEspacamento(id, code, tipo) {
         elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
     }
 }
+
+console.log('✅ Processador ABC carregado');
