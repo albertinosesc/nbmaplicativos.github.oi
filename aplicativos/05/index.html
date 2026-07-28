@@ -1,1225 +1,2148 @@
-<!DOCTYPE html>
+// ============================================
+// main4.js - PRO MAESTRO (VERSÃO CORRIGIDA)
+// ============================================
+
+// ============================================
+// 1. VARIÁVEIS GLOBAIS
+// ============================================
+
+let dados = { listas: [] };
+let githubToken = localStorage.getItem('github_token') || '';
+let githubRepo = localStorage.getItem('github_repo') || '';
+let githubBranch = localStorage.getItem('github_branch') || 'main';
+let githubPasta = localStorage.getItem('github_pasta') || 'aulas/';
+let listaAtual = null;
+let cartaoAtual = null;
+let timeoutRenderTimer;
+let coresAtivas = true;
+let expandedPaths = new Set();
+let exploradorCaminhoAtual = '';
+
+const STORAGE_KEY = 'pro_maestro_listas';
+
+// Exporta para escopo global
+window.githubToken = githubToken;
+window.githubRepo = githubRepo;
+window.githubBranch = githubBranch;
+window.githubPasta = githubPasta;
+window.dados = dados;
+
+// ============================================
+// 2. REFERÊNCIAS DOM
+// ============================================
+
+const editor = document.getElementById('editor');
+const preview = document.getElementById('preview');
+const listaAulas = document.getElementById('listaAulas');
+
+// ============================================
+// 3. FUNÇÕES AUXILIARES
+// ============================================
+
+function toast(msg, tipo = 'info') {
+    const el = document.createElement('div');
+    el.textContent = msg;
+    const bg = tipo === 'error' ? '#e94560' : tipo === 'success' ? '#2ed573' : '#3a86ff';
+    el.style.cssText = `position:fixed; bottom:20px; right:20px; background:${bg}; color:white; padding:12px 20px; border-radius:8px; z-index:9999; animation:fadeOut 3s forwards; font-weight:bold;`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 3000);
+}
+
+function obterChaveDoCaminho(caminho) {
+    return caminho.join('-');
+}
+
+function obterListaPorCaminho(caminho) {
+    if (!caminho || caminho.length === 0) return null;
+    let atual = dados.listas[caminho[0]];
+    for (let i = 1; i < caminho.length; i++) {
+        if (!atual || !atual.sublistas) return null;
+        atual = atual.sublistas[caminho[i]];
+    }
+    return atual;
+}
+
+function obterTituloAtual() {
+    if (listaAtual !== null && cartaoAtual !== null) {
+        const lista = obterListaPorCaminho(listaAtual);
+        if (lista && lista.cards[cartaoAtual]) {
+            return lista.cards[cartaoAtual].texto || 'aula';
+        }
+    }
+    return 'aula';
+}
+
+function obterConteudoAtual() {
+    return editor ? editor.value : '';
+}
+
+function obterCorPorNota(nota) {
+    const cores = { 'C': '#FF0000', 'D': '#FF6600', 'E': '#FFDD00', 'F': '#00CC00', 'G': '#0066FF', 'A': '#4B0082', 'B': '#8B00FF' };
+    return cores[nota.toUpperCase()] || '#000000';
+}
+
+// ============================================
+// 4. FUNÇÕES DE CORES (CORRIGIDAS - SEM DUPLICAÇÃO)
+// ============================================
+
+// Mapa de cores
+function obterCorPorCodigo(codigo) {
+    const cores = {
+        r: "#FF0000", // vermelho
+        o: "#FF6600", // laranja
+        y: "#FFDD00", // amarelo
+        g: "#00CC00", // verde
+        b: "#0066FF", // azul
+        i: "#4B0082", // índigo
+        v: "#8B00FF"  // violeta
+    };
+    return cores[codigo.toLowerCase()] || "#000000";
+}
+
+// Função principal para aplicar cores nas letras (funciona com [r], [b], [g], etc.)
+function aplicarCoresNasLetras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        // Procura por [r], [b], [g], etc.
+        const match = textoOriginal.match(/\[(r|o|y|g|b|i|v)\]/i);
+        
+        if (match) {
+            const codigoCor = match[1].toLowerCase();
+            const cor = obterCorPorCodigo(codigoCor);
+            el.style.fill = cor;
+            el.textContent = textoOriginal.replace(/\[(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+    });
+}
+
+// Função para aplicar cores nas cifras (funciona com [Cr], [Cb], etc.)
+function aplicarCoresNasCifras() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
+        const textoOriginal = el.textContent || "";
+        
+        // Procura por [Cr], [Cb], etc.
+        let match = textoOriginal.match(/\[C(r|o|y|g|b|i|v)\]/i);
+        let cor = null;
+        let textoLimpo = textoOriginal;
+        
+        if (match) {
+            cor = obterCorPorCodigo(match[1].toLowerCase());
+            textoLimpo = textoOriginal.replace(/\[C(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+        
+        if (cor) {
+            el.style.fill = cor;
+            el.textContent = textoLimpo;
+        }
+    });
+}
+
+// Função para aplicar cores nas notas (funciona com [Nr], [Nb], etc.)
+function aplicarCoresNasNotas() {
+    if (!coresAtivas) return;
+
+    document.querySelectorAll("#preview .abcjs-note").forEach(nota => {
+        const textoNota = nota.textContent || "";
+        
+        // Procura por [Nr], [Nb], etc.
+        let match = textoNota.match(/\[N(r|o|y|g|b|i|v)\]/i);
+        let cor = null;
+        let textoLimpo = textoNota;
+        
+        if (match) {
+            cor = obterCorPorCodigo(match[1].toLowerCase());
+            textoLimpo = textoNota.replace(/\[N(r|o|y|g|b|i|v)\]/gi, "").trim();
+        }
+        
+        const cabeca = nota.querySelector("ellipse, circle") || nota.querySelector("path");
+        
+        if (cor && cabeca) {
+            cabeca.style.fill = cor;
+            cabeca.style.fillOpacity = "1";
+            nota.textContent = textoLimpo;
+        } else if (cabeca) {
+            // Sem comando: nota preta
+            cabeca.style.fill = "#000000";
+            cabeca.style.fillOpacity = "1";
+        }
+    });
+}
+
+// Função compatível com o sistema antigo (mantida para não quebrar nada)
+function getCorPorTag(texto) {
+    if (!texto) return "#000000";
+    const cores = {
+        '[r]': '#FF0000', '[o]': '#FF6600', '[y]': '#FFDD00',
+        '[g]': '#00CC00', '[b]': '#0066FF', '[i]': '#4B0082', '[v]': '#8B00FF'
+    };
+    for (const [tag, cor] of Object.entries(cores)) {
+        if (texto.includes(tag)) return cor;
+    }
+    return "#000000";
+}
+
+function aplicarCoresAcordesLetras() {
+    if (!coresAtivas) return;
+    document.querySelectorAll("#preview .abcjs-chord, #preview .abcjs-lyric").forEach(el => {
+        let texto = el.textContent || '';
+        let cor = getCorPorTag(texto);
+        if (cor !== "#000000") el.style.fill = cor;
+        el.textContent = texto.replace(/\[(.*?)\]/g, "");
+    });
+}
+
+// ============================================
+// 5. DADOS PADRÃO
+// ============================================
+
+function obterDadosPadrao() {
+    return {
+        listas: [
+            {
+                nome: "Piano",
+                cards: [
+                    { texto: "Escala de Dó Maior", conteudo: "# Escala de Dó Maior\n\n[PIANO:C]Dó Maior[/PIANO]\n\n[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC DEF | GAB c |]\n[/ABC]", ultimaModificacao: Date.now() },
+                    { texto: "Acordes Básicos", conteudo: "# Acordes Básicos\n\n[PIANO:C]Dó Maior[/PIANO]\n[PIANO:G]Sol Maior[/PIANO]\n[PIANO:Am]Lá Menor[/PIANO]", ultimaModificacao: Date.now() }
+                ],
+                sublistas: [
+                    {
+                        nome: "Exercícios",
+                        cards: [
+                            { texto: "Hanon 1", conteudo: "# Hanon 1\n\nExercício para dedos.", ultimaModificacao: Date.now() }
+                        ],
+                        sublistas: []
+                    }
+                ]
+            },
+            {
+                nome: "Violão",
+                cards: [
+                    { texto: "Acordes Iniciantes", conteudo: "# Acordes Iniciantes\n\n[Acorde:C]Dó Maior[/Acorde]\n[Acorde:G]Sol Maior[/Acorde]\n[Acorde:Am]Lá Menor[/Acorde]", ultimaModificacao: Date.now() }
+                ],
+                sublistas: []
+            },
+            {
+                nome: "Teoria Musical",
+                cards: [
+                    { texto: "Partitura Infantil", conteudo: "# Partitura Colorida\n\n[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/4\nK:C\nC DEF | GAB c |]\nw: Dó Ré Mi Fá Sol Lá Si Dó\n[/ABC-INFANTIL]", ultimaModificacao: Date.now() }
+                ],
+                sublistas: []
+            }
+        ]
+    };
+}
+
+// ============================================
+// 6. STORAGE (SALVAR/CARREGAR)
+// ============================================
+
+function salvarDados() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(dados));
+    renderizarListaAulas();
+    console.log("💾 Dados salvos");
+}
+
+function carregarDados() {
+    const localData = localStorage.getItem(STORAGE_KEY);
+    if (localData) {
+        try {
+            dados = JSON.parse(localData);
+            console.log("✅ Dados carregados:", dados.listas.length, "listas");
+        } catch (e) {
+            console.error("Erro ao carregar:", e);
+            dados = obterDadosPadrao();
+        }
+    } else {
+        dados = obterDadosPadrao();
+        console.log("📁 Dados padrão carregados");
+    }
+    renderizarListaAulas();
+    if (dados.listas.length > 0 && dados.listas[0].cards.length > 0) {
+        carregarAula([0], 0);
+    }
+}
+
+// ============================================
+// 7. SIDEBAR (RENDERIZAR LISTA DE AULAS)
+// ============================================
+
+function renderizarListaAulas() {
+    if (!listaAulas) return;
+    listaAulas.innerHTML = '';
+
+    const novaListaBtn = document.createElement('button');
+    novaListaBtn.textContent = '+ Nova Lista';
+    novaListaBtn.style.background = '#e94560';
+    novaListaBtn.style.marginBottom = '15px';
+    novaListaBtn.style.width = '100%';
+    novaListaBtn.style.padding = '10px';
+    novaListaBtn.style.cursor = 'pointer';
+    novaListaBtn.style.border = 'none';
+    novaListaBtn.style.borderRadius = '5px';
+    novaListaBtn.style.color = 'white';
+    novaListaBtn.style.fontWeight = 'bold';
+    novaListaBtn.onclick = () => criarLista(null);
+    listaAulas.appendChild(novaListaBtn);
+
+    if (!dados.listas || dados.listas.length === 0) {
+        const emptyMsg = document.createElement('div');
+        emptyMsg.textContent = '📭 Nenhuma lista. Clique em "+ Nova Lista" para começar.';
+        emptyMsg.style.textAlign = 'center';
+        emptyMsg.style.padding = '20px';
+        emptyMsg.style.color = '#999';
+        listaAulas.appendChild(emptyMsg);
+        return;
+    }
+
+    function renderizarListaRecursiva(lista, caminho, nivel = 0) {
+        const listaDiv = document.createElement('div');
+        listaDiv.style.marginBottom = '10px';
+        listaDiv.style.marginLeft = `${nivel * 15}px`;
+        if (nivel > 0) {
+            listaDiv.style.borderLeft = '2px solid #e94560';
+            listaDiv.style.paddingLeft = '10px';
+        }
+
+        const headerDiv = document.createElement('div');
+        headerDiv.style.display = 'flex';
+        headerDiv.style.justifyContent = 'space-between';
+        headerDiv.style.alignItems = 'center';
+        headerDiv.style.padding = '8px';
+        headerDiv.style.background = nivel === 0 ? '#0f3460' : '#1a1a3e';
+        headerDiv.style.borderRadius = '5px';
+        headerDiv.style.cursor = 'pointer';
+        headerDiv.style.marginTop = '5px';
+
+        const tituloSpan = document.createElement('span');
+        tituloSpan.style.fontWeight = 'bold';
+        tituloSpan.style.color = '#e94560';
+
+        const pathKey = obterChaveDoCaminho(caminho);
+        const isExpanded = expandedPaths.has(pathKey);
+        tituloSpan.innerHTML = isExpanded ? `📂 ${lista.nome}` : `📁 ${lista.nome}`;
+
+        const botoesDiv = document.createElement('div');
+        botoesDiv.style.display = 'flex';
+        botoesDiv.style.gap = '5px';
+
+        const addSubListBtn = document.createElement('button');
+        addSubListBtn.textContent = '📁+';
+        addSubListBtn.style.padding = '4px 8px';
+        addSubListBtn.style.background = '#f39c12';
+        addSubListBtn.style.border = 'none';
+        addSubListBtn.style.borderRadius = '3px';
+        addSubListBtn.style.cursor = 'pointer';
+        addSubListBtn.style.color = 'white';
+        addSubListBtn.style.fontSize = '11px';
+        addSubListBtn.onclick = (e) => { e.stopPropagation(); criarLista(caminho); };
+
+        const addCardBtn = document.createElement('button');
+        addCardBtn.textContent = '+';
+        addCardBtn.style.padding = '4px 10px';
+        addCardBtn.style.background = '#2ecc71';
+        addCardBtn.style.border = 'none';
+        addCardBtn.style.borderRadius = '3px';
+        addCardBtn.style.cursor = 'pointer';
+        addCardBtn.style.color = 'white';
+        addCardBtn.onclick = (e) => { e.stopPropagation(); criarCartao(caminho); };
+
+        const editListBtn = document.createElement('button');
+        editListBtn.textContent = '✏️';
+        editListBtn.style.padding = '4px 8px';
+        editListBtn.style.background = '#3a86ff';
+        editListBtn.style.border = 'none';
+        editListBtn.style.borderRadius = '3px';
+        editListBtn.style.cursor = 'pointer';
+        editListBtn.style.color = 'white';
+        editListBtn.onclick = (e) => { e.stopPropagation(); renomearLista(caminho); };
+
+        const deleteListBtn = document.createElement('button');
+        deleteListBtn.textContent = '🗑️';
+        deleteListBtn.style.padding = '4px 8px';
+        deleteListBtn.style.background = '#e94560';
+        deleteListBtn.style.border = 'none';
+        deleteListBtn.style.borderRadius = '3px';
+        deleteListBtn.style.cursor = 'pointer';
+        deleteListBtn.style.color = 'white';
+        deleteListBtn.onclick = (e) => { e.stopPropagation(); excluirLista(caminho); };
+
+        botoesDiv.appendChild(addSubListBtn);
+        botoesDiv.appendChild(addCardBtn);
+        botoesDiv.appendChild(editListBtn);
+        botoesDiv.appendChild(deleteListBtn);
+        headerDiv.appendChild(tituloSpan);
+        headerDiv.appendChild(botoesDiv);
+
+        const contentContainer = document.createElement('div');
+        contentContainer.className = 'cards-container';
+        contentContainer.style.paddingLeft = '10px';
+        contentContainer.style.marginTop = '5px';
+        contentContainer.style.display = isExpanded ? 'block' : 'none';
+
+        if (lista.cards && lista.cards.length > 0) {
+            for (let cardIdx = 0; cardIdx < lista.cards.length; cardIdx++) {
+                const card = lista.cards[cardIdx];
+                const cardDiv = document.createElement('div');
+                cardDiv.className = 'cartao';
+                cardDiv.style.display = 'flex';
+                cardDiv.style.justifyContent = 'space-between';
+                cardDiv.style.alignItems = 'center';
+                cardDiv.style.background = '#1a1a2e';
+                cardDiv.style.borderLeft = '3px solid #e94560';
+                cardDiv.style.padding = '6px 8px';
+                cardDiv.style.margin = '3px 0';
+                cardDiv.style.borderRadius = '3px';
+                cardDiv.style.cursor = 'pointer';
+
+                const cardTitle = document.createElement('span');
+                cardTitle.textContent = `📄 ${card.texto}`;
+                cardTitle.style.fontSize = '12px';
+                cardTitle.style.flex = '1';
+
+                const cardActions = document.createElement('div');
+                cardActions.style.display = 'flex';
+                cardActions.style.gap = '5px';
+
+                const editCardBtn = document.createElement('button');
+                editCardBtn.textContent = '✏️';
+                editCardBtn.style.padding = '2px 6px';
+                editCardBtn.style.background = '#3a86ff';
+                editCardBtn.style.border = 'none';
+                editCardBtn.style.borderRadius = '3px';
+                editCardBtn.style.cursor = 'pointer';
+                editCardBtn.style.color = 'white';
+                editCardBtn.style.fontSize = '10px';
+                editCardBtn.onclick = (e) => { e.stopPropagation(); renomearCartao(caminho, cardIdx); };
+
+                const deleteCardBtn = document.createElement('button');
+                deleteCardBtn.textContent = '🗑️';
+                deleteCardBtn.style.padding = '2px 6px';
+                deleteCardBtn.style.background = '#e94560';
+                deleteCardBtn.style.border = 'none';
+                deleteCardBtn.style.borderRadius = '3px';
+                deleteCardBtn.style.cursor = 'pointer';
+                deleteCardBtn.style.color = 'white';
+                deleteCardBtn.style.fontSize = '10px';
+                deleteCardBtn.onclick = (e) => { e.stopPropagation(); excluirCartao(caminho, cardIdx); };
+
+                cardActions.appendChild(editCardBtn);
+                cardActions.appendChild(deleteCardBtn);
+                cardDiv.appendChild(cardTitle);
+                cardDiv.appendChild(cardActions);
+                cardDiv.onclick = () => carregarAula(caminho, cardIdx);
+                contentContainer.appendChild(cardDiv);
+            }
+        }
+
+        if (lista.sublistas && lista.sublistas.length > 0) {
+            for (let subIdx = 0; subIdx < lista.sublistas.length; subIdx++) {
+                const subPath = [...caminho, subIdx];
+                const subDiv = renderizarListaRecursiva(lista.sublistas[subIdx], subPath, nivel + 1);
+                contentContainer.appendChild(subDiv);
+            }
+        }
+
+        if ((!lista.cards || lista.cards.length === 0) && (!lista.sublistas || lista.sublistas.length === 0)) {
+            const emptyMsg = document.createElement('div');
+            emptyMsg.textContent = '📭 Nenhum conteúdo. Clique em "+" para adicionar cartão ou "📁+" para sub-lista.';
+            emptyMsg.style.padding = '8px';
+            emptyMsg.style.color = '#888';
+            emptyMsg.style.fontSize = '11px';
+            emptyMsg.style.textAlign = 'center';
+            contentContainer.appendChild(emptyMsg);
+        }
+
+        headerDiv.onclick = (e) => {
+            if (e.target.tagName === 'BUTTON') return;
+            if (expandedPaths.has(pathKey)) {
+                expandedPaths.delete(pathKey);
+                contentContainer.style.display = 'none';
+                tituloSpan.innerHTML = `📁 ${lista.nome}`;
+            } else {
+                expandedPaths.add(pathKey);
+                contentContainer.style.display = 'block';
+                tituloSpan.innerHTML = `📂 ${lista.nome}`;
+            }
+        };
+
+        listaDiv.appendChild(headerDiv);
+        listaDiv.appendChild(contentContainer);
+        return listaDiv;
+    }
+
+    dados.listas.forEach((lista, idx) => {
+        const listaDiv = renderizarListaRecursiva(lista, [idx], 0);
+        listaDiv.setAttribute('data-lista-idx', idx);
+        listaAulas.appendChild(listaDiv);
+    });
+}
+
+// ============================================
+// 8. CRIAÇÃO (LISTAS E CARTÕES)
+// ============================================
+
+function criarLista(caminho) {
+    const nome = prompt("Nome da nova lista:");
+    if (nome && nome.trim()) {
+        const novaListaObj = { nome: nome.trim(), cards: [], sublistas: [] };
+        if (caminho === null) dados.listas.push(novaListaObj);
+        else {
+            const listaPai = obterListaPorCaminho(caminho);
+            if (listaPai) {
+                if (!listaPai.sublistas) listaPai.sublistas = [];
+                listaPai.sublistas.push(novaListaObj);
+                const parentKey = obterChaveDoCaminho(caminho);
+                expandedPaths.add(parentKey);
+            }
+        }
+        salvarDados();
+        alert(`✅ Lista "${nome.trim()}" criada!`);
+    }
+}
+
+function criarCartao(caminho) {
+    const nome = prompt("Nome do novo cartão:");
+    if (nome && nome.trim()) {
+        const lista = obterListaPorCaminho(caminho);
+        if (lista) {
+            if (!lista.cards) lista.cards = [];
+            lista.cards.push({
+                texto: nome.trim(),
+                conteudo: `# ${nome.trim()}\n\nDigite seu conteúdo aqui...`,
+                ultimaModificacao: Date.now()
+            });
+            const parentKey = obterChaveDoCaminho(caminho);
+            expandedPaths.add(parentKey);
+            salvarDados();
+            alert(`✅ Cartão "${nome.trim()}" criado!`);
+        }
+    }
+}
+
+function renomearLista(caminho) {
+    const lista = obterListaPorCaminho(caminho);
+    if (!lista) return;
+    const novoNome = prompt("Novo nome:", lista.nome);
+    if (novoNome && novoNome.trim()) {
+        lista.nome = novoNome.trim();
+        salvarDados();
+        alert("✅ Lista renomeada!");
+    }
+}
+
+function excluirLista(caminho) {
+    const lista = obterListaPorCaminho(caminho);
+    if (!lista) return;
+    if (confirm(`Excluir a lista "${lista.nome}" e todo seu conteúdo?`)) {
+        const pathStr = obterChaveDoCaminho(caminho);
+        for (let key of expandedPaths) {
+            if (key.startsWith(pathStr)) {
+                expandedPaths.delete(key);
+            }
+        }
+        if (caminho.length === 1) dados.listas.splice(caminho[0], 1);
+        else {
+            const paiPath = caminho.slice(0, -1);
+            const listaPai = obterListaPorCaminho(paiPath);
+            const idx = caminho[caminho.length - 1];
+            listaPai.sublistas.splice(idx, 1);
+        }
+        salvarDados();
+        alert("✅ Lista excluída!");
+    }
+}
+
+function renomearCartao(caminho, cardIdx) {
+    const lista = obterListaPorCaminho(caminho);
+    if (!lista || !lista.cards[cardIdx]) return;
+    const novoNome = prompt("Novo nome:", lista.cards[cardIdx].texto);
+    if (novoNome && novoNome.trim()) {
+        lista.cards[cardIdx].texto = novoNome.trim();
+        salvarDados();
+        alert("✅ Cartão renomeado!");
+    }
+}
+
+function excluirCartao(caminho, cardIdx) {
+    const lista = obterListaPorCaminho(caminho);
+    if (!lista || !lista.cards[cardIdx]) return;
+    if (confirm(`Excluir o cartão "${lista.cards[cardIdx].texto}"?`)) {
+        lista.cards.splice(cardIdx, 1);
+        salvarDados();
+        alert("✅ Cartão excluído!");
+    }
+}
+
+function carregarAula(caminho, cardIdx) {
+    const lista = obterListaPorCaminho(caminho);
+    if (!lista || !lista.cards[cardIdx]) return;
+    const card = lista.cards[cardIdx];
+    listaAtual = caminho;
+    cartaoAtual = cardIdx;
+    editor.value = card.conteudo;
+    if (timeoutRenderTimer) clearTimeout(timeoutRenderTimer);
+    renderizar();
+}
+
+function salvarAulaAtual() {
+    if (listaAtual !== null && cartaoAtual !== null) {
+        const lista = obterListaPorCaminho(listaAtual);
+        if (lista && lista.cards[cartaoAtual]) {
+            lista.cards[cartaoAtual].conteudo = editor.value;
+            lista.cards[cartaoAtual].ultimaModificacao = Date.now();
+            salvarDados();
+        }
+    }
+}
+
+// ============================================
+// 9. FUNÇÃO OBTER COR POR CÓDIGO (JÁ DEFINIDA ACIMA)
+// ============================================
+
+// (A função obterCorPorCodigo já está definida na seção 4)
+
+// ============================================
+// 10. PROCESSAR ABC COM ESPAÇAMENTO
+// ============================================
+
+function processarABCComEspacamento(id, code, tipo) {
+    const elemento = document.getElementById(id);
+    if (!elemento) return;
+
+    const staffsep = document.getElementById("staffsepRange")?.value || 60;
+    const sysstaffsep = document.getElementById("sysstaffsepRange")?.value || 80;
+
+    let linhas = code.split('\n');
+    let novasLinhas = [];
+    let hasStaffsep = false, hasSysstaffsep = false;
+
+    for (let linha of linhas) {
+        if (linha.trim().startsWith('%%staffsep')) {
+            novasLinhas.push(`%%staffsep ${staffsep}`);
+            hasStaffsep = true;
+        } else if (linha.trim().startsWith('%%sysstaffsep')) {
+            novasLinhas.push(`%%sysstaffsep ${sysstaffsep}`);
+            hasSysstaffsep = true;
+        } else {
+            novasLinhas.push(linha);
+        }
+    }
+
+    if (!hasStaffsep && linhas.length > 0) novasLinhas.unshift(`%%staffsep ${staffsep}`);
+    if (!hasSysstaffsep && linhas.length > 0) novasLinhas.unshift(`%%sysstaffsep ${sysstaffsep}`);
+
+    let codigoProcessado = novasLinhas.join('\n');
+    codigoProcessado = codigoProcessado.replace(/"%"/g, '"％"');
+    
+    try {
+        elemento.innerHTML = "";
+        ABCJS.renderAbc(id, codigoProcessado, { add_classes: true, staffwidth: 800, responsive: 'resize' });
+        
+        // Aplica cores após renderizar - usando as funções corretas
+        setTimeout(() => {
+            aplicarCoresNasLetras();      // Para [r], [b], [g] nas letras
+            aplicarCoresNasCifras();      // Para [Cr], [Cb], [Cg] nas cifras
+            aplicarCoresNasNotas();       // Para [Nr], [Nb], [Ng] nas notas
+            aplicarCoresAcordesLetras();  // Compatibilidade com sistema antigo
+            
+            if (tipo === 'infantil') {
+                ajustarAcordes();
+                ajustarLetras();
+            }
+        }, 300);
+        
+    } catch (e) {
+        elemento.innerHTML = `<p style="color:red">Erro: ${e.message}</p>`;
+    }
+}
+
+// ============================================
+// 11. FUNÇÕES DE AJUSTE
+// ============================================
+
+function ajustarAcordes() {
+    const valor = parseFloat(document.getElementById("acordeRange")?.value || -8);
+    const acordeValue = document.getElementById("acordeValue");
+    if (acordeValue) acordeValue.innerText = valor;
+    
+    document.querySelectorAll("#preview .abcjs-chord").forEach(el => {
+        let yAtual = parseFloat(el.getAttribute("y"));
+        if (!isNaN(yAtual)) {
+            if (!el.dataset.yOriginal) el.dataset.yOriginal = yAtual;
+            el.setAttribute("y", parseFloat(el.dataset.yOriginal) + valor);
+        }
+    });
+}
+
+function ajustarLetras() {
+    const valor = parseFloat(document.getElementById("letraRange")?.value || 12);
+    const letraValue = document.getElementById("letraValue");
+    if (letraValue) letraValue.innerText = valor;
+    
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        let yAtual = parseFloat(el.getAttribute("y"));
+        if (!isNaN(yAtual)) {
+            if (!el.dataset.yOriginal) el.dataset.yOriginal = yAtual;
+            el.setAttribute("y", parseFloat(el.dataset.yOriginal) + valor);
+        }
+    });
+}
+
+function ajustarLetrasX() {
+    const valor = parseFloat(document.getElementById("letraXRange")?.value || 5);
+    const letraXValue = document.getElementById("letraXValue");
+    if (letraXValue) letraXValue.innerText = valor;
+    
+    document.querySelectorAll("#preview .abcjs-lyric").forEach(el => {
+        let xAtual = parseFloat(el.getAttribute("x"));
+        if (!isNaN(xAtual)) {
+            if (!el.dataset.xOriginal) el.dataset.xOriginal = xAtual;
+            el.setAttribute("x", parseFloat(el.dataset.xOriginal) + valor);
+        }
+    });
+}
+
+function atualizarStaffSep() { renderizar(); }
+function atualizarSysStaffSep() { renderizar(); }
+function atualizarIntensidadeCores() { if (coresAtivas) { aplicarCoresNasNotas(); } }
+
+// ============================================
+// 12. FUNÇÕES DO EDITOR
+// ============================================
+
+function copiarEditor(event) {
+    if (!editor) {
+        toast('❌ Editor não encontrado.', 'error');
+        return;
+    }
+    
+    editor.select();
+    editor.setSelectionRange(0, editor.value.length);
+    
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(editor.value)
+                .then(() => {
+                    toast('✅ Texto copiado!', 'success');
+                    if (event && event.target) {
+                        const btn = event.target;
+                        const textoOriginal = btn.textContent;
+                        btn.textContent = '✅ Copiado!';
+                        setTimeout(() => {
+                            btn.textContent = textoOriginal;
+                        }, 1500);
+                    }
+                })
+                .catch(() => {
+                    document.execCommand('copy');
+                    toast('✅ Texto copiado!', 'success');
+                });
+        } else {
+            document.execCommand('copy');
+            toast('✅ Texto copiado!', 'success');
+        }
+    } catch (err) {
+        toast('❌ Erro ao copiar: ' + err.message, 'error');
+    }
+    
+    editor.setSelectionRange(0, 0);
+    editor.focus();
+}
+
+function colarEditor(event) {
+    if (!editor) {
+        toast('❌ Editor não encontrado.', 'error');
+        return;
+    }
+    
+    editor.focus();
+    
+    if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText()
+            .then(text => {
+                if (text) {
+                    const start = editor.selectionStart;
+                    const end = editor.selectionEnd;
+                    const currentText = editor.value;
+                    editor.value = currentText.substring(0, start) + text + currentText.substring(end);
+                    renderizar();
+                    salvarAulaAtual();
+                    toast('✅ Texto colado!', 'success');
+                    if (event && event.target) {
+                        const btn = event.target;
+                        const textoOriginal = btn.textContent;
+                        btn.textContent = '✅ Colado!';
+                        setTimeout(() => {
+                            btn.textContent = textoOriginal;
+                        }, 1500);
+                    }
+                }
+            })
+            .catch(() => {
+                colarComPrompt(editor);
+            });
+    } else {
+        colarComPrompt(editor);
+    }
+}
+
+function colarComPrompt(editor) {
+    const textoColado = prompt('📋 Cole o texto aqui (Ctrl+V):');
+    if (textoColado !== null && textoColado !== '') {
+        const start = editor.selectionStart;
+        const end = editor.selectionEnd;
+        const currentText = editor.value;
+        editor.value = currentText.substring(0, start) + textoColado + currentText.substring(end);
+        renderizar();
+        salvarAulaAtual();
+        editor.focus();
+        toast('✅ Texto colado via prompt!', 'success');
+    }
+}
+
+function addFormatacao(antes, depois) {
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const texto = editor.value;
+    const selectedText = texto.substring(start, end);
+    let newText = selectedText ? texto.substring(0, start) + antes + selectedText + depois + texto.substring(end) : texto.substring(0, start) + antes + depois + texto.substring(end);
+    editor.value = newText;
+    editor.setSelectionRange(start + antes.length, start + antes.length);
+    renderizar();
+    salvarAulaAtual();
+    editor.focus();
+}
+
+function inserirLink() {
+    const url = prompt('Digite uma URL:', 'https://');
+    const texto = prompt('Digite o texto do link:', 'Clique aqui');
+    if (url && texto) {
+        const start = editor.selectionStart;
+        editor.value = editor.value.substring(0, start) + `[${texto}](${url})` + editor.value.substring(start);
+        renderizar();
+        salvarAulaAtual();
+    }
+}
+
+function inserirImagem() {
+    const url = prompt('Digite a URL da imagem:', 'https://via.placeholder.com/300x200');
+    const alt = prompt('Digite o texto alternativo:', 'Imagem');
+    if (url && alt) {
+        const start = editor.selectionStart;
+        editor.value = editor.value.substring(0, start) + `![${alt}](${url})` + editor.value.substring(start);
+        renderizar();
+        salvarAulaAtual();
+    }
+}
+
+// ============================================
+// 13. INSERIR ABC, PIANO E ACORDES
+// ============================================
+
+function inserirABC() {
+    const start = editor.selectionStart;
+    editor.value = editor.value.substring(0, start) + `[ABC]\nX:1\nM:4/4\nL:1/8\nK:C\nC DEF | GAB c |]\n[/ABC]\n` + editor.value.substring(start);
+    renderizar();
+    salvarAulaAtual();
+}
+
+function inserirABCInfantil() {
+    const start = editor.selectionStart;
+    editor.value = editor.value.substring(0, start) + `[ABC-INFANTIL]\nX:1\nM:4/4\nL:1/4\nK:C\nC DEF | GAB c |]\n[/ABC-INFANTIL]\n` + editor.value.substring(start);
+    renderizar();
+    salvarAulaAtual();
+}
+
+function inserirPiano() {
+    const sigla = prompt('Sigla (C, G, Am, F, Dm):', 'C');
+    if (!sigla) return;
+    const acordePiano = window.ACORDES_PIANO ? window.ACORDES_PIANO[sigla] : null;
+    const nome = acordePiano ? acordePiano.nome : sigla;
+    const start = editor.selectionStart;
+    const codigo = `[PIANO:${sigla}]${nome}[/PIANO]`;
+    editor.value = editor.value.substring(0, start) + codigo + editor.value.substring(start);
+    renderizar();
+    salvarAulaAtual();
+}
+
+function inserirAcordePorNumero() {
+    const inputField = document.getElementById('buscaAcordeRapida');
+    if (!inputField) {
+        toast('❌ Campo de busca não encontrado.', 'error');
+        return;
+    }
+    
+    const numero = inputField.value.trim();
+    if (!numero || numero < 1) {
+        toast('⚠️ Digite um número válido.', 'warning');
+        return;
+    }
+    
+    let nomeAcorde = null;
+    
+    if (typeof ACORDES !== 'undefined' && ACORDES[numero]) {
+        nomeAcorde = ACORDES[numero].nome;
+    }
+    
+    if (!nomeAcorde && typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[numero]) {
+        nomeAcorde = bibliotecaAcordes[numero].nome;
+    }
+    
+    if (!nomeAcorde && typeof FORMAS_INFINITAS !== 'undefined' && FORMAS_INFINITAS[numero]) {
+        nomeAcorde = FORMAS_INFINITAS[numero].nome;
+    }
+    
+    if (!nomeAcorde && typeof window.processarAcordeDinamico === 'function') {
+        const acordeTemp = window.processarAcordeDinamico(numero, '');
+        if (acordeTemp && acordeTemp.nome) {
+            nomeAcorde = acordeTemp.nome;
+        }
+    }
+    
+    if (!nomeAcorde) {
+        toast(`❌ Acorde ${numero} não encontrado!`, 'error');
+        return;
+    }
+    
+    const codigoFinal = `[Acorde:${numero};1]${nomeAcorde}[/Acorde]`;
+    
+    const start = editor.selectionStart;
+    const end = editor.selectionEnd;
+    const texto = editor.value;
+    
+    if (start !== end) {
+        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(end);
+        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
+    } else {
+        editor.value = texto.substring(0, start) + codigoFinal + texto.substring(start);
+        editor.setSelectionRange(start + codigoFinal.length, start + codigoFinal.length);
+    }
+    
+    renderizar();
+    salvarAulaAtual();
+    
+    inputField.value = '';
+    editor.focus();
+    
+    toast(`✅ Acorde "${nomeAcorde}" inserido!`, 'success');
+}
+
+// ============================================
+// 14. ACORDES DINÂMICOS
+// ============================================
+
+function inserirCodigoAcorde(codigo) {
+    const start = editor.selectionStart;
+    editor.value = editor.value.substring(0, start) + codigo + editor.value.substring(start);
+    renderizar();
+    salvarAulaAtual();
+}
+
+function inserirAcorde() {
+    const opcao = prompt(
+        '🎸 INSERIR ACORDE\n\n' +
+        '1 - Biblioteca Básica (C, G, Am, F, D, Em)\n' +
+        '2 - Minha Biblioteca (acordes salvos)\n' +
+        '3 - Acorde Dinâmico (1;3 = Sol Maior)\n' +
+        '4 - Editor de Acordes\n\n' +
+        'Digite o número da opção:'
+    );
+
+    if (opcao === '1') {
+        const sigla = prompt('Digite a sigla do acorde (C, G, D, Am, Em, F):', 'C');
+        if (sigla && window.ACORDES && window.ACORDES[sigla]) {
+            inserirCodigoAcorde(`[Acorde:${sigla}]${window.ACORDES[sigla].nome}[/Acorde]`);
+        } else if (sigla) {
+            alert(`❌ Acorde "${sigla}" não encontrado!`);
+        }
+    } else if (opcao === '2') {
+        if (typeof bibliotecaAcordes !== 'undefined' && Object.keys(bibliotecaAcordes).length > 0) {
+            const lista = Object.entries(bibliotecaAcordes)
+                .map(([sigla, acorde]) => `${sigla} - ${acorde.nome}`)
+                .join('\n');
+            const sigla = prompt(`📚 SEUS ACORDES SALVOS:\n\n${lista}\n\nDigite a sigla:`, '');
+            if (sigla && bibliotecaAcordes[sigla]) {
+                inserirCodigoAcorde(`[Acorde:${sigla}]${bibliotecaAcordes[sigla].nome}[/Acorde]`);
+            } else if (sigla) {
+                alert(`❌ Acorde "${sigla}" não encontrado!`);
+            }
+        } else {
+            alert('📭 Nenhum acorde salvo!');
+        }
+    } else if (opcao === '3') {
+        const formato = prompt(
+            '🎸 Acorde Dinâmico\n\n' +
+            'Formatos:\n' +
+            '• 1;3 = Sol Maior (forma maior, casa 3)\n' +
+            '• 2;5 = Lá Menor (forma menor, casa 5)\n' +
+            '• 1;3;5 = Dó Maior (corda base 5)\n\n' +
+            'Digite o formato:'
+        );
+        if (formato && typeof window.processarAcordeDinamico === 'function') {
+            const acordeTemp = window.processarAcordeDinamico(formato, '');
+            if (acordeTemp) {
+                inserirCodigoAcorde(`[Acorde:${formato}]${acordeTemp.nome}[/Acorde]`);
+            } else {
+                alert(`❌ Formato "${formato}" inválido!`);
+            }
+        }
+    } else if (opcao === '4') {
+        abrirEditorAcordes();
+    } else if (opcao !== null) {
+        alert('Opção inválida!');
+    }
+}
+
+function salvarAcordeDinamicoNaBiblioteca() {
+    const formato = prompt(
+        '💾 SALVAR ACORDE DINÂMICO NA BIBLIOTECA\n\n' +
+        'Digite o formato do acorde sonoro que você quer salvar:\n\n' +
+        'Exemplo: 1;3 (Sol Maior)\n' +
+        'Exemplo: 2;5 (Lá Menor)\n\n' +
+        'Formato:'
+    );
+    if (!formato) return;
+    
+    if (typeof window.processarAcordeDinamico !== 'function') {
+        alert('Módulo de acordes sonoros não carregado!');
+        return;
+    }
+    
+    const acorde = window.processarAcordeDinamico(formato, '');
+    if (!acorde) {
+        alert(`Formato "${formato}" inválido!`);
+        return;
+    }
+    
+    const novoNome = prompt(`Nome do acorde na biblioteca (ou Enter para manter "${acorde.nome}"):`, acorde.nome);
+    if (novoNome && novoNome.trim()) {
+        acorde.nome = novoNome.trim();
+    }
+
+    if (typeof bibliotecaAcordes !== 'undefined') {
+        bibliotecaAcordes[formato] = {
+            nome: acorde.nome,
+            cordas: acorde.cordas,
+            dedos: acorde.dedos,
+            pestana: acorde.pestanaCordas || acorde.pestana || false,
+            casaInicial: acorde.casaInicial,
+            baixo: acorde.baixo || formato
+        };
+        localStorage.setItem('biblioteca_acordes', JSON.stringify(bibliotecaAcordes));
+        if (typeof atualizarBibliotecaVisual === 'function') atualizarBibliotecaVisual();
+        alert(`✅ Acorde "${formato}" salvo na biblioteca!\n\nUse [Acorde:${formato}] no editor.`);
+    } else {
+        alert('Erro: biblioteca de acordes não disponível');
+    }
+}
+
+function adicionarBotaoSalvarDinamico() {
+    const sidebar = document.getElementById('sidebar');
+    if (sidebar) {
+        const btn = document.createElement('button');
+        btn.innerHTML = '🔄 Conversor Dinâmico';
+        btn.style.background = '#9b59b6';
+        btn.style.marginTop = '10px';
+        btn.onclick = salvarAcordeDinamicoNaBiblioteca;
+        const editorBtn = document.querySelector('#sidebar button[onclick="abrirEditorAcordes()"]');
+        if (editorBtn) {
+            editorBtn.insertAdjacentElement('afterend', btn);
+        } else {
+            sidebar.querySelector('.sidebar-content')?.appendChild(btn);
+        }
+    }
+}
+
+// ============================================
+// 15. DESENHAR ACORDE (VIOLÃO)
+// ============================================
+
+function desenharAcorde(container, sigla, nomeParam = '') {
+    let acorde = null;
+    let nomeExibido = nomeParam || sigla;
+
+    if (typeof ACORDES !== 'undefined' && ACORDES[sigla]) {
+        acorde = ACORDES[sigla];
+        nomeExibido = acorde.nome;
+    } else if (typeof bibliotecaAcordes !== 'undefined' && bibliotecaAcordes[sigla]) {
+        acorde = bibliotecaAcordes[sigla];
+        nomeExibido = acorde.nome;
+    } else if (typeof window.processarAcordeDinamico === 'function') {
+        const acordeDinamico = window.processarAcordeDinamico(sigla, nomeExibido);
+        if (acordeDinamico) {
+            acorde = acordeDinamico;
+            nomeExibido = acorde.nome;
+        }
+    }
+
+    if (!acorde) {
+        container.innerHTML = `<div style="color:red; padding:10px;">❌ Acorde "${sigla}" não encontrado</div>`;
+        return;
+    }
+
+    container.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'position:relative; display:inline-block; text-align:center; margin:20px 10px;';
+
+    const cifraDiv = document.createElement('div');
+    cifraDiv.textContent = nomeExibido;
+    cifraDiv.style.cssText = 'position:absolute; top:-3px; left:50%; transform:translateX(-50%); font-size:25px; font-weight:bold; color:#e94560; background:white; padding:0px 8px; border-radius:20px; white-space:nowrap;';
+    wrapper.appendChild(cifraDiv);
+
+    const canvas = document.createElement('canvas');
+    canvas.width = 140;
+    canvas.height = 190;
+    const ctx = canvas.getContext('2d');
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const startX = 28, startY = 45, stringSpacing = 18, fretSpacing = 26;
+    const numFrets = 5;
+
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 6; i++) {
+        ctx.beginPath();
+        ctx.moveTo(startX + i * stringSpacing, startY);
+        ctx.lineTo(startX + i * stringSpacing, startY + numFrets * fretSpacing);
+        ctx.stroke();
+    }
+
+    for (let i = 0; i <= numFrets; i++) {
+        ctx.beginPath();
+        ctx.moveTo(startX, startY + i * fretSpacing);
+        ctx.lineTo(startX + 5 * stringSpacing, startY + i * fretSpacing);
+        ctx.stroke();
+    }
+
+    const temPestana = acorde.pestana && acorde.pestanaCordas && acorde.pestanaCordas.length > 0;
+    const casaBase = acorde.pestanaCasa || acorde.casaInicial || 1;
+    let cordasNaPestana = [];
+
+    if (temPestana) {
+        cordasNaPestana = acorde.pestanaCordas;
+        const casaPestana = acorde.pestanaCasa || acorde.casaInicialParaPestana || 1;
+        const pestanaY = startY + (casaPestana - 1) * fretSpacing + (fretSpacing / 2);
+        const primeiraCorda = Math.min(...cordasNaPestana);
+        const ultimaCorda = Math.max(...cordasNaPestana);
+        const xInicio = startX + primeiraCorda * stringSpacing - 2;
+        const xFim = startX + ultimaCorda * stringSpacing + 2;
+        ctx.beginPath();
+        ctx.moveTo(xInicio, pestanaY);
+        ctx.lineTo(xFim, pestanaY);
+        ctx.lineWidth = 10;
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = '#2c3e50';
+        ctx.stroke();
+    }
+
+    ctx.lineWidth = 1.5;
+    acorde.cordas.forEach((casa, i) => {
+        const x = startX + i * stringSpacing;
+        const casaRelativa = casa - casaBase + 1;
+
+        if (casa === 0) {
+            const y = startY - 10;
+            ctx.beginPath();
+            ctx.arc(x, y, 5, 0, 2 * Math.PI);
+            ctx.strokeStyle = '#333';
+            ctx.stroke();
+        } else if (casa === -1) {
+            const y = startY - 10;
+            ctx.strokeStyle = '#e94560';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(x - 4, y - 4); ctx.lineTo(x + 4, y + 4);
+            ctx.moveTo(x + 4, y - 4); ctx.lineTo(x - 4, y + 4);
+            ctx.stroke();
+            ctx.lineWidth = 1.5;
+        } else if (casa > 0 && casaRelativa > 0 && casaRelativa <= numFrets) {
+            const estaNaPestana = temPestana && cordasNaPestana.includes(i) && casa === casaBase;
+            if (!estaNaPestana) {
+                const y = startY + (casaRelativa - 1) * fretSpacing + fretSpacing / 2;
+                ctx.beginPath();
+                ctx.arc(x, y, 8, 0, 2 * Math.PI);
+                ctx.fillStyle = '#1a1a2e';
+                ctx.fill();
+                const dedo = (acorde.dedos && acorde.dedos[i]) ? acorde.dedos[i] : '';
+                if (dedo) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 11px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(dedo, x, y);
+                }
+            }
+        }
+    });
+
+    wrapper.appendChild(canvas);
+    container.appendChild(wrapper);
+}
+
+// ============================================
+// 16. DESENHAR TECLADO DO PIANO
+// ============================================
+
+function normalizarNota(nota) {
+    const eq = { 'Eb': 'D#', 'Bb': 'A#', 'Ab': 'G#', 'Db': 'C#', 'Gb': 'F#' };
+    for (const [bemol, sustain] of Object.entries(eq)) {
+        if (nota.startsWith(bemol)) return sustain + nota.replace(bemol, '');
+    }
+    return nota;
+}
+
+function desenharTecladoPiano(container, sigla, nome, notasAcorde, startOitava, endOitava, dedosTreble) {
+    container.innerHTML = '';
+    const wrapper = document.createElement('div');
+    wrapper.style.cssText = 'display: inline-block; margin: 10px auto; text-align: center; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);';
+
+    const title = document.createElement('div');
+    title.style.cssText = 'font-size: 1.6em; font-weight: bold; color: #e94560; margin-bottom: 10px;';
+    title.textContent = nome;
+    wrapper.appendChild(title);
+
+    const pianoDiv = document.createElement('div');
+    pianoDiv.style.cssText = 'display: flex; position: relative; background: #131212; padding: 3px; border-radius: 4px;';
+    wrapper.appendChild(pianoDiv);
+    container.appendChild(wrapper);
+}
+
+function desenharAcordePianoPersonalizado(container, sigla, nome) {
+    container.innerHTML = `<div style="padding:10px; color:#e94560;">🎹 ${nome}</div>`;
+}
+
+function desenharTecladoPianoSimples(container, nome, notasAtivas, startOitava, endOitava, dedosTreble = []) {
+    container.innerHTML = `<div style="padding:10px; color:#e94560;">🎹 ${nome}</div>`;
+}
+
+// ============================================
+// 17. RENDERIZAÇÃO PRINCIPAL
+// ============================================
+
+function renderizar() {
+    console.log("Renderizando...");
+    let conteudo = editor.value || '';
+
+    try {
+        let processado = conteudo;
+        const acordes = [];
+        const pianos = [];
+        const abcInfantis = [];
+        const abcNormais = [];
+        const pianosCustom = [];
+
+        processado = processado.replace(/\[Acorde:([^\]]+)\]([\s\S]*?)\[\/Acorde\]/g, (match, sigla, nome) => {
+            const id = 'chord-' + Date.now() + '-' + acordes.length;
+            acordes.push({ id, sigla: sigla.trim(), nome: nome ? nome.trim() : '' });
+            return `<div id="${id}" class="chord-diagram"></div>`;
+        });
+
+        processado = processado.replace(/\[PIANO:([^\]]+)\]([\s\S]*?)\[\/PIANO\]/g, (match, sigla, nome) => {
+            const id = 'piano-' + Date.now() + '-' + pianos.length;
+            pianos.push({ id, sigla: sigla.trim(), nome: nome.trim() });
+            return `<div id="${id}" class="piano-diagram-container"></div>`;
+        });
+
+        processado = processado.replace(/\[PIANO-CUSTOM:([^\]]+)\]([\s\S]*?)\[\/PIANO-CUSTOM\]/g, (match, sigla, nome) => {
+            const id = 'piano-custom-' + Date.now() + '-' + pianosCustom.length;
+            pianosCustom.push({ id, sigla: sigla.trim(), nome: nome.trim() });
+            return `<div id="${id}" class="piano-diagram-container"></div>`;
+        });
+
+        processado = processado.replace(/\[ABC-INFANTIL\]([\s\S]*?)\[\/ABC-INFANTIL\]/g, (match, code) => {
+            const id = 'abc-inf-' + Date.now() + '-' + abcInfantis.length;
+            abcInfantis.push({ id, code: code.trim() });
+            return `<div id="${id}" class="abc-container"></div>`;
+        });
+
+        processado = processado.replace(/\[ABC\]([\s\S]*?)\[\/ABC\]/g, (match, code) => {
+            const id = 'abc-' + Date.now() + '-' + abcNormais.length;
+            abcNormais.push({ id, code: code.trim() });
+            return `<div id="${id}" class="abc-container"></div>`;
+        });
+
+        preview.innerHTML = marked.parse(processado);
+
+        acordes.forEach(a => {
+            const el = document.getElementById(a.id);
+            if (el) desenharAcorde(el, a.sigla, a.nome);
+        });
+
+        pianos.forEach(p => {
+            const el = document.getElementById(p.id);
+            if (el && window.ACORDES_PIANO && window.ACORDES_PIANO[p.sigla]) {
+                const a = window.ACORDES_PIANO[p.sigla];
+                desenharTecladoPiano(el, p.sigla, a.nome, a.notas, a.startOitava, a.endOitava, a.dedosTreble);
+            }
+        });
+
+        pianosCustom.forEach(p => {
+            const el = document.getElementById(p.id);
+            if (el) desenharAcordePianoPersonalizado(el, p.sigla, p.nome);
+        });
+
+        abcNormais.forEach(a => {
+            const el = document.getElementById(a.id);
+            if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'normal');
+        });
+
+        abcInfantis.forEach(a => {
+            const el = document.getElementById(a.id);
+            if (el && typeof ABCJS !== 'undefined') processarABCComEspacamento(a.id, a.code, 'infantil');
+        });
+
+        if (typeof window.escalasArpejos !== 'undefined' && window.escalasArpejos.renderizar) {
+            window.escalasArpejos.renderizar(preview);
+        }
+
+    } catch (e) {
+        console.error("Erro na renderização:", e);
+        preview.innerHTML = '<p style="color:red;">❌ Erro ao renderizar: ' + e.message + '</p>';
+    }
+}
+
+// ============================================
+// 18. FUNÇÕES DE UI
+// ============================================
+
+function toggleCoresNotas() {
+    coresAtivas = !coresAtivas;
+    const btn = document.getElementById("btnCores");
+    if (btn) {
+        btn.style.background = coresAtivas ? "#00CC00" : "#CC0000";
+        btn.textContent = coresAtivas ? "✅ Cores" : "❌ Cores";
+    }
+    renderizar();
+}
+
+function toggleSidebar() {
+    document.getElementById('sidebar')?.classList.toggle('collapsed');
+}
+
+function toggleCategoria(menuId) {
+    document.getElementById(menuId)?.classList.toggle('collapsed');
+}
+
+function toggleFullscreenPreview() {
+    const previewElement = document.getElementById('preview');
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+    if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (previewElement.requestFullscreen) {
+            previewElement.requestFullscreen();
+        } else if (previewElement.webkitRequestFullscreen) {
+            previewElement.webkitRequestFullscreen();
+        } else if (previewElement.msRequestFullscreen) {
+            previewElement.msRequestFullscreen();
+        }
+        if (fullscreenBtn) {
+            fullscreenBtn.textContent = '✖';
+            fullscreenBtn.style.background = '#e94560';
+        }
+    } else {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        }
+        if (fullscreenBtn) {
+            fullscreenBtn.textContent = '⛶';
+            fullscreenBtn.style.background = '#00CC00';
+        }
+    }
+}
+
+document.addEventListener('fullscreenchange', function() {
+    const fullscreenBtn = document.getElementById('fullscreenBtn');
+    if (!document.fullscreenElement && fullscreenBtn) {
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.style.background = '#00CC00';
+    }
+});
+
+function abrirModalPiano() {
+    const modal = document.getElementById('modalPiano');
+    if (modal) modal.style.display = 'block';
+    if (typeof initPiano === 'function') initPiano();
+}
+
+function fecharModalPiano() {
+    const modal = document.getElementById('modalPiano');
+    if (modal) modal.style.display = 'none';
+}
+
+function abrirEditorAcordes() {
+    const modal = document.getElementById('modalAcordes');
+    if (modal) {
+        if (typeof carregarBiblioteca === 'function') carregarBiblioteca();
+        modal.style.display = 'block';
+        const campoPesquisa = document.getElementById('pesquisaAcordes');
+        if (campoPesquisa) {
+            campoPesquisa.value = '';
+            campoPesquisa.focus();
+            if (typeof atualizarBibliotecaVisual === 'function') {
+                campoPesquisa.oninput = () => atualizarBibliotecaVisual();
+            }
+        }
+    } else {
+        alert('Modal do editor de acordes não encontrado!');
+    }
+}
+
+function fecharEditorAcordes() {
+    const modal = document.getElementById('modalAcordes');
+    if (modal) modal.style.display = 'none';
+}
+
+function resetarAcordes() {
+    if (confirm('Redefinir acordes?')) {
+        localStorage.removeItem('acordes_personalizados_usuario');
+        alert('Acordes resetados!');
+    }
+}
+
+// Placeholder functions
+function exportHTML() { alert("📄 Exportação HTML em desenvolvimento"); }
+function exportAppHTML() { alert("📱 Exportação App em desenvolvimento"); }
+function exportarArquivo() { alert("📤 Exportar Arquivo - Em desenvolvimento"); }
+function importarArquivo() { alert("📥 Importar Arquivo - Em desenvolvimento"); }
+function exportarPastaAtual() { alert("📤 Exportar Pasta Atual - Em desenvolvimento"); }
+function importarParaPastaAtual() { alert("📥 Importar para Pasta Atual - Em desenvolvimento"); }
+function exportarTudoSistema() { alert("📤 Exportar Sistema Completo - Em desenvolvimento"); }
+function importarTudoSistema() { alert("📥 Importar Sistema Completo - Em desenvolvimento"); }
+function gerarPreviewAcordes() { }
+function salvarAcordeNaBiblioteca() { }
+function copiarCodigoAcordes() { }
+
+// ============================================
+// 19. EXPORTAÇÃO DE ARQUIVOS
+// ============================================
+
+function gerarHTMLCompleto(conteudoPreview) {
+    return `<!DOCTYPE html>
 <html lang="pt-br">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes, viewport-fit=cover">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>Pro Maestro - Sistema Completo</title>
-
-    <!-- Bibliotecas Externas -->
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-
-    <style>
-        /* ============================================
-           ESTILOS GERAIS
-           ============================================ */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: Arial, sans-serif;
-            background: #0f0f1a;
-            color: #eee;
-            display: flex;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* ============================================
-           SIDEBAR
-           ============================================ */
-        #sidebar {
-            width: 320px;
-            min-width: 320px;
-            background: #1a1a2e;
-            height: 100vh;
-            overflow-y: auto;
-            overflow-x: hidden;
-            padding: 15px;
-            border-right: 2px solid #e94560;
-            transition: all 0.3s ease;
-            z-index: 1000;
-        }
-
-        #sidebar.collapsed {
-            width: 0;
-            min-width: 0;
-            padding: 0;
-            overflow: hidden;
-            border-right: none;
-        }
-
-        #sidebar .sidebar-content {
-            padding: 5px;
-        }
-
-        #sidebar h2 {
-            color: #e94560;
-            text-align: center;
-            margin-bottom: 20px;
-            font-size: 24px;
-        }
-
-        #sidebar h3 {
-            color: #e94560;
-            font-size: 16px;
-            margin: 15px 0 10px 0;
-        }
-
-        #sidebar h4 {
-            color: #3a86ff;
-            font-size: 14px;
-            margin: 12px 0 8px 0;
-            cursor: pointer;
-        }
-
-        #sidebar h5 {
-            color: #f39c12;
-            font-size: 13px;
-            margin: 8px 0 5px 0;
-            cursor: pointer;
-        }
-
-        .sidebar-section {
-            margin-bottom: 15px;
-            padding: 10px;
-            background: #0f0f1a;
-            border-radius: 8px;
-        }
-
-        .sidebar-section.github-section {
-            border-left: 3px solid #3a86ff;
-        }
-
-        .sidebar-section.backup-section {
-            border-left: 3px solid #2ed573;
-        }
-
-        .sidebar-section.controls-section {
-            border-left: 3px solid #e94560;
-        }
-
-        /* ============================================
-           BOTÕES
-           ============================================ */
-        button {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            font-weight: bold;
-            transition: all 0.2s ease;
-            color: white;
-            margin: 2px;
-        }
-
-        button:hover {
-            transform: scale(1.02);
-            opacity: 0.9;
-        }
-
-        .btn-config {
-            background: #3a86ff;
-        }
-        .btn-success {
-            background: #2ed573;
-        }
-        .btn-info {
-            background: #3a86ff;
-        }
-        .btn-warning {
-            background: #f39c12;
-        }
-        .btn-danger {
-            background: #e94560;
-        }
-        .btn-secondary {
-            background: #6c757d;
-        }
-        .btn-purple {
-            background: #9b59b6;
-        }
-        .btn-pink {
-            background: #e94560;
-        }
-        .btn-primary {
-            background: #3a86ff;
-        }
-        .btn-toggle {
-            background: #00CC00;
-            padding: 8px 16px;
-            font-size: 14px;
-            width: 100%;
-            margin: 5px 0;
-        }
-
-        .button-group {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 4px;
-        }
-
-        .button-group button {
-            flex: 1;
-            min-width: 60px;
-        }
-
-        /* ============================================
-           TOGGLE SIDEBAR
-           ============================================ */
-        .toggle-sidebar {
-            position: fixed;
-            top: 10px;
-            left: 10px;
-            z-index: 2000;
-            background: #e94560;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 40px;
-            height: 40px;
-            font-size: 20px;
-            cursor: pointer;
-            box-shadow: 0 2px 10px rgba(233, 69, 96, 0.5);
-            transition: all 0.3s ease;
-        }
-
-        .toggle-sidebar:hover {
-            transform: scale(1.1);
-        }
-
-        /* ============================================
-           ÁREA PRINCIPAL
-           ============================================ */
-        #main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* ============================================
-           TOOLBAR
-           ============================================ */
-        .toolbar {
-            display: flex;
-            flex-wrap: wrap;
-            align-items: center;
-            gap: 4px;
-            padding: 8px 12px;
-            background: #1a1a2e;
-            border-bottom: 2px solid #e94560;
-            min-height: 50px;
-        }
-
-        .toolbar button {
-            background: #2d2d44;
-            color: #eee;
-            padding: 4px 10px;
-            font-size: 12px;
-            border-radius: 4px;
-        }
-
-        .toolbar button:hover {
-            background: #3d3d5e;
-        }
-
-        .toolbar #buscaAcordeRapida {
-            width: 80px;
-            padding: 4px 6px;
-            border-radius: 4px;
-            border: 1px solid #e94560;
-            background: #0f0f1a;
-            color: white;
-        }
-
-        /* ============================================
-           EDITOR E PREVIEW
-           ============================================ */
-        .editor-container {
-            display: flex;
-            flex: 1;
-            overflow: hidden;
-        }
-
-        #editor {
-            flex: 1;
-            padding: 15px;
-            background: #0f0f1a;
-            color: #eee;
-            border: none;
-            font-size: 14px;
-            font-family: 'Courier New', monospace;
-            resize: none;
-            outline: none;
-            line-height: 1.6;
-        }
-
-        #editor::placeholder {
-            color: #555;
-        }
-
-        #preview {
-            flex: 1;
-            padding: 20px;
-            background: #ffffff;
-            color: #222;
-            overflow-y: auto;
-            border-left: 2px solid #e94560;
-        }
-
-        /* ============================================
-           FULLSCREEN
-           ============================================ */
-        .fullscreen-btn {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
-            z-index: 2000;
-            background: #00CC00;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 45px;
-            height: 45px;
-            font-size: 22px;
-            cursor: pointer;
-            box-shadow: 0 2px 10px rgba(0, 204, 0, 0.5);
-            transition: all 0.3s ease;
-        }
-
-        .fullscreen-btn:hover {
-            transform: scale(1.1);
-        }
-
-        /* ============================================
-           MODALS
-           ============================================ */
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 3000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            overflow-y: auto;
-        }
-
-        .modal-content {
-            background: #1a1a2e;
-            margin: 5% auto;
-            padding: 25px;
-            border-radius: 12px;
-            width: 90%;
-            max-width: 900px;
-            max-height: 90vh;
-            overflow-y: auto;
-            border: 2px solid #e94560;
-        }
-
-        .modal-content h2 {
-            color: #e94560;
-            margin-bottom: 15px;
-        }
-
-        .modal-content .close {
-            float: right;
-            font-size: 28px;
-            font-weight: bold;
-            color: #aaa;
-            cursor: pointer;
-        }
-
-        .modal-content .close:hover {
-            color: #fff;
-        }
-
-        /* ============================================
-           CONTROLES
-           ============================================ */
-        .control-group {
-            margin: 8px 0;
-        }
-
-        .control-group label {
-            display: block;
-            font-size: 12px;
-            color: #aaa;
-            margin-bottom: 2px;
-        }
-
-        .control-group input[type="range"] {
-            width: 100%;
-            background: #2d2d44;
-            height: 4px;
-            border-radius: 2px;
-            outline: none;
-            -webkit-appearance: none;
-        }
-
-        .control-group input[type="range"]::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            appearance: none;
-            width: 16px;
-            height: 16px;
-            border-radius: 50%;
-            background: #e94560;
-            cursor: pointer;
-        }
-
-        .control-group span {
-            display: inline-block;
-            font-size: 12px;
-            color: #e94560;
-            font-weight: bold;
-            margin-top: 2px;
-        }
-
-        /* ============================================
-           PIANO MODAL
-           ============================================ */
-        .piano-modal {
-            max-width: 1200px;
-        }
-
-        .piano-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
-        }
-
-        .piano-col {
-            background: #0f0f1a;
-            padding: 15px;
-            border-radius: 8px;
-        }
-
-        .keyboard-wrap {
-            overflow-x: auto;
-            padding: 10px 0;
-        }
-
-        .keyboard {
-            display: flex;
-            position: relative;
-            background: #131212;
-            padding: 3px;
-            border-radius: 4px;
-            min-height: 130px;
-        }
-
-        .preview-diagram {
-            min-height: 100px;
-            background: #0f0f1a;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 10px 0;
-        }
-
-        .preview-score {
-            min-height: 80px;
-            background: #0f0f1a;
-            border-radius: 8px;
-            padding: 10px;
-            margin: 10px 0;
-        }
-
-        .diagrams-list {
-            max-height: 300px;
-            overflow-y: auto;
-        }
-
-        .diagram-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 6px 10px;
-            background: #1a1a2e;
-            border-radius: 4px;
-            margin: 4px 0;
-            cursor: pointer;
-            border-left: 3px solid #e94560;
-        }
-
-        .diagram-item:hover {
-            background: #2d2d44;
-        }
-
-        .diagram-item .name {
-            flex: 1;
-            font-size: 13px;
-        }
-
-        .diagram-item .actions button {
-            padding: 2px 8px;
-            font-size: 10px;
-        }
-
-        /* ============================================
-           FORMULÁRIOS
-           ============================================ */
-        .form-group {
-            margin: 8px 0;
-        }
-
-        .form-group label {
-            display: block;
-            font-size: 12px;
-            color: #aaa;
-            margin-bottom: 2px;
-        }
-
-        .form-group input,
-        .form-group select,
-        .form-group textarea {
-            width: 100%;
-            padding: 6px 10px;
-            background: #0f0f1a;
-            border: 1px solid #333;
-            border-radius: 4px;
-            color: white;
-            font-size: 13px;
-        }
-
-        .form-group textarea {
-            resize: vertical;
-            min-height: 60px;
-        }
-
-        .form-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 10px;
-        }
-
-        /* ============================================
-           BIBLIOTECA DE ACORDES
-           ============================================ */
-        .biblioteca-acordes {
-            max-height: 200px;
-            overflow-y: auto;
-            background: #0f0f1a;
-            border-radius: 4px;
-            padding: 5px;
-            margin: 5px 0;
-        }
-
-        .acorde-item {
-            display: flex;
-            justify-content: space-between;
-            padding: 4px 8px;
-            border-bottom: 1px solid #1a1a2e;
-            font-size: 13px;
-        }
-
-        .acorde-item .sigla {
-            color: #e94560;
-            font-weight: bold;
-        }
-
-        .acorde-item .nome {
-            color: #aaa;
-        }
-
-        /* ============================================
-           BACKUP
-           ============================================ */
-        .backup-options {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .backup-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 4px 0;
-            border-bottom: 1px solid #1a1a2e;
-        }
-
-        .backup-label {
-            font-size: 12px;
-            color: #aaa;
-            min-width: 100px;
-        }
-
-        .backup-info {
-            font-size: 11px;
-            color: #888;
-            margin-top: 8px;
-            line-height: 1.6;
-        }
-
-        /* ============================================
-           LINKS
-           ============================================ */
-        .links-label {
-            font-size: 12px;
-            color: #aaa;
-            margin-bottom: 4px;
-        }
-
-        .external-link {
-            color: #3a86ff;
-            text-decoration: none;
-            font-size: 12px;
-            display: block;
-            padding: 4px 0;
-        }
-
-        .external-link:hover {
-            text-decoration: underline;
-        }
-
-        /* ============================================
-           MISC
-           ============================================ */
-        hr {
-            border: none;
-            border-top: 1px solid #2d2d44;
-            margin: 10px 0;
-        }
-
-        .badge-count {
-            background: #e94560;
-            color: white;
-            border-radius: 50%;
-            padding: 2px 8px;
-            font-size: 12px;
-            margin-left: 5px;
-        }
-
-        .search-box {
-            width: 100%;
-            padding: 6px 10px;
-            background: #0f0f1a;
-            border: 1px solid #333;
-            border-radius: 4px;
-            color: white;
-            font-size: 13px;
-            margin: 4px 0;
-        }
-
-        .format-help {
-            font-size: 12px;
-            color: #888;
-            background: #0f0f1a;
-            padding: 8px;
-            border-radius: 4px;
-            margin: 5px 0;
-            line-height: 1.6;
-        }
-
-        .code-output {
-            width: 100%;
-            background: #0f0f1a;
-            color: #eee;
-            border: 1px solid #333;
-            border-radius: 4px;
-            padding: 8px;
-            font-family: 'Courier New', monospace;
-            font-size: 12px;
-            margin: 5px 0;
-        }
-
-        .preview-acordes {
-            min-height: 100px;
-            background: #0f0f1a;
-            border-radius: 4px;
-            padding: 10px;
-            margin: 5px 0;
-        }
-
-        /* ============================================
-           SCROLLBAR
-           ============================================ */
-        ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-        }
-
-        ::-webkit-scrollbar-track {
-            background: #0f0f1a;
-        }
-
-        ::-webkit-scrollbar-thumb {
-            background: #2d2d44;
-            border-radius: 4px;
-        }
-
-        ::-webkit-scrollbar-thumb:hover {
-            background: #3d3d5e;
-        }
-
-        /* ============================================
-           RESPONSIVIDADE
-           ============================================ */
-        @media (max-width: 768px) {
-            #sidebar {
-                width: 280px;
-                min-width: 280px;
-            }
-
-            .piano-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .form-row {
-                grid-template-columns: 1fr;
-            }
-
-            .toolbar {
-                gap: 2px;
-            }
-
-            .toolbar button {
-                padding: 3px 6px;
-                font-size: 10px;
-            }
-
-            .editor-container {
-                flex-direction: column;
-            }
-
-            #preview {
-                border-left: none;
-                border-top: 2px solid #e94560;
-                max-height: 50vh;
-            }
-
-            .backup-item {
-                flex-direction: column;
-                align-items: stretch;
-                gap: 4px;
-            }
-
-            .backup-label {
-                min-width: auto;
-            }
-        }
-
-        @media (max-width: 480px) {
-            #sidebar {
-                width: 220px;
-                min-width: 220px;
-                padding: 10px;
-            }
-
-            #sidebar h2 {
-                font-size: 18px;
-            }
-
-            .modal-content {
-                margin: 10% 5%;
-                padding: 15px;
-                width: 90%;
-            }
-
-            .button-group button {
-                font-size: 10px;
-                padding: 4px 8px;
-            }
-
-            .toggle-sidebar {
-                width: 32px;
-                height: 32px;
-                font-size: 16px;
-                top: 5px;
-                left: 5px;
-            }
-
-            .fullscreen-btn {
-                width: 36px;
-                height: 36px;
-                font-size: 18px;
-                bottom: 10px;
-                right: 10px;
-            }
-        }
-
-        /* ============================================
-           COLLAPSIBLE MENU
-           ============================================ */
-        .menu-categoria {
-            margin: 4px 0;
-        }
-
-        .menu-categoria h5 {
-            cursor: pointer;
-            padding: 4px 0;
-            color: #f39c12;
-            font-size: 13px;
-        }
-
-        .menu-categoria h5:hover {
-            color: #ffdd57;
-        }
-
-        .menu-categoria .categoria-content {
-            display: none;
-            padding-left: 10px;
-        }
-
-        .menu-categoria:not(.collapsed) .categoria-content {
-            display: block;
-        }
-
-        .menu-categoria .categoria-content button {
-            display: inline-block;
-            margin: 2px;
-            padding: 3px 8px;
-            font-size: 11px;
-            background: #2d2d44;
-        }
-
-        .menu-categoria .categoria-content button:hover {
-            background: #3d3d5e;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${obterTituloAtual()}</title>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 20px; background: white; }
+    .chord-diagram canvas { max-width: 140px; height: auto; }
+    .abcjs-container { max-width: 100%; overflow-x: auto; }
+    .abcjs-container svg { max-width: 100%; height: auto; }
+    .piano-diagram-container { display: inline-block; margin: 10px; }
+    ${document.querySelector('style')?.innerHTML || ''}
+  </style>
 </head>
 <body>
-
-    <!-- ============================================ -->
-    <!-- BOTÃO PARA ABRIR/FECHAR SIDEBAR              -->
-    <!-- ============================================ -->
-    <button class="toggle-sidebar" onclick="toggleSidebar()">☰</button>
-
-    <!-- ============================================ -->
-    <!-- SIDEBAR - BARRA LATERAL ESQUERDA             -->
-    <!-- ============================================ -->
-    <div id="sidebar">
-        <div class="sidebar-content">
-
-            <!-- === TÍTULO === -->
-            <h2>🎸 Pro Maestro</h2>
-
-            <!-- === SEÇÃO: GITHUB === -->
-            <div class="sidebar-section github-section">
-                <h4>📡 GitHub</h4>
-                <div class="button-group">
-                    <button onclick="configurarGitHub()" class="btn-config">🔑 Configurar</button>
-                    <button onclick="enviarParaGitHub()" class="btn-success">🚀 Enviar</button>
-                    <button onclick="puxarDoGitHub()" class="btn-info">📥 Puxar</button>
-                    <button onclick="sincronizarGitHub()" class="btn-warning">🔄 Sincronizar</button>
-                </div>
-                <div class="form-group">
-                    <label>Formato de exportação:</label>
-                    <select id="formatoExport">
-                        <option value="md">.md (Markdown)</option>
-                        <option value="txt">.txt (Texto)</option>
-                        <option value="html">.html (Renderizado)</option>
-                    </select>
-                </div>
-            </div>
-
-            <!-- === SEÇÃO: EXPLORADOR DE ARQUIVOS GITHUB === -->
-            <div class="sidebar-section github-explorer">
-                <h4 onclick="toggleGithubExplorer()" class="collapsible-header">
-                    📂 Explorador GitHub ▼
-                </h4>
-                <div id="githubExplorerContent" style="display: none; max-height: 400px; overflow-y: auto;">
-                    <div style="margin-bottom: 8px;">
-                        <input type="text" id="githubPastaInput" placeholder="Pasta (ex: aulas/)" value="aulas/" 
-                               style="width:100%; padding:8px; background:#1a1a2e; border:1px solid #333; border-radius:4px; color:white; box-sizing:border-box;">
-                    </div>
-                    <button onclick="listarArquivosGitHubUI()" 
-                            style="width:100%; background:#3a86ff; padding:8px 12px; border:none; border-radius:4px; color:white; cursor:pointer; font-weight:bold; margin-bottom:10px;">
-                        🔍 Listar
-                    </button>
-                    <div id="githubFileList" style="background: #0f0f1a; border-radius: 5px; padding: 5px; max-height: 250px; overflow-y: auto;">
-                        <p style="color: #666; text-align: center; padding: 10px;">Clique em "Listar" para ver os arquivos.</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- === SEÇÃO: LISTA DE AULAS === -->
-            <div class="sidebar-section">
-                <h4>📚 Aulas</h4>
-                <div id="listaAulas"></div>
-            </div>
-
-            <!-- === SEÇÃO: EXPORTAÇÃO RÁPIDA === -->
-            <div class="sidebar-section">
-                <h4>📤 Exportação Rápida</h4>
-                <div class="button-group">
-                    <button onclick="exportHTML()" class="btn-secondary">📄 Aula (HTML)</button>
-                    <button onclick="exportarPastaAtual()" class="btn-secondary">📂 Pasta (HTML)</button>
-                    <button onclick="exportAppHTML()" class="btn-secondary">💾 App (Todas)</button>
-                </div>
-            </div>
-
-            <!-- === SEÇÃO: FERRAMENTAS === -->
-            <div class="sidebar-section">
-                <h4>🛠️ Ferramentas</h4>
-                <div class="button-group">
-                    <button onclick="resetarAcordes()" class="btn-danger">🔄 Resetar Acordes</button>
-                    <button onclick="abrirEditorAcordes()" class="btn-purple">🎸 Editor Acordes</button>
-                    <button onclick="abrirModalPiano()" class="btn-pink">🎹 Editor Piano</button>
-                </div>
-            </div>
-
-            <!-- === SEÇÃO: FORMATAÇÃO MARKDOWN === -->
-            <div class="sidebar-section">
-                <h4>📝 Formatação</h4>
-                
-                <div class="menu-categoria collapsed" id="menu-estrutura">
-                    <h5 onclick="toggleCategoria('menu-estrutura')">📝 Estrutura ▼</h5>
-                    <div class="categoria-content">
-                        <button onclick="addFormatacao('# ', '')">H1 Título</button>
-                        <button onclick="addFormatacao('## ', '')">H2 Título</button>
-                        <button onclick="addFormatacao('### ', '')">H3 Título</button>
-                        <button onclick="addFormatacao('---\n', '')">Linha Horizontal</button>
-                    </div>
-                </div>
-
-                <div class="menu-categoria collapsed" id="menu-enfase">
-                    <h5 onclick="toggleCategoria('menu-enfase')">🎨 Ênfase ▼</h5>
-                    <div class="categoria-content">
-                        <button onclick="addFormatacao('**', '**')">Negrito</button>
-                        <button onclick="addFormatacao('*', '*')">Itálico</button>
-                        <button onclick="addFormatacao('***', '***')">Negrito+Itálico</button>
-                        <button onclick="addFormatacao('~~', '~~')">Tachado</button>
-                    </div>
-                </div>
-
-                <div class="menu-categoria collapsed" id="menu-listas">
-                    <h5 onclick="toggleCategoria('menu-listas')">📋 Listas ▼</h5>
-                    <div class="categoria-content">
-                        <button onclick="addFormatacao('- ', '')">Não ordenada</button>
-                        <button onclick="addFormatacao('1. ', '')">Ordenada</button>
-                        <button onclick="addFormatacao('  - ', '')">Sublista</button>
-                        <button onclick="addFormatacao('- [ ] ', '')">Checkbox [ ]</button>
-                        <button onclick="addFormatacao('- [x] ', '')">Checkbox [x]</button>
-                    </div>
-                </div>
-
-                <div class="menu-categoria collapsed" id="menu-blocos">
-                    <h5 onclick="toggleCategoria('menu-blocos')">💬 Blocos ▼</h5>
-                    <div class="categoria-content">
-                        <button onclick="addFormatacao('> ', '')">Citação</button>
-                        <button onclick="addFormatacao('>> ', '')">Citação aninhada</button>
-                        <button onclick="addFormatacao('```\n', '\n```')">Bloco código</button>
-                        <button onclick="addFormatacao('`', '`')">Código inline</button>
-                    </div>
-                </div>
-
-                <div class="menu-categoria collapsed" id="menu-midia">
-                    <h5 onclick="toggleCategoria('menu-midia')">🔗 Links/Mídia ▼</h5>
-                    <div class="categoria-content">
-                        <button onclick="inserirLink()">Link</button>
-                        <button onclick="inserirImagem()">Imagem</button>
-                    </div>
-                </div>
-
-                <div class="menu-categoria collapsed" id="menu-partituras">
-                    <h5 onclick="toggleCategoria('menu-partituras')">🎵 Partituras ▼</h5>
-                    <div class="categoria-content">
-                        <button onclick="inserirAcorde()">🎸 Acorde Violão</button>
-                        <button onclick="inserirABC()">🎵 Partitura Normal</button>
-                        <button onclick="inserirABCInfantil()">🎨 Partitura Infantil</button>
-                        <button onclick="inserirPiano()">🎹 Acorde Piano</button>
-                    </div>
-                </div>
-            </div>
-
-            <!-- === SEÇÃO: BACKUP === -->
-            <div class="sidebar-section backup-section">
-                <h4>💾 Backup</h4>
-                <div class="backup-options">
-                    <div class="backup-item">
-                        <span class="backup-label">📄 Arquivo Separado</span>
-                        <div class="button-group">
-                            <button onclick="exportarArquivo()" class="btn-success">📤 Exportar</button>
-                            <button onclick="importarArquivo()" class="btn-info">📥 Importar</button>
-                        </div>
-                    </div>
-                    <div class="backup-item">
-                        <span class="backup-label">📂 Pasta Atual</span>
-                        <div class="button-group">
-                            <button onclick="exportarPastaAtual()" class="btn-purple">📤 Exportar</button>
-                            <button onclick="importarParaPastaAtual()" class="btn-warning">📥 Importar</button>
-                        </div>
-                    </div>
-                    <div class="backup-item">
-                        <span class="backup-label">💾 Sistema Completo</span>
-                        <div class="button-group">
-                            <button onclick="exportarTudoSistema()" class="btn-danger">📤 Exportar</button>
-                            <button onclick="importarTudoSistema()" class="btn-warning">📥 Importar</button>
-                        </div>
-                    </div>
-                </div>
-                <p class="backup-info">
-                    📄 <strong>Arquivo</strong> = Dados principais<br>
-                    📂 <strong>Pasta Atual</strong> = Apenas a pasta aberta<br>
-                    💾 <strong>Sistema</strong> = Todas as pastas
-                </p>
-            </div>
-
-            <!-- === LINKS ÚTEIS === -->
-            <div class="sidebar-section">
-                <p class="links-label">📌 Links úteis:</p>
-                <a href="https://albertinosesc.github.io/nbmaplicativos.github.oi/aplicativos/05/dicionario_acorde_nu.html" target="_blank" class="external-link">
-                    Lista de IDs - Dicionário Violão
-                </a>
-            </div>
-
-            <hr>
-
-            <!-- === SEÇÃO: CONTROLE DE PARTITURA === -->
-            <div class="sidebar-section controls-section">
-                <h3>🎨 Controle Partitura</h3>
-                <button onclick="toggleCoresNotas()" id="btnCores" class="btn-toggle">✅ Cores</button>
-                
-                <div class="control-group">
-                    <label>📏 Espaço ENTRE Pentagramas</label>
-                    <input type="range" id="staffsepRange" min="0" max="200" step="2" value="60" oninput="atualizarStaffSep()">
-                    <span id="staffsepValue">60</span>
-                </div>
-                <div class="control-group">
-                    <label>📐 Espaço ENTRE Sistemas</label>
-                    <input type="range" id="sysstaffsepRange" min="0" max="200" step="2" value="80" oninput="atualizarSysStaffSep()">
-                    <span id="sysstaffsepValue">80</span>
-                </div>
-                <div class="control-group">
-                    <label>🎨 Intensidade Cores</label>
-                    <input type="range" id="intensidadeRange" min="0.3" max="1" step="0.05" value="0.8" oninput="atualizarIntensidadeCores()">
-                    <span id="intensidadeValue">0.8</span>
-                </div>
-                <div class="control-group">
-                    <label>🎵 Distância ACORDES (Y)</label>
-                    <input type="range" id="acordeRange" min="-55" max="55" step="1" value="-8" oninput="ajustarAcordes()">
-                    <span id="acordeValue">-8</span>
-                </div>
-                <div class="control-group">
-                    <label>✏️ Distância LETRAS (Y)</label>
-                    <input type="range" id="letraRange" min="-55" max="55" step="1" value="12" oninput="ajustarLetras()">
-                    <span id="letraValue">12</span>
-                </div>
-                <div class="control-group">
-                    <label>⬅️➡️ Alinhamento LETRAS (X)</label>
-                    <input type="range" id="letraXRange" min="-30" max="30" step="1" value="5" oninput="ajustarLetrasX()">
-                    <span id="letraXValue">5</span>
-                </div>
-            </div>
-
-        </div><!-- /sidebar-content -->
-    </div><!-- /sidebar -->
-
-    <!-- ============================================ -->
-    <!-- ÁREA PRINCIPAL - EDITOR E PREVIEW            -->
-    <!-- ============================================ -->
-    <div id="main">
-
-        <!-- === BARRA DE FERRAMENTAS === -->
-        <div class="toolbar">
-            <button onclick="addFormatacao('# ', '')">H1</button>
-            <button onclick="addFormatacao('## ', '')">H2</button>
-            <button onclick="addFormatacao('**', '**')">B</button>
-            <button onclick="addFormatacao('*', '*')">I</button>
-            <button onclick="addFormatacao('- ', '')">•</button>
-            <button onclick="addFormatacao('1. ', '')">1.</button>
-            <button onclick="addFormatacao('> ', '')">❝</button>
-            <button onclick="inserirLink()">🔗</button>
-            <button onclick="inserirAcorde()">🎸</button>
-            <button onclick="inserirABC()">🎵</button>
-            <button onclick="inserirABCInfantil()">🎨</button>
-            <button onclick="inserirPiano()">🎹</button>
-            <input type="number" id="buscaAcordeRapida" 
-                   placeholder="Nº" 
-                   style="width: 70px; padding: 4px 6px; border-radius: 4px; border: 1px solid #e94560; background: #1a1a2e; color: white;">
-            <button onclick="inserirAcordePorNumero()" style="background: #9b59b6; padding: 4px 10px;">🎸 Inserir</button>
-            <button onclick="copiarEditor()">📋 Copiar</button>
-            <button onclick="colarEditor()">📄 Colar</button>
-        </div>
-
-        <!-- === EDITOR E PREVIEW === -->
-        <div class="editor-container">
-            <textarea id="editor" placeholder="Digite seu conteúdo aqui..."></textarea>
-            <div id="preview"></div>
-        </div>
-
-    </div><!-- /main -->
-
-    <!-- ============================================ -->
-    <!-- BOTÃO DE TELA CHEIA                          -->
-    <!-- ============================================ -->
-    <button class="fullscreen-btn" id="fullscreenBtn" onclick="toggleFullscreenPreview()">⛶</button>
-
-    <!-- ============================================ -->
-    <!-- MODAL: EDITOR DE ACORDES                     -->
-    <!-- ============================================ -->
-    <div id="modalAcordes" class="modal">
-        <div class="modal-content">
-            <span class="close" onclick="fecharEditorAcordes()">&times;</span>
-            <h2>🎸 Editor de Acordes</h2>
-            
-            <h3>📚 Biblioteca Local</h3>
-            <div class="search-box">
-                <input type="text" id="pesquisaAcordes" placeholder="🔍 Pesquisar acorde...">
-            </div>
-            <div id="bibliotecaAcordes" class="biblioteca-acordes"></div>
-            
-            <h3>📝 Escreva seus acordes</h3>
-            <p class="format-help">
-                Formatos aceitos:<br>
-                <strong>Formato 1:</strong> 'C': { nome: 'Dó Maior', cordas: [-1,3,2,0,1,0], dedos: ['','3','2','','1',''], pestana: false, casaInicial: 1, baixo: 'C' }<br>
-                <strong>Formato 2:</strong> C: Dó Maior / -1,3,2,0,1,0 / ,3,2,,1, / false / 1 / C
-            </p>
-            <textarea id="acordeInput" placeholder="Digite seus acordes aqui..."></textarea>
-            
-            <div class="button-group">
-                <button onclick="gerarPreviewAcordes()" class="btn-danger">🔧 Gerar Preview</button>
-                <button onclick="salvarAcordeNaBiblioteca()" class="btn-primary">💾 Salvar</button>
-                <button onclick="copiarCodigoAcordes()" class="btn-success">📋 Copiar Código</button>
-                <button onclick="fecharEditorAcordes()" class="btn-secondary">❌ Fechar</button>
-            </div>
-            
-            <div id="previewAcordes" class="preview-acordes"></div>
-            <textarea id="codigoAcordes" rows="6" readonly class="code-output"></textarea>
-        </div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- MODAL: EDITOR DE PIANO                       -->
-    <!-- ============================================ -->
-    <div id="modalPiano" class="modal">
-        <div class="modal-content piano-modal">
-            <span class="close" onclick="fecharModalPiano()">&times;</span>
-            <h2>🎹 Editor de Piano</h2>
-            
-            <div class="piano-grid">
-                <!-- Coluna Esquerda -->
-                <div class="piano-col">
-                    <div class="clef-selector">
-                        <span class="clef-label">🎼 Adicionar notas:</span>
-                        <button id="clefTrebleBtn" class="clef-btn treble active" onclick="setClefModePiano('treble')">🎵 Clave de Sol</button>
-                        <button id="clefBassBtn" class="clef-btn bass" onclick="setClefModePiano('bass')">🎶 Clave de Fá</button>
-                    </div>
-                    
-                    <div class="keyboard-wrap">
-                        <div id="keyboard" class="keyboard"></div>
-                    </div>
-                    
-                    <div class="clef-mode-label">
-                        👆 Clique nas teclas: <span id="clefModeLabel" class="clef-indicator treble">🔵 Clave de Sol</span>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>🎸 Dedilhado Mão Direita:</label>
-                            <input id="fingersTreble" value="1 3 5" oninput="atualizarEditorPiano()">
-                        </div>
-                        <div class="form-group">
-                            <label>🎸 Dedilhado Mão Esquerda:</label>
-                            <input id="fingersBass" value="5 3 1" oninput="atualizarEditorPiano()">
-                        </div>
-                    </div>
-                    
-                    <div class="form-row">
-                        <div class="form-group">
-                            <label>🎵 Início:</label>
-                            <input id="startNota" value="C3" onchange="criarTecladoPiano(); atualizarEditorPiano()">
-                        </div>
-                        <div class="form-group">
-                            <label>🎵 Fim:</label>
-                            <input id="endNota" value="C4" onchange="criarTecladoPiano(); atualizarEditorPiano()">
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>🔍 Tamanho: <span id="zoomPianoVal">30</span>px</label>
-                        <input type="range" id="zoomPiano" min="20" max="60" value="30" oninput="ajustarZoomPiano(this.value)">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>📝 Nome:</label>
-                        <input id="diagramNamePiano" value="C Maior">
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>🎼 ABC:</label>
-                        <textarea id="abcTextPiano" rows="3" oninput="sincronizarDoABCPiano()"></textarea>
-                    </div>
-                    
-                    <div class="button-group">
-                        <button onclick="adicionarDiagramaPiano()" class="btn-primary">➕ Adicionar</button>
-                        <button onclick="limparEditorPiano()" class="btn-danger">🗑️ Limpar</button>
-                        <button onclick="gerarCodigoPianoParaEditor()" class="btn-info">📋 Gerar Código</button>
-                        <button onclick="fecharModalPiano()" class="btn-secondary">❌ Fechar</button>
-                    </div>
-                    
-                    <div class="preview-piano-area">
-                        <div class="preview-label">👁️ Pré-visualização:</div>
-                        <div id="preview-diagram-piano" class="preview-diagram"></div>
-                        <div id="preview-score-piano" class="preview-score"></div>
-                    </div>
-                </div>
-                
-                <!-- Coluna Direita -->
-                <div class="piano-col">
-                    <div class="panel-title">
-                        📚 Meus Diagramas <span id="diagramCountPiano" class="badge-count">0</span>
-                    </div>
-                    
-                    <div class="config-panel">
-                        <h4>📄 CONFIGURAÇÃO</h4>
-                        <div class="config-grid">
-                            <div class="config-item">
-                                <label>📊 COLUNAS</label>
-                                <input type="number" id="columnsPiano" min="1" max="4" value="2" onchange="gerarLayoutPiano()">
-                            </div>
-                            <div class="config-item">
-                                <label>📏 LINHAS</label>
-                                <input type="number" id="rowsPiano" min="1" max="5" value="3" onchange="gerarLayoutPiano()">
-                            </div>
-                            <div class="config-item">
-                                <label>📐 ESPAÇAMENTO</label>
-                                <input type="number" id="gapPiano" min="8" max="30" value="12" onchange="gerarLayoutPiano()">
-                            </div>
-                        </div>
-                        <div class="button-group">
-                            <button onclick="gerarLayoutPiano()" class="btn-success">📄 GERAR LAYOUT</button>
-                            <button onclick="exportarPianoImagem()" class="btn-purple">🖼️ EXPORTAR IMAGEM</button>
-                            <button onclick="exportarPianoHTML()" class="btn-warning">📑 EXPORTAR HTML</button>
-                            <button onclick="imprimirLayoutPiano()" class="btn-secondary">🖨️ IMPRIMIR</button>
-                        </div>
-                    </div>
-                    
-                    <div class="button-group">
-                        <button onclick="moverParaCimaPiano()" class="btn-secondary">⬆️ Mover</button>
-                        <button onclick="moverParaBaixoPiano()" class="btn-secondary">⬇️ Mover</button>
-                        <button onclick="limparTodosDiagramasPiano()" class="btn-danger">🗑️ Limpar Tudo</button>
-                    </div>
-                    
-                    <input type="text" id="searchDiagramsPiano" class="search-box" placeholder="🔍 Buscar..." oninput="filtrarDiagramasPiano()">
-                    
-                    <div id="diagramsListPiano" class="diagrams-list"></div>
-                </div>
-            </div>
-            
-            <div id="previewPiano" style="display:none;">
-                <h3>📄 Layout para Impressão</h3>
-                <div id="pianoContainer"></div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ============================================ -->
-    <!-- SCRIPTS - APENAS O main4.js UNIFICADO        -->
-    <!-- ============================================ -->
-    <script src="main3.js"></script>
-
+  ${conteudoPreview}
 </body>
-</html>
+</html>`;
+}
+
+function exportarArquivo(conteudo, extensao, mimeType = 'text/plain') {
+    if (!conteudo) {
+        alert('❌ Não há conteúdo para exportar.');
+        return;
+    }
+    const blob = new Blob([conteudo], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    const titulo = obterTituloAtual().replace(/\s+/g, '_');
+    link.download = `${titulo}.${extensao}`;
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast(`✅ Arquivo ${extensao.toUpperCase()} exportado!`, 'success');
+}
+
+function exportarTXT() {
+    const conteudo = obterConteudoAtual();
+    exportarArquivo(conteudo, 'txt', 'text/plain');
+}
+
+function exportarMD() {
+    const conteudo = obterConteudoAtual();
+    exportarArquivo(conteudo, 'md', 'text/markdown');
+}
+
+function exportarHTML() {
+    const preview = document.getElementById('preview');
+    if (!preview) {
+        alert('❌ Pré-visualização não encontrada.');
+        return;
+    }
+    const htmlContent = gerarHTMLCompleto(preview.innerHTML);
+    exportarArquivo(htmlContent, 'html', 'text/html');
+}
+
+function exportarEstruturaJSON() {
+    const json = JSON.stringify(dados, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.download = 'pro_maestro_backup.json';
+    link.href = url;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    toast('✅ Estrutura completa exportada em JSON!', 'success');
+}
+
+// ============================================
+// 20. GITHUB (CONFIG, UPLOAD, DOWNLOAD, EXPLORADOR)
+// ============================================
+
+// CONFIG
+function configurarGitHub() {
+    const token = prompt('🔑 Token do GitHub (ou vazio para remover):', githubToken || '');
+    if (token === null) return;
+    if (token.trim() === '') {
+        localStorage.removeItem('github_token');
+        githubToken = '';
+        toast('Token removido.', 'info');
+    } else {
+        localStorage.setItem('github_token', token.trim());
+        githubToken = token.trim();
+        toast('✅ Token salvo.', 'success');
+    }
+
+    const repo = prompt('📁 Repositório (usuario/repo):', githubRepo || '');
+    if (repo !== null && repo.trim() !== '') {
+        localStorage.setItem('github_repo', repo.trim());
+        githubRepo = repo.trim();
+    }
+
+    const branch = prompt('🌿 Branch (padrão: main):', githubBranch || 'main');
+    if (branch !== null && branch.trim() !== '') {
+        localStorage.setItem('github_branch', branch.trim());
+        githubBranch = branch.trim();
+    }
+
+    const pasta = prompt('📂 Pasta padrão (ex: aulas/, partituras/, ou vazio):', githubPasta || '');
+    if (pasta !== null) {
+        let pastaTratada = pasta.trim();
+        if (pastaTratada && !pastaTratada.endsWith('/')) pastaTratada += '/';
+        localStorage.setItem('github_pasta', pastaTratada);
+        githubPasta = pastaTratada;
+        toast(`Pasta definida: "${githubPasta || 'raiz'}"`, 'info');
+    }
+
+    window.githubToken = githubToken;
+    window.githubRepo = githubRepo;
+    window.githubBranch = githubBranch;
+    window.githubPasta = githubPasta;
+}
+
+// UPLOAD
+async function obterShaArquivoGitHub(nomeArquivo, pasta) {
+    if (!githubToken || !githubRepo) return null;
+    const caminho = pasta + encodeURIComponent(nomeArquivo);
+    const url = `https://api.github.com/repos/${githubRepo}/contents/${caminho}`;
+    try {
+        const response = await fetch(url, {
+            headers: { 'Authorization': `token ${githubToken}` }
+        });
+        if (response.ok) {
+            const data = await response.json();
+            return data.sha;
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+async function enviarArquivoParaGitHub(nomeArquivo, conteudo, pasta, mensagem = '') {
+    if (!githubToken) { toast('Token não configurado.', 'error'); return false; }
+    if (!githubRepo) { toast('Repositório não configurado.', 'error'); return false; }
+
+    const caminho = pasta + encodeURIComponent(nomeArquivo);
+    const url = `https://api.github.com/repos/${githubRepo}/contents/${caminho}`;
+
+    let sha = await obterShaArquivoGitHub(nomeArquivo, pasta);
+    const contentBase64 = btoa(unescape(encodeURIComponent(conteudo)));
+
+    const body = {
+        message: mensagem || `Atualizando ${nomeArquivo} via Pro Maestro`,
+        content: contentBase64,
+        branch: githubBranch
+    };
+    if (sha) body.sha = sha;
+
+    try {
+        const response = await fetch(url, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${githubToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+            const error = await response.json();
+            throw new Error(error.message || 'Erro desconhecido');
+        }
+        return true;
+    } catch (err) {
+        toast(`❌ Erro ao enviar "${nomeArquivo}": ${err.message}`, 'error');
+        return false;
+    }
+}
+
+async function enviarParaGitHub() {
+    if (listaAtual === null || cartaoAtual === null) {
+        toast('❌ Nenhuma aula aberta.', 'error');
+        return;
+    }
+    if (!githubToken) { toast('Configure o GitHub primeiro (🔑).', 'error'); return; }
+
+    const lista = obterListaPorCaminho(listaAtual);
+    if (!lista || !lista.cards[cartaoAtual]) {
+        toast('❌ Cartão não encontrado.', 'error');
+        return;
+    }
+
+    const card = lista.cards[cartaoAtual];
+    const titulo = card.texto.replace(/\s+/g, '_');
+
+    const formatoSelect = document.getElementById('formatoExport');
+    const formato = formatoSelect ? formatoSelect.value : 'md';
+    let extensao = formato;
+    let conteudo = '';
+
+    if (formato === 'html') {
+        const preview = document.getElementById('preview');
+        if (!preview) { toast('❌ Pré-visualização não encontrada.', 'error'); return; }
+        conteudo = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>${card.texto}</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
+<style>body{font-family:Arial;padding:20px;}.chord-diagram canvas{max-width:140px;}.abcjs-container{max-width:100%;overflow-x:auto;}</style>
+</head>
+<body>
+${preview.innerHTML}
+</body>
+</html>`;
+    } else {
+        conteudo = editor.value;
+        if (formato === 'txt') extensao = 'txt';
+        else if (formato === 'md') extensao = 'md';
+    }
+
+    const nomeArquivo = `${titulo}.${extensao}`;
+
+    const usarPadrao = confirm(`Usar pasta padrão "${githubPasta || 'raiz'}"? (Cancelar para especificar outra)`);
+    let pastaDestino = githubPasta;
+    if (!usarPadrao) {
+        const resp = prompt('Pasta de destino (ex: aulas/, partituras/, ou vazio):', '');
+        if (resp === null) return;
+        let pastaDigitada = resp.trim();
+        if (pastaDigitada && !pastaDigitada.endsWith('/')) pastaDigitada += '/';
+        pastaDestino = pastaDigitada;
+    }
+
+    const sucesso = await enviarArquivoParaGitHub(nomeArquivo, conteudo, pastaDestino, `Enviando ${nomeArquivo}`);
+    if (sucesso) toast(`✅ "${nomeArquivo}" enviado para "${pastaDestino || 'raiz'}"!`, 'success');
+}
+
+async function sincronizarGitHub() {
+    if (listaAtual === null) {
+        toast('❌ Nenhuma lista aberta.', 'error');
+        return;
+    }
+    if (!githubToken || !githubRepo) {
+        toast('Configure o GitHub primeiro (🔑).', 'error');
+        return;
+    }
+
+    const lista = obterListaPorCaminho(listaAtual);
+    if (!lista || !lista.cards || lista.cards.length === 0) {
+        toast('📭 Esta lista não tem cartões.', 'info');
+        return;
+    }
+
+    const formatoSelect = document.getElementById('formatoExport');
+    const formato = formatoSelect ? formatoSelect.value : 'md';
+    const extensao = formato === 'html' ? 'html' : (formato === 'txt' ? 'txt' : 'md');
+
+    const pastaDestino = prompt('Pasta de destino para TODOS os cartões:', githubPasta || '');
+    if (pastaDestino === null) return;
+    let pastaTratada = pastaDestino.trim();
+    if (pastaTratada && !pastaTratada.endsWith('/')) pastaTratada += '/';
+
+    if (!confirm(`Enviar ${lista.cards.length} cartões para "${pastaTratada || 'raiz'}" como .${extensao}?`)) return;
+
+    let enviados = 0, erros = 0;
+    for (let i = 0; i < lista.cards.length; i++) {
+        const card = lista.cards[i];
+        const titulo = card.texto.replace(/\s+/g, '_');
+        let conteudo = '';
+
+        if (formato === 'html') {
+            const markedContent = marked.parse(card.conteudo || '');
+            conteudo = `<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"><title>${card.texto}</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"><\/script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"><\/script>
+<style>body{font-family:Arial;padding:20px;}.chord-diagram canvas{max-width:140px;}.abcjs-container{max-width:100%;overflow-x:auto;}</style>
+</head>
+<body>
+${markedContent}
+</body>
+</html>`;
+        } else {
+            conteudo = card.conteudo || '';
+        }
+
+        const nomeArquivo = `${titulo}.${extensao}`;
+        const ok = await enviarArquivoParaGitHub(nomeArquivo, conteudo, pastaTratada, `Sincronizando ${nomeArquivo}`);
+        if (ok) enviados++; else erros++;
+    }
+
+    toast(`✅ Sincronização concluída!\nEnviados: ${enviados}\nErros: ${erros}`, 'success');
+}
+
+// DOWNLOAD
+async function salvarArquivo(handle, conteudo) {
+    const writable = await handle.createWritable();
+    await writable.write(conteudo);
+    await writable.close();
+}
+
+window.puxarDoGitHub = async function() {
+    console.log("🔍 Iniciando puxarDoGitHub...");
+
+    if (!window.githubToken || !window.githubRepo) {
+        toast('Configure o GitHub primeiro (🔑).', 'error');
+        return;
+    }
+
+    const pastaOrigem = prompt(
+        '📂 Pasta de origem no GitHub (ex: arquivos/, conteudo/, ou vazio para raiz):',
+        window.githubPasta || ''
+    );
+    if (pastaOrigem === null) return;
+    let pasta = pastaOrigem.trim();
+    if (pasta && !pasta.endsWith('/')) pasta += '/';
+
+    const urlLista = `https://api.github.com/repos/${window.githubRepo}/contents/${pasta}?ref=${window.githubBranch}`;
+    let arquivos = [];
+    try {
+        const response = await fetch(urlLista, {
+            headers: { 'Authorization': `token ${window.githubToken}` }
+        });
+        if (!response.ok) {
+            if (response.status === 404) {
+                toast(`❌ Pasta "${pasta || 'raiz'}" não encontrada.`, 'error');
+                return;
+            }
+            const error = await response.json();
+            toast(`❌ Erro: ${error.message}`, 'error');
+            return;
+        }
+        const data = await response.json();
+        const extensoes = ['.txt', '.md', '.html', '.css', '.js', '.json', '.csv', '.xml'];
+        arquivos = data
+            .filter(item => item.type === 'file' && extensoes.some(ext => item.name.endsWith(ext)))
+            .map(item => item.name);
+
+        if (arquivos.length === 0) {
+            toast(`📭 Nenhum arquivo encontrado em "${pasta || 'raiz'}"`, 'error');
+            const manual = confirm('Deseja digitar o nome do arquivo manualmente?');
+            if (!manual) return;
+            const nomeManual = prompt('Digite o nome do arquivo:');
+            if (!nomeManual) return;
+            arquivos = [nomeManual];
+        } else {
+            let listaMsg = '📄 Escolha um arquivo (digite o número):\n\n';
+            arquivos.forEach((nome, idx) => {
+                listaMsg += `  ${idx + 1}. ${nome}\n`;
+            });
+            listaMsg += `\n  ${arquivos.length + 1}. Digitar manualmente`;
+            const escolha = prompt(listaMsg, '1');
+            if (escolha === null) return;
+            const numero = parseInt(escolha);
+            if (isNaN(numero) || numero < 1 || numero > arquivos.length + 1) {
+                toast('❌ Número inválido.', 'error');
+                return;
+            }
+            if (numero === arquivos.length + 1) {
+                const nomeManual = prompt('Digite o nome do arquivo:');
+                if (!nomeManual) return;
+                arquivos = [nomeManual];
+            } else {
+                arquivos = [arquivos[numero - 1]];
+            }
+        }
+    } catch (err) {
+        toast(`❌ Erro ao listar arquivos: ${err.message}`, 'error');
+        return;
+    }
+
+    const nomeArquivo = arquivos[0];
+    console.log(`✅ Arquivo selecionado: "${nomeArquivo}"`);
+
+    const caminho = encodeURIComponent(pasta + nomeArquivo);
+    const urlDownload = `https://api.github.com/repos/${window.githubRepo}/contents/${caminho}?ref=${window.githubBranch}`;
+    let conteudo;
+    try {
+        const response = await fetch(urlDownload, {
+            headers: { 'Authorization': `token ${window.githubToken}` }
+        });
+        if (!response.ok) {
+            if (response.status === 404) {
+                toast(`❌ "${nomeArquivo}" não encontrado.`, 'error');
+            } else {
+                const error = await response.json();
+                toast(`❌ Erro: ${error.message}`, 'error');
+            }
+            return;
+        }
+        const data = await response.json();
+        try {
+            conteudo = decodeURIComponent(escape(atob(data.content)));
+            console.log(`✅ Conteúdo decodificado (${conteudo.length} caracteres).`);
+        } catch (decodeErr) {
+            toast(`❌ Erro ao decodificar arquivo: ${decodeErr.message}`, 'error');
+            return;
+        }
+    } catch (err) {
+        toast(`❌ Erro ao baixar: ${err.message}`, 'error');
+        return;
+    }
+
+    const acao = confirm(
+        `📄 "${nomeArquivo}" baixado com sucesso!\n\n` +
+        `Clique em "OK" para ABRIR no editor (sem salvar em disco).\n` +
+        `Clique em "Cancelar" para BAIXAR para uma pasta do computador.`
+    );
+
+    if (acao) {
+        if (listaAtual === null || cartaoAtual === null) {
+            let listaTemp = dados.listas.find(l => l.nome === 'Temporários');
+            if (!listaTemp) {
+                listaTemp = { nome: 'Temporários', cards: [], sublistas: [] };
+                dados.listas.push(listaTemp);
+            }
+            const novoCard = {
+                texto: nomeArquivo.replace(/\.[^.]+$/, ''),
+                conteudo: conteudo,
+                ultimaModificacao: Date.now()
+            };
+            listaTemp.cards.push(novoCard);
+            const idx = dados.listas.indexOf(listaTemp);
+            const cardIdx = listaTemp.cards.length - 1;
+            salvarDados();
+            carregarAula([idx], cardIdx);
+            toast(`✅ "${nomeArquivo}" aberto no editor!`, 'success');
+        } else {
+            const lista = obterListaPorCaminho(listaAtual);
+            if (lista && lista.cards[cartaoAtual]) {
+                lista.cards[cartaoAtual].conteudo = conteudo;
+                lista.cards[cartaoAtual].texto = nomeArquivo.replace(/\.[^.]+$/, '');
+                lista.cards[cartaoAtual].ultimaModificacao = Date.now();
+                salvarDados();
+                editor.value = conteudo;
+                renderizar();
+                toast(`✅ "${nomeArquivo}" carregado na aula atual.`, 'success');
+            } else {
+                toast('❌ Erro: aula não encontrada.', 'error');
+            }
+        }
+    } else {
+        let pastaLocal;
+        try {
+            pastaLocal = await window.showDirectoryPicker({ mode: 'readwrite' });
+            console.log(`📁 Pasta local selecionada: ${pastaLocal.name}`);
+        } catch (err) {
+            if (err.name !== 'AbortError') {
+                toast('Erro ao selecionar pasta: ' + err.message, 'error');
+            }
+            return;
+        }
+
+        try {
+            const arquivoHandle = await pastaLocal.getFileHandle(nomeArquivo, { create: true });
+            await salvarArquivo(arquivoHandle, conteudo);
+            toast(`✅ "${nomeArquivo}" baixado em "${pastaLocal.name}"`, 'success');
+        } catch (saveErr) {
+            toast(`❌ Erro ao salvar arquivo: ${saveErr.message}`, 'error');
+            return;
+        }
+
+        const abrir = confirm(`Deseja abrir a pasta "${pastaLocal.name}" no explorador agora?`);
+        if (abrir) {
+            try {
+                if (typeof window.carregarPasta === 'function') {
+                    window.pastaHandle = pastaLocal;
+                    await window.carregarPasta();
+                } else if (typeof carregarPasta === 'function') {
+                    pastaHandle = pastaLocal;
+                    await carregarPasta();
+                } else {
+                    toast('⚠️ Função carregarPasta não encontrada.', 'warning');
+                }
+            } catch (err) {
+                toast(`⚠️ Erro ao abrir pasta: ${err.message}`, 'warning');
+            }
+        }
+    }
+};
+
+// EXPLORADOR
+function toggleGithubExplorer() {
+    const content = document.getElementById('githubExplorerContent');
+    if (content) {
+        const isVisible = content.style.display !== 'none';
+        content.style.display = isVisible ? 'none' : 'block';
+        if (!isVisible) {
+            document.getElementById('githubPastaInput').value = '';
+            listarArquivosGitHubUI();
+        }
+    }
+}
+
+function formatarTamanho(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1048576) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1048576).toFixed(1) + ' MB';
+}
+
+async function listarArquivosGitHubUI(pastaPersonalizada = null) {
+    const pastaInput = document.getElementById('githubPastaInput');
+    const listaDiv = document.getElementById('githubFileList');
+    
+    if (!pastaInput || !listaDiv) {
+        console.error('Elementos do explorador não encontrados');
+        return;
+    }
+    
+    if (!window.githubToken || !window.githubRepo) {
+        listaDiv.innerHTML = '<p style="color:#e94560; text-align:center; padding:10px;">❌ Configure o GitHub primeiro (🔑).</p>';
+        return;
+    }
+    
+    let pasta = pastaPersonalizada !== null ? pastaPersonalizada : pastaInput.value.trim();
+    if (pasta && !pasta.endsWith('/')) pasta += '/';
+    
+    pastaInput.value = pasta;
+    exploradorCaminhoAtual = pasta;
+    
+    listaDiv.innerHTML = '<p style="color:#aaa; text-align:center; padding:10px;">⏳ Carregando...</p>';
+    
+    try {
+        const url = `https://api.github.com/repos/${window.githubRepo}/contents/${pasta}?ref=${window.githubBranch}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `token ${window.githubToken}` }
+        });
+        
+        if (!response.ok) {
+            if (response.status === 404) {
+                listaDiv.innerHTML = `<p style="color:#e94560; text-align:center; padding:10px;">❌ Pasta "${pasta || 'raiz'}" não encontrada.</p>`;
+            } else {
+                const error = await response.json();
+                listaDiv.innerHTML = `<p style="color:#e94560; text-align:center; padding:10px;">❌ Erro: ${error.message}</p>`;
+            }
+            return;
+        }
+        
+        const data = await response.json();
+        
+        const pastas = data.filter(item => item.type === 'dir');
+        const arquivos = data.filter(item => item.type === 'file');
+        
+        if (data.length === 0) {
+            listaDiv.innerHTML = '<p style="color:#888; text-align:center; padding:10px;">📭 Pasta vazia.</p>';
+            return;
+        }
+        
+        let html = '<div style="font-size:13px;">';
+        
+        if (pasta) {
+            html += `<div style="padding:5px 8px; cursor:pointer; color:#3a86ff; border-bottom:1px solid #333; margin-bottom:5px;" 
+                          onclick="listarArquivosGitHubUI('')">
+                          📂 <strong>↩ Voltar à raiz</strong>
+                     </div>`;
+        }
+        
+        if (pastas.length > 0) {
+            html += '<div style="color:#f39c12; font-weight:bold; padding:5px 8px; margin-top:5px;">📁 Pastas:</div>';
+            pastas.forEach(p => {
+                html += `<div class="folder-item" style="padding:5px 8px; cursor:pointer; color:#f39c12; border-bottom:1px solid #1a1a2e; display:flex; align-items:center; gap:8px;"
+                              onclick="navegarParaPasta('${p.path}')">
+                              <span>📁</span> ${p.name}/
+                         </div>`;
+            });
+        }
+        
+        if (arquivos.length > 0) {
+            html += '<div style="color:#3a86ff; font-weight:bold; padding:5px 8px; margin-top:5px;">📄 Arquivos:</div>';
+            const extensoes = ['.txt', '.md', '.html', '.css', '.js', '.json', '.csv', '.xml', '.pdf', '.png', '.jpg', '.gif', '.svg', '.mp3', '.mp4'];
+            const arquivosFiltrados = arquivos.filter(f => 
+                extensoes.some(ext => f.name.endsWith(ext))
+            );
+            
+            if (arquivosFiltrados.length === 0) {
+                html += '<div style="color:#888; padding:8px; text-align:center;">Nenhum arquivo compatível encontrado.</div>';
+            } else {
+                arquivosFiltrados.forEach(arquivo => {
+                    const icone = arquivo.name.endsWith('.md') ? '📝' :
+                                 arquivo.name.endsWith('.html') ? '🌐' :
+                                 arquivo.name.endsWith('.txt') ? '📄' :
+                                 arquivo.name.endsWith('.pdf') ? '📕' :
+                                 arquivo.name.endsWith('.png') || arquivo.name.endsWith('.jpg') || arquivo.name.endsWith('.gif') ? '🖼️' :
+                                 arquivo.name.endsWith('.mp3') ? '🎵' :
+                                 arquivo.name.endsWith('.mp4') ? '🎬' : '📎';
+                    html += `<div class="file-item" style="padding:5px 8px; cursor:pointer; border-bottom:1px solid #1a1a2e; display:flex; justify-content:space-between; align-items:center;"
+                                  onclick="abrirArquivoDoGitHub('${arquivo.path}')">
+                                  <span>${icone} ${arquivo.name}</span>
+                                  <span style="font-size:10px; color:#666;">${formatarTamanho(arquivo.size)}</span>
+                             </div>`;
+                });
+            }
+        }
+        
+        html += '</div>';
+        listaDiv.innerHTML = html;
+        
+    } catch (err) {
+        listaDiv.innerHTML = `<p style="color:#e94560; text-align:center; padding:10px;">❌ Erro: ${err.message}</p>`;
+        console.error('Erro ao listar arquivos:', err);
+    }
+}
+
+function navegarParaPasta(caminho) {
+    const pastaInput = document.getElementById('githubPastaInput');
+    if (pastaInput) {
+        pastaInput.value = caminho;
+        listarArquivosGitHubUI(caminho);
+    }
+}
+
+async function abrirArquivoDoGitHub(caminho) {
+    if (!window.githubToken || !window.githubRepo) {
+        toast('Configure o GitHub primeiro (🔑).', 'error');
+        return;
+    }
+    
+    toast(`⏳ Baixando "${caminho.split('/').pop()}"...`, 'info');
+    
+    try {
+        const url = `https://api.github.com/repos/${window.githubRepo}/contents/${caminho}?ref=${window.githubBranch}`;
+        const response = await fetch(url, {
+            headers: { 'Authorization': `token ${window.githubToken}` }
+        });
+        
+        if (!response.ok) {
+            const error = await response.json();
+            toast(`❌ Erro: ${error.message}`, 'error');
+            return;
+        }
+        
+        const data = await response.json();
+        
+        const extensoesTexto = ['.txt', '.md', '.html', '.css', '.js', '.json', '.csv', '.xml', '.svg', '.yml', '.yaml'];
+        const nomeArquivo = caminho.split('/').pop();
+        const extensao = '.' + nomeArquivo.split('.').pop();
+        
+        let conteudo;
+        if (extensoesTexto.some(ext => ext === extensao)) {
+            conteudo = decodeURIComponent(escape(atob(data.content)));
+        } else {
+            toast(`⚠️ "${nomeArquivo}" é um arquivo binário. Não pode ser aberto no editor.`, 'warning');
+            return;
+        }
+        
+        if (listaAtual === null || cartaoAtual === null) {
+            let listaTemp = dados.listas.find(l => l.nome === 'Temporários');
+            if (!listaTemp) {
+                listaTemp = { nome: 'Temporários', cards: [], sublistas: [] };
+                dados.listas.push(listaTemp);
+            }
+            const novoCard = {
+                texto: nomeArquivo.replace(/\.[^.]+$/, ''),
+                conteudo: conteudo,
+                ultimaModificacao: Date.now()
+            };
+            listaTemp.cards.push(novoCard);
+            const idx = dados.listas.indexOf(listaTemp);
+            const cardIdx = listaTemp.cards.length - 1;
+            salvarDados();
+            carregarAula([idx], cardIdx);
+            toast(`✅ "${nomeArquivo}" aberto!`, 'success');
+        } else {
+            const lista = obterListaPorCaminho(listaAtual);
+            if (lista && lista.cards[cartaoAtual]) {
+                lista.cards[cartaoAtual].conteudo = conteudo;
+                lista.cards[cartaoAtual].texto = nomeArquivo.replace(/\.[^.]+$/, '');
+                lista.cards[cartaoAtual].ultimaModificacao = Date.now();
+                salvarDados();
+                editor.value = conteudo;
+                renderizar();
+                toast(`✅ "${nomeArquivo}" carregado!`, 'success');
+            }
+        }
+        
+    } catch (err) {
+        toast(`❌ Erro ao abrir: ${err.message}`, 'error');
+        console.error('Erro ao abrir arquivo:', err);
+    }
+}
+
+function atualizarExploradorGitHub() {
+    const pastaInput = document.getElementById('githubPastaInput');
+    if (pastaInput) {
+        listarArquivosGitHubUI(pastaInput.value);
+    }
+}
+
+// ============================================
+// 21. INICIALIZAÇÃO
+// ============================================
+
+function init() {
+    console.log("Inicializando o sistema...");
+    if (typeof window.processarAcordeDinamico !== 'function') {
+        console.warn('⚠️ acordes_dinamicos.js não carregado. Acordes sonoros não funcionam.');
+    } else {
+        console.log('✅ Módulo de acordes sonoros carregado!');
+        adicionarBotaoSalvarDinamico();
+    }
+    carregarDados();
+
+    if (editor) {
+        editor.addEventListener('input', () => {
+            clearTimeout(timeoutRenderTimer);
+            timeoutRenderTimer = setTimeout(() => {
+                renderizar();
+                salvarAulaAtual();
+            }, 500);
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', init);
+
+// Estilo do toast
+const styleToast = document.createElement('style');
+styleToast.textContent = `@keyframes fadeOut { 0% { opacity: 1; transform: translateX(0); } 70% { opacity: 1; transform: translateX(0); } 100% { opacity: 0; transform: translateX(20px); } }`;
+document.head.appendChild(styleToast);
+
+console.log('✅ main4.js carregado com sucesso!');
