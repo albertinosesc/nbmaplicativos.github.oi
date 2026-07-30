@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
+    /* (Mantém o mesmo CSS) */
     :root {
       --primary: #2563eb;
       --accent: #27ae60;
@@ -42,6 +43,15 @@
     .badge-pending { background-color: #fef3c7; color: #92400e; }
 
     .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
+    .id-badge {
+      display: inline-block;
+      background: #f3f4f6;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      color: #6b7280;
+      font-family: monospace;
+    }
 
     @media print {
       .header-bar div, .github-auth-panel, .search-card button, .no-print { display: none !important; }
@@ -59,10 +69,12 @@
       <a href="conceitos.html" style="background-color: #27ae60; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-brain"></i> Conceitos</a>
       <a href="tonalidades.html" style="background-color: #2563eb; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-sliders"></i> Tonalidades</a>
       <a href="musicas.html" style="background-color: #8e44ad; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-compact-disc"></i> Músicas</a>
-   <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
-  <i class="fa-solid fa-users"></i> Alunos</a>
+      <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-users"></i> Alunos
+      </a>
       <a href="admin.html" class="btn" style="background-color: #0d9488; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
-        <i class="fa-solid fa-user-gear"></i> Painel Admin</a>
+        <i class="fa-solid fa-user-gear"></i> Painel Admin
+      </a>
     </div>
   </div>
 
@@ -74,14 +86,30 @@
 
   <div class="card search-card">
     <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-      <input type="text" id="nomeAluno" placeholder="Digite o nome do aluno para carregar o relatório...">
+      <input type="text" id="buscaAluno" placeholder="Digite o ID ou Nome do aluno...">
       <button onclick="carregarRelatorioCompleto()"><i class="fa-solid fa-magnifying-glass"></i> Gerar Relatório</button>
       <button class="no-print" onclick="window.print()" style="background-color: #4b5563;"><i class="fa-solid fa-print"></i> Imprimir</button>
+      <button class="no-print" onclick="carregarListaAlunos()" style="background-color: #0284c7;"><i class="fa-solid fa-list"></i> Listar Alunos</button>
+    </div>
+    <div id="listaAlunos" style="margin-top: 10px; display: none; max-height: 200px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 6px; background: #f8fafc;">
+      <div id="listaAlunosContainer"></div>
     </div>
     <div id="statusMsg" class="status-msg"></div>
   </div>
 
   <div class="grid-relatorio">
+    <!-- DADOS DO ALUNO -->
+    <div class="card" style="grid-column: 1 / -1;">
+      <h3 class="section-title" style="color: #4f46e5;"><i class="fa-solid fa-user"></i> Dados do Aluno</h3>
+      <div id="dadosAluno" style="display: flex; flex-wrap: wrap; gap: 20px; padding: 10px 0;">
+        <div><strong>ID:</strong> <span id="alunoId" class="id-badge">-</span></div>
+        <div><strong>Nome:</strong> <span id="alunoNome">-</span></div>
+        <div><strong>Instrumento:</strong> <span id="alunoInstrumento">-</span></div>
+        <div><strong>Nível:</strong> <span id="alunoNivel">-</span></div>
+        <div><strong>Data de Início:</strong> <span id="alunoDataInicio">-</span></div>
+      </div>
+    </div>
+
     <!-- CONCEITOS TEÓRICOS -->
     <div class="card">
       <h3 class="section-title" style="color: #27ae60;"><i class="fa-solid fa-brain"></i> Conceitos Teóricos</h3>
@@ -118,10 +146,19 @@
 
   <script>
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
+    let alunoIdAtual = null;
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
       if (savedToken) document.getElementById("gh-token").value = savedToken;
+
+      // Verificar se veio parâmetro na URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const alunoParam = urlParams.get('aluno');
+      if (alunoParam) {
+        document.getElementById('buscaAluno').value = alunoParam;
+        carregarRelatorioCompleto();
+      }
     };
 
     function obterToken() {
@@ -133,10 +170,57 @@
       if (token) localStorage.setItem("gh_pat_token", token);
     }
 
-    function normalizarNome(nome) {
-      return nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+    function exibirStatus(msg, cor = "black") {
+      const el = document.getElementById('statusMsg');
+      el.style.color = cor;
+      el.innerText = msg;
     }
 
+    // --- CARREGAR LISTA DE ALUNOS ---
+    async function carregarListaAlunos() {
+      const token = obterToken();
+      if (!token) return alert("Informe o token do GitHub.");
+
+      const container = document.getElementById('listaAlunosContainer');
+      const listaDiv = document.getElementById('listaAlunos');
+      
+      listaDiv.style.display = 'block';
+      container.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Carregando...';
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+
+        if (!res.ok) {
+          container.innerHTML = 'Nenhum aluno encontrado.';
+          return;
+        }
+
+        const files = await res.json();
+        const alunos = files
+          .filter(f => f.name.startsWith('aluno_') && f.name.endsWith('.json'))
+          .map(f => f.name.replace('aluno_', '').replace('.json', ''))
+          .sort();
+
+        if (alunos.length === 0) {
+          container.innerHTML = 'Nenhum aluno cadastrado.';
+          return;
+        }
+
+        container.innerHTML = alunos.map(id => 
+          `<span onclick="document.getElementById('buscaAluno').value='${id}'; carregarRelatorioCompleto();" 
+                 style="display: inline-block; background: #e5e7eb; padding: 4px 10px; border-radius: 12px; margin: 3px; cursor: pointer; font-size: 0.8rem; font-family: monospace;">
+            ${id}
+          </span>`
+        ).join(' ');
+
+      } catch (e) {
+        container.innerHTML = 'Erro ao carregar lista.';
+      }
+    }
+
+    // --- BUSCAR ARQUIVO JSON ---
     async function buscarArquivoJSON(caminho, token) {
       try {
         const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
@@ -144,35 +228,85 @@
         });
         if (!res.ok) return null;
         const data = await res.json();
-        return JSON.parse(decodeURIComponent(escape(atob(data.content))));
+        const base64Clean = data.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        return JSON.parse(jsonStr);
       } catch (e) { return null; }
     }
 
+    // --- CARREGAR RELATÓRIO COMPLETO ---
     async function carregarRelatorioCompleto() {
-      const nomeAluno = document.getElementById('nomeAluno').value.trim();
+      const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
 
-      if (!nomeAluno) return alert("Por favor, digite o nome do aluno.");
+      if (!busca) return alert("Digite o ID ou nome do aluno.");
       if (!token) return alert("Informe e confirme o Token do GitHub.");
 
-      document.getElementById('statusMsg').style.color = "blue";
-      document.getElementById('statusMsg').innerText = "Buscando dados no GitHub...";
+      exibirStatus("Buscando dados no GitHub...", "blue");
 
-      const slug = normalizarNome(nomeAluno);
+      // Primeiro, tentar identificar se é um ID ou nome
+      let alunoId = busca;
+      let alunoNome = busca;
 
-      // Busca dados nos padrões de arquivo
-      const [dadosTeoria, dadosTonalidades, dadosMusicas] = await Promise.all([
-        buscarArquivoJSON(`alunos/teoria_${slug}.json`, token),
+      // Tentar encontrar o aluno pelo ID ou nome
+      try {
+        // Buscar index de alunos
+        const indexData = await buscarArquivoJSON('alunos/index.json', token);
+        if (indexData && indexData.alunos) {
+          // Procurar por ID
+          let encontrado = indexData.alunos.find(a => a.id === busca);
+          if (!encontrado) {
+            // Procurar por nome
+            encontrado = indexData.alunos.find(a => a.nome.toLowerCase() === busca.toLowerCase());
+          }
+          if (encontrado) {
+            alunoId = encontrado.id;
+            alunoNome = encontrado.nome;
+          }
+        }
+      } catch (e) {
+        // Se não encontrar index, usar o que foi digitado
+      }
+
+      // Normalizar ID
+      const slug = alunoId.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      alunoIdAtual = slug;
+
+      // Buscar dados
+      const [dadosAluno, dadosTeoria, dadosTonalidades, dadosMusicas] = await Promise.all([
         buscarArquivoJSON(`alunos/aluno_${slug}.json`, token),
+        buscarArquivoJSON(`alunos/teoria_${slug}.json`, token),
+        buscarArquivoJSON(`alunos/aluno_${slug}.json`, token), // Tonalidades pode estar no mesmo arquivo
         buscarArquivoJSON(`alunos/musica_${slug}.json`, token)
       ]);
 
+      // Renderizar dados do aluno
+      renderizarDadosAluno(dadosAluno);
+
+      // Renderizar seções
       renderizarTeoria(dadosTeoria);
-      renderizarTonalidades(dadosTonalidades);
+      renderizarTonalidades(dadosTonalidades || dadosAluno);
       renderizarMusicas(dadosMusicas);
 
-      document.getElementById('statusMsg').style.color = "green";
-      document.getElementById('statusMsg').innerText = `Relatório do aluno "${nomeAluno}" gerado com sucesso!`;
+      exibirStatus(`Relatório do aluno "${alunoNome}" (ID: ${slug}) gerado com sucesso!`, "green");
+    }
+
+    function renderizarDadosAluno(data) {
+      if (!data) {
+        document.getElementById('alunoId').textContent = alunoIdAtual || '-';
+        document.getElementById('alunoNome').textContent = '-';
+        document.getElementById('alunoInstrumento').textContent = '-';
+        document.getElementById('alunoNivel').textContent = '-';
+        document.getElementById('alunoDataInicio').textContent = '-';
+        return;
+      }
+
+      document.getElementById('alunoId').textContent = data.id || alunoIdAtual;
+      document.getElementById('alunoNome').textContent = data.aluno || data.nome || '-';
+      document.getElementById('alunoInstrumento').textContent = data.instrumento || '-';
+      document.getElementById('alunoNivel').textContent = data.nivel || '-';
+      document.getElementById('alunoDataInicio').textContent = data.dataInicio || data.data_inicio || '-';
     }
 
     function renderizarTeoria(data) {
@@ -196,8 +330,9 @@
         return;
       }
       data.exercicios.forEach(ex => {
-        const concluidos = ex.tons ? ex.tons.filter(t => t.concluido).length : 0;
-        const total = ex.tons ? ex.tons.length : 12;
+        const tons = ex.tons || [];
+        const concluidos = tons.filter(t => t.concluido).length;
+        const total = tons.length || 12;
         const percent = Math.round((concluidos / total) * 100);
         tbody.innerHTML += `<tr><td>${ex.nome}</td><td style="text-align:center;"><strong>${concluidos}/${total}</strong> (${percent}%)</td></tr>`;
       });
