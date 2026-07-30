@@ -372,6 +372,19 @@
       from { transform: translateX(100%); opacity: 0; }
       to { transform: translateX(0); opacity: 1; }
     }
+
+    /* BADGE DE EXTENSÃO */
+    .ext-badge {
+      display: inline-block;
+      font-size: 0.6rem;
+      font-weight: bold;
+      padding: 2px 8px;
+      border-radius: 10px;
+      margin-left: 5px;
+      text-transform: uppercase;
+    }
+    .ext-badge.json { background: #dbeafe; color: #1e40af; }
+    .ext-badge.txt { background: #fef3c7; color: #92400e; }
   </style>
 </head>
 <body>
@@ -522,6 +535,74 @@
       setTimeout(() => toast.remove(), 3000);
     }
 
+    // --- MOSTRAR MODAL (JSON ou TXT) ---
+    function mostrarModal(tipo, titulo, conteudo, extensao) {
+      const isJson = extensao === 'json';
+      const icon = isJson ? 'fa-code' : 'fa-file-lines';
+      const label = isJson ? 'JSON' : 'TXT';
+      
+      const modal = document.createElement('div');
+      modal.style.cssText = `
+        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+        background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+        z-index: 1000;
+      `;
+      
+      modal.innerHTML = `
+        <div style="background: white; max-width: 700px; width: 90%; max-height: 80vh; border-radius: 8px; padding: 25px; overflow: auto; position: relative;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
+            <h3><i class="fa-solid ${icon}"></i> ${titulo}</h3>
+            <span style="font-size: 0.7rem; background: ${isJson ? '#dbeafe' : '#fef3c7'}; padding: 2px 10px; border-radius: 12px; color: ${isJson ? '#1e40af' : '#92400e'}; font-family: monospace; font-weight: bold;">
+              .${extensao}
+            </span>
+          </div>
+          <pre style="background: #1f2937; color: #e5e7eb; padding: 15px; border-radius: 6px; font-size: 0.8rem; overflow: auto; max-height: 50vh; white-space: ${isJson ? 'pre-wrap' : 'pre'}; word-break: ${isJson ? 'break-all' : 'normal'};">
+${conteudo}
+          </pre>
+          <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
+            <button onclick="this.closest('div[style]').remove()" style="background: #4b5563;">Fechar</button>
+            <button onclick="navigator.clipboard.writeText(document.querySelector('pre').textContent); showToast('✅ Conteúdo copiado!', 'success');" style="background: #0284c7;">
+              <i class="fa-solid fa-copy"></i> Copiar ${label}
+            </button>
+          </div>
+        </div>
+      `;
+
+      document.body.appendChild(modal);
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) modal.remove();
+      });
+    }
+
+    // --- VER ARQUIVO (JSON ou TXT) ---
+    function verArquivo(id) {
+      const lote = todosLotes.find(l => l.id === id);
+      if (!lote) {
+        showToast('❌ Lote não encontrado!', 'error');
+        return;
+      }
+
+      const extensao = lote.extensao || 'json';
+
+      if (extensao === 'json' && lote.dadosCompletos) {
+        const jsonStr = JSON.stringify(lote.dadosCompletos, null, 2);
+        mostrarModal('JSON', `JSON do Lote: ${lote.id}`, jsonStr, 'json');
+        return;
+      }
+
+      if (extensao === 'txt' && lote.conteudo) {
+        mostrarModal('TXT', `Conteúdo do TXT: ${lote.id}`, lote.conteudo, 'txt');
+        return;
+      }
+
+      showToast('❌ Não foi possível visualizar este arquivo.', 'error');
+    }
+
+    // --- VER JSON (mantido para compatibilidade) ---
+    function verLoteJson(id) {
+      verArquivo(id);
+    }
+
     // --- CARREGAR LOTES (SILENCIOSO) ---
     async function carregarLotesSilencioso() {
       const token = obterToken();
@@ -541,44 +622,83 @@
         if (!res.ok) throw new Error("Erro ao acessar o GitHub.");
 
         const files = await res.json();
-        const arquivosJson = files.filter(f => f.name.endsWith('.json'));
+        
+        // ACEITAR .json E .txt
+        const arquivosValidos = files.filter(f => 
+          f.name.endsWith('.json') || f.name.endsWith('.txt')
+        );
 
         todosLotes = [];
 
-        for (const file of arquivosJson) {
+        for (const file of arquivosValidos) {
           try {
             const resArq = await fetch(file.download_url);
-            const dados = await resArq.json();
-
-            let tipo = dados.tipo || 'teoria';
-            if (dados.conceitos) tipo = 'teoria';
-            else if (dados.exercicios) tipo = 'tonalidades';
-            else if (dados.musicas) tipo = 'musicas';
-
+            const extensao = file.name.split('.').pop().toLowerCase();
+            const id = file.name.replace(/\.[^.]+$/, '');
+            let dados = null;
+            let tipo = 'teoria';
             let itens = [];
-            if (tipo === 'teoria' && dados.conceitos) {
-              itens = dados.conceitos.map(c => typeof c === 'string' ? c : c.titulo);
-            } else if (tipo === 'tonalidades' && dados.exercicios) {
-              itens = dados.exercicios.map(e => typeof e === 'string' ? e : e.nome);
-            } else if (tipo === 'musicas' && dados.musicas) {
-              itens = dados.musicas.map(m => typeof m === 'string' ? m : m.nome);
+            let nome = id;
+            let conteudo = null;
+
+            if (extensao === 'json') {
+              // Processar JSON
+              dados = await resArq.json();
+              
+              tipo = dados.tipo || 'teoria';
+              if (dados.conceitos) tipo = 'teoria';
+              else if (dados.exercicios) tipo = 'tonalidades';
+              else if (dados.musicas) tipo = 'musicas';
+
+              if (tipo === 'teoria' && dados.conceitos) {
+                itens = dados.conceitos.map(c => typeof c === 'string' ? c : c.titulo);
+              } else if (tipo === 'tonalidades' && dados.exercicios) {
+                itens = dados.exercicios.map(e => typeof e === 'string' ? e : e.nome);
+              } else if (tipo === 'musicas' && dados.musicas) {
+                itens = dados.musicas.map(m => typeof m === 'string' ? m : m.nome);
+              }
+              
+              nome = dados.nome || dados.titulo || id;
+              
+            } else if (extensao === 'txt') {
+              // Processar TXT
+              const texto = await resArq.text();
+              const linhas = texto.split('\n').filter(l => l.trim());
+              
+              // Tentar adivinhar o tipo pelo conteúdo
+              tipo = 'teoria';
+              const palavrasChave = ['música', 'canção', 'repertório', 'pop', 'rock', 'jazz', 'blues', 'samba'];
+              const temPalavraChave = linhas.some(l => 
+                palavrasChave.some(p => l.toLowerCase().includes(p))
+              );
+              if (temPalavraChave) tipo = 'musicas';
+              
+              itens = linhas;
+              conteudo = texto;
+              dados = {
+                tipo: tipo,
+                nome: id,
+                conteudo: texto,
+                criadoEm: null
+              };
+              nome = id;
             }
 
-            const id = file.name.replace('.json', '');
-            
             todosLotes.push({
               id: id,
-              nome: dados.nome || dados.titulo || id,
+              nome: nome || id,
               tipo: tipo,
               itens: itens,
               itensCount: itens.length,
-              criadoEm: dados.criadoEm || dados.criado_em || null,
+              criadoEm: dados?.criadoEm || dados?.criado_em || null,
               dadosCompletos: dados,
-              caminho: file.path
+              caminho: file.path,
+              extensao: extensao,
+              conteudo: conteudo
             });
 
           } catch (e) {
-            console.error("Erro ao ler lote:", file.name, e);
+            console.error("Erro ao ler arquivo:", file.name, e);
           }
         }
 
@@ -730,6 +850,10 @@
 
         const tipoClass = lote.tipo;
         const dataCriacao = lote.criadoEm ? new Date(lote.criadoEm).toLocaleDateString('pt-BR') : 'Não informada';
+        const extensao = lote.extensao || 'json';
+        const extIcon = extensao === 'txt' ? 'fa-file-lines' : 'fa-code';
+        const extLabel = extensao.toUpperCase();
+        const extClass = extensao === 'txt' ? 'txt' : 'json';
         
         const itensVisiveis = isExpandido ? lote.itens : lote.itens.slice(0, 5);
         const temMais = lote.itens.length > 5 && !isExpandido;
@@ -737,7 +861,10 @@
         html += `
           <div class="lote-card" id="lote-${lote.id}">
             <div class="lote-header">
-              <span class="lote-id"><i class="fa-solid fa-hashtag"></i> ${lote.id}</span>
+              <span class="lote-id">
+                <i class="fa-solid fa-hashtag"></i> ${lote.id}
+                <span class="ext-badge ${extClass}">${extLabel}</span>
+              </span>
               <span class="lote-tipo ${tipoClass}">${tipoLabel}</span>
             </div>
 
@@ -746,6 +873,7 @@
             <div class="lote-detalhes">
               <span><i class="fa-regular fa-calendar"></i> Criado: ${dataCriacao}</span>
               <span style="margin-left: 15px;"><i class="fa-regular fa-list"></i> ${lote.itens.length} itens</span>
+              <span style="margin-left: 15px;"><i class="fa-regular fa-file"></i> .${extensao}</span>
             </div>
 
             <div class="lote-itens" id="itens-${lote.id}">
@@ -766,8 +894,8 @@
               <button onclick="copiarLote('${lote.id}')" class="btn-small" style="background-color: #0284c7;">
                 <i class="fa-solid fa-copy"></i> Copiar ID
               </button>
-              <button onclick="verLoteJson('${lote.id}')" class="btn-small" style="background-color: #0d9488;">
-                <i class="fa-solid fa-code"></i> JSON
+              <button onclick="verArquivo('${lote.id}')" class="btn-small" style="background-color: #0d9488;">
+                <i class="fa-solid ${extIcon}"></i> ${extLabel}
               </button>
               <button onclick="importarLote('${lote.id}')" class="btn-small btn-success">
                 <i class="fa-solid fa-arrow-right"></i> Importar
@@ -781,15 +909,13 @@
       container.innerHTML = html;
     }
 
-    // --- TOGGLE EXPANDIR (CORRIGIDO) ---
+    // --- TOGGLE EXPANDIR ---
     function toggleExpandir(id) {
       if (expandidos.has(id)) {
         expandidos.delete(id);
       } else {
         expandidos.add(id);
       }
-      
-      // Renderizar novamente
       renderizarLotes();
     }
 
@@ -836,61 +962,26 @@
       });
     }
 
-    // --- VER JSON ---
-    function verLoteJson(id) {
-      const lote = todosLotes.find(l => l.id === id);
-      if (!lote) return;
-
-      const jsonStr = JSON.stringify(lote.dadosCompletos, null, 2);
-      
-      const modal = document.createElement('div');
-      modal.style.cssText = `
-        position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-        background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
-        z-index: 1000;
-      `;
-      
-      modal.innerHTML = `
-        <div style="background: white; max-width: 700px; width: 90%; max-height: 80vh; border-radius: 8px; padding: 25px; overflow: auto; position: relative;">
-          <h3 style="margin-bottom: 15px;"><i class="fa-solid fa-code"></i> JSON do Lote: ${lote.id}</h3>
-          <pre style="background: #1f2937; color: #e5e7eb; padding: 15px; border-radius: 6px; font-size: 0.8rem; overflow: auto; max-height: 50vh; white-space: pre-wrap; word-break: break-all;">${jsonStr}</pre>
-          <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
-            <button onclick="this.closest('div[style]').remove()" style="background: #4b5563;">Fechar</button>
-            <button onclick="navigator.clipboard.writeText(document.querySelector('pre').textContent); showToast('✅ JSON copiado!', 'success');" style="background: #0284c7;">
-              <i class="fa-solid fa-copy"></i> Copiar JSON
-            </button>
-          </div>
-        </div>
-      `;
-
-      document.body.appendChild(modal);
-      modal.addEventListener('click', (e) => {
-        if (e.target === modal) modal.remove();
-      });
-    }
-
+    // --- IMPORTAR LOTE ---
     function importarLote(id) {
-  const lote = todosLotes.find(l => l.id === id);
-  if (!lote) {
-    showToast('❌ Lote não encontrado!', 'error');
-    return;
-  }
+      const lote = todosLotes.find(l => l.id === id);
+      if (!lote) {
+        showToast('❌ Lote não encontrado!', 'error');
+        return;
+      }
 
-  // Mapeamento do tipo para página
-  const tipoMap = {
-    'teoria': 'conceitos.html',
-    'tonalidades': 'tonalidades.html',
-    'musicas': 'musicas.html'
-  };
+      const tipoMap = {
+        'teoria': 'conceitos.html',
+        'tonalidades': 'tonalidades.html',
+        'musicas': 'musicas.html'
+      };
 
-  const pagina = tipoMap[lote.tipo] || 'conceitos.html';
-  
-  // Abrir a página com o ID do lote na URL
-  const url = `${pagina}?lote=${encodeURIComponent(lote.id)}`;
-  window.open(url, '_blank');
-  
-  showToast(`📤 Abrindo ${pagina} com o lote "${lote.id}"`, 'info');
-}
+      const pagina = tipoMap[lote.tipo] || 'conceitos.html';
+      const url = `${pagina}?lote=${encodeURIComponent(lote.id)}`;
+      window.open(url, '_blank');
+      
+      showToast(`📤 Abrindo ${pagina} com o lote "${lote.id}"`, 'info');
+    }
 
     // --- ATALHOS DE TECLADO ---
     document.addEventListener('keydown', (e) => {
