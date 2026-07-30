@@ -30,12 +30,24 @@
 
     button { background-color: var(--primary); color: white; border: none; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
     button:hover { opacity: 0.9; }
+    button.btn-success { background-color: var(--accent); }
+    button.btn-danger { background-color: var(--danger); }
+    button.btn-secondary { background-color: #4b5563; }
 
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 15px; }
     th, td { border: 1px solid var(--border); padding: 10px; text-align: left; }
     th { background-color: #f8fafc; font-weight: 600; }
 
     .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
+    .id-badge {
+      display: inline-block;
+      background: #f3f4f6;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      color: #6b7280;
+      font-family: monospace;
+    }
   </style>
 </head>
 <body>
@@ -49,7 +61,8 @@
       <a href="relatorio.html" style="background-color: #e67e22; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-file-lines"></i> Relatório</a>
       <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-users"></i> Alunos
-        <a href="admin.html" class="btn" style="background-color: #0d9488; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+      </a>
+      <a href="admin.html" class="btn" style="background-color: #0d9488; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-user-gear"></i> Painel Admin
       </a>
     </div>
@@ -63,11 +76,15 @@
 
   <div class="card">
     <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
-      <input type="text" id="nomeAluno" placeholder="Nome do aluno...">
+      <input type="text" id="buscaAluno" placeholder="Digite o ID ou Nome do aluno...">
       <button onclick="carregarMusicasAluno()"><i class="fa-solid fa-magnifying-glass"></i> Carregar Aluno</button>
       <button style="background-color: #16a34a;" onclick="salvarMusicasAluno()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar no GitHub</button>
-      <!-- BOTÃO DE IMPORTAÇÃO DE LOTE FLEXÍVEL -->
       <button style="background-color: #0284c7;" onclick="importarLoteGithub()"><i class="fa-solid fa-file-import"></i> Importar Lote GitHub</button>
+      <button class="btn-secondary" onclick="carregarListaAlunos()"><i class="fa-solid fa-list"></i> Listar Alunos</button>
+    </div>
+    
+    <div id="listaAlunos" style="margin-bottom: 15px; display: none; max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 6px; background: #f8fafc;">
+      <div id="listaAlunosContainer"></div>
     </div>
 
     <div style="display: flex; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 15px;">
@@ -96,6 +113,7 @@
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     let repertorioAtual = [];
     let shaArquivoAtual = null;
+    let alunoIdAtual = null;
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -111,27 +129,97 @@
       if (token) localStorage.setItem("gh_pat_token", token);
     }
 
-    function normalizarNome(nome) {
-      return nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-    }
-
     function exibirStatus(msg, cor = "black") {
       const statusEl = document.getElementById('statusMsg');
       statusEl.style.color = cor;
       statusEl.innerText = msg;
     }
 
+    // --- FUNÇÃO PARA BUSCAR ID DO ALUNO ---
+    async function buscarIdAluno(busca) {
+      const token = obterToken();
+      if (!token) return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos/index.json?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+        if (!res.ok) return busca;
+        
+        const data = await res.json();
+        const base64Clean = data.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const indexData = JSON.parse(jsonStr);
+        
+        let encontrado = indexData.alunos.find(a => a.id === busca);
+        if (!encontrado) {
+          encontrado = indexData.alunos.find(a => a.nome.toLowerCase() === busca.toLowerCase());
+        }
+        return encontrado ? encontrado.id : busca;
+      } catch (e) {
+        return busca;
+      }
+    }
+
+    // --- CARREGAR LISTA DE ALUNOS ---
+    async function carregarListaAlunos() {
+      const token = obterToken();
+      if (!token) return alert("Informe o token do GitHub.");
+
+      const container = document.getElementById('listaAlunosContainer');
+      const listaDiv = document.getElementById('listaAlunos');
+      
+      listaDiv.style.display = 'block';
+      container.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Carregando...';
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+
+        if (!res.ok) {
+          container.innerHTML = 'Nenhum aluno encontrado.';
+          return;
+        }
+
+        const files = await res.json();
+        const alunos = files
+          .filter(f => f.name.startsWith('aluno_') && f.name.endsWith('.json'))
+          .map(f => f.name.replace('aluno_', '').replace('.json', ''))
+          .sort();
+
+        if (alunos.length === 0) {
+          container.innerHTML = 'Nenhum aluno cadastrado.';
+          return;
+        }
+
+        container.innerHTML = alunos.map(id => 
+          `<span onclick="document.getElementById('buscaAluno').value='${id}'; carregarMusicasAluno();" 
+                 style="display: inline-block; background: #e5e7eb; padding: 4px 10px; border-radius: 12px; margin: 3px; cursor: pointer; font-size: 0.8rem; font-family: monospace;">
+            ${id}
+          </span>`
+        ).join(' ');
+
+      } catch (e) {
+        container.innerHTML = 'Erro ao carregar lista.';
+      }
+    }
+
     async function carregarMusicasAluno() {
-      const nomeAluno = document.getElementById('nomeAluno').value.trim();
+      const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
 
-      if (!nomeAluno) return alert("Digite o nome do aluno.");
+      if (!busca) return alert("Digite o ID ou nome do aluno.");
       if (!token) return alert("Informe e confirme o Token do GitHub.");
 
-      const slug = normalizarNome(nomeAluno);
-      const caminho = `alunos/musica_${slug}.json`;
+      // Buscar o ID do aluno
+      const alunoId = await buscarIdAluno(busca);
+      alunoIdAtual = alunoId;
+      
+      const caminho = `alunos/musica_${alunoId}.json`;
 
-      exibirStatus("Buscando dados do aluno...", "blue");
+      exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
 
       try {
         const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
@@ -148,11 +236,11 @@
           const json = JSON.parse(jsonStr);
 
           repertorioAtual = json.repertorio || [];
-          exibirStatus(`Músicas de "${nomeAluno}" carregadas com sucesso!`, "green");
+          exibirStatus(`Músicas do aluno ${alunoId} carregadas com sucesso!`, "green");
         } else {
           shaArquivoAtual = null;
           repertorioAtual = [];
-          exibirStatus("Aluno novo ou sem repertório salvo.", "orange");
+          exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
         }
 
         renderizarTabela();
@@ -161,7 +249,7 @@
       }
     }
 
-    // --- IMPORTAR QUALQUER LOTE OU ARQUIVO DO GITHUB ---
+    // --- IMPORTAR LOTE DO GITHUB ---
     async function importarLoteGithub() {
       const token = obterToken();
       if (!token) return alert("Informe e confirme o Token do GitHub.");
@@ -180,13 +268,10 @@
       const entradaLimpa = entradaUsuario.trim();
       let caminhosParaTestar = [];
 
-      // Se o usuário especificou caminho completo ou extensão .json, usa diretamente
       if (entradaLimpa.endsWith(".json") || entradaLimpa.includes("/")) {
         caminhosParaTestar.push(entradaLimpa);
       } else {
-        const slug = normalizarNome(entradaLimpa);
-        
-        // Padrões específicos para arquivos de música (ex: lote_musica_12.json)
+        const slug = entradaLimpa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
         caminhosParaTestar.push(`lotes/lote_musica_${slug}.json`);
         caminhosParaTestar.push(`lotes/lote_${slug}.json`);
         caminhosParaTestar.push(`lotes/${slug}.json`);
@@ -209,9 +294,7 @@
             caminhoEncontrado = caminho;
             break;
           }
-        } catch (e) {
-          // Tenta a próxima opção
-        }
+        } catch (e) {}
       }
 
       if (!dadosArquivo) {
@@ -224,7 +307,6 @@
         const jsonStr = new TextDecoder('utf-8').decode(bytes);
         const loteJson = JSON.parse(jsonStr);
 
-        // Suporta múltiplos formatos de JSON (Array direto ou estruturas com chaves específicas)
         let novasMusicas = [];
         if (Array.isArray(loteJson)) {
           novasMusicas = loteJson;
@@ -310,15 +392,27 @@
     }
 
     async function salvarMusicasAluno() {
-      const nomeAluno = document.getElementById('nomeAluno').value.trim();
+      const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
 
-      if (!nomeAluno) return alert("Digite o nome do aluno.");
+      if (!busca) return alert("Digite o ID ou nome do aluno.");
       if (!token) return alert("Informe e confirme o Token do GitHub.");
 
-      const slug = normalizarNome(nomeAluno);
-      const caminho = `alunos/musica_${slug}.json`;
-      const conteudoJson = { aluno: nomeAluno, repertorio: repertorioAtual };
+      // Buscar o ID do aluno
+      const alunoId = await buscarIdAluno(busca);
+      alunoIdAtual = alunoId;
+
+      if (repertorioAtual.length === 0) {
+        return alert("Adicione pelo menos uma música antes de salvar.");
+      }
+
+      const caminho = `alunos/musica_${alunoId}.json`;
+      const conteudoJson = { 
+        alunoId: alunoId,
+        aluno: busca, 
+        repertorio: repertorioAtual,
+        atualizadoEm: new Date().toISOString()
+      };
 
       const jsonString = JSON.stringify(conteudoJson, null, 2);
       const utf8Bytes = new TextEncoder().encode(jsonString);
@@ -327,7 +421,7 @@
       const conteudoBase64 = btoa(binaryStr);
 
       const body = {
-        message: `Atualizando músicas do aluno: ${nomeAluno}`,
+        message: `Atualizando músicas do aluno: ${alunoId}`,
         content: conteudoBase64,
         branch: GH_CONFIG.branch
       };
@@ -345,7 +439,7 @@
         if (putRes.ok) {
           const resData = await putRes.json();
           shaArquivoAtual = resData.content.sha;
-          exibirStatus("Músicas salvas com sucesso no GitHub!", "green");
+          exibirStatus(`Músicas do aluno ${alunoId} salvas com sucesso!`, "green");
         } else {
           throw new Error("Erro ao gravar arquivo.");
         }
