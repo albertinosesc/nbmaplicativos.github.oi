@@ -83,6 +83,7 @@
     button.btn-teoria { background-color: var(--teoria); }
     button.btn-tonalidades { background-color: var(--tonalidades); }
     button.btn-musicas { background-color: var(--musicas); }
+    button.btn-danger { background-color: #dc2626; }
 
     .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
 
@@ -117,6 +118,11 @@
       border-radius: 4px;
       background: white;
       font-size: 0.85rem;
+      cursor: pointer;
+    }
+
+    .filters .filter-group select:focus {
+      outline: 2px solid var(--primary);
     }
 
     .stats {
@@ -134,6 +140,13 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+
+    .stat-item:hover {
+      background: #f1f5f9;
+      transform: scale(1.02);
     }
 
     .stat-item .number {
@@ -149,6 +162,11 @@
     .stat-item.teoria { border-left-color: var(--teoria); }
     .stat-item.tonalidades { border-left-color: var(--tonalidades); }
     .stat-item.musicas { border-left-color: var(--musicas); }
+
+    .stat-item.active {
+      background: #e5e7eb;
+      box-shadow: 0 0 0 2px var(--primary);
+    }
 
     /* GRID DE LOTES */
     .lotes-grid {
@@ -176,6 +194,7 @@
       justify-content: space-between;
       align-items: start;
       margin-bottom: 10px;
+      gap: 10px;
     }
 
     .lote-card .lote-id {
@@ -185,6 +204,7 @@
       padding: 2px 10px;
       border-radius: 12px;
       color: #6b7280;
+      word-break: break-all;
     }
 
     .lote-card .lote-tipo {
@@ -194,6 +214,7 @@
       padding: 3px 10px;
       border-radius: 12px;
       color: white;
+      white-space: nowrap;
     }
 
     .lote-tipo.teoria { background: var(--teoria); }
@@ -213,7 +234,7 @@
     }
 
     .lote-card .lote-itens {
-      max-height: 100px;
+      max-height: 150px;
       overflow-y: auto;
       background: #f8fafc;
       padding: 8px 12px;
@@ -223,13 +244,20 @@
     }
 
     .lote-card .lote-itens .item {
-      padding: 2px 0;
+      padding: 3px 0;
       border-bottom: 1px dashed #e5e7eb;
       display: flex;
       justify-content: space-between;
+      align-items: center;
     }
 
     .lote-card .lote-itens .item:last-child { border-bottom: none; }
+
+    .lote-card .lote-itens .item .item-index {
+      color: #9ca3af;
+      font-size: 0.7rem;
+      font-family: monospace;
+    }
 
     .lote-card .lote-actions {
       display: flex;
@@ -243,6 +271,7 @@
       font-size: 0.8rem;
       flex: 1;
       justify-content: center;
+      min-width: 60px;
     }
 
     .lote-card .lote-actions .btn-small {
@@ -293,12 +322,6 @@
       .filters .filter-group { justify-content: space-between; }
     }
 
-    /* TOOLTIP */
-    .tooltip {
-      position: relative;
-      cursor: help;
-    }
-
     .badge-count {
       display: inline-block;
       background: #e5e7eb;
@@ -325,6 +348,22 @@
       display: inline-flex;
       align-items: center;
       gap: 5px;
+    }
+
+    /* SCROLLBAR */
+    .lote-itens::-webkit-scrollbar {
+      width: 4px;
+    }
+    .lote-itens::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+    .lote-itens::-webkit-scrollbar-thumb {
+      background: #c1c1c1;
+      border-radius: 4px;
+    }
+    .lote-itens::-webkit-scrollbar-thumb:hover {
+      background: #a1a1a1;
     }
   </style>
 </head>
@@ -359,8 +398,9 @@
     <div class="filters">
       <div class="filter-group">
         <label><i class="fa-solid fa-filter"></i> Tipo:</label>
-        <select id="filterTipo" onchange="filtrarLotes()">
-          <option value="todos">Todos</option>
+        <select id="filterTipo" onchange="aplicarFiltros()">
+          <option value="">🔽 Selecione um tipo...</option>
+          <option value="todos">📦 Todos os Lotes</option>
           <option value="teoria">📚 Conceitos Teóricos</option>
           <option value="tonalidades">🎵 Tonalidades</option>
           <option value="musicas">🎶 Músicas</option>
@@ -369,33 +409,34 @@
 
       <div class="filter-group">
         <label><i class="fa-solid fa-search"></i> Buscar:</label>
-        <input type="text" id="filterBusca" placeholder="Digite para filtrar..." oninput="filtrarLotes()" style="min-width: 150px; padding: 5px 10px;">
+        <input type="text" id="filterBusca" placeholder="Digite para filtrar..." oninput="aplicarFiltros()" style="min-width: 150px; padding: 5px 10px;">
       </div>
 
       <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto;">
         <button onclick="carregarLotes()"><i class="fa-solid fa-rotate"></i> Atualizar</button>
-        <button class="btn-secondary" onclick="expandirTodos()"><i class="fa-solid fa-expand"></i> Expandir Todos</button>
-        <button class="btn-secondary" onclick="recolherTodos()"><i class="fa-solid fa-compress"></i> Recolher Todos</button>
+        <button class="btn-secondary" onclick="expandirTodos()"><i class="fa-solid fa-expand"></i> Expandir</button>
+        <button class="btn-secondary" onclick="recolherTodos()"><i class="fa-solid fa-compress"></i> Recolher</button>
+        <button class="btn-danger" onclick="limparFiltros()"><i class="fa-solid fa-eraser"></i> Limpar</button>
       </div>
     </div>
 
     <!-- ESTATÍSTICAS -->
     <div class="stats" id="statsContainer">
-      <div class="stat-item teoria">
+      <div class="stat-item teoria" onclick="filtrarPorTipo('teoria')">
         <span class="number" id="countTeoria">0</span>
         <span class="label">📚 Conceitos</span>
       </div>
-      <div class="stat-item tonalidades">
+      <div class="stat-item tonalidades" onclick="filtrarPorTipo('tonalidades')">
         <span class="number" id="countTonalidades">0</span>
         <span class="label">🎵 Tonalidades</span>
       </div>
-      <div class="stat-item musicas">
+      <div class="stat-item musicas" onclick="filtrarPorTipo('musicas')">
         <span class="number" id="countMusicas">0</span>
         <span class="label">🎶 Músicas</span>
       </div>
-      <div class="stat-item">
+      <div class="stat-item" onclick="filtrarPorTipo('todos')">
         <span class="number" id="countTotal">0</span>
-        <span class="label">📦 Total de Lotes</span>
+        <span class="label">📦 Total</span>
       </div>
     </div>
 
@@ -405,10 +446,11 @@
   <!-- GRID DE LOTES -->
   <div class="card">
     <div id="lotesContainer">
-      <div class="loading">
-        <i class="fa-solid fa-spinner"></i>
-        <p>Carregando biblioteca de lotes...</p>
-        <p style="font-size: 0.8rem; color: #9ca3af; margin-top: 5px;">Certifique-se de ter o token configurado</p>
+      <div class="empty-state">
+        <i class="fa-solid fa-filter-circle-xmark"></i>
+        <h3>Selecione um filtro para começar</h3>
+        <p style="color: #9ca3af;">Escolha um tipo de lote no dropdown acima ou clique em uma estatística.</p>
+        <p style="color: #9ca3af; margin-top: 5px;">Certifique-se de ter o token configurado.</p>
       </div>
     </div>
   </div>
@@ -418,6 +460,7 @@
     let todosLotes = [];
     let lotesFiltrados = [];
     let expandidos = new Set();
+    let carregamentoInicial = false;
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -430,9 +473,9 @@
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
 
-      // Carregar automaticamente se tiver token
+      // Se tiver token, carrega os lotes mas não exibe
       if (savedToken) {
-        carregarLotes();
+        carregarLotesSilencioso();
       }
     };
 
@@ -466,7 +509,78 @@
       el.innerText = mensagem;
     }
 
-    // --- CARREGAR LOTES ---
+    // --- CARREGAR LOTES (SILENCIOSO - SÓ CARREGA OS DADOS) ---
+    async function carregarLotesSilencioso() {
+      const token = obterToken();
+      if (!token) return;
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/lotes?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+
+        if (res.status === 404) {
+          todosLotes = [];
+          atualizarStats();
+          return;
+        }
+
+        if (!res.ok) throw new Error("Erro ao acessar o GitHub.");
+
+        const files = await res.json();
+        const arquivosJson = files.filter(f => f.name.endsWith('.json'));
+
+        todosLotes = [];
+
+        for (const file of arquivosJson) {
+          try {
+            const resArq = await fetch(file.download_url);
+            const dados = await resArq.json();
+
+            let tipo = dados.tipo || 'teoria';
+            if (dados.conceitos) tipo = 'teoria';
+            else if (dados.exercicios) tipo = 'tonalidades';
+            else if (dados.musicas) tipo = 'musicas';
+
+            let itens = [];
+            if (tipo === 'teoria' && dados.conceitos) {
+              itens = dados.conceitos.map(c => typeof c === 'string' ? c : c.titulo);
+            } else if (tipo === 'tonalidades' && dados.exercicios) {
+              itens = dados.exercicios.map(e => typeof e === 'string' ? e : e.nome);
+            } else if (tipo === 'musicas' && dados.musicas) {
+              itens = dados.musicas.map(m => typeof m === 'string' ? m : m.nome);
+            }
+
+            const id = file.name.replace('.json', '');
+            
+            todosLotes.push({
+              id: id,
+              nome: dados.nome || dados.titulo || id,
+              tipo: tipo,
+              itens: itens,
+              itensCount: itens.length,
+              criadoEm: dados.criadoEm || dados.criado_em || null,
+              atualizadoEm: dados.atualizadoEm || dados.atualizado_em || null,
+              sha: file.sha,
+              dadosCompletos: dados,
+              caminho: file.path
+            });
+
+          } catch (e) {
+            console.error("Erro ao ler lote:", file.name, e);
+          }
+        }
+
+        todosLotes.sort((a, b) => a.nome.localeCompare(b.nome));
+        atualizarStats();
+        carregamentoInicial = true;
+
+      } catch (err) {
+        console.error("Erro ao carregar lotes:", err);
+      }
+    }
+
+    // --- CARREGAR LOTES (COM EXIBIÇÃO) ---
     async function carregarLotes() {
       const token = obterToken();
       if (!token) {
@@ -488,109 +602,52 @@
         </div>
       `;
 
-      try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/lotes?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
-
-        if (res.status === 404) {
-          document.getElementById('lotesContainer').innerHTML = `
-            <div class="empty-state">
-              <i class="fa-solid fa-folder-open"></i>
-              <h3>Nenhum lote encontrado</h3>
-              <p style="color: #9ca3af;">A pasta 'lotes' ainda não foi criada no repositório.</p>
-              <p style="color: #9ca3af; margin-top: 5px;">Acesse o <a href="admin.html" style="color: var(--primary);">Painel Admin</a> para criar seu primeiro lote.</p>
-            </div>
-          `;
-          return exibirStatus("Pasta 'lotes' não encontrada.", "orange");
-        }
-
-        if (!res.ok) throw new Error("Erro ao acessar o GitHub.");
-
-        const files = await res.json();
-        const arquivosJson = files.filter(f => f.name.endsWith('.json'));
-
-        if (arquivosJson.length === 0) {
-          document.getElementById('lotesContainer').innerHTML = `
-            <div class="empty-state">
-              <i class="fa-solid fa-box-open"></i>
-              <h3>Nenhum lote cadastrado</h3>
-              <p style="color: #9ca3af;">A pasta 'lotes' está vazia.</p>
-              <p style="color: #9ca3af; margin-top: 5px;">Acesse o <a href="admin.html" style="color: var(--primary);">Painel Admin</a> para criar seu primeiro lote.</p>
-            </div>
-          `;
-          return exibirStatus("Nenhum lote encontrado.", "orange");
-        }
-
-        todosLotes = [];
-
-        for (const file of arquivosJson) {
-          try {
-            const resArq = await fetch(file.download_url);
-            const dados = await resArq.json();
-
-            // Determinar o tipo
-            let tipo = dados.tipo || 'teoria';
-            if (dados.conceitos) tipo = 'teoria';
-            else if (dados.exercicios) tipo = 'tonalidades';
-            else if (dados.musicas) tipo = 'musicas';
-
-            // Extrair lista de itens
-            let itens = [];
-            let itensCount = 0;
-            if (tipo === 'teoria' && dados.conceitos) {
-              itens = dados.conceitos.map(c => typeof c === 'string' ? c : c.titulo);
-              itensCount = itens.length;
-            } else if (tipo === 'tonalidades' && dados.exercicios) {
-              itens = dados.exercicios.map(e => typeof e === 'string' ? e : e.nome);
-              itensCount = itens.length;
-            } else if (tipo === 'musicas' && dados.musicas) {
-              itens = dados.musicas.map(m => typeof m === 'string' ? m : m.nome);
-              itensCount = itens.length;
-            }
-
-            const id = file.name.replace('.json', '');
-            
-            todosLotes.push({
-              id: id,
-              nome: dados.nome || dados.titulo || id,
-              tipo: tipo,
-              itens: itens,
-              itensCount: itensCount,
-              criadoEm: dados.criadoEm || dados.criado_em || null,
-              atualizadoEm: dados.atualizadoEm || dados.atualizado_em || null,
-              sha: file.sha,
-              dadosCompletos: dados,
-              caminho: file.path
-            });
-
-          } catch (e) {
-            console.error("Erro ao ler lote:", file.name, e);
-          }
-        }
-
-        // Ordenar por nome
-        todosLotes.sort((a, b) => a.nome.localeCompare(b.nome));
-
-        exibirStatus(`Total de lotes carregados: ${todosLotes.length}`, "green");
-        filtrarLotes();
-
-      } catch (err) {
-        exibirStatus("Erro ao carregar lotes: " + err.message, "red");
+      await carregarLotesSilencioso();
+      
+      if (todosLotes.length === 0) {
         document.getElementById('lotesContainer').innerHTML = `
           <div class="empty-state">
-            <i class="fa-solid fa-circle-exclamation" style="color: #dc2626;"></i>
-            <h3>Erro ao carregar dados</h3>
-            <p style="color: #dc2626;">${err.message}</p>
+            <i class="fa-solid fa-folder-open"></i>
+            <h3>Nenhum lote encontrado</h3>
+            <p style="color: #9ca3af;">A pasta 'lotes' está vazia ou não existe.</p>
+            <p style="color: #9ca3af; margin-top: 5px;">Acesse o <a href="admin.html" style="color: var(--primary);">Painel Admin</a> para criar seu primeiro lote.</p>
           </div>
         `;
+        return exibirStatus("Nenhum lote encontrado.", "orange");
       }
+
+      exibirStatus(`Total de lotes carregados: ${todosLotes.length}. Selecione um filtro para visualizar.`, "green");
+      
+      // Mostrar mensagem para selecionar filtro
+      document.getElementById('lotesContainer').innerHTML = `
+        <div class="empty-state">
+          <i class="fa-solid fa-filter-circle-xmark"></i>
+          <h3>Selecione um filtro para visualizar</h3>
+          <p style="color: #9ca3af;">Escolha um tipo no dropdown ou clique em uma estatística acima.</p>
+          <p style="color: #9ca3af; font-size: 0.9rem; margin-top: 10px;">
+            <span class="badge-count">${todosLotes.length} lotes disponíveis</span>
+          </p>
+        </div>
+      `;
     }
 
-    // --- FILTRAR LOTES ---
-    function filtrarLotes() {
+    // --- APLICAR FILTROS ---
+    function aplicarFiltros() {
       const tipoFiltro = document.getElementById('filterTipo').value;
       const buscaFiltro = document.getElementById('filterBusca').value.toLowerCase().trim();
+
+      // Se não selecionou nenhum tipo, mostrar mensagem
+      if (!tipoFiltro) {
+        document.getElementById('lotesContainer').innerHTML = `
+          <div class="empty-state">
+            <i class="fa-solid fa-filter-circle-xmark"></i>
+            <h3>Selecione um filtro para visualizar</h3>
+            <p style="color: #9ca3af;">Escolha um tipo no dropdown ou clique em uma estatística acima.</p>
+            ${todosLotes.length > 0 ? `<p style="color: #9ca3af; font-size: 0.9rem; margin-top: 10px;"><span class="badge-count">${todosLotes.length} lotes disponíveis</span></p>` : ''}
+          </div>
+        `;
+        return;
+      }
 
       lotesFiltrados = todosLotes.filter(lote => {
         // Filtro por tipo
@@ -608,15 +665,15 @@
         return true;
       });
 
-      // Atualizar estatísticas
-      atualizarStats();
+      // Atualizar estatísticas (destacar filtro ativo)
+      atualizarStats(tipoFiltro);
 
       // Renderizar
       renderizarLotes();
     }
 
     // --- ATUALIZAR ESTATÍSTICAS ---
-    function atualizarStats() {
+    function atualizarStats(tipoAtivo = null) {
       const countTeoria = todosLotes.filter(l => l.tipo === 'teoria').length;
       const countTonalidades = todosLotes.filter(l => l.tipo === 'tonalidades').length;
       const countMusicas = todosLotes.filter(l => l.tipo === 'musicas').length;
@@ -625,6 +682,24 @@
       document.getElementById('countTonalidades').textContent = countTonalidades;
       document.getElementById('countMusicas').textContent = countMusicas;
       document.getElementById('countTotal').textContent = todosLotes.length;
+
+      // Destacar filtro ativo
+      document.querySelectorAll('.stat-item').forEach(el => el.classList.remove('active'));
+      if (tipoAtivo) {
+        const map = { 'teoria': 'teoria', 'tonalidades': 'tonalidades', 'musicas': 'musicas', 'todos': '' };
+        const className = map[tipoAtivo];
+        if (className) {
+          document.querySelector(`.stat-item.${className}`)?.classList.add('active');
+        } else if (tipoAtivo === 'todos') {
+          document.querySelector('.stat-item:last-child')?.classList.add('active');
+        }
+      }
+    }
+
+    // --- FILTRAR POR TIPO (CLICANDO NAS ESTATÍSTICAS) ---
+    function filtrarPorTipo(tipo) {
+      document.getElementById('filterTipo').value = tipo;
+      aplicarFiltros();
     }
 
     // --- RENDERIZAR LOTES ---
@@ -674,10 +749,10 @@
             </div>
 
             <div class="lote-itens">
-              ${itensVisiveis.map(item => `
+              ${itensVisiveis.map((item, idx) => `
                 <div class="item">
                   <span>${item}</span>
-                  <span style="color: #9ca3af; font-size: 0.7rem;">#${lote.itens.indexOf(item) + 1}</span>
+                  <span class="item-index">#${idx + 1}</span>
                 </div>
               `).join('')}
               ${temMais ? `<div class="item" style="color: #6b7280; font-style: italic; justify-content: center;">... e mais ${lote.itens.length - 5} itens</div>` : ''}
@@ -726,12 +801,29 @@
       renderizarLotes();
     }
 
+    function limparFiltros() {
+      document.getElementById('filterTipo').value = '';
+      document.getElementById('filterBusca').value = '';
+      expandidos.clear();
+      
+      document.getElementById('lotesContainer').innerHTML = `
+        <div class="empty-state">
+          <i class="fa-solid fa-filter-circle-xmark"></i>
+          <h3>Selecione um filtro para visualizar</h3>
+          <p style="color: #9ca3af;">Escolha um tipo no dropdown ou clique em uma estatística acima.</p>
+          ${todosLotes.length > 0 ? `<p style="color: #9ca3af; font-size: 0.9rem; margin-top: 10px;"><span class="badge-count">${todosLotes.length} lotes disponíveis</span></p>` : ''}
+        </div>
+      `;
+      
+      document.querySelectorAll('.stat-item').forEach(el => el.classList.remove('active'));
+      exibirStatus("Filtros limpos. Selecione um tipo para visualizar.", "blue");
+    }
+
     // --- COPIAR ID ---
     function copiarLote(id) {
       navigator.clipboard.writeText(id).then(() => {
         exibirStatus(`ID '${id}' copiado para a área de transferência!`, "green");
       }).catch(() => {
-        // Fallback
         const input = document.createElement('input');
         input.value = id;
         document.body.appendChild(input);
@@ -749,7 +841,6 @@
 
       const jsonStr = JSON.stringify(lote.dadosCompletos, null, 2);
       
-      // Criar modal simples
       const modal = document.createElement('div');
       modal.style.cssText = `
         position: fixed; top: 0; left: 0; width: 100%; height: 100%;
@@ -760,10 +851,10 @@
       modal.innerHTML = `
         <div style="background: white; max-width: 700px; width: 90%; max-height: 80vh; border-radius: 8px; padding: 25px; overflow: auto; position: relative;">
           <h3 style="margin-bottom: 15px;"><i class="fa-solid fa-code"></i> JSON do Lote: ${lote.id}</h3>
-          <pre style="background: #1f2937; color: #e5e7eb; padding: 15px; border-radius: 6px; font-size: 0.8rem; overflow: auto; max-height: 50vh; white-space: pre-wrap;">${jsonStr}</pre>
+          <pre style="background: #1f2937; color: #e5e7eb; padding: 15px; border-radius: 6px; font-size: 0.8rem; overflow: auto; max-height: 50vh; white-space: pre-wrap; word-break: break-all;">${jsonStr}</pre>
           <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
             <button onclick="this.closest('div[style]').remove()" style="background: #4b5563;">Fechar</button>
-            <button onclick="navigator.clipboard.writeText(\`${jsonStr.replace(/`/g, '\\`')}\`); exibirStatus('JSON copiado!', 'green');" style="background: #0284c7;">
+            <button onclick="navigator.clipboard.writeText(document.querySelector('pre').textContent); exibirStatus('JSON copiado!', 'green');" style="background: #0284c7;">
               <i class="fa-solid fa-copy"></i> Copiar JSON
             </button>
           </div>
@@ -771,8 +862,6 @@
       `;
 
       document.body.appendChild(modal);
-
-      // Fechar ao clicar fora
       modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.remove();
       });
@@ -790,21 +879,16 @@
       };
 
       const pagina = tipoMap[lote.tipo] || 'conceitos.html';
-      
-      // Abrir a página correta
       window.open(`${pagina}?lote=${lote.id}`, '_blank');
-      
       exibirStatus(`Abrindo ${pagina} para importar o lote '${lote.id}'...`, "blue");
     }
 
-    // --- ATALHO DE TECLADO ---
+    // --- ATALHOS DE TECLADO ---
     document.addEventListener('keydown', (e) => {
-      // Ctrl+F para focar na busca
       if (e.ctrlKey && e.key === 'f') {
         e.preventDefault();
         document.getElementById('filterBusca').focus();
       }
-      // Ctrl+R para recarregar
       if (e.ctrlKey && e.key === 'r') {
         e.preventDefault();
         carregarLotes();
