@@ -169,7 +169,7 @@
     let shaArquivoAtual = null;
     let alunoIdAtual = null;
 
-    window.onload = function() {
+window.onload = function() {
   // 1. Token
   const savedToken = localStorage.getItem("gh_pat_token");
   if (savedToken) {
@@ -181,16 +181,104 @@
     localStorage.setItem("gh_pat_token", e.target.value.trim());
   });
 
-  // 2. DETECTAR LOTE DA URL - SÓ PREENCHE O CAMPO
+  // 2. DETECTAR LOTE DA URL E IMPORTAR AUTOMATICAMENTE
   const urlParams = new URLSearchParams(window.location.search);
   const loteParam = urlParams.get('lote');
   
   if (loteParam) {
-    // Só preenche o campo de busca com o ID do lote
-    document.getElementById('buscaAluno').value = loteParam;
-    exibirStatus(`Lote "${loteParam}" detectado. Clique em "Importar" para carregar.`, "blue");
+    exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
+    
+    // Aguarda o carregamento e importa diretamente
+    setTimeout(() => {
+      importarLoteTeoriaDireto(loteParam);
+    }, 1000);
   }
 };
+
+// --- FUNÇÃO PARA IMPORTAR DIRETO (SEM PROMPT) ---
+async function importarLoteTeoriaDireto(nomeLote) {
+  const token = obterToken();
+  if (!token) {
+    exibirStatus("Configure o token do GitHub primeiro.", "red");
+    return;
+  }
+
+  if (!nomeLote || nomeLote.trim() === "") {
+    exibirStatus("Nome do lote não informado.", "red");
+    return;
+  }
+
+  const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+  const caminhosParaTestar = [
+    `lotes/lote_teoria_${idFormatado}.json`,
+    `lotes/teoria_${idFormatado}.json`,
+    `lotes/${idFormatado}.json`
+  ];
+
+  exibirStatus(`Buscando lote "${nomeLote}"...`, "blue");
+
+  let dadosArquivo = null;
+  let caminhoEncontrado = "";
+
+  for (const caminho of caminhosParaTestar) {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+        headers: { 'Authorization': `token ${token}` }
+      });
+      if (res.ok) {
+        dadosArquivo = await res.json();
+        caminhoEncontrado = caminho;
+        break;
+      }
+    } catch (e) {}
+  }
+
+  if (!dadosArquivo) {
+    exibirStatus(`❌ Lote "${nomeLote}" não encontrado.`, "red");
+    return;
+  }
+
+  try {
+    const base64Clean = dadosArquivo.content.replace(/\s/g, '');
+    const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+    const jsonStr = new TextDecoder('utf-8').decode(bytes);
+    const json = JSON.parse(jsonStr);
+
+    let listaConceitos = [];
+    if (Array.isArray(json)) {
+      listaConceitos = json;
+    } else if (Array.isArray(json.conceitos)) {
+      listaConceitos = json.conceitos;
+    } else if (Array.isArray(json.lista)) {
+      listaConceitos = json.lista;
+    }
+
+    if (listaConceitos.length === 0) {
+      exibirStatus(`⚠️ Lote "${nomeLote}" está vazio.`, "orange");
+      return;
+    }
+
+    // Limpar tabela atual
+    document.getElementById('corpoTabela').innerHTML = "";
+    
+    let adicionados = 0;
+    listaConceitos.forEach(c => {
+      const nomeStr = typeof c === 'string' ? c : (c.titulo || c.nome || "");
+      if (nomeStr) {
+        adicionarLinhaConceito(nomeStr, false);
+        adicionados++;
+      }
+    });
+
+    exibirStatus(`✅ ${adicionados} conceitos importados do lote "${nomeLote}"!`, "green");
+    
+    // Mostrar toast de sucesso
+    showToast(`📚 ${adicionados} conceitos importados com sucesso!`, 'success');
+    
+  } catch (err) {
+    exibirStatus("❌ Erro ao importar: " + err.message, "red");
+  }
+}
 
     function obterToken() {
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
