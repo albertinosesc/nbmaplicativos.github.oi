@@ -385,6 +385,14 @@
     }
     .ext-badge.json { background: #dbeafe; color: #1e40af; }
     .ext-badge.txt { background: #fef3c7; color: #92400e; }
+
+    /* TAB MODAL */
+    .tab-btn {
+      transition: all 0.2s ease;
+    }
+    .tab-btn:hover {
+      background: #f1f5f9;
+    }
   </style>
 </head>
 <body>
@@ -535,11 +543,19 @@
       setTimeout(() => toast.remove(), 3000);
     }
 
-    // --- MOSTRAR MODAL (JSON ou TXT) ---
-    function mostrarModal(tipo, titulo, conteudo, extensao) {
+    // --- MOSTRAR MODAL COM ABAS (JSON ou TXT) ---
+    function mostrarModal(tipo, titulo, conteudo, extensao, itens = []) {
       const isJson = extensao === 'json';
       const icon = isJson ? 'fa-code' : 'fa-file-lines';
-      const label = isJson ? 'JSON' : 'TXT';
+      
+      // Extrair itens limpos se for JSON
+      let itensLimpos = [];
+      if (isJson && itens.length > 0) {
+        itensLimpos = itens;
+      } else if (!isJson && conteudo) {
+        // Para TXT, pegar as linhas
+        itensLimpos = conteudo.split('\n').filter(l => l.trim());
+      }
       
       const modal = document.createElement('div');
       modal.style.cssText = `
@@ -549,26 +565,129 @@
       `;
       
       modal.innerHTML = `
-        <div style="background: white; max-width: 700px; width: 90%; max-height: 80vh; border-radius: 8px; padding: 25px; overflow: auto; position: relative;">
-          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;">
-            <h3><i class="fa-solid ${icon}"></i> ${titulo}</h3>
-            <span style="font-size: 0.7rem; background: ${isJson ? '#dbeafe' : '#fef3c7'}; padding: 2px 10px; border-radius: 12px; color: ${isJson ? '#1e40af' : '#92400e'}; font-family: monospace; font-weight: bold;">
-              .${extensao}
-            </span>
+        <div style="background: white; max-width: 750px; width: 95%; max-height: 85vh; border-radius: 12px; padding: 0; overflow: hidden; position: relative; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+          
+          <!-- HEADER -->
+          <div style="padding: 20px 25px 15px 25px; border-bottom: 1px solid #e5e7eb; background: #f8fafc;">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+              <div style="display: flex; align-items: center; gap: 12px;">
+                <i class="fa-solid ${icon}" style="color: ${isJson ? '#0d9488' : '#d97706'}; font-size: 1.2rem;"></i>
+                <h3 style="margin: 0; font-size: 1.1rem;">${titulo}</h3>
+                <span style="font-size: 0.65rem; background: ${isJson ? '#dbeafe' : '#fef3c7'}; padding: 2px 12px; border-radius: 12px; color: ${isJson ? '#1e40af' : '#92400e'}; font-family: monospace; font-weight: bold;">
+                  .${extensao}
+                </span>
+              </div>
+              <button onclick="this.closest('div[style]').remove()" style="background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #6b7280; padding: 0 5px;">
+                <i class="fa-solid fa-xmark"></i>
+              </button>
+            </div>
           </div>
-          <pre style="background: #1f2937; color: #e5e7eb; padding: 15px; border-radius: 6px; font-size: 0.8rem; overflow: auto; max-height: 50vh; white-space: ${isJson ? 'pre-wrap' : 'pre'}; word-break: ${isJson ? 'break-all' : 'normal'};">
+
+          <!-- ABAS -->
+          <div style="display: flex; border-bottom: 1px solid #e5e7eb; background: #f8fafc; padding: 0 25px;">
+            <button class="tab-btn active" data-tab="conteudo" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-weight: 600; color: #2563eb; border-bottom: 3px solid #2563eb; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-list"></i> Conteúdo
+            </button>
+            <button class="tab-btn" data-tab="codigo" style="padding: 10px 16px; border: none; background: none; cursor: pointer; font-weight: 500; color: #6b7280; border-bottom: 3px solid transparent; font-size: 0.85rem; display: flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-code"></i> Código
+            </button>
+          </div>
+
+          <!-- CONTEÚDO DA ABA -->
+          <div style="padding: 20px 25px; overflow: auto; max-height: 55vh;">
+            
+            <!-- ABA: CONTEÚDO -->
+            <div id="tab-conteudo" class="tab-content" style="display: block;">
+              ${itensLimpos.length > 0 ? `
+                <div style="background: #f8fafc; border-radius: 8px; padding: 12px 16px; border: 1px solid #e5e7eb;">
+                  ${itensLimpos.map((item, idx) => `
+                    <div style="padding: 6px 0; border-bottom: 1px dashed #e5e7eb; display: flex; justify-content: space-between; align-items: center; font-size: 0.95rem;">
+                      <span><i class="fa-regular fa-circle" style="color: #9ca3af; font-size: 0.6rem; margin-right: 8px;"></i> ${item}</span>
+                      <span style="color: #9ca3af; font-size: 0.7rem; font-family: monospace;">#${idx + 1}</span>
+                    </div>
+                  `).join('')}
+                </div>
+                <div style="margin-top: 12px; font-size: 0.8rem; color: #6b7280; text-align: center;">
+                  <i class="fa-regular fa-file-lines"></i> Total: ${itensLimpos.length} itens
+                </div>
+              ` : `
+                <div style="text-align: center; padding: 30px; color: #9ca3af;">
+                  <i class="fa-regular fa-file" style="font-size: 2rem; display: block; margin-bottom: 10px;"></i>
+                  <p>Nenhum item para exibir</p>
+                </div>
+              `}
+            </div>
+
+            <!-- ABA: CÓDIGO -->
+            <div id="tab-codigo" class="tab-content" style="display: none;">
+              <pre style="background: #1f2937; color: #e5e7eb; padding: 15px; border-radius: 6px; font-size: 0.8rem; overflow: auto; max-height: 45vh; white-space: pre-wrap; word-break: break-all; margin: 0;">
 ${conteudo}
-          </pre>
-          <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
-            <button onclick="this.closest('div[style]').remove()" style="background: #4b5563;">Fechar</button>
-            <button onclick="navigator.clipboard.writeText(document.querySelector('pre').textContent); showToast('✅ Conteúdo copiado!', 'success');" style="background: #0284c7;">
-              <i class="fa-solid fa-copy"></i> Copiar ${label}
+              </pre>
+            </div>
+          </div>
+
+          <!-- FOOTER -->
+          <div style="padding: 12px 25px; border-top: 1px solid #e5e7eb; background: #f8fafc; display: flex; justify-content: flex-end; gap: 10px;">
+            <button onclick="this.closest('div[style]').remove()" style="padding: 6px 16px; border: none; border-radius: 6px; cursor: pointer; background: #4b5563; color: white; font-size: 0.85rem;">
+              Fechar
+            </button>
+            <button onclick="copiarConteudoModal()" style="padding: 6px 16px; border: none; border-radius: 6px; cursor: pointer; background: #0284c7; color: white; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 6px;">
+              <i class="fa-solid fa-copy"></i> Copiar
             </button>
           </div>
         </div>
       `;
 
       document.body.appendChild(modal);
+
+      // --- FUNÇÃO PARA COPIAR CONTEÚDO DO MODAL ---
+      window.copiarConteudoModal = function() {
+        const pre = modal.querySelector('#tab-codigo pre');
+        if (pre) {
+          navigator.clipboard.writeText(pre.textContent).then(() => {
+            showToast('✅ Conteúdo copiado!', 'success');
+          }).catch(() => {
+            const textarea = document.createElement('textarea');
+            textarea.value = pre.textContent;
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+            showToast('✅ Conteúdo copiado!', 'success');
+          });
+        }
+      };
+
+      // --- FUNÇÃO PARA TROCAR ABAS ---
+      const tabBtns = modal.querySelectorAll('.tab-btn');
+      const tabContents = modal.querySelectorAll('.tab-content');
+
+      tabBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+          tabBtns.forEach(b => {
+            b.classList.remove('active');
+            b.style.color = '#6b7280';
+            b.style.borderBottomColor = 'transparent';
+            b.style.fontWeight = '500';
+          });
+          
+          this.classList.add('active');
+          this.style.color = '#2563eb';
+          this.style.borderBottomColor = '#2563eb';
+          this.style.fontWeight = '600';
+          
+          tabContents.forEach(content => {
+            content.style.display = 'none';
+          });
+          
+          const tabId = this.dataset.tab;
+          const targetContent = modal.querySelector(`#tab-${tabId}`);
+          if (targetContent) {
+            targetContent.style.display = 'block';
+          }
+        });
+      });
+
       modal.addEventListener('click', (e) => {
         if (e.target === modal) modal.remove();
       });
@@ -586,12 +705,12 @@ ${conteudo}
 
       if (extensao === 'json' && lote.dadosCompletos) {
         const jsonStr = JSON.stringify(lote.dadosCompletos, null, 2);
-        mostrarModal('JSON', `JSON do Lote: ${lote.id}`, jsonStr, 'json');
+        mostrarModal('JSON', `JSON do Lote: ${lote.id}`, jsonStr, 'json', lote.itens);
         return;
       }
 
       if (extensao === 'txt' && lote.conteudo) {
-        mostrarModal('TXT', `Conteúdo do TXT: ${lote.id}`, lote.conteudo, 'txt');
+        mostrarModal('TXT', `Conteúdo do TXT: ${lote.id}`, lote.conteudo, 'txt', lote.itens);
         return;
       }
 
@@ -642,7 +761,6 @@ ${conteudo}
             let conteudo = null;
 
             if (extensao === 'json') {
-              // Processar JSON
               dados = await resArq.json();
               
               tipo = dados.tipo || 'teoria';
@@ -661,11 +779,9 @@ ${conteudo}
               nome = dados.nome || dados.titulo || id;
               
             } else if (extensao === 'txt') {
-              // Processar TXT
               const texto = await resArq.text();
               const linhas = texto.split('\n').filter(l => l.trim());
               
-              // Tentar adivinhar o tipo pelo conteúdo
               tipo = 'teoria';
               const palavrasChave = ['música', 'canção', 'repertório', 'pop', 'rock', 'jazz', 'blues', 'samba'];
               const temPalavraChave = linhas.some(l => 
