@@ -80,9 +80,6 @@
     button:hover { opacity: 0.9; }
     button.btn-success { background-color: #27ae60; }
     button.btn-secondary { background-color: #4b5563; }
-    button.btn-teoria { background-color: var(--teoria); }
-    button.btn-tonalidades { background-color: var(--tonalidades); }
-    button.btn-musicas { background-color: var(--musicas); }
     button.btn-danger { background-color: #dc2626; }
 
     .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
@@ -252,7 +249,6 @@
     }
 
     .lote-card .lote-itens .item:last-child { border-bottom: none; }
-
     .lote-card .lote-itens .item .item-index {
       color: #9ca3af;
       font-size: 0.7rem;
@@ -286,23 +282,11 @@
       color: #9ca3af;
     }
 
-    .empty-state i {
-      font-size: 3rem;
-      margin-bottom: 15px;
-      color: #d1d5db;
-    }
-
-    .empty-state h3 {
-      font-size: 1.2rem;
-      color: #6b7280;
-    }
+    .empty-state i { font-size: 3rem; margin-bottom: 15px; color: #d1d5db; }
+    .empty-state h3 { font-size: 1.2rem; color: #6b7280; }
 
     /* LOADING */
-    .loading {
-      text-align: center;
-      padding: 40px;
-    }
-
+    .loading { text-align: center; padding: 40px; }
     .loading i {
       font-size: 2rem;
       color: var(--primary);
@@ -350,7 +334,6 @@
       gap: 5px;
     }
 
-    /* SCROLLBAR */
     .lote-itens::-webkit-scrollbar {
       width: 4px;
     }
@@ -364,6 +347,30 @@
     }
     .lote-itens::-webkit-scrollbar-thumb:hover {
       background: #a1a1a1;
+    }
+
+    /* TOAST */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1f2937;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 9999;
+      animation: slideIn 0.3s ease;
+      max-width: 350px;
+    }
+
+    .toast.success { border-left: 4px solid #27ae60; }
+    .toast.error { border-left: 4px solid #dc2626; }
+    .toast.info { border-left: 4px solid #2563eb; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
     }
   </style>
 </head>
@@ -460,7 +467,6 @@
     let todosLotes = [];
     let lotesFiltrados = [];
     let expandidos = new Set();
-    let carregamentoInicial = false;
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -473,7 +479,6 @@
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
 
-      // Se tiver token, carrega os lotes mas não exibe
       if (savedToken) {
         carregarLotesSilencioso();
       }
@@ -509,7 +514,15 @@
       el.innerText = mensagem;
     }
 
-    // --- CARREGAR LOTES (SILENCIOSO - SÓ CARREGA OS DADOS) ---
+    function showToast(mensagem, tipo = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${tipo}`;
+      toast.innerHTML = mensagem;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // --- CARREGAR LOTES (SILENCIOSO) ---
     async function carregarLotesSilencioso() {
       const token = obterToken();
       if (!token) return;
@@ -560,8 +573,6 @@
               itens: itens,
               itensCount: itens.length,
               criadoEm: dados.criadoEm || dados.criado_em || null,
-              atualizadoEm: dados.atualizadoEm || dados.atualizado_em || null,
-              sha: file.sha,
               dadosCompletos: dados,
               caminho: file.path
             });
@@ -573,7 +584,6 @@
 
         todosLotes.sort((a, b) => a.nome.localeCompare(b.nome));
         atualizarStats();
-        carregamentoInicial = true;
 
       } catch (err) {
         console.error("Erro ao carregar lotes:", err);
@@ -618,7 +628,6 @@
 
       exibirStatus(`Total de lotes carregados: ${todosLotes.length}. Selecione um filtro para visualizar.`, "green");
       
-      // Mostrar mensagem para selecionar filtro
       document.getElementById('lotesContainer').innerHTML = `
         <div class="empty-state">
           <i class="fa-solid fa-filter-circle-xmark"></i>
@@ -636,7 +645,6 @@
       const tipoFiltro = document.getElementById('filterTipo').value;
       const buscaFiltro = document.getElementById('filterBusca').value.toLowerCase().trim();
 
-      // Se não selecionou nenhum tipo, mostrar mensagem
       if (!tipoFiltro) {
         document.getElementById('lotesContainer').innerHTML = `
           <div class="empty-state">
@@ -650,10 +658,8 @@
       }
 
       lotesFiltrados = todosLotes.filter(lote => {
-        // Filtro por tipo
         if (tipoFiltro !== 'todos' && lote.tipo !== tipoFiltro) return false;
 
-        // Filtro por busca
         if (buscaFiltro) {
           const buscaLower = buscaFiltro.toLowerCase();
           const matchNome = lote.nome.toLowerCase().includes(buscaLower);
@@ -665,10 +671,7 @@
         return true;
       });
 
-      // Atualizar estatísticas (destacar filtro ativo)
       atualizarStats(tipoFiltro);
-
-      // Renderizar
       renderizarLotes();
     }
 
@@ -683,7 +686,6 @@
       document.getElementById('countMusicas').textContent = countMusicas;
       document.getElementById('countTotal').textContent = todosLotes.length;
 
-      // Destacar filtro ativo
       document.querySelectorAll('.stat-item').forEach(el => el.classList.remove('active'));
       if (tipoAtivo) {
         const map = { 'teoria': 'teoria', 'tonalidades': 'tonalidades', 'musicas': 'musicas', 'todos': '' };
@@ -696,7 +698,6 @@
       }
     }
 
-    // --- FILTRAR POR TIPO (CLICANDO NAS ESTATÍSTICAS) ---
     function filtrarPorTipo(tipo) {
       document.getElementById('filterTipo').value = tipo;
       aplicarFiltros();
@@ -730,12 +731,11 @@
         const tipoClass = lote.tipo;
         const dataCriacao = lote.criadoEm ? new Date(lote.criadoEm).toLocaleDateString('pt-BR') : 'Não informada';
         
-        // Limitar itens visíveis
         const itensVisiveis = isExpandido ? lote.itens : lote.itens.slice(0, 5);
         const temMais = lote.itens.length > 5 && !isExpandido;
 
         html += `
-          <div class="lote-card">
+          <div class="lote-card" id="lote-${lote.id}">
             <div class="lote-header">
               <span class="lote-id"><i class="fa-solid fa-hashtag"></i> ${lote.id}</span>
               <span class="lote-tipo ${tipoClass}">${tipoLabel}</span>
@@ -748,7 +748,7 @@
               <span style="margin-left: 15px;"><i class="fa-regular fa-list"></i> ${lote.itens.length} itens</span>
             </div>
 
-            <div class="lote-itens">
+            <div class="lote-itens" id="itens-${lote.id}">
               ${itensVisiveis.map((item, idx) => `
                 <div class="item">
                   <span>${item}</span>
@@ -759,7 +759,7 @@
             </div>
 
             <div class="lote-actions">
-              <button onclick="toggleExpandir('${lote.id}')" class="btn-small btn-secondary">
+              <button onclick="toggleExpandir('${lote.id}')" class="btn-small btn-secondary" id="btn-expand-${lote.id}">
                 <i class="fa-solid ${isExpandido ? 'fa-compress' : 'fa-expand'}"></i>
                 ${isExpandido ? 'Recolher' : 'Expandir'}
               </button>
@@ -781,13 +781,15 @@
       container.innerHTML = html;
     }
 
-    // --- FUNÇÕES DE CONTROLE ---
+    // --- TOGGLE EXPANDIR (CORRIGIDO) ---
     function toggleExpandir(id) {
       if (expandidos.has(id)) {
         expandidos.delete(id);
       } else {
         expandidos.add(id);
       }
+      
+      // Renderizar novamente
       renderizarLotes();
     }
 
@@ -822,7 +824,7 @@
     // --- COPIAR ID ---
     function copiarLote(id) {
       navigator.clipboard.writeText(id).then(() => {
-        exibirStatus(`ID '${id}' copiado para a área de transferência!`, "green");
+        showToast(`✅ ID '${id}' copiado!`, 'success');
       }).catch(() => {
         const input = document.createElement('input');
         input.value = id;
@@ -830,7 +832,7 @@
         input.select();
         document.execCommand('copy');
         document.body.removeChild(input);
-        exibirStatus(`ID '${id}' copiado!`, "green");
+        showToast(`✅ ID '${id}' copiado!`, 'success');
       });
     }
 
@@ -854,7 +856,7 @@
           <pre style="background: #1f2937; color: #e5e7eb; padding: 15px; border-radius: 6px; font-size: 0.8rem; overflow: auto; max-height: 50vh; white-space: pre-wrap; word-break: break-all;">${jsonStr}</pre>
           <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
             <button onclick="this.closest('div[style]').remove()" style="background: #4b5563;">Fechar</button>
-            <button onclick="navigator.clipboard.writeText(document.querySelector('pre').textContent); exibirStatus('JSON copiado!', 'green');" style="background: #0284c7;">
+            <button onclick="navigator.clipboard.writeText(document.querySelector('pre').textContent); showToast('✅ JSON copiado!', 'success');" style="background: #0284c7;">
               <i class="fa-solid fa-copy"></i> Copiar JSON
             </button>
           </div>
@@ -867,10 +869,13 @@
       });
     }
 
-    // --- IMPORTAR LOTE ---
+    // --- IMPORTAR LOTE (CORRIGIDO) ---
     function importarLote(id) {
       const lote = todosLotes.find(l => l.id === id);
-      if (!lote) return;
+      if (!lote) {
+        showToast('❌ Lote não encontrado!', 'error');
+        return;
+      }
 
       const tipoMap = {
         'teoria': 'conceitos.html',
@@ -879,8 +884,20 @@
       };
 
       const pagina = tipoMap[lote.tipo] || 'conceitos.html';
-      window.open(`${pagina}?lote=${lote.id}`, '_blank');
-      exibirStatus(`Abrindo ${pagina} para importar o lote '${lote.id}'...`, "blue");
+      
+      // Abrir a página com o parâmetro do lote
+      const url = `${pagina}?lote=${encodeURIComponent(lote.id)}`;
+      
+      // Tentar abrir na mesma janela ou em nova
+      const novaJanela = window.open(url, '_blank');
+      
+      if (novaJanela) {
+        showToast(`📤 Abrindo ${pagina} para importar '${lote.id}'...`, 'info');
+      } else {
+        showToast(`⚠️ Permita pop-ups para importar automaticamente.`, 'error');
+        // Fallback: copiar o ID
+        copiarLote(lote.id);
+      }
     }
 
     // --- ATALHOS DE TECLADO ---
