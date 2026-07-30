@@ -39,14 +39,27 @@
     th { background-color: #f8fafc; font-weight: 600; }
 
     .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
-    .id-badge {
-      display: inline-block;
-      background: #f3f4f6;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 0.7rem;
-      color: #6b7280;
-      font-family: monospace;
+    
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1f2937;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 9999;
+      animation: slideIn 0.3s ease;
+      max-width: 350px;
+    }
+    .toast.success { border-left: 4px solid #27ae60; }
+    .toast.error { border-left: 4px solid #dc2626; }
+    .toast.info { border-left: 4px solid #2563eb; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
     }
   </style>
 </head>
@@ -54,7 +67,7 @@
 
   <div class="header-bar">
     <h2><i class="fa-solid fa-compact-disc"></i> Repertório de Músicas</h2>
-    <div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
       <a href="index.html" style="background-color: #2563eb; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-music"></i> TPM</a>
       <a href="conceitos.html" style="background-color: #27ae60; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-brain"></i> Conceitos</a>
       <a href="tonalidades.html" style="background-color: #2563eb; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-sliders"></i> Tonalidades</a>
@@ -62,10 +75,12 @@
       <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-users"></i> Alunos
       </a>
-      <a href="admin.html" class="btn" style="background-color: #0d9488; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+      <a href="admin.html" class="btn" style="background-color: #0d9488; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-user-gear"></i> Painel Admin
       </a>
-        <a href="biblioteca.html" class="btn" style="background-color: #8b5cf6; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"> <i class="fa-solid fa-book"></i> Biblioteca  </a>
+      <a href="biblioteca.html" class="btn" style="background-color: #8b5cf6; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-book"></i> Biblioteca
+      </a>
     </div>
   </div>
 
@@ -115,45 +130,41 @@
     let repertorioAtual = [];
     let shaArquivoAtual = null;
     let alunoIdAtual = null;
+    let loteImportado = []; // GUARDA AS MÚSICAS DO LOTE IMPORTADO
 
     window.onload = function() {
-  const savedToken = localStorage.getItem("gh_pat_token");
-  if (savedToken) {
-    document.getElementById("gh-token").value = savedToken;
-  }
-
-  document.getElementById("gh-token").addEventListener("input", (e) => {
-    localStorage.setItem("gh_pat_token", e.target.value.trim());
-  });
-
-  // ========== AUTO-IMPORTAR LOTE DA URL ==========
-  const urlParams = new URLSearchParams(window.location.search);
-  const loteParam = urlParams.get('lote');
-  
-  if (loteParam) {
-    document.getElementById('buscaAluno').value = loteParam;
-    
-    setTimeout(() => {
-      const btnImportar = document.querySelector('button[onclick*="importarLoteGithub"]');
-      if (btnImportar) {
-        btnImportar.click();
-        exibirStatus(`Importando lote "${loteParam}" automaticamente...`, "blue");
-      } else {
-        // Fallback
-        const botoes = document.querySelectorAll('button');
-        for (let btn of botoes) {
-          if (btn.textContent.includes('Importar Lote')) {
-            btn.click();
-            break;
-          }
-        }
+      const savedToken = localStorage.getItem("gh_pat_token");
+      if (savedToken) {
+        document.getElementById("gh-token").value = savedToken;
       }
-    }, 1500);
-  }
-};
+
+      document.getElementById("gh-token").addEventListener("input", (e) => {
+        localStorage.setItem("gh_pat_token", e.target.value.trim());
+      });
+
+      // DETECTAR LOTE DA URL E IMPORTAR AUTOMATICAMENTE
+      const urlParams = new URLSearchParams(window.location.search);
+      const loteParam = urlParams.get('lote');
+      
+      if (loteParam) {
+        exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
+        setTimeout(() => {
+          importarLoteMusicaDireto(loteParam);
+        }, 1000);
+      }
+    };
 
     function obterToken() {
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
+    }
+
+    // --- TOAST ---
+    function showToast(mensagem, tipo = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${tipo}`;
+      toast.innerHTML = mensagem;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
     }
 
     function validarEAutenticarToken() {
@@ -238,143 +249,7 @@
       }
     }
 
-    async function carregarMusicasAluno() {
-      const busca = document.getElementById('buscaAluno').value.trim();
-      const token = obterToken();
-
-      if (!busca) return alert("Digite o ID ou nome do aluno.");
-      if (!token) return alert("Informe e confirme o Token do GitHub.");
-
-      // Buscar o ID do aluno
-      const alunoId = await buscarIdAluno(busca);
-      alunoIdAtual = alunoId;
-      
-      const caminho = `alunos/musica_${alunoId}.json`;
-
-      exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
-
-      try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          shaArquivoAtual = data.sha;
-
-          const base64Clean = data.content.replace(/\s/g, '');
-          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-          const jsonStr = new TextDecoder('utf-8').decode(bytes);
-          const json = JSON.parse(jsonStr);
-
-          repertorioAtual = json.repertorio || [];
-          exibirStatus(`Músicas do aluno ${alunoId} carregadas com sucesso!`, "green");
-        } else {
-          shaArquivoAtual = null;
-          repertorioAtual = [];
-          exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
-        }
-
-        renderizarTabela();
-      } catch (e) {
-        exibirStatus("Erro ao carregar do GitHub: " + e.message, "red");
-      }
-    }
-
-    // --- IMPORTAR LOTE DO GITHUB ---
-    async function importarLoteGithub() {
-      const token = obterToken();
-      if (!token) return alert("Informe e confirme o Token do GitHub.");
-
-      const entradaUsuario = prompt(
-        "Digite o número ou nome do lote de músicas:\n\n" +
-        "Exemplos:\n" +
-        "- '12' (busca em lotes/lote_musica_12.json ou lotes/lote_12.json)\n" +
-        "- 'lote_musica_12'\n" +
-        "- 'pop' (busca em lotes/lote_pop.json)\n" +
-        "- 'lotes/lote_musica_12.json'"
-      );
-
-      if (!entradaUsuario || entradaUsuario.trim() === "") return;
-
-      const entradaLimpa = entradaUsuario.trim();
-      let caminhosParaTestar = [];
-
-      if (entradaLimpa.endsWith(".json") || entradaLimpa.includes("/")) {
-        caminhosParaTestar.push(entradaLimpa);
-      } else {
-        const slug = entradaLimpa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-        caminhosParaTestar.push(`lotes/lote_musica_${slug}.json`);
-        caminhosParaTestar.push(`lotes/lote_${slug}.json`);
-        caminhosParaTestar.push(`lotes/${slug}.json`);
-        caminhosParaTestar.push(`base/musica_${slug}.json`);
-        caminhosParaTestar.push(`base/${slug}.json`);
-      }
-
-      exibirStatus(`Buscando lote no GitHub...`, "blue");
-
-      let dadosArquivo = null;
-      let caminhoEncontrado = "";
-
-      for (const caminho of caminhosParaTestar) {
-        try {
-          const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-            headers: { 'Authorization': `token ${token}` }
-          });
-          if (res.ok) {
-            dadosArquivo = await res.json();
-            caminhoEncontrado = caminho;
-            break;
-          }
-        } catch (e) {}
-      }
-
-      if (!dadosArquivo) {
-        return exibirStatus(`Não foi possível encontrar o lote '${entradaLimpa}' no repositório.`, "orange");
-      }
-
-      try {
-        const base64Clean = dadosArquivo.content.replace(/\s/g, '');
-        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-        const jsonStr = new TextDecoder('utf-8').decode(bytes);
-        const loteJson = JSON.parse(jsonStr);
-
-        let novasMusicas = [];
-        if (Array.isArray(loteJson)) {
-          novasMusicas = loteJson;
-        } else if (Array.isArray(loteJson.musicas)) {
-          novasMusicas = loteJson.musicas;
-        } else if (Array.isArray(loteJson.repertorio)) {
-          novasMusicas = loteJson.repertorio;
-        } else if (Array.isArray(loteJson.lista)) {
-          novasMusicas = loteJson.lista;
-        }
-
-        if (novasMusicas.length > 0) {
-          let inseridos = 0;
-          novasMusicas.forEach(m => {
-            const nomeStr = typeof m === 'string' ? m : (m.nome || m.titulo || m.musica || "");
-            
-            if (nomeStr && !repertorioAtual.some(item => item.nome.toLowerCase() === nomeStr.toLowerCase())) {
-              repertorioAtual.push({
-                nome: nomeStr,
-                status: (typeof m === 'object' && m.status) ? m.status : "Em Estudo",
-                obs: (typeof m === 'object' && m.obs) ? m.obs : ""
-              });
-              inseridos++;
-            }
-          });
-
-          renderizarTabela();
-          exibirStatus(`${inseridos} música(s) importada(s) com sucesso de '${caminhoEncontrado}'!`, "green");
-        } else {
-          exibirStatus(`O arquivo '${caminhoEncontrado}' foi localizado, mas está vazio ou em formato inválido.`, "orange");
-        }
-      } catch (e) {
-        exibirStatus("Erro ao processar arquivo de lote: " + e.message, "red");
-      }
-    }
-
+    // --- FUNÇÕES DA TABELA ---
     function adicionarMusica() {
       const nome = document.getElementById('novaMusica').value.trim();
       if (!nome) return alert("Digite o nome da música.");
@@ -423,6 +298,246 @@
       });
     }
 
+    // --- FUNÇÃO PARA PEGAR O REPERTÓRIO DA TABELA ---
+    function getRepertorioDaTabela() {
+      const tbody = document.querySelector('#tbl-musicas tbody');
+      const linhas = tbody.querySelectorAll('tr');
+      const musicas = [];
+      
+      linhas.forEach(tr => {
+        const nomeInput = tr.querySelector('td:first-child strong');
+        const statusSelect = tr.querySelector('td:nth-child(2) select');
+        const obsInput = tr.querySelector('td:nth-child(3) input');
+        
+        if (nomeInput && statusSelect) {
+          const nome = nomeInput.textContent.trim();
+          if (nome) {
+            musicas.push({
+              nome: nome,
+              status: statusSelect.value,
+              obs: obsInput ? obsInput.value : ""
+            });
+          }
+        }
+      });
+      
+      return musicas;
+    }
+
+    // --- IMPORTAR LOTE DIRETO (SEM PROMPT) ---
+    async function importarLoteMusicaDireto(nomeLote) {
+      const token = obterToken();
+      if (!token) {
+        exibirStatus("Configure o token do GitHub primeiro.", "red");
+        return;
+      }
+
+      if (!nomeLote || nomeLote.trim() === "") {
+        exibirStatus("Nome do lote não informado.", "red");
+        return;
+      }
+
+      const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      const caminhosParaTestar = [
+        `lotes/lote_musica_${idFormatado}.json`,
+        `lotes/lote_${idFormatado}.json`,
+        `lotes/${idFormatado}.json`
+      ];
+
+      exibirStatus(`Buscando lote "${nomeLote}"...`, "blue");
+
+      let dadosArquivo = null;
+      let caminhoEncontrado = "";
+
+      for (const caminho of caminhosParaTestar) {
+        try {
+          const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+            headers: { 'Authorization': `token ${token}` }
+          });
+          if (res.ok) {
+            dadosArquivo = await res.json();
+            caminhoEncontrado = caminho;
+            break;
+          }
+        } catch (e) {}
+      }
+
+      if (!dadosArquivo) {
+        exibirStatus(`❌ Lote "${nomeLote}" não encontrado.`, "red");
+        return;
+      }
+
+      try {
+        const base64Clean = dadosArquivo.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const json = JSON.parse(jsonStr);
+
+        let novasMusicas = [];
+        if (Array.isArray(json)) {
+          novasMusicas = json;
+        } else if (Array.isArray(json.musicas)) {
+          novasMusicas = json.musicas;
+        } else if (Array.isArray(json.repertorio)) {
+          novasMusicas = json.repertorio;
+        } else if (Array.isArray(json.lista)) {
+          novasMusicas = json.lista;
+        }
+
+        if (novasMusicas.length === 0) {
+          exibirStatus(`⚠️ Lote "${nomeLote}" está vazio.`, "orange");
+          return;
+        }
+
+        // GUARDAR O LOTE IMPORTADO
+        loteImportado = [];
+        novasMusicas.forEach(m => {
+          const nomeStr = typeof m === 'string' ? m : (m.nome || m.titulo || m.musica || "");
+          if (nomeStr) {
+            loteImportado.push({
+              nome: nomeStr,
+              status: (typeof m === 'object' && m.status) ? m.status : "Em Estudo",
+              obs: (typeof m === 'object' && m.obs) ? m.obs : ""
+            });
+          }
+        });
+
+        // Se já tem um aluno carregado, MESCLAR com o lote
+        if (alunoIdAtual) {
+          // Pegar músicas atuais
+          const musicasAtuais = getRepertorioDaTabela();
+          
+          // Mesclar: manter as que já existem, adicionar as novas do lote
+          const nomesExistentes = new Set(musicasAtuais.map(m => m.nome));
+          
+          // Limpar repertório atual
+          repertorioAtual = [];
+          
+          // Adicionar músicas existentes
+          musicasAtuais.forEach(m => {
+            repertorioAtual.push(m);
+          });
+          
+          // Adicionar novas músicas do lote que não existem
+          let adicionados = 0;
+          loteImportado.forEach(m => {
+            if (!nomesExistentes.has(m.nome)) {
+              repertorioAtual.push({ ...m });
+              adicionados++;
+            }
+          });
+          
+          renderizarTabela();
+          exibirStatus(`✅ Lote "${nomeLote}" mesclado! ${adicionados} novas músicas adicionadas.`, "green");
+          showToast(`🎶 ${adicionados} novas músicas adicionadas ao aluno!`, 'success');
+        } else {
+          // Se não tem aluno, substituir o repertório pelo lote
+          repertorioAtual = [];
+          loteImportado.forEach(m => {
+            repertorioAtual.push({ ...m });
+          });
+          renderizarTabela();
+          exibirStatus(`✅ ${repertorioAtual.length} músicas importadas do lote "${nomeLote}"!`, "green");
+          showToast(`🎶 ${repertorioAtual.length} músicas importadas!`, 'success');
+        }
+
+      } catch (err) {
+        exibirStatus("❌ Erro ao importar: " + err.message, "red");
+      }
+    }
+
+    // --- SOLICITAR IMPORTAR LOTE (VIA BOTÃO) ---
+    async function importarLoteGithub() {
+      const token = obterToken();
+      if (!token) return alert("Informe e confirme o Token do GitHub.");
+
+      const entradaUsuario = prompt(
+        "Digite o número ou nome do lote de músicas:\n\n" +
+        "Exemplos:\n" +
+        "- 'pop' (busca em lotes/lote_pop.json)\n" +
+        "- 'lotes/lote_musica_12.json'"
+      );
+
+      if (!entradaUsuario || entradaUsuario.trim() === "") return;
+      await importarLoteMusicaDireto(entradaUsuario.trim());
+    }
+
+    // --- CARREGAR DADOS DO ALUNO (MESCLANDO COM LOTE) ---
+    async function carregarMusicasAluno() {
+      const busca = document.getElementById('buscaAluno').value.trim();
+      const token = obterToken();
+
+      if (!busca) return alert("Digite o ID ou nome do aluno.");
+      if (!token) return alert("Informe e confirme o Token do GitHub.");
+
+      const alunoId = await buscarIdAluno(busca);
+      alunoIdAtual = alunoId;
+      
+      const caminho = `alunos/musica_${alunoId}.json`;
+
+      exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+
+        let musicasDoAluno = [];
+
+        if (res.ok) {
+          const data = await res.json();
+          shaArquivoAtual = data.sha;
+
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          const json = JSON.parse(jsonStr);
+
+          musicasDoAluno = json.repertorio || [];
+        } else {
+          shaArquivoAtual = null;
+          exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
+        }
+
+        // ===== MESCLAR MÚSICAS DO ALUNO COM LOTE IMPORTADO =====
+        const nomesExistentes = new Set(musicasDoAluno.map(m => m.nome));
+
+        // Limpar repertório atual
+        repertorioAtual = [];
+
+        // Adicionar músicas do aluno
+        musicasDoAluno.forEach(m => {
+          repertorioAtual.push({ ...m });
+        });
+
+        // Adicionar músicas do lote que não existem no aluno
+        let adicionadosDoLote = 0;
+        loteImportado.forEach(m => {
+          if (!nomesExistentes.has(m.nome)) {
+            repertorioAtual.push({ ...m });
+            adicionadosDoLote++;
+          }
+        });
+
+        renderizarTabela();
+
+        if (musicasDoAluno.length === 0 && loteImportado.length === 0) {
+          exibirStatus(`Aluno ${alunoId} - Nenhuma música encontrada. Adicione novas.`, "orange");
+        } else {
+          let msg = `Aluno ${alunoId} carregado! ${musicasDoAluno.length} músicas existentes`;
+          if (adicionadosDoLote > 0) {
+            msg += ` + ${adicionadosDoLote} do lote importado`;
+          }
+          exibirStatus(`✅ ${msg}`, "green");
+          showToast(`🎶 ${musicasDoAluno.length + adicionadosDoLote} músicas carregadas!`, 'success');
+        }
+
+      } catch (e) {
+        exibirStatus("❌ Erro ao carregar: " + e.message, "red");
+      }
+    }
+
+    // --- SALVAR DADOS DO ALUNO ---
     async function salvarMusicasAluno() {
       const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
@@ -430,11 +545,12 @@
       if (!busca) return alert("Digite o ID ou nome do aluno.");
       if (!token) return alert("Informe e confirme o Token do GitHub.");
 
-      // Buscar o ID do aluno
       const alunoId = await buscarIdAluno(busca);
       alunoIdAtual = alunoId;
 
-      if (repertorioAtual.length === 0) {
+      const repertorio = getRepertorioDaTabela();
+
+      if (repertorio.length === 0) {
         return alert("Adicione pelo menos uma música antes de salvar.");
       }
 
@@ -442,7 +558,7 @@
       const conteudoJson = { 
         alunoId: alunoId,
         aluno: busca, 
-        repertorio: repertorioAtual,
+        repertorio: repertorio,
         atualizadoEm: new Date().toISOString()
       };
 
@@ -471,12 +587,13 @@
         if (putRes.ok) {
           const resData = await putRes.json();
           shaArquivoAtual = resData.content.sha;
-          exibirStatus(`Músicas do aluno ${alunoId} salvas com sucesso!`, "green");
+          exibirStatus(`✅ Músicas do aluno ${alunoId} salvas com sucesso!`, "green");
+          showToast(`💾 ${repertorio.length} músicas salvas!`, 'success');
         } else {
           throw new Error("Erro ao gravar arquivo.");
         }
       } catch (err) {
-        exibirStatus("Erro ao salvar: " + err.message, "red");
+        exibirStatus("❌ Erro ao salvar: " + err.message, "red");
       }
     }
   </script>
