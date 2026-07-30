@@ -74,6 +74,15 @@
     .badge-progresso { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
     .progresso-incompleto { background: #fef3c7; color: #d97706; }
     .progresso-completo { background: #dcfce7; color: #15803d; }
+    .id-badge {
+      display: inline-block;
+      background: #f3f4f6;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      color: #6b7280;
+      font-family: monospace;
+    }
   </style>
 </head>
 <body>
@@ -116,9 +125,13 @@
   <!-- PAINEL DE BUSCA E SALVAMENTO DO ALUNO -->
   <div class="card">
     <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
-      <input type="text" id="nomeAluno" placeholder="Digite o nome do aluno..." style="flex: 2;">
+      <input type="text" id="buscaAluno" placeholder="Digite o ID ou Nome do aluno..." style="flex: 2;">
       <button onclick="carregarDadosAluno()"><i class="fa-solid fa-magnifying-glass"></i> Carregar do GitHub</button>
       <button class="btn-success" onclick="salvarDadosAluno()"><i class="fa-solid fa-floppy-disk"></i> Salvar no GitHub</button>
+      <button class="btn-secondary" onclick="carregarListaAlunos()"><i class="fa-solid fa-list"></i> Listar Alunos</button>
+    </div>
+    <div id="listaAlunos" style="margin-top: 10px; display: none; max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 6px; background: #f8fafc;">
+      <div id="listaAlunosContainer"></div>
     </div>
     <div id="statusMsg" class="status-msg"></div>
   </div>
@@ -129,16 +142,10 @@
       <h3>Lista de Exercícios & Tonalidades</h3>
       
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-        <!-- IMPORTAR LOTE DO GITHUB -->
         <button class="btn-secondary" onclick="solicitarEImportarLoteGitHub()"><i class="fa-solid fa-cloud-arrow-down"></i> Importar Lote (GitHub)</button>
-
-        <!-- IMPORTAR E EXPORTAR FILE LOCAL -->
         <button class="btn-secondary" onclick="document.getElementById('fileInput').click()"><i class="fa-solid fa-file-import"></i> Importar JSON Local</button>
         <input type="file" id="fileInput" accept=".json" style="display: none;" onchange="importarArquivoJSONLocal(event)">
-
         <button class="btn-secondary" onclick="exportarArquivoJSONLocal()"><i class="fa-solid fa-file-export"></i> Exportar JSON Local</button>
-
-        <!-- AÇÕES DA TABELA -->
         <button onclick="adicionarLinhaMusica()"><i class="fa-solid fa-plus"></i> Adicionar Exercício</button>
         <button class="btn-danger" onclick="limparTodaTabela()"><i class="fa-solid fa-trash-can"></i> Limpar Tudo</button>
       </div>
@@ -166,6 +173,7 @@
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     const TONALIDADES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     let shaArquivoAtual = null;
+    let alunoIdAtual = null;
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -208,9 +216,75 @@
       el.innerText = mensagem;
     }
 
-    function obterCaminhoArquivoAluno(nome) {
-      const nomeFormatado = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-      return `alunos/aluno_${nomeFormatado}.json`;
+    // --- FUNÇÃO PARA BUSCAR ID DO ALUNO ---
+    async function buscarIdAluno(busca) {
+      const token = obterToken();
+      if (!token) return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos/index.json?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+        if (!res.ok) return busca;
+        
+        const data = await res.json();
+        const base64Clean = data.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const indexData = JSON.parse(jsonStr);
+        
+        let encontrado = indexData.alunos.find(a => a.id === busca);
+        if (!encontrado) {
+          encontrado = indexData.alunos.find(a => a.nome.toLowerCase() === busca.toLowerCase());
+        }
+        return encontrado ? encontrado.id : busca;
+      } catch (e) {
+        return busca;
+      }
+    }
+
+    // --- CARREGAR LISTA DE ALUNOS ---
+    async function carregarListaAlunos() {
+      const token = obterToken();
+      if (!token) return alert("Informe o token do GitHub.");
+
+      const container = document.getElementById('listaAlunosContainer');
+      const listaDiv = document.getElementById('listaAlunos');
+      
+      listaDiv.style.display = 'block';
+      container.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Carregando...';
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+
+        if (!res.ok) {
+          container.innerHTML = 'Nenhum aluno encontrado.';
+          return;
+        }
+
+        const files = await res.json();
+        const alunos = files
+          .filter(f => f.name.startsWith('aluno_') && f.name.endsWith('.json'))
+          .map(f => f.name.replace('aluno_', '').replace('.json', ''))
+          .sort();
+
+        if (alunos.length === 0) {
+          container.innerHTML = 'Nenhum aluno cadastrado.';
+          return;
+        }
+
+        container.innerHTML = alunos.map(id => 
+          `<span onclick="document.getElementById('buscaAluno').value='${id}'; carregarDadosAluno();" 
+                 style="display: inline-block; background: #e5e7eb; padding: 4px 10px; border-radius: 12px; margin: 3px; cursor: pointer; font-size: 0.8rem; font-family: monospace;">
+            ${id}
+          </span>`
+        ).join(' ');
+
+      } catch (e) {
+        container.innerHTML = 'Erro ao carregar lista.';
+      }
     }
 
     function adicionarLinhaMusica(nomeExercício = "", tonalidadesConcluidas = []) {
@@ -254,7 +328,7 @@
       }
     }
 
-    // --- IMPORTAR QUALQUER LOTE OU ARQUIVO DO GITHUB ---
+    // --- IMPORTAR LOTE DO GITHUB ---
     async function solicitarEImportarLoteGitHub() {
       const token = obterToken();
       if (!token) return alert("Por favor, informe e confirme o Token do GitHub primeiro.");
@@ -270,39 +344,45 @@
       if (!entradaUsuario || entradaUsuario.trim() === "") return;
 
       const entradaLimpa = entradaUsuario.trim();
-      let caminhoLote = "";
+      let caminhosParaTestar = [];
 
-      // Se contém barra ou termina com .json, usa o caminho exato digitado
       if (entradaLimpa.endsWith(".json") || entradaLimpa.includes("/")) {
-        caminhoLote = entradaLimpa;
+        caminhosParaTestar.push(entradaLimpa);
       } else {
-        // Caso contrário, formata no padrão da pasta lotes
         const idFormatado = entradaLimpa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-        caminhoLote = `lotes/${idFormatado}.json`;
+        caminhosParaTestar.push(`lotes/${idFormatado}.json`);
+        caminhosParaTestar.push(`lotes/lote_${idFormatado}.json`);
+        caminhosParaTestar.push(`lotes/exercicios_${idFormatado}.json`);
       }
 
-      exibirStatus(`Buscando '${caminhoLote}' no GitHub...`, "blue");
+      exibirStatus(`Buscando lote no GitHub...`, "blue");
+
+      let dadosArquivo = null;
+      let caminhoEncontrado = "";
+
+      for (const caminho of caminhosParaTestar) {
+        try {
+          const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+            headers: { 'Authorization': `token ${token}` }
+          });
+          if (res.ok) {
+            dadosArquivo = await res.json();
+            caminhoEncontrado = caminho;
+            break;
+          }
+        } catch (e) {}
+      }
+
+      if (!dadosArquivo) {
+        return exibirStatus(`O arquivo '${entradaLimpa}' não foi encontrado no repositório.`, "orange");
+      }
 
       try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminhoLote}?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
-
-        if (res.status === 404) {
-          return exibirStatus(`O arquivo '${caminhoLote}' não foi encontrado no repositório.`, "orange");
-        }
-
-        if (!res.ok) throw new Error("Erro na requisição com o GitHub.");
-
-        const data = await res.json();
-        
-        // Decodificação segura em UTF-8
-        const base64Clean = data.content.replace(/\s/g, '');
+        const base64Clean = dadosArquivo.content.replace(/\s/g, '');
         const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
         const jsonStr = new TextDecoder('utf-8').decode(bytes);
         const json = JSON.parse(jsonStr);
 
-        // Suporta múltiplos formatos de estrutura JSON
         let listaExercicios = [];
         if (Array.isArray(json)) {
           listaExercicios = json;
@@ -330,9 +410,9 @@
             }
           });
 
-          exibirStatus(`${adicionados} item(ns) importado(s) de '${caminhoLote}'!`, "green");
+          exibirStatus(`${adicionados} item(ns) importado(s) de '${caminhoEncontrado}'!`, "green");
         } else {
-          exibirStatus(`O arquivo '${caminhoLote}' foi localizado, mas não contém uma lista válida.`, "orange");
+          exibirStatus(`O arquivo '${caminhoEncontrado}' foi localizado, mas não contém uma lista válida.`, "orange");
         }
       } catch (err) {
         console.error(err);
@@ -342,7 +422,7 @@
 
     // --- IMPORTAR E EXPORTAR JSON LOCAL ---
     function exportarArquivoJSONLocal() {
-      const nomeAluno = document.getElementById('nomeAluno').value.trim() || "Aluno_Anonimo";
+      const busca = document.getElementById('buscaAluno').value.trim() || "Aluno_Anonimo";
       const linhas = document.querySelectorAll('#corpoTabela tr');
       const exercicios = [];
 
@@ -361,11 +441,16 @@
         }
       });
 
-      const dados = { aluno: nomeAluno, atualizadoEm: new Date().toISOString(), exercicios: exercicios };
+      const dados = { 
+        alunoId: alunoIdAtual || busca,
+        aluno: busca, 
+        atualizadoEm: new Date().toISOString(), 
+        exercicios: exercicios 
+      };
       const blob = new Blob([JSON.stringify(dados, null, 2)], { type: "application/json" });
       const a = document.createElement("a");
       a.href = URL.createObjectURL(blob);
-      a.download = `registro_${nomeAluno.toLowerCase().replace(/\s+/g, '_')}.json`;
+      a.download = `tonalidades_${(alunoIdAtual || busca).toLowerCase().replace(/\s+/g, '_')}.json`;
       a.click();
     }
 
@@ -377,7 +462,12 @@
       reader.onload = function(e) {
         try {
           const json = JSON.parse(e.target.result);
-          if (json.aluno) document.getElementById('nomeAluno').value = json.aluno;
+          if (json.alunoId) {
+            document.getElementById('buscaAluno').value = json.alunoId;
+            alunoIdAtual = json.alunoId;
+          } else if (json.aluno) {
+            document.getElementById('buscaAluno').value = json.aluno;
+          }
 
           if (json.exercicios && Array.isArray(json.exercicios)) {
             if (confirm("Deseja substituir a lista atual pela importada?")) {
@@ -396,16 +486,21 @@
       reader.readAsText(file);
     }
 
-    // --- CARREGAR E SALVAR REGISTRO DO ALUNO ---
+    // --- CARREGAR DADOS DO ALUNO ---
     async function carregarDadosAluno() {
-      const nomeAluno = document.getElementById('nomeAluno').value.trim();
+      const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
 
-      if (!nomeAluno) return alert("Por favor, digite o nome do aluno.");
+      if (!busca) return alert("Por favor, digite o ID ou nome do aluno.");
       if (!token) return alert("Informe e confirme o Token antes de continuar.");
 
       exibirStatus("Buscando registro do aluno no GitHub...", "blue");
-      const caminho = obterCaminhoArquivoAluno(nomeAluno);
+      
+      // Buscar o ID do aluno
+      const alunoId = await buscarIdAluno(busca);
+      alunoIdAtual = alunoId;
+      
+      const caminho = `alunos/aluno_${alunoId}.json`;
 
       try {
         const response = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
@@ -415,8 +510,9 @@
         document.getElementById('corpoTabela').innerHTML = "";
 
         if (response.status === 404) {
-          exibirStatus("Aluno novo! Importe um lote ou monte os exercícios e clique em Salvar.", "orange");
+          exibirStatus(`Aluno ${alunoId} novo! Importe um lote ou monte os exercícios e clique em Salvar.`, "orange");
           shaArquivoAtual = null;
+          adicionarLinhaMusica();
           return;
         }
 
@@ -435,7 +531,7 @@
             const tonsConcluidos = ex.tons ? ex.tons.filter(t => t.concluido).map(t => t.tom) : (ex.tonalidadesConcluidas || []);
             adicionarLinhaMusica(ex.nome, tonsConcluidos);
           });
-          exibirStatus("Registro do aluno carregado com sucesso!", "green");
+          exibirStatus(`Registro do aluno ${alunoId} carregado com sucesso!`, "green");
         } else {
           adicionarLinhaMusica();
         }
@@ -444,38 +540,51 @@
       }
     }
 
+    // --- SALVAR DADOS DO ALUNO ---
     async function salvarDadosAluno() {
-      const nomeAluno = document.getElementById('nomeAluno').value.trim();
+      const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
 
-      if (!nomeAluno) return alert("Informe o nome do aluno antes de salvar.");
+      if (!busca) return alert("Informe o nome ou ID do aluno antes de salvar.");
       if (!token) return alert("Informe e confirme o Token antes de salvar.");
+
+      // Buscar o ID do aluno
+      const alunoId = await buscarIdAluno(busca);
+      alunoIdAtual = alunoId;
 
       const linhas = document.querySelectorAll('#corpoTabela tr');
       const exercicios = [];
 
       linhas.forEach(tr => {
-        const nomeInput = tr.querySelector('input[type="text"]').value.trim();
+        const nomeInput = tr.querySelector('input[type="text"]');
         if (nomeInput) {
-          const checkboxesMarcados = tr.querySelectorAll('.checkbox-tonalidade:checked');
-          const tonsTocados = Array.from(checkboxesMarcados).map(cb => cb.getAttribute('data-tom'));
-          
-          const tonsObjetos = TONALIDADES.map(tom => ({
-            tom: tom,
-            concluido: tonsTocados.includes(tom)
-          }));
+          const nome = nomeInput.value.trim();
+          if (nome) {
+            const checkboxesMarcados = tr.querySelectorAll('.checkbox-tonalidade:checked');
+            const tonsTocados = Array.from(checkboxesMarcados).map(cb => cb.getAttribute('data-tom'));
+            
+            const tonsObjetos = TONALIDADES.map(tom => ({
+              tom: tom,
+              concluido: tonsTocados.includes(tom)
+            }));
 
-          exercicios.push({ nome: nomeInput, tons: tonsObjetos });
+            exercicios.push({ nome: nome, tons: tonsObjetos });
+          }
         }
       });
 
+      if (exercicios.length === 0) {
+        return alert("Adicione pelo menos um exercício antes de salvar.");
+      }
+
       const dadosParaSalvar = {
-        aluno: nomeAluno,
+        alunoId: alunoId,
+        aluno: busca,
         atualizadoEm: new Date().toISOString(),
         exercicios: exercicios
       };
 
-      const caminho = obterCaminhoArquivoAluno(nomeAluno);
+      const caminho = `alunos/aluno_${alunoId}.json`;
       const jsonString = JSON.stringify(dadosParaSalvar, null, 2);
       
       const utf8Bytes = new TextEncoder().encode(jsonString);
@@ -484,7 +593,7 @@
       const conteudoBase64 = btoa(binaryStr);
 
       const body = {
-        message: `Atualizando tonalidades do aluno: ${nomeAluno}`,
+        message: `Atualizando tonalidades do aluno: ${alunoId}`,
         content: conteudoBase64,
         branch: GH_CONFIG.branch
       };
@@ -502,7 +611,7 @@
         if (response.ok) {
           const resData = await response.json();
           shaArquivoAtual = resData.content.sha;
-          exibirStatus("Progresso salvo com sucesso no GitHub!", "green");
+          exibirStatus(`Progresso do aluno ${alunoId} salvo com sucesso!`, "green");
         } else {
           const errData = await response.json();
           throw new Error(errData.message || "Erro ao salvar.");
