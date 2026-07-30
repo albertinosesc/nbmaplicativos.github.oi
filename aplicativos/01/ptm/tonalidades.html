@@ -74,14 +74,27 @@
     .badge-progresso { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
     .progresso-incompleto { background: #fef3c7; color: #d97706; }
     .progresso-completo { background: #dcfce7; color: #15803d; }
-    .id-badge {
-      display: inline-block;
-      background: #f3f4f6;
-      padding: 2px 8px;
-      border-radius: 12px;
-      font-size: 0.7rem;
-      color: #6b7280;
-      font-family: monospace;
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1f2937;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 9999;
+      animation: slideIn 0.3s ease;
+      max-width: 350px;
+    }
+    .toast.success { border-left: 4px solid #27ae60; }
+    .toast.error { border-left: 4px solid #dc2626; }
+    .toast.info { border-left: 4px solid #2563eb; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
     }
   </style>
 </head>
@@ -109,7 +122,9 @@
       <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-users"></i> Alunos
       </a>
-        <a href="biblioteca.html" class="btn" style="background-color: #8b5cf6;color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"> <i class="fa-solid fa-book"></i> Biblioteca  </a>
+      <a href="biblioteca.html" class="btn" style="background-color: #8b5cf6; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-book"></i> Biblioteca
+      </a>
     </div>
   </div>
 
@@ -175,6 +190,7 @@
     const TONALIDADES = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     let shaArquivoAtual = null;
     let alunoIdAtual = null;
+    let loteImportado = []; // GUARDA OS EXERCÍCIOS DO LOTE IMPORTADO
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -186,10 +202,30 @@
       document.getElementById("gh-token").addEventListener("input", (e) => {
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
+
+      // DETECTAR LOTE DA URL E IMPORTAR AUTOMATICAMENTE
+      const urlParams = new URLSearchParams(window.location.search);
+      const loteParam = urlParams.get('lote');
+      
+      if (loteParam) {
+        exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
+        setTimeout(() => {
+          importarLoteTonalidadeDireto(loteParam);
+        }, 1000);
+      }
     };
 
     function obterToken() {
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
+    }
+
+    // --- TOAST ---
+    function showToast(mensagem, tipo = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${tipo}`;
+      toast.innerHTML = mensagem;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
     }
 
     async function validarEAutenticarToken(silencioso = false) {
@@ -288,6 +324,7 @@
       }
     }
 
+    // --- FUNÇÕES DA TABELA ---
     function adicionarLinhaMusica(nomeExercício = "", tonalidadesConcluidas = []) {
       const tbody = document.getElementById('corpoTabela');
       const tr = document.createElement('tr');
@@ -329,34 +366,53 @@
       }
     }
 
-    // --- IMPORTAR LOTE DO GITHUB ---
-    async function solicitarEImportarLoteGitHub() {
+    // --- FUNÇÃO PARA PEGAR OS EXERCÍCIOS DA TABELA ---
+    function getExerciciosDaTabela() {
+      const linhas = document.querySelectorAll('#corpoTabela tr');
+      const exercicios = [];
+      
+      linhas.forEach(tr => {
+        const nomeInput = tr.querySelector('input[type="text"]');
+        if (nomeInput) {
+          const nome = nomeInput.value.trim();
+          if (nome) {
+            const checkboxes = tr.querySelectorAll('.checkbox-tonalidade');
+            const tons = [];
+            checkboxes.forEach(cb => {
+              tons.push({
+                tom: cb.getAttribute('data-tom'),
+                concluido: cb.checked
+              });
+            });
+            exercicios.push({ nome: nome, tons: tons });
+          }
+        }
+      });
+      
+      return exercicios;
+    }
+
+    // --- IMPORTAR LOTE DIRETO (SEM PROMPT) ---
+    async function importarLoteTonalidadeDireto(nomeLote) {
       const token = obterToken();
-      if (!token) return alert("Por favor, informe e confirme o Token do GitHub primeiro.");
-
-      const entradaUsuario = prompt(
-        "Digite o nome do lote ou o caminho completo do arquivo no GitHub:\n\n" +
-        "Exemplos:\n" +
-        "- 'escala' (busca em lotes/lote_escala.json)\n" +
-        "- 'lotes/meu_lote.json'\n" +
-        "- 'base/musicas.json'"
-      );
-
-      if (!entradaUsuario || entradaUsuario.trim() === "") return;
-
-      const entradaLimpa = entradaUsuario.trim();
-      let caminhosParaTestar = [];
-
-      if (entradaLimpa.endsWith(".json") || entradaLimpa.includes("/")) {
-        caminhosParaTestar.push(entradaLimpa);
-      } else {
-        const idFormatado = entradaLimpa.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-        caminhosParaTestar.push(`lotes/${idFormatado}.json`);
-        caminhosParaTestar.push(`lotes/lote_${idFormatado}.json`);
-        caminhosParaTestar.push(`lotes/exercicios_${idFormatado}.json`);
+      if (!token) {
+        exibirStatus("Configure o token do GitHub primeiro.", "red");
+        return;
       }
 
-      exibirStatus(`Buscando lote no GitHub...`, "blue");
+      if (!nomeLote || nomeLote.trim() === "") {
+        exibirStatus("Nome do lote não informado.", "red");
+        return;
+      }
+
+      const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      const caminhosParaTestar = [
+        `lotes/${idFormatado}.json`,
+        `lotes/lote_${idFormatado}.json`,
+        `lotes/exercicios_${idFormatado}.json`
+      ];
+
+      exibirStatus(`Buscando lote "${nomeLote}"...`, "blue");
 
       let dadosArquivo = null;
       let caminhoEncontrado = "";
@@ -375,7 +431,8 @@
       }
 
       if (!dadosArquivo) {
-        return exibirStatus(`O arquivo '${entradaLimpa}' não foi encontrado no repositório.`, "orange");
+        exibirStatus(`❌ Lote "${nomeLote}" não encontrado.`, "red");
+        return;
       }
 
       try {
@@ -395,52 +452,86 @@
           listaExercicios = json.lista;
         }
 
-        if (listaExercicios.length > 0) {
+        if (listaExercicios.length === 0) {
+          exibirStatus(`⚠️ Lote "${nomeLote}" está vazio.`, "orange");
+          return;
+        }
+
+        // GUARDAR O LOTE IMPORTADO
+        loteImportado = [];
+        listaExercicios.forEach(item => {
+          const exNome = typeof item === 'string' ? item : (item.nome || item.exercicio || "");
+          if (exNome) {
+            loteImportado.push({
+              nome: exNome,
+              tons: TONALIDADES.map(tom => ({ tom: tom, concluido: false }))
+            });
+          }
+        });
+
+        // Se já tem um aluno carregado, MESCLAR com o lote
+        if (alunoIdAtual) {
+          // Pegar exercícios atuais
+          const exerciciosAtuais = getExerciciosDaTabela();
+          
+          // Mesclar: manter os que já existem, adicionar os novos do lote
+          const nomesExistentes = new Set(exerciciosAtuais.map(e => e.nome));
+          
+          // Limpar tabela
+          document.getElementById('corpoTabela').innerHTML = "";
+          
+          // Adicionar exercícios existentes
+          exerciciosAtuais.forEach(e => {
+            const tonsConcluidos = e.tons.filter(t => t.concluido).map(t => t.tom);
+            adicionarLinhaMusica(e.nome, tonsConcluidos);
+          });
+          
+          // Adicionar novos exercícios do lote que não existem
           let adicionados = 0;
-          listaExercicios.forEach(item => {
-            const exNome = typeof item === 'string' ? item : (item.nome || item.exercicio || "");
-            
-            if (exNome) {
-              const inputsExistentes = Array.from(document.querySelectorAll('#corpoTabela tr input[type="text"]'))
-                                           .map(i => i.value.trim().toLowerCase());
-              
-              if (!inputsExistentes.includes(exNome.trim().toLowerCase())) {
-                adicionarLinhaMusica(exNome, []);
-                adicionados++;
-              }
+          loteImportado.forEach(e => {
+            if (!nomesExistentes.has(e.nome)) {
+              adicionarLinhaMusica(e.nome, []);
+              adicionados++;
             }
           });
-
-          exibirStatus(`${adicionados} item(ns) importado(s) de '${caminhoEncontrado}'!`, "green");
+          
+          exibirStatus(`✅ Lote "${nomeLote}" mesclado! ${adicionados} novos exercícios adicionados.`, "green");
+          showToast(`🎵 ${adicionados} novos exercícios adicionados ao aluno!`, 'success');
         } else {
-          exibirStatus(`O arquivo '${caminhoEncontrado}' foi localizado, mas não contém uma lista válida.`, "orange");
+          // Se não tem aluno, substituir a tabela pelo lote
+          document.getElementById('corpoTabela').innerHTML = "";
+          loteImportado.forEach(e => {
+            adicionarLinhaMusica(e.nome, []);
+          });
+          exibirStatus(`✅ ${loteImportado.length} exercícios importados do lote "${nomeLote}"!`, "green");
+          showToast(`🎵 ${loteImportado.length} exercícios importados!`, 'success');
         }
+
       } catch (err) {
-        console.error(err);
-        exibirStatus("Erro ao importar: " + err.message, "red");
+        exibirStatus("❌ Erro ao importar: " + err.message, "red");
       }
     }
 
-    // --- IMPORTAR E EXPORTAR JSON LOCAL ---
+    // --- SOLICITAR IMPORTAR LOTE (VIA BOTÃO) ---
+    async function solicitarEImportarLoteGitHub() {
+      const token = obterToken();
+      if (!token) return alert("Por favor, informe e confirme o Token do GitHub primeiro.");
+
+      const entradaUsuario = prompt(
+        "Digite o nome do lote ou o caminho completo do arquivo no GitHub:\n\n" +
+        "Exemplos:\n" +
+        "- 'escala' (busca em lotes/lote_escala.json)\n" +
+        "- 'lotes/meu_lote.json'"
+      );
+
+      if (!entradaUsuario || entradaUsuario.trim() === "") return;
+      await importarLoteTonalidadeDireto(entradaUsuario.trim());
+    }
+
+    // --- IMPORTAR/EXPORTAR JSON LOCAL ---
     function exportarArquivoJSONLocal() {
       const busca = document.getElementById('buscaAluno').value.trim() || "Aluno_Anonimo";
-      const linhas = document.querySelectorAll('#corpoTabela tr');
-      const exercicios = [];
-
-      linhas.forEach(tr => {
-        const nomeInput = tr.querySelector('input[type="text"]').value.trim();
-        if (nomeInput) {
-          const checkboxesMarcados = tr.querySelectorAll('.checkbox-tonalidade:checked');
-          const tonsTocados = Array.from(checkboxesMarcados).map(cb => cb.getAttribute('data-tom'));
-          
-          const tonsObjetos = TONALIDADES.map(tom => ({
-            tom: tom,
-            concluido: tonsTocados.includes(tom)
-          }));
-
-          exercicios.push({ nome: nomeInput, tons: tonsObjetos });
-        }
-      });
+      const exercicios = getExerciciosDaTabela();
 
       const dados = { 
         alunoId: alunoIdAtual || busca,
@@ -475,7 +566,7 @@
               document.getElementById('corpoTabela').innerHTML = "";
             }
             json.exercicios.forEach(ex => {
-              const tonsConcluidos = ex.tons ? ex.tons.filter(t => t.concluido).map(t => t.tom) : (ex.tonalidadesConcluidas || []);
+              const tonsConcluidos = ex.tons ? ex.tons.filter(t => t.concluido).map(t => t.tom) : [];
               adicionarLinhaMusica(ex.nome, tonsConcluidos);
             });
             exibirStatus("Arquivo JSON carregado com sucesso!", "green");
@@ -487,7 +578,7 @@
       reader.readAsText(file);
     }
 
-    // --- CARREGAR DADOS DO ALUNO ---
+    // --- CARREGAR DADOS DO ALUNO (MESCLANDO COM LOTE) ---
     async function carregarDadosAluno() {
       const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
@@ -497,7 +588,6 @@
 
       exibirStatus("Buscando registro do aluno no GitHub...", "blue");
       
-      // Buscar o ID do aluno
       const alunoId = await buscarIdAluno(busca);
       alunoIdAtual = alunoId;
       
@@ -510,34 +600,58 @@
 
         document.getElementById('corpoTabela').innerHTML = "";
 
+        let exerciciosDoAluno = [];
+
         if (response.status === 404) {
-          exibirStatus(`Aluno ${alunoId} novo! Importe um lote ou monte os exercícios e clique em Salvar.`, "orange");
+          exibirStatus(`Aluno ${alunoId} novo! Importe um lote ou monte os exercícios.`, "orange");
           shaArquivoAtual = null;
-          adicionarLinhaMusica();
-          return;
-        }
-
-        if (!response.ok) throw new Error("Erro ao acessar o GitHub.");
-
-        const data = await response.json();
-        shaArquivoAtual = data.sha;
-
-        const base64Clean = data.content.replace(/\s/g, '');
-        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-        const jsonStr = new TextDecoder('utf-8').decode(bytes);
-        const conteudoJson = JSON.parse(jsonStr);
-
-        if (conteudoJson.exercicios && conteudoJson.exercicios.length > 0) {
-          conteudoJson.exercicios.forEach(ex => {
-            const tonsConcluidos = ex.tons ? ex.tons.filter(t => t.concluido).map(t => t.tom) : (ex.tonalidadesConcluidas || []);
-            adicionarLinhaMusica(ex.nome, tonsConcluidos);
-          });
-          exibirStatus(`Registro do aluno ${alunoId} carregado com sucesso!`, "green");
+        } else if (!response.ok) {
+          throw new Error("Erro ao acessar o GitHub.");
         } else {
-          adicionarLinhaMusica();
+          const data = await response.json();
+          shaArquivoAtual = data.sha;
+
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          const conteudoJson = JSON.parse(jsonStr);
+
+          if (conteudoJson.exercicios) {
+            exerciciosDoAluno = conteudoJson.exercicios;
+          }
         }
+
+        // ===== MESCLAR EXERCÍCIOS DO ALUNO COM LOTE IMPORTADO =====
+        const nomesExistentes = new Set(exerciciosDoAluno.map(e => e.nome));
+
+        // Adicionar exercícios do aluno
+        exerciciosDoAluno.forEach(e => {
+          const tonsConcluidos = e.tons ? e.tons.filter(t => t.concluido).map(t => t.tom) : [];
+          adicionarLinhaMusica(e.nome, tonsConcluidos);
+        });
+
+        // Adicionar exercícios do lote que não existem no aluno
+        let adicionadosDoLote = 0;
+        loteImportado.forEach(e => {
+          if (!nomesExistentes.has(e.nome)) {
+            adicionarLinhaMusica(e.nome, []);
+            adicionadosDoLote++;
+          }
+        });
+
+        if (exerciciosDoAluno.length === 0 && loteImportado.length === 0) {
+          exibirStatus(`Aluno ${alunoId} - Nenhum exercício encontrado. Adicione novos.`, "orange");
+        } else {
+          let msg = `Aluno ${alunoId} carregado! ${exerciciosDoAluno.length} exercícios existentes`;
+          if (adicionadosDoLote > 0) {
+            msg += ` + ${adicionadosDoLote} do lote importado`;
+          }
+          exibirStatus(`✅ ${msg}`, "green");
+          showToast(`🎵 ${exerciciosDoAluno.length + adicionadosDoLote} exercícios carregados!`, 'success');
+        }
+
       } catch (err) {
-        exibirStatus("Falha ao buscar dados no GitHub.", "red");
+        exibirStatus("❌ Falha ao buscar dados: " + err.message, "red");
       }
     }
 
@@ -549,30 +663,10 @@
       if (!busca) return alert("Informe o nome ou ID do aluno antes de salvar.");
       if (!token) return alert("Informe e confirme o Token antes de salvar.");
 
-      // Buscar o ID do aluno
       const alunoId = await buscarIdAluno(busca);
       alunoIdAtual = alunoId;
 
-      const linhas = document.querySelectorAll('#corpoTabela tr');
-      const exercicios = [];
-
-      linhas.forEach(tr => {
-        const nomeInput = tr.querySelector('input[type="text"]');
-        if (nomeInput) {
-          const nome = nomeInput.value.trim();
-          if (nome) {
-            const checkboxesMarcados = tr.querySelectorAll('.checkbox-tonalidade:checked');
-            const tonsTocados = Array.from(checkboxesMarcados).map(cb => cb.getAttribute('data-tom'));
-            
-            const tonsObjetos = TONALIDADES.map(tom => ({
-              tom: tom,
-              concluido: tonsTocados.includes(tom)
-            }));
-
-            exercicios.push({ nome: nome, tons: tonsObjetos });
-          }
-        }
-      });
+      const exercicios = getExerciciosDaTabela();
 
       if (exercicios.length === 0) {
         return alert("Adicione pelo menos um exercício antes de salvar.");
@@ -612,13 +706,14 @@
         if (response.ok) {
           const resData = await response.json();
           shaArquivoAtual = resData.content.sha;
-          exibirStatus(`Progresso do aluno ${alunoId} salvo com sucesso!`, "green");
+          exibirStatus(`✅ Progresso do aluno ${alunoId} salvo com sucesso!`, "green");
+          showToast(`💾 ${exercicios.length} exercícios salvos!`, 'success');
         } else {
           const errData = await response.json();
           throw new Error(errData.message || "Erro ao salvar.");
         }
       } catch (err) {
-        exibirStatus("Erro ao salvar no GitHub: " + err.message, "red");
+        exibirStatus("❌ Erro ao salvar: " + err.message, "red");
       }
     }
   </script>
