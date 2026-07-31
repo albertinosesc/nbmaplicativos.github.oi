@@ -61,6 +61,77 @@
       from { transform: translateX(100%); opacity: 0; }
       to { transform: translateX(0); opacity: 1; }
     }
+
+    /* CORES POR STATUS - UNIFICADAS COM O RELATÓRIO */
+    .badge-status {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      text-align: center;
+      min-width: 100px;
+    }
+    .badge-em-estudo {
+      background-color: #fef3c7;
+      color: #92400e;
+    }
+    .badge-em-andamento {
+      background-color: #dbeafe;
+      color: #1e40af;
+    }
+    .badge-concluida {
+      background-color: #dcfce7;
+      color: #166534;
+    }
+    .badge-revisar {
+      background-color: #fce4ec;
+      color: #c62828;
+    }
+
+    /* FILTRO DE STATUS */
+    .filter-status {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 10px;
+      padding: 10px 14px;
+      background: #f8fafc;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .filter-status label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #6b7280;
+    }
+    .filter-status select {
+      padding: 4px 8px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.8rem;
+      background: white;
+      cursor: pointer;
+    }
+    .filter-status select:focus {
+      outline: 2px solid var(--primary);
+    }
+    .filter-status .filter-info {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-left: auto;
+    }
+
+    .badge-count {
+      display: inline-block;
+      background: #e5e7eb;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 0.7rem;
+      color: #6b7280;
+      margin-left: 5px;
+    }
   </style>
 </head>
 <body>
@@ -80,6 +151,9 @@
       </a>
       <a href="biblioteca.html" class="btn" style="background-color: #8b5cf6; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-book"></i> Biblioteca
+      </a>
+      <a href="notas.html" class="btn" style="background-color: #d97706; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-note-sticky"></i> Notas
       </a>
     </div>
   </div>
@@ -110,11 +184,24 @@
 
     <div id="statusMsg" class="status-msg"></div>
 
+    <!-- FILTRO POR STATUS -->
+    <div class="filter-status">
+      <label><i class="fa-solid fa-filter"></i> Status:</label>
+      <select id="filterMusicaStatus" onchange="aplicarFiltroMusicas()">
+        <option value="todos">Todos</option>
+        <option value="Em Estudo">📝 Em Estudo</option>
+        <option value="Em Andamento">🔄 Em Andamento</option>
+        <option value="Concluída">✅ Concluída</option>
+        <option value="Revisar">🔴 Revisar</option>
+      </select>
+      <span class="filter-info" id="musicas-filtro-status"></span>
+    </div>
+
     <table id="tbl-musicas">
       <thead>
         <tr>
           <th>Música</th>
-          <th style="width: 140px; text-align: center;">Status</th>
+          <th style="width: 150px; text-align: center;">Status</th>
           <th>Observações</th>
           <th style="width: 80px; text-align: center;">Ação</th>
         </tr>
@@ -130,7 +217,8 @@
     let repertorioAtual = [];
     let shaArquivoAtual = null;
     let alunoIdAtual = null;
-    let loteImportado = []; // GUARDA AS MÚSICAS DO LOTE IMPORTADO
+    let loteImportado = [];
+    let dadosMusicasCache = null;
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -142,7 +230,6 @@
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
 
-      // DETECTAR LOTE DA URL E IMPORTAR AUTOMATICAMENTE
       const urlParams = new URLSearchParams(window.location.search);
       const loteParam = urlParams.get('lote');
       
@@ -158,7 +245,6 @@
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
     }
 
-    // --- TOAST ---
     function showToast(mensagem, tipo = 'info') {
       const toast = document.createElement('div');
       toast.className = `toast ${tipo}`;
@@ -249,83 +335,106 @@
       }
     }
 
+    // --- FUNÇÃO PARA OBTER CLASSE DO STATUS (UNIFICADA) ---
+    function getStatusClass(status) {
+      const s = status || 'Em Estudo';
+      if (s === 'Em Estudo') return 'badge-em-estudo';
+      if (s === 'Em Andamento') return 'badge-em-andamento';
+      if (s === 'Concluída') return 'badge-concluida';
+      if (s === 'Revisar') return 'badge-revisar';
+      return 'badge-em-estudo';
+    }
+
     // --- FUNÇÕES DA TABELA ---
     function adicionarMusica() {
       const nome = document.getElementById('novaMusica').value.trim();
       if (!nome) return alert("Digite o nome da música.");
 
-      repertorioAtual.push({ nome: nome, status: "Pendente", obs: "" });
+      repertorioAtual.push({ nome: nome, status: "Em Estudo", obs: "" });
       document.getElementById('novaMusica').value = "";
+      dadosMusicasCache = { repertorio: repertorioAtual };
       renderizarTabela();
     }
 
     function removerMusica(index) {
       repertorioAtual.splice(index, 1);
+      dadosMusicasCache = { repertorio: repertorioAtual };
       renderizarTabela();
     }
 
     function atualizarCampo(index, campo, valor) {
       repertorioAtual[index][campo] = valor;
+      dadosMusicasCache = { repertorio: repertorioAtual };
+      aplicarFiltroMusicas();
     }
 
+    // --- RENDERIZAR TABELA COM FILTRO ---
     function renderizarTabela() {
+      const filtro = document.getElementById('filterMusicaStatus').value;
       const tbody = document.querySelector('#tbl-musicas tbody');
+      
+      const musicas = dadosMusicasCache && dadosMusicasCache.repertorio ? dadosMusicasCache.repertorio : repertorioAtual;
+      
+      let musicasFiltradas = musicas;
+      if (filtro !== 'todos') {
+        musicasFiltradas = musicas.filter(m => m.status === filtro);
+      }
+
+      const filterInfo = document.getElementById('musicas-filtro-status');
+      if (filtro === 'todos') {
+        filterInfo.textContent = `Mostrando ${musicas.length} de ${musicas.length}`;
+      } else {
+        filterInfo.textContent = `Mostrando ${musicasFiltradas.length} de ${musicas.length} (${filtro})`;
+      }
+
       tbody.innerHTML = "";
 
-      if (repertorioAtual.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#9ca3af;">Nenhuma música cadastrada.</td></tr>';
+      if (musicasFiltradas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" style="text-align:center; color:#9ca3af;">Nenhuma música encontrada.</td></tr>';
         return;
       }
 
-      repertorioAtual.forEach((m, idx) => {
+      musicasFiltradas.forEach((m, idx) => {
+        const originalIndex = musicas.indexOf(m);
+        const statusClass = getStatusClass(m.status);
+        
         tbody.innerHTML += `
           <tr>
             <td><strong>${m.nome}</strong></td>
             <td style="text-align:center;">
-              <select onchange="atualizarCampo(${idx}, 'status', this.value)">
-                <option value="Pendente" ${m.status === 'Pendente' ? 'selected' : ''}>Pendente</option>
-                <option value="Lapidação" ${m.status === 'Lapidação' ? 'selected' : ''}>Lapidação</option>
-                <option value="Concluído" ${m.status === 'Concluído' || m.status === 'Concluída' ? 'selected' : ''}>Concluído</option>
+              <select onchange="atualizarCampo(${originalIndex}, 'status', this.value)">
+                <option value="Em Estudo" ${m.status === 'Em Estudo' ? 'selected' : ''}>📝 Em Estudo</option>
+                <option value="Em Andamento" ${m.status === 'Em Andamento' ? 'selected' : ''}>🔄 Em Andamento</option>
+                <option value="Concluída" ${m.status === 'Concluída' ? 'selected' : ''}>✅ Concluída</option>
+                <option value="Revisar" ${m.status === 'Revisar' ? 'selected' : ''}>🔴 Revisar</option>
               </select>
+              <br>
+              <span class="badge-status ${statusClass}" style="display: inline-block; margin-top: 4px;">
+                ${m.status || 'Em Estudo'}
+              </span>
             </td>
             <td>
-              <input type="text" value="${m.obs || ''}" placeholder="Observações..." style="width: 100%;" onchange="atualizarCampo(${idx}, 'obs', this.value)">
+              <input type="text" value="${m.obs || ''}" placeholder="Observações..." style="width: 100%;" onchange="atualizarCampo(${originalIndex}, 'obs', this.value)">
             </td>
             <td style="text-align:center;">
-              <button style="background-color:#dc2626; padding: 4px 8px;" onclick="removerMusica(${idx})"><i class="fa-solid fa-trash"></i></button>
+              <button style="background-color:#dc2626; padding: 4px 8px;" onclick="removerMusica(${originalIndex})"><i class="fa-solid fa-trash"></i></button>
             </td>
           </tr>
         `;
       });
     }
 
-    // --- FUNÇÃO PARA PEGAR O REPERTÓRIO DA TABELA ---
-    function getRepertorioDaTabela() {
-      const tbody = document.querySelector('#tbl-musicas tbody');
-      const linhas = tbody.querySelectorAll('tr');
-      const musicas = [];
-      
-      linhas.forEach(tr => {
-        const nomeInput = tr.querySelector('td:first-child strong');
-        const statusSelect = tr.querySelector('td:nth-child(2) select');
-        const obsInput = tr.querySelector('td:nth-child(3) input');
-        
-        if (nomeInput && statusSelect) {
-          const nome = nomeInput.textContent.trim();
-          if (nome) {
-            musicas.push({
-              nome: nome,
-              status: statusSelect.value,
-              obs: obsInput ? obsInput.value : ""
-            });
-          }
-        }
-      });
-      
-      return musicas;
+    // --- APLICAR FILTRO ---
+    function aplicarFiltroMusicas() {
+      renderizarTabela();
     }
 
-    // --- IMPORTAR LOTE DIRETO (SEM PROMPT) ---
+    // --- FUNÇÃO PARA PEGAR O REPERTÓRIO DA TABELA ---
+    function getRepertorioDaTabela() {
+      return repertorioAtual;
+    }
+
+    // --- IMPORTAR LOTE DIRETO ---
     async function importarLoteMusicaDireto(nomeLote) {
       const token = obterToken();
       if (!token) {
@@ -390,36 +499,27 @@
           return;
         }
 
-        // GUARDAR O LOTE IMPORTADO
         loteImportado = [];
         novasMusicas.forEach(m => {
           const nomeStr = typeof m === 'string' ? m : (m.nome || m.titulo || m.musica || "");
           if (nomeStr) {
             loteImportado.push({
               nome: nomeStr,
-              status: (typeof m === 'object' && m.status) ? m.status : "Pendente",
+              status: (typeof m === 'object' && m.status) ? m.status : "Em Estudo",
               obs: (typeof m === 'object' && m.obs) ? m.obs : ""
             });
           }
         });
 
-        // Se já tem um aluno carregado, MESCLAR com o lote
         if (alunoIdAtual) {
-          // Pegar músicas atuais
           const musicasAtuais = getRepertorioDaTabela();
-          
-          // Mesclar: manter as que já existem, adicionar as novas do lote
           const nomesExistentes = new Set(musicasAtuais.map(m => m.nome));
           
-          // Limpar repertório atual
           repertorioAtual = [];
-          
-          // Adicionar músicas existentes
           musicasAtuais.forEach(m => {
             repertorioAtual.push(m);
           });
           
-          // Adicionar novas músicas do lote que não existem
           let adicionados = 0;
           loteImportado.forEach(m => {
             if (!nomesExistentes.has(m.nome)) {
@@ -428,15 +528,16 @@
             }
           });
           
+          dadosMusicasCache = { repertorio: repertorioAtual };
           renderizarTabela();
           exibirStatus(`✅ Lote "${nomeLote}" mesclado! ${adicionados} novas músicas adicionadas.`, "green");
           showToast(`🎶 ${adicionados} novas músicas adicionadas ao aluno!`, 'success');
         } else {
-          // Se não tem aluno, substituir o repertório pelo lote
           repertorioAtual = [];
           loteImportado.forEach(m => {
             repertorioAtual.push({ ...m });
           });
+          dadosMusicasCache = { repertorio: repertorioAtual };
           renderizarTabela();
           exibirStatus(`✅ ${repertorioAtual.length} músicas importadas do lote "${nomeLote}"!`, "green");
           showToast(`🎶 ${repertorioAtual.length} músicas importadas!`, 'success');
@@ -447,7 +548,7 @@
       }
     }
 
-    // --- SOLICITAR IMPORTAR LOTE (VIA BOTÃO) ---
+    // --- IMPORTAR LOTE VIA BOTÃO ---
     async function importarLoteGithub() {
       const token = obterToken();
       if (!token) return alert("Informe e confirme o Token do GitHub.");
@@ -463,7 +564,7 @@
       await importarLoteMusicaDireto(entradaUsuario.trim());
     }
 
-    // --- CARREGAR DADOS DO ALUNO (MESCLANDO COM LOTE) ---
+    // --- CARREGAR DADOS DO ALUNO ---
     async function carregarMusicasAluno() {
       const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
@@ -500,18 +601,14 @@
           exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
         }
 
-        // ===== MESCLAR MÚSICAS DO ALUNO COM LOTE IMPORTADO =====
         const nomesExistentes = new Set(musicasDoAluno.map(m => m.nome));
 
-        // Limpar repertório atual
         repertorioAtual = [];
 
-        // Adicionar músicas do aluno
         musicasDoAluno.forEach(m => {
           repertorioAtual.push({ ...m });
         });
 
-        // Adicionar músicas do lote que não existem no aluno
         let adicionadosDoLote = 0;
         loteImportado.forEach(m => {
           if (!nomesExistentes.has(m.nome)) {
@@ -520,6 +617,7 @@
           }
         });
 
+        dadosMusicasCache = { repertorio: repertorioAtual };
         renderizarTabela();
 
         if (musicasDoAluno.length === 0 && loteImportado.length === 0) {
