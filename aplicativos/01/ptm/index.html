@@ -197,7 +197,7 @@
       height: auto; 
     }
 
-    /* Controles em tela cheia */
+    /* CONTROLES EM TELA CHEIA - FORA DO PAPER */
     .fullscreen-controls {
       display: none;
       position: fixed;
@@ -209,12 +209,16 @@
       border-radius: 12px;
       gap: 10px;
       align-items: center;
-      z-index: 1000;
+      z-index: 9999;
       flex-wrap: wrap;
       justify-content: center;
       backdrop-filter: blur(8px);
       border: 1px solid rgba(255,255,255,0.1);
       box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+    }
+
+    .fullscreen-controls.visible {
+      display: flex !important;
     }
 
     .fullscreen-controls label {
@@ -564,27 +568,26 @@ w: 1 2 3 4 | 5 1 2 3
 
       <div id="audio-player"></div>
       
-      <div id="paper">
-        <!-- CONTROLES EM TELA CHEIA -->
-        <div class="fullscreen-controls" id="fullscreenControls">
-          <!-- SELECIONAR MÚSICA (TUNE-PICKER) NA TELA CHEIA -->
-          <label for="fs-tune-picker"><i class="fa-solid fa-list-check"></i> Música:</label>
-          <select id="fs-tune-picker" onchange="syncTuneFromFullscreen(this.value)">
-            <option value="0">1ª Música</option>
-          </select>
-
-          <label for="fs-tempo">BPM:</label>
-          <input type="number" id="fs-tempo" value="120" min="30" max="300" oninput="syncBpmFromFullscreen(this.value)">
-          
-          <button onclick="changeTransposeFullscreen(-1)"><i class="fa-solid fa-minus"></i></button>
-          <span class="transpose-value" id="fs-transpose-val">0</span>
-          <button onclick="changeTransposeFullscreen(1)"><i class="fa-solid fa-plus"></i></button>
-          
-          <button onclick="exitFullscreen()" class="btn-exit-fullscreen"><i class="fa-solid fa-xmark"></i> Sair</button>
-        </div>
-      </div>
+      <div id="paper"></div>
     </div>
   </main>
+
+  <!-- CONTROLES EM TELA CHEIA - FORA DO PAPER -->
+  <div class="fullscreen-controls" id="fullscreenControls">
+    <label for="fs-tune-picker"><i class="fa-solid fa-list-check"></i> Música:</label>
+    <select id="fs-tune-picker" onchange="syncTuneFromFullscreen(this.value)">
+      <option value="0">1ª Música</option>
+    </select>
+
+    <label for="fs-tempo">BPM:</label>
+    <input type="number" id="fs-tempo" value="120" min="30" max="300" oninput="syncBpmFromFullscreen(this.value)">
+    
+    <button onclick="changeTransposeFullscreen(-1)"><i class="fa-solid fa-minus"></i></button>
+    <span class="transpose-value" id="fs-transpose-val">0</span>
+    <button onclick="changeTransposeFullscreen(1)"><i class="fa-solid fa-plus"></i></button>
+    
+    <button onclick="exitFullscreen()" class="btn-exit-fullscreen"><i class="fa-solid fa-xmark"></i> Sair</button>
+  </div>
 
   <script>
     const GH_USER = "albertinosesc";
@@ -616,11 +619,6 @@ w: 1 2 3 4 | 5 1 2 3
         document.getElementById('fileExtDisplay').textContent = '.' + this.value;
         document.getElementById('fileExtDisplay').className = 'file-extension-badge ' + this.value;
       });
-
-      // Sincronizar controles da tela cheia
-      document.getElementById('fs-tempo').value = document.getElementById('tempo-input').value;
-      document.getElementById('fs-tune-picker').innerHTML = document.getElementById('tune-picker').innerHTML;
-      document.getElementById('fs-transpose-val').innerText = document.getElementById('transpose-val').innerText;
 
       saveOriginalFingeringState();
       parseAndPopulateSelect();
@@ -671,7 +669,7 @@ w: 1 2 3 4 | 5 1 2 3
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
     }
 
-    // --- TRANSPOSE (PRINCIPAL) ---
+    // --- TRANSPOSE ---
     function changeTranspose(delta) {
       currentTranspose += delta;
       document.getElementById("transpose-val").innerText = (currentTranspose > 0 ? "+" : "") + currentTranspose;
@@ -679,7 +677,6 @@ w: 1 2 3 4 | 5 1 2 3
       renderMusic();
     }
 
-    // --- TRANSPOSE (TELA CHEIA) ---
     function changeTransposeFullscreen(delta) {
       changeTranspose(delta);
     }
@@ -690,16 +687,10 @@ w: 1 2 3 4 | 5 1 2 3
       updateBpmAndRender(value);
     }
 
-    // --- SYNC TUNE (TELA CHEIA) ---
+    // --- SYNC TUNE ---
     function syncTuneFromFullscreen(value) {
       document.getElementById('tune-picker').value = value;
       renderMusic();
-    }
-
-    // --- SYNC TUNE (PRINCIPAL) - atualiza o seletor da tela cheia ---
-    function syncFullscreenTune() {
-      const value = document.getElementById('tune-picker').value;
-      document.getElementById('fs-tune-picker').value = value;
     }
 
     function updateBpmAndRender(newBpm) {
@@ -1213,8 +1204,8 @@ w: 1 2 3 4 | 5 1 2 3
         } else if (paper.webkitRequestFullscreen) {
           paper.webkitRequestFullscreen();
         }
-        controls.style.display = 'flex';
-        // Sincronizar o seletor da tela cheia
+        controls.classList.add('visible');
+        // Sincronizar controles
         document.getElementById('fs-tune-picker').innerHTML = document.getElementById('tune-picker').innerHTML;
         document.getElementById('fs-tune-picker').value = document.getElementById('tune-picker').value;
         document.getElementById('fs-tempo').value = document.getElementById('tempo-input').value;
@@ -1231,33 +1222,33 @@ w: 1 2 3 4 | 5 1 2 3
       } else if (document.webkitExitFullscreen) {
         document.webkitExitFullscreen();
       }
-      controls.style.display = 'none';
+      controls.classList.remove('visible');
     }
 
     // Detectar mudança de tela cheia
     document.addEventListener('fullscreenchange', function() {
       const controls = document.getElementById("fullscreenControls");
       if (document.fullscreenElement) {
-        controls.style.display = 'flex';
+        controls.classList.add('visible');
         document.getElementById('fs-tune-picker').innerHTML = document.getElementById('tune-picker').innerHTML;
         document.getElementById('fs-tune-picker').value = document.getElementById('tune-picker').value;
         document.getElementById('fs-tempo').value = document.getElementById('tempo-input').value;
         document.getElementById('fs-transpose-val').innerText = document.getElementById('transpose-val').innerText;
       } else {
-        controls.style.display = 'none';
+        controls.classList.remove('visible');
       }
     });
 
     document.addEventListener('webkitfullscreenchange', function() {
       const controls = document.getElementById("fullscreenControls");
       if (document.webkitFullscreenElement) {
-        controls.style.display = 'flex';
+        controls.classList.add('visible');
         document.getElementById('fs-tune-picker').innerHTML = document.getElementById('tune-picker').innerHTML;
         document.getElementById('fs-tune-picker').value = document.getElementById('tune-picker').value;
         document.getElementById('fs-tempo').value = document.getElementById('tempo-input').value;
         document.getElementById('fs-transpose-val').innerText = document.getElementById('transpose-val').innerText;
       } else {
-        controls.style.display = 'none';
+        controls.classList.remove('visible');
       }
     });
   </script>
