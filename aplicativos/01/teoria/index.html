@@ -812,61 +812,94 @@
       showToast(`✅ ${allTopics.length} tópicos carregados${fileText}!`, 'success');
     }
 
-    // ========== CARREGAR ARQUIVOS DA PASTA USANDO INDEX.JSON ==========
-    async function loadFromFolder() {
+// ========== CARREGAR ARQUIVOS DA PASTA USANDO INDEX.JSON ==========
+async function loadFromFolder() {
+  try {
+    console.log('🔍 Iniciando carregamento da pasta dados/...');
+    
+    let fileList = [];
+    let loadedFiles = [];
+    
+    // 1. Tenta carregar o index.json que lista todos os arquivos
+    try {
+      console.log('📄 Tentando carregar dados/index.json...');
+      const indexResponse = await fetch('dados/index.json');
+      
+      if (indexResponse.ok) {
+        fileList = await indexResponse.json();
+        console.log('✅ index.json carregado com sucesso!');
+        console.log('📋 Arquivos listados:', fileList);
+        
+        if (!Array.isArray(fileList) || fileList.length === 0) {
+          console.warn('⚠️ index.json está vazio ou inválido. Usando arquivos padrão.');
+          fileList = ['topicos.json'];
+        }
+      } else {
+        console.warn(`⚠️ index.json não encontrado (HTTP ${indexResponse.status}). Usando arquivos padrão.`);
+        fileList = ['topicos.json', 'nivel1.json', 'fundamentos.json'];
+      }
+    } catch (e) {
+      console.warn('⚠️ Erro ao carregar index.json:', e.message);
+      console.log('📋 Usando arquivos padrão: topicos.json, nivel1.json, fundamentos.json');
+      fileList = ['topicos.json', 'nivel1.json', 'fundamentos.json'];
+    }
+    
+    // 2. Carrega todos os arquivos da lista
+    let allData = [];
+    let loadedCount = 0;
+    let failedFiles = [];
+    
+    console.log(`📂 Tentando carregar ${fileList.length} arquivo(s)...`);
+    
+    for (const fileName of fileList) {
       try {
-        let fileList = [];
-        let loadedFiles = [];
+        const filePath = `dados/${fileName}`;
+        console.log(`📥 Tentando carregar: ${filePath}`);
         
-        // 1. Tenta carregar o index.json que lista todos os arquivos
-        try {
-          const indexResponse = await fetch('dados/index.json');
-          if (indexResponse.ok) {
-            fileList = await indexResponse.json();
-            if (!Array.isArray(fileList) || fileList.length === 0) {
-              fileList = ['topicos.json'];
-            }
+        const response = await fetch(filePath);
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (Array.isArray(data) && data.length > 0) {
+            allData = allData.concat(data);
+            loadedCount++;
+            loadedFiles.push(fileName);
+            console.log(`✅ ${fileName} carregado com sucesso (${data.length} tópicos)`);
           } else {
-            fileList = ['topicos.json', 'nivel1.json', 'fundamentos.json'];
+            console.warn(`⚠️ ${fileName} está vazio ou não é um array válido`);
+            failedFiles.push(`${fileName} (vazio)`);
           }
-        } catch (e) {
-          fileList = ['topicos.json', 'nivel1.json', 'fundamentos.json'];
+        } else {
+          console.warn(`⚠️ ${fileName} não encontrado (HTTP ${response.status})`);
+          failedFiles.push(`${fileName} (HTTP ${response.status})`);
         }
-        
-        // 2. Carrega todos os arquivos da lista
-        let allData = [];
-        let loadedCount = 0;
-        
-        for (const fileName of fileList) {
-          try {
-            const response = await fetch(`dados/${fileName}`);
-            if (response.ok) {
-              const data = await response.json();
-              if (Array.isArray(data) && data.length > 0) {
-                allData = allData.concat(data);
-                loadedCount++;
-                loadedFiles.push(fileName);
-              }
-            }
-          } catch (e) {
-            // Arquivo não encontrado, continua
-          }
-        }
-        
-        // 3. Se carregou algum dado, processa
-        if (allData.length > 0) {
-          loadDataFromJSON(allData, 'auto', loadedCount, loadedFiles);
-          return true;
-        }
-        
-        return false;
-        
-      } catch (error) {
-        console.error('Erro ao carregar da pasta:', error);
-        return false;
+      } catch (e) {
+        console.error(`❌ Erro ao carregar ${fileName}:`, e.message);
+        failedFiles.push(`${fileName} (erro: ${e.message})`);
       }
     }
-
+    
+    // 3. Mostrar resumo do carregamento
+    console.log(`📊 Resumo: ${loadedCount} arquivo(s) carregados, ${failedFiles.length} falharam`);
+    if (failedFiles.length > 0) {
+      console.log('❌ Arquivos com falha:', failedFiles);
+    }
+    
+    // 4. Se carregou algum dado, processa
+    if (allData.length > 0) {
+      console.log(`🎉 Total de ${allData.length} tópicos carregados!`);
+      loadDataFromJSON(allData, 'auto', loadedCount, loadedFiles);
+      return true;
+    }
+    
+    console.error('❌ Nenhum arquivo foi carregado com sucesso!');
+    return false;
+    
+  } catch (error) {
+    console.error('❌ Erro fatal ao carregar da pasta:', error);
+    return false;
+  }
+}
     // ========== RENDERIZAR ÍNDICE ==========
     function renderIndex() {
       const list = document.getElementById('indexList');
