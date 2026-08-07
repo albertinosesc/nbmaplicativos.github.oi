@@ -90,7 +90,7 @@
     /* FILTROS PAINEL */
     .filter-bar {
       display: flex;
-      gap: 15px;
+      gap: 12px;
       flex-wrap: wrap;
       align-items: center;
       margin-bottom: 10px;
@@ -175,7 +175,7 @@
 
     <div id="statusMsg" class="status-msg"></div>
 
-    <!-- PAINEL DE FILTROS: STATUS E LOTE -->
+    <!-- PAINEL DE FILTROS: STATUS, LOTE E BOTÃO DE REMOVER LOTE -->
     <div class="filter-bar">
       <div class="filter-item">
         <label><i class="fa-solid fa-filter"></i> Status:</label>
@@ -194,6 +194,11 @@
           <option value="todos">Todos os Lotes</option>
         </select>
       </div>
+
+      <!-- BOTÃO PARA REMOVER LOTE DA LISTA -->
+      <button style="background-color: #dc2626; padding: 5px 10px; font-size: 0.8rem;" onclick="removerLoteDoRepertorio()" title="Remove todas as músicas do lote selecionado apenas desta lista">
+        <i class="fa-solid fa-trash-can"></i> Excluir Lote do Aluno
+      </button>
 
       <span class="filter-info" id="musicas-filtro-status"></span>
     </div>
@@ -352,14 +357,12 @@
       const selectLote = document.getElementById('filterMusicaLote');
       const valorSelecionado = selectLote.value;
 
-      // Coleta todos os lotes únicos no repertório
       const lotesUnicos = new Set();
       repertorioAtual.forEach(m => {
         if (m.lote) lotesUnicos.add(m.lote);
         else lotesUnicos.add('Geral');
       });
 
-      // Recria as opções do select
       selectLote.innerHTML = '<option value="todos">Todos os Lotes</option>';
       
       Array.from(lotesUnicos).sort().forEach(lote => {
@@ -369,6 +372,39 @@
         if (lote === valorSelecionado) option.selected = true;
         selectLote.appendChild(option);
       });
+    }
+
+    // --- REMOVER MÚSICAS DE UM LOTE ESPECÍFICO (SEM DELETAR DO GITHUB) ---
+    function removerLoteDoRepertorio() {
+      const selectLote = document.getElementById('filterMusicaLote');
+      const loteSelecionado = selectLote.value;
+
+      if (loteSelecionado === 'todos') {
+        return alert("Por favor, escolha um lote específico no filtro de 'Lote' para poder excluí-lo.");
+      }
+
+      const qtdMusicas = repertorioAtual.filter(m => (m.lote || 'Geral') === loteSelecionado).length;
+
+      if (qtdMusicas === 0) {
+        return alert(`Nenhuma música encontrada para o lote "${loteSelecionado}".`);
+      }
+
+      if (!confirm(`Tem certeza que deseja remover as ${qtdMusicas} música(s) do lote "${loteSelecionado}" desta lista?\n\n(Apenas remove as músicas da lista do aluno na tela. O arquivo do lote no GitHub NÃO será excluído).`)) {
+        return;
+      }
+
+      // Remove as músicas associadas ao lote da lista
+      repertorioAtual = repertorioAtual.filter(m => (m.lote || 'Geral') !== loteSelecionado);
+      dadosMusicasCache = { repertorio: repertorioAtual };
+
+      // Reseta o filtro de lote para "todos"
+      selectLote.value = 'todos';
+
+      atualizarOpcoesLote();
+      renderizarTabela();
+
+      exibirStatus(`🗑️ Lote "${loteSelecionado}" (${qtdMusicas} músicas) removido da lista do aluno.`, "orange");
+      showToast(`🗑️ Lote "${loteSelecionado}" removido!`, 'info');
     }
 
     // --- TABELA E AÇÕES DE MÚSICA ---
@@ -406,7 +442,6 @@
       
       const musicas = dadosMusicasCache && dadosMusicasCache.repertorio ? dadosMusicasCache.repertorio : repertorioAtual;
 
-      // Filtragem combinada
       let musicasFiltradas = musicas.filter(m => {
         const statusMatch = (filtroStatus === 'todos') || (m.status === filtroStatus);
         const loteNome = m.lote || 'Geral';
@@ -635,7 +670,6 @@
 
         repertorioAtual = [];
 
-        // Garante que todas as músicas carregadas possuem o campo 'lote'
         musicasDoAluno.forEach(m => {
           repertorioAtual.push({
             ...m,
