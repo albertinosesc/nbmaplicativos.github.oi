@@ -420,7 +420,14 @@
       const nome = document.getElementById('novaMusica').value.trim();
       if (!nome) return alert("Digite o nome da música.");
 
-      repertorioAtual.push({ nome: nome, status: "Em Estudo", obs: "", lote: "Manual" });
+      repertorioAtual.push({ 
+        nome: nome, 
+        status: "Em Estudo", 
+        obs: "", 
+        lote: "Manual",
+        pdfUrl: "" 
+      });
+
       document.getElementById('novaMusica').value = "";
       dadosMusicasCache = { repertorio: repertorioAtual };
       
@@ -436,56 +443,19 @@
       renderizarTabela();
     }
 
-    // --- GERAR PDF DE UMA MÚSICA ESPECÍFICA ---
-    function gerarPDFMusica(index) {
+    // --- ABRIR ARQUIVO PDF DA PARTITURA ---
+    function abrirPDFMusica(index) {
       const m = repertorioAtual[index];
       if (!m) return;
 
-      const aluno = alunoIdAtual || document.getElementById('buscaAluno').value.trim() || 'Aluno';
-      const janela = window.open('', '', 'width=800,height=600');
+      // Prioriza m.pdfUrl; se não existir, usa partituras/{id}.pdf
+      let pdfCaminho = m.pdfUrl || (m.id ? `partituras/${m.id}.pdf` : null);
 
-      const html = `
-        <!DOCTYPE html>
-        <html lang="pt-BR">
-        <head>
-          <meta charset="UTF-8">
-          <title>Ficha da Música - ${m.nome}</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color: #1f2937; line-height: 1.6; }
-            .card-pdf { border: 2px solid #8e44ad; padding: 30px; border-radius: 12px; max-width: 700px; margin: 0 auto; box-shadow: 0 4px 6px rgba(0,0,0,0.05); }
-            h1 { color: #8e44ad; margin-bottom: 8px; border-bottom: 2px solid #e5e7eb; padding-bottom: 12px; font-size: 1.8rem; }
-            .info { margin: 12px 0; font-size: 1.05rem; }
-            .label { font-weight: bold; color: #4b5563; display: inline-block; width: 140px; }
-            .badge { display: inline-block; padding: 4px 10px; border-radius: 6px; font-weight: bold; font-size: 0.9rem; background: #f3f4f6; }
-            .notes-box { margin-top: 25px; padding: 15px; background: #faf5ff; border-left: 4px solid #8e44ad; border-radius: 6px; min-height: 120px; font-size: 1rem; }
-            .header-info { display: flex; justify-content: space-between; align-items: center; font-size: 0.85rem; color: #6b7280; margin-bottom: 20px; border-bottom: 1px #eee solid; padding-bottom: 8px; }
-          </style>
-        </head>
-        <body>
-          <div class="card-pdf">
-            <div class="header-info">
-              <span>Relatório Individual de Música</span>
-              <span>Data: ${new Date().toLocaleDateString('pt-BR')}</span>
-            </div>
-            <h1>🎵 ${m.nome}</h1>
-            <div class="info"><span class="label">Aluno / ID:</span> <strong>${aluno}</strong></div>
-            <div class="info"><span class="label">Lote:</span> <span class="badge">📦 ${m.lote || 'Geral'}</span></div>
-            <div class="info"><span class="label">Status Atual:</span> <span class="badge">📌 ${m.status || 'Em Estudo'}</span></div>
-            <div class="info" style="margin-top: 20px;"><span class="label">Observações:</span></div>
-            <div class="notes-box">${m.obs || 'Nenhuma observação registrada.'}</div>
-          </div>
-          <script>
-            window.onload = function() {
-              window.print();
-              window.close();
-            };
-          <\/script>
-        </body>
-        </html>
-      `;
-
-      janela.document.write(html);
-      janela.document.close();
+      if (pdfCaminho) {
+        window.open(pdfCaminho, '_blank');
+      } else {
+        alert(`Nenhum arquivo PDF configurado para a música "${m.nome}".`);
+      }
     }
 
     function atualizarCampo(index, campo, valor) {
@@ -523,10 +493,14 @@
         const originalIndex = musicas.indexOf(m);
         const statusClass = getStatusClass(m.status);
         const loteNome = m.lote || 'Geral';
+        const temPdf = !!(m.pdfUrl || m.id);
         
         tbody.innerHTML += `
           <tr>
-            <td><strong>${m.nome}</strong></td>
+            <td>
+              <strong>${m.title || m.nome}</strong>
+              ${m.composer ? `<br><small style="color: #6b7280;"><i class="fa-solid fa-user"></i> ${m.composer}</small>` : ''}
+            </td>
             <td style="text-align:center;">
               <span class="badge-lote"><i class="fa-solid fa-box"></i> ${loteNome}</span>
             </td>
@@ -546,7 +520,7 @@
               <input type="text" value="${m.obs || ''}" placeholder="Observações..." style="width: 100%;" onchange="atualizarCampo(${originalIndex}, 'obs', this.value)">
             </td>
             <td style="text-align:center; display: flex; gap: 4px; justify-content: center;">
-              <button style="background-color: #e67e22; padding: 5px 8px;" onclick="gerarPDFMusica(${originalIndex})" title="Gerar PDF desta música">
+              <button style="background-color: ${temPdf ? '#e67e22' : '#9ca3af'}; padding: 5px 8px;" onclick="abrirPDFMusica(${originalIndex})" title="${temPdf ? 'Abrir Partitura em PDF' : 'Sem PDF cadastrado'}">
                 <i class="fa-solid fa-file-pdf"></i>
               </button>
               <button style="background-color: #dc2626; padding: 5px 8px;" onclick="removerMusica(${originalIndex})" title="Excluir música">
@@ -631,20 +605,26 @@
 
         loteImportado = [];
         novasMusicas.forEach(m => {
-          const nomeStr = typeof m === 'string' ? m : (m.nome || m.titulo || m.musica || "");
+          const nomeStr = typeof m === 'string' ? m : (m.title || m.nome || m.titulo || m.musica || "");
           if (nomeStr) {
             loteImportado.push({
+              id: (typeof m === 'object' && m.id) ? m.id : null,
               nome: nomeStr,
+              title: (typeof m === 'object' && m.title) ? m.title : nomeStr,
+              composer: (typeof m === 'object' && m.composer) ? m.composer : "",
+              pdfUrl: (typeof m === 'object' && m.pdfUrl) ? m.pdfUrl : (m.id ? `partituras/${m.id}.pdf` : ""),
+              youtubeUrl: (typeof m === 'object' && m.youtubeUrl) ? m.youtubeUrl : "",
+              mp3Url: (typeof m === 'object' && m.mp3Url) ? m.mp3Url : "",
               status: (typeof m === 'object' && m.status) ? m.status : "Em Estudo",
               obs: (typeof m === 'object' && m.obs) ? m.obs : "",
-              lote: nomeLote.trim()
+              lote: (typeof m === 'object' && m.book) ? m.book : nomeLote.trim()
             });
           }
         });
 
         if (alunoIdAtual) {
           const musicasAtuais = getRepertorioDaTabela();
-          const nomesExistentes = new Set(musicasAtuais.map(m => m.nome));
+          const nomesExistentes = new Set(musicasAtuais.map(m => m.nome || m.title));
           
           repertorioAtual = [...musicasAtuais];
           
@@ -731,14 +711,15 @@
           exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
         }
 
-        const nomesExistentes = new Set(musicasDoAluno.map(m => m.nome));
+        const nomesExistentes = new Set(musicasDoAluno.map(m => m.nome || m.title));
 
         repertorioAtual = [];
 
         musicasDoAluno.forEach(m => {
           repertorioAtual.push({
             ...m,
-            lote: m.lote || 'Geral'
+            nome: m.nome || m.title,
+            lote: m.lote || m.book || 'Geral'
           });
         });
 
