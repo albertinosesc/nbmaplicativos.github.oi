@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo de Músicas e Partituras</title>
+    
+    <!-- Seus arquivos de estilo CSS -->
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="main2.css">
+</head>
+<body>
+
+    <div class="app-container">
+        <!-- ========================================== -->
+        <!-- BARRA LATERAL (SIDEBAR / CONTROLES)        -->
+        <!-- ========================================== -->
+        <aside id="sidebar" class="sidebar">
+            <div class="sidebar-header">
+                <h2>Painel & Fila</h2>
+                <button id="btnToggleSidebar" class="btn-icon" title="Ocultar/Exibir Barra Lateral">☰</button>
+            </div>
+
+            <!-- PLAYER ESQUERDO (MÍDIA EM EXECUÇÃO) -->
+            <div class="now-playing-container">
+                <div id="currentPlayingTitle" class="now-playing-title">Nenhuma mídia selecionada</div>
+                <div id="currentPlayingMeta" class="now-playing-meta">Selecione uma faixa para reproduzir</div>
+                <div id="playerLeft" class="player-left-box"></div>
+                
+                <div class="global-controls">
+                    <button onclick="playPrevious()" title="Anterior">⏮️</button>
+                    <button onclick="playNext()" title="Próxima">⏭️</button>
+                </div>
+            </div>
+
+            <hr class="divider">
+
+            <!-- GERENCIADOR DE FILAS (VÍDEO E MP3) -->
+            <div class="playlist-section">
+                <!-- Fila de Vídeos -->
+                <div class="playlist-header">
+                    <span onclick="togglePlaylist('video')" style="cursor: pointer; font-weight: bold;">
+                        🎬 Fila de Vídeos
+                    </span>
+                    <div class="playlist-actions">
+                        <button onclick="clearPlaylist('video')" title="Limpar Fila">🗑️</button>
+                        <button onclick="exportPlaylist('video')" title="Exportar Fila">📤</button>
+                        <button onclick="savePlaylist('video')" title="Salvar localmente">💾</button>
+                    </div>
+                </div>
+                <div id="videoPlaylistItems" class="playlist-items"></div>
+
+                <hr class="divider-small">
+
+                <!-- Fila de MP3 -->
+                <div class="playlist-header">
+                    <span onclick="togglePlaylist('mp3')" style="cursor: pointer; font-weight: bold;">
+                        🎧 Fila de Áudios MP3
+                    </span>
+                    <div class="playlist-actions">
+                        <button onclick="clearPlaylist('mp3')" title="Limpar Fila">🗑️</button>
+                        <button onclick="exportPlaylist('mp3')" title="Exportar Fila">📤</button>
+                        <button onclick="savePlaylist('mp3')" title="Salvar localmente">💾</button>
+                    </div>
+                </div>
+                <div id="mp3PlaylistItems" class="playlist-items"></div>
+            </div>
+        </aside>
+
+        <!-- SEPARADOR / REDIMENSIONADOR ESQUERDO -->
+        <div id="resizerLeft" class="resizer"></div>
+
+        <!-- ========================================== -->
+        <!-- ÁREA CENTRAL (CATÁLOGO DE MÚSICAS & FILTROS)-->
+        <!-- ========================================== -->
+        <main class="main-content">
+            <!-- BARRA DE FILTROS -->
+            <header class="filter-bar">
+                <div class="filter-group">
+                    <input type="text" id="searchGeneral" placeholder="Buscar título, compositor..." oninput="renderCatalog()">
+                    <button id="btnClear" onclick="document.getElementById('searchGeneral').value=''; renderCatalog();">✕</button>
+                </div>
+
+                <div class="filter-group">
+                    <select id="filterComposer" onchange="renderCatalog()">
+                        <option value="">Compositores</option>
+                    </select>
+                </div>
+
+                <div class="filter-group">
+                    <select id="filterBook" onchange="renderCatalog()">
+                        <option value="">Referência</option>
+                    </select>
+                </div>
+
+                <div class="view-options">
+                    <button id="btnToggleView" onclick="toggleViewMode()" title="Alternar Modo de Exibição">
+                        <span id="viewIcon">☰</span> <span id="viewLabel">Lista</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- CONTAINER DE RENDERIZAÇÃO DAS MÚSICAS -->
+            <div id="catalogGrid" class="catalog-list">
+                <div class="no-results">🔍 Digite algo no filtro para buscar músicas</div>
+            </div>
+        </main>
+
+        <!-- SEPARADOR / REDIMENSIONADOR DIREITO -->
+        <div id="resizerRight" class="resizer" style="display: none;"></div>
+
+        <!-- ========================================== -->
+        <!-- PAINEL DE VISUALIZAÇÃO DE PDF (DIREITA)    -->
+        <!-- ========================================== -->
+        <section id="pdfPreviewPanel" class="pdf-preview-panel" style="display: none;">
+            <!-- CABEÇALHO DA PARTITURA -->
+            <div class="pdf-preview-header">
+                <span id="pdfPreviewTitle" class="pdf-preview-title">Partitura</span>
+                
+                <!-- O JavaScript injetará aqui os botões: 
+                     [ ▶️ Vídeo ] [ 🎧 Áudio ] [ 📄 1 Pág ] [ 📖 2 Págs ] [ 🖵 Tela Cheia ] 
+                -->
+                
+                <button id="btnClosePreview" onclick="closePdfPreview()" class="btn-close-pdf" title="Fechar Partitura">✖</button>
+            </div>
+
+            <!-- CONTAINER ONDE OS IFRAMES (1 OU 2 PÁGINAS) SERÃO EXIBIDOS -->
+            <iframe id="pdfIframe" class="pdf-frame" frameborder="0"></iframe>
+        </section>
+    </div>
+
+    <!-- ========================================== -->
+    <!-- CARREGAMENTO DOS SCRIPTS                   -->
+    <!-- ========================================== -->
+    <!-- Banco de dados das músicas -->
+    <script src="database.js"></script>
+
+    <!-- Script Principal de Lógica -->
+    <script src="main2.js"></script>
+
+    <script>
+        // Inicialização ao carregar o documento
+        document.addEventListener('DOMContentLoaded', async () => {
+            initFilters();
+            loadPlaylists();
+            
+            // Escaneia os áudios no GitHub antes de renderizar a primeira lista
+            if (typeof escanearAudiosGithub === 'function') {
+                await escanearAudiosGithub();
+            }
+            
+            renderCatalog();
+        });
+    </script>
+</body>
+</html>
