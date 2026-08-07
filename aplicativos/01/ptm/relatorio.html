@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Relatório do Aluno</title>
+  <title>Relatório do Aluno - albertinosesc</title>
   
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
@@ -411,15 +411,72 @@
       color: #6b7280;
     }
 
+    /* FILTRO DE LOTES POR STATUS */
+    .filter-lotes {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 12px;
+      padding: 8px 12px;
+      background: #f8fafc;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .filter-lotes label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #6b7280;
+    }
+    .filter-lotes select {
+      padding: 4px 10px;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      font-size: 0.8rem;
+      background: white;
+      cursor: pointer;
+    }
+    .filter-lotes select:focus {
+      outline: 2px solid var(--primary);
+    }
+    .filter-lotes .filter-info {
+      font-size: 0.75rem;
+      color: #6b7280;
+      margin-left: auto;
+    }
+
+    /* Botões de filtro rápido */
+    .filter-lotes .filter-btn {
+      padding: 3px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: white;
+      font-size: 0.7rem;
+      cursor: pointer;
+      transition: 0.2s;
+      font-weight: 500;
+      color: #6b7280;
+    }
+    .filter-lotes .filter-btn:hover {
+      background: #f1f5f9;
+    }
+    .filter-lotes .filter-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    .filter-lotes .filter-btn.active:hover {
+      background: #1d4ed8;
+    }
+
     @media print {
       .header-bar div, .github-auth-panel, .search-card button, .no-print,
       .toggle-section, .filter-status, .btn-notes-link, .notas-item .notas-actions,
-      .modal-overlay { display: none !important; }
+      .modal-overlay, .filter-lotes { display: none !important; }
       body { background: white; padding: 0; }
       .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
       .section-hidden .section-content { display: block !important; }
       
-      /* IMPRESSÃO EM LINHA ÚNICA - SEM COLUNAS */
       .grid-relatorio {
         display: block !important;
       }
@@ -534,7 +591,6 @@
         <span style="font-size: 0.7rem; color: #6b7280;"><i class="fa-solid fa-chevron-down" id="teoria-icon"></i></span>
       </div>
       <div class="section-content">
-        <!-- FILTRO DE STATUS PARA CONCEITOS -->
         <div class="filter-status">
           <label><i class="fa-solid fa-filter"></i> Status:</label>
           <select id="filterTeoriaStatus" onchange="aplicarFiltroTeoria()">
@@ -596,15 +652,24 @@
       </div>
     </div>
 
-    <!-- BLOCO DE LOTES (NOVO) -->
+    <!-- BLOCO DE LOTES COM FILTRO -->
     <div class="card section-container" id="section-lotes" data-campo="lotes" style="grid-column: 1 / -1;">
       <div class="section-title" style="color: #7c3aed; cursor: pointer;" onclick="toggleSection('lotes')">
         <span><i class="fa-solid fa-boxes"></i> Progresso por Lotes <span class="badge-count" id="lotes-count">(0)</span></span>
         <span style="font-size: 0.7rem; color: #6b7280;"><i class="fa-solid fa-chevron-down" id="lotes-icon"></i></span>
       </div>
       <div class="section-content">
+        <!-- FILTRO DE LOTES POR STATUS -->
+        <div class="filter-lotes no-print">
+          <label><i class="fa-solid fa-filter"></i> Mostrar:</label>
+          <button class="filter-btn active" data-filter="todos" onclick="filtrarLotes('todos')">📦 Todos</button>
+          <button class="filter-btn" data-filter="concluidos" onclick="filtrarLotes('concluidos')">✅ Concluídos</button>
+          <button class="filter-btn" data-filter="pendentes" onclick="filtrarLotes('pendentes')">🟡 Pendentes</button>
+          <span class="filter-info" id="lotes-filtro-info">Mostrando todos os lotes</span>
+        </div>
+
         <!-- Resumo dos lotes -->
-        <div class="lotes-resumo" id="lotesResumo">
+        <div class="lotes-resumo">
           <div class="resumo-item">
             <span class="numero" id="totalLotes">0</span>
             <span class="label">Lotes</span>
@@ -673,6 +738,8 @@
     let dadosTeoriaCache = null;
     let notasArquivos = [];
     let notasConteudos = {};
+    let filtroLotesAtual = 'todos';
+    let lotesCache = [];
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -1133,10 +1200,33 @@
       renderizarMusicasTable(tbody, data.repertorio);
     }
 
-    // --- RENDERIZAR LOTES (NOVO) ---
+    // --- FILTRAR LOTES ---
+    function filtrarLotes(filtro) {
+      filtroLotesAtual = filtro;
+      
+      // Atualiza os botões de filtro
+      document.querySelectorAll('.filter-lotes .filter-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.filter === filtro);
+      });
+      
+      // Atualiza o texto do filtro
+      const info = document.getElementById('lotes-filtro-info');
+      const labels = {
+        'todos': 'Mostrando todos os lotes',
+        'concluidos': 'Mostrando apenas lotes concluídos ✅',
+        'pendentes': 'Mostrando apenas lotes pendentes 🟡'
+      };
+      info.textContent = labels[filtro] || 'Mostrando todos os lotes';
+      
+      // Aplica o filtro aos lotes
+      renderizarLotes(dadosMusicasCache);
+    }
+
+    // --- RENDERIZAR LOTES COM FILTRO ---
     function renderizarLotes(data) {
       const grid = document.getElementById('lotesGrid');
       const count = document.getElementById('lotes-count');
+      const filtro = filtroLotesAtual;
       
       if (!data || !data.repertorio || data.repertorio.length === 0) {
         grid.innerHTML = `
@@ -1167,13 +1257,48 @@
         }
       });
 
-      const lotesArray = Object.entries(lotesMap);
+      let lotesArray = Object.entries(lotesMap);
       const totalLotes = lotesArray.length;
       let totalConcluidos = 0;
       let totalMusicas = 0;
 
-      count.textContent = `(${totalLotes})`;
+      // FILTRO: Concluídos ou Pendentes
+      if (filtro === 'concluidos') {
+        lotesArray = lotesArray.filter(([_, dados]) => dados.concluidas === dados.total);
+      } else if (filtro === 'pendentes') {
+        lotesArray = lotesArray.filter(([_, dados]) => dados.concluidas < dados.total);
+      }
+
+      const lotesFiltrados = lotesArray.length;
+
+      count.textContent = `(${lotesFiltrados})`;
       document.getElementById('totalLotes').textContent = totalLotes;
+
+      // Atualiza resumo (sempre com todos os lotes)
+      let totalConcluidosGeral = 0;
+      let totalMusicasGeral = 0;
+      Object.entries(lotesMap).forEach(([_, dados]) => {
+        totalMusicasGeral += dados.total;
+        if (dados.concluidas === dados.total) totalConcluidosGeral++;
+      });
+      document.getElementById('lotesConcluidos').textContent = totalConcluidosGeral;
+      document.getElementById('lotesPendentes').textContent = totalLotes - totalConcluidosGeral;
+      document.getElementById('totalMusicasLotes').textContent = totalMusicasGeral;
+
+      if (lotesArray.length === 0) {
+        const msgs = {
+          'concluidos': '🎉 Todos os lotes já foram concluídos!',
+          'pendentes': '🎯 Todos os lotes estão concluídos! Nenhum pendente.',
+          'todos': 'Nenhum lote encontrado.'
+        };
+        grid.innerHTML = `
+          <div style="text-align:center; color:#9ca3af; grid-column: 1 / -1; padding: 30px;">
+            <i class="fa-solid fa-check-circle" style="font-size: 2rem; display: block; margin-bottom: 8px; color: #22c55e;"></i>
+            ${msgs[filtro] || 'Nenhum lote encontrado para este filtro.'}
+          </div>
+        `;
+        return;
+      }
 
       let html = '';
 
@@ -1210,7 +1335,7 @@
             </div>
             <div class="lote-musicas">
               <i class="fa-solid fa-music"></i> ${concluidas} de ${total} músicas concluídas
-              ${pendentes > 0 ? `(${pendentes} faltam)` : ''}
+              ${pendentes > 0 ? `(${pendentes} faltam)` : '🎉 Completo!'}
             </div>
             <div class="lote-bar">
               <div class="lote-bar-fill ${statusClass}" style="width: ${percentual}%;"></div>
@@ -1220,7 +1345,7 @@
             </div>
             <details style="margin-top: 6px; font-size: 0.8rem;">
               <summary style="cursor: pointer; color: #6b7280; font-size: 0.75rem;">
-                <i class="fa-solid fa-list"></i> Ver músicas
+                <i class="fa-solid fa-list"></i> Ver músicas (${total})
               </summary>
               <ul style="margin-top: 4px; padding-left: 20px; list-style: none;">
                 ${musicas.map(m => `
@@ -1240,14 +1365,7 @@
       });
 
       grid.innerHTML = html;
-
-      // Atualizar resumo
-      const pendentes = totalLotes - totalConcluidos;
-      document.getElementById('lotesConcluidos').textContent = totalConcluidos;
-      document.getElementById('lotesPendentes').textContent = pendentes;
-      document.getElementById('totalMusicasLotes').textContent = totalMusicas;
     }
   </script>
-
 </body>
 </html>
