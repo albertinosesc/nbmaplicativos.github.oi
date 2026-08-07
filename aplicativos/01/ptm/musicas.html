@@ -33,24 +33,6 @@
     button.btn-danger { background-color: var(--danger); }
     button.btn-secondary { background-color: #4b5563; }
 
-    /* ESTILO BOTÃO PDF */
-    .btn-pdf {
-      background-color: #dc2626;
-      color: white;
-      padding: 5px 10px;
-      font-size: 0.8rem;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-    .btn-pdf-disabled {
-      background-color: #e5e7eb;
-      color: #9ca3af;
-      padding: 5px 10px;
-      font-size: 0.8rem;
-      border-radius: 4px;
-      cursor: not-allowed;
-    }
-
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 15px; }
     th, td { border: 1px solid var(--border); padding: 10px; text-align: left; }
     th { background-color: #f8fafc; font-weight: 600; }
@@ -188,7 +170,6 @@
 
     <div style="display: flex; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 15px;">
       <input type="text" id="novaMusica" placeholder="Nome / Título da Música">
-      <input type="text" id="novoPdf" placeholder="Caminho/Link do PDF (ex: pdfs/musica.pdf)">
       <button style="background-color: #27ae60;" onclick="adicionarMusica()"><i class="fa-solid fa-plus"></i> Adicionar Música</button>
     </div>
 
@@ -225,29 +206,16 @@
       <thead>
         <tr>
           <th>Música</th>
-          <th style="width: 70px; text-align: center;">PDF</th>
           <th style="width: 120px; text-align: center;">Lote</th>
           <th style="width: 150px; text-align: center;">Status</th>
-          <th>Caminho / Link PDF</th>
           <th>Observações</th>
           <th style="width: 80px; text-align: center;">Ação</th>
         </tr>
       </thead>
       <tbody>
-        <tr><td colspan="7" style="text-align:center; color:#9ca3af;">Nenhum aluno carregado.</td></tr>
+        <tr><td colspan="5" style="text-align:center; color:#9ca3af;">Nenhum aluno carregado.</td></tr>
       </tbody>
     </table>
-  </div>
-
-  <!-- MODAL DE VISUALIZAÇÃO DE PDF -->
-  <div id="pdfModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:9999; justify-content:center; align-items:center;">
-    <div style="position:relative; width:85%; height:90%; background:#fff; border-radius:8px; display:flex; flex-direction:column; overflow:hidden; box-shadow: 0 5px 25px rgba(0,0,0,0.5);">
-      <div style="padding:12px 20px; background:#1f2937; color:#fff; display:flex; justify-content:space-between; align-items:center;">
-        <h3 id="pdfModalTitle" style="margin:0; font-size:1.1rem;"><i class="fa-solid fa-file-pdf"></i> Partitura</h3>
-        <button onclick="fecharPdfModal()" style="background:transparent; border:none; color:#fff; font-size:1.3rem; cursor:pointer;"><i class="fa-solid fa-xmark"></i></button>
-      </div>
-      <iframe id="pdfModalIframe" src="" style="width:100%; height:100%; border:none;"></iframe>
-    </div>
   </div>
 
   <script>
@@ -266,6 +234,14 @@
 
       document.getElementById("gh-token").addEventListener("input", (e) => {
         localStorage.setItem("gh_pat_token", e.target.value.trim());
+      });
+
+      // Tecla Enter nos campos
+      document.getElementById("buscaAluno").addEventListener("keyup", (e) => {
+        if (e.key === "Enter") carregarMusicasAluno();
+      });
+      document.getElementById("novaMusica").addEventListener("keyup", (e) => {
+        if (e.key === "Enter") adicionarMusica();
       });
 
       const urlParams = new URLSearchParams(window.location.search);
@@ -293,26 +269,16 @@
 
     function validarEAutenticarToken() {
       const token = obterToken();
-      if (token) localStorage.setItem("gh_pat_token", token);
+      if (token) {
+        localStorage.setItem("gh_pat_token", token);
+        showToast("🔑 Token salvo com sucesso!", "success");
+      }
     }
 
     function exibirStatus(msg, cor = "black") {
       const statusEl = document.getElementById('statusMsg');
       statusEl.style.color = cor;
       statusEl.innerText = msg;
-    }
-
-    // --- FUNÇÕES DO MODAL PDF ---
-    function abrirPdfModal(url, titulo) {
-      if (!url || url.trim() === "") return alert("Nenhuma partitura/PDF cadastrado para esta música.");
-      document.getElementById('pdfModalTitle').innerHTML = `<i class="fa-solid fa-file-pdf"></i> Partitura: ${titulo}`;
-      document.getElementById('pdfModalIframe').src = url;
-      document.getElementById('pdfModal').style.display = 'flex';
-    }
-
-    function fecharPdfModal() {
-      document.getElementById('pdfModal').style.display = 'none';
-      document.getElementById('pdfModalIframe').src = '';
     }
 
     // --- BUSCAR ID DO ALUNO ---
@@ -396,7 +362,7 @@
       return 'badge-em-estudo';
     }
 
-    // --- ATUALIZA DROPDOWN DE LOTES CARREGADOS ---
+    // --- ATUALIZA DROPDOWN DE LOTES ---
     function atualizarOpcoesLote() {
       const selectLote = document.getElementById('filterMusicaLote');
       const valorSelecionado = selectLote.value;
@@ -433,7 +399,7 @@
         return alert(`Nenhuma música encontrada para o lote "${loteSelecionado}".`);
       }
 
-      if (!confirm(`Tem certeza que deseja remover as ${qtdMusicas} música(s) do lote "${loteSelecionado}" desta lista?`)) {
+      if (!confirm(`Tem certeza que deseja remover as ${qtdMusicas} música(s) do lote "${loteSelecionado}" desta lista?\n\n(Apenas remove as músicas da lista do aluno na tela. O arquivo do lote no GitHub NÃO será excluído).`)) {
         return;
       }
 
@@ -452,13 +418,10 @@
     // --- TABELA E AÇÕES DE MÚSICA ---
     function adicionarMusica() {
       const nome = document.getElementById('novaMusica').value.trim();
-      const pdfUrl = document.getElementById('novoPdf').value.trim();
-
       if (!nome) return alert("Digite o nome da música.");
 
-      repertorioAtual.push({ nome: nome, pdfUrl: pdfUrl, status: "Em Estudo", obs: "", lote: "Manual" });
+      repertorioAtual.push({ nome: nome, status: "Em Estudo", obs: "", lote: "Manual" });
       document.getElementById('novaMusica').value = "";
-      document.getElementById('novoPdf').value = "";
       dadosMusicasCache = { repertorio: repertorioAtual };
       
       atualizarOpcoesLote();
@@ -500,7 +463,7 @@
       tbody.innerHTML = "";
 
       if (musicasFiltradas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#9ca3af;">Nenhuma música encontrada para os filtros selecionados.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#9ca3af;">Nenhuma música encontrada para os filtros selecionados.</td></tr>';
         return;
       }
 
@@ -508,17 +471,10 @@
         const originalIndex = musicas.indexOf(m);
         const statusClass = getStatusClass(m.status);
         const loteNome = m.lote || 'Geral';
-        const pdfLink = m.pdfUrl || m.pdf || '';
-
-        // Botão do PDF clicável se houver link
-        const botaoPdf = pdfLink
-          ? `<button class="btn-pdf" onclick="abrirPdfModal('${pdfLink}', '${m.nome.replace(/'/g, "\\'")}')" title="Abrir Partitura em PDF"><i class="fa-solid fa-file-pdf"></i> PDF</button>`
-          : `<button class="btn-pdf-disabled" title="Sem PDF cadastrado"><i class="fa-regular fa-file-pdf"></i> -</button>`;
         
         tbody.innerHTML += `
           <tr>
             <td><strong>${m.nome}</strong></td>
-            <td style="text-align:center;">${botaoPdf}</td>
             <td style="text-align:center;">
               <span class="badge-lote"><i class="fa-solid fa-box"></i> ${loteNome}</span>
             </td>
@@ -533,9 +489,6 @@
               <span class="badge-status ${statusClass}" style="display: inline-block; margin-top: 4px;">
                 ${m.status || 'Em Estudo'}
               </span>
-            </td>
-            <td>
-              <input type="text" value="${pdfLink}" placeholder="Caminho do PDF (ex: pdfs/musica.pdf)" style="width: 100%; font-family: monospace; font-size: 0.8rem;" onchange="atualizarCampo(${originalIndex}, 'pdfUrl', this.value)">
             </td>
             <td>
               <input type="text" value="${m.obs || ''}" placeholder="Observações..." style="width: 100%;" onchange="atualizarCampo(${originalIndex}, 'obs', this.value)">
@@ -625,7 +578,6 @@
           if (nomeStr) {
             loteImportado.push({
               nome: nomeStr,
-              pdfUrl: (typeof m === 'object' && (m.pdfUrl || m.pdf)) ? (m.pdfUrl || m.pdf) : "",
               status: (typeof m === 'object' && m.status) ? m.status : "Em Estudo",
               obs: (typeof m === 'object' && m.obs) ? m.obs : "",
               lote: nomeLote.trim()
@@ -729,7 +681,6 @@
         musicasDoAluno.forEach(m => {
           repertorioAtual.push({
             ...m,
-            pdfUrl: m.pdfUrl || m.pdf || '',
             lote: m.lote || 'Geral'
           });
         });
