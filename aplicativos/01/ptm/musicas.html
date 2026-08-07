@@ -714,33 +714,65 @@
       renderizarTabela();
     }
 
-// URL base do repositório onde ficam as partituras
-const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
+// 1. Gera a URL base dinamicamente conforme as configurações da conta/repositório
+function getBasePdfUrl() {
+  return `https://raw.githubusercontent.com/${GH_CONFIG.user}/${GH_CONFIG.repo}/${GH_CONFIG.branch}/partituras`;
+}
 
-function abrirPDFMusica(index) {
+// 2. Função para abrir o PDF com suporte a token de autenticação (repros privados)
+async function abrirPDFMusica(index) {
   const m = repertorioAtual[index];
   if (!m) return;
 
   let pdfCaminho = "";
 
-  // 1. Se a música já tiver um link HTTP completo cadastrado
+  // 1. Link HTTP completo cadastrado na música
   if (m.pdfUrl && m.pdfUrl.startsWith("http")) {
     pdfCaminho = m.pdfUrl;
   } 
-  // 2. Se for um caminho relativo (ex: partituras/musica1.pdf)
+  // 2. Caminho relativo (ex: partituras/musica.pdf)
   else if (m.pdfUrl) {
     const nomeArquivo = m.pdfUrl.replace(/^partituras\//, '');
-    pdfCaminho = `${BASE_PDF_URL}/${nomeArquivo}`;
+    pdfCaminho = `${getBasePdfUrl()}/${nomeArquivo}`;
   } 
-  // 3. Se tiver apenas o ID cadastrado
+  // 3. Cadastrado apenas com o ID
   else if (m.id) {
-    pdfCaminho = `${BASE_PDF_URL}/${m.id}.pdf`;
+    pdfCaminho = `${getBasePdfUrl()}/${m.id}.pdf`;
   }
 
-  if (pdfCaminho) {
-    openPDF(pdfCaminho, m.title || m.nome);
+  if (!pdfCaminho) {
+    return alert(`Nenhum arquivo PDF encontrado para "${m.nome || m.title}".`);
+  }
+
+  const token = obterToken();
+
+  // Se houver um Token e o arquivo for do GitHub, faz o download via Fetch autenticado (Blob)
+  if (token && pdfCaminho.includes("githubusercontent.com")) {
+    try {
+      exibirStatus("🔄 Carregando partitura autenticada...", "blue");
+      
+      const res = await fetch(pdfCaminho, {
+        headers: { 'Authorization': `token ${token}` }
+      });
+
+      if (!res.ok) {
+        throw new Error(`Erro HTTP ${res.status}: Não foi possível carregar a partitura.`);
+      }
+
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      openPDF(blobUrl, m.title || m.nome);
+      exibirStatus("");
+    } catch (err) {
+      console.error(err);
+      showToast("⚠️ Falha ao carregar via token. Tentando acesso direto...", "error");
+      openPDF(pdfCaminho, m.title || m.nome);
+      exibirStatus("");
+    }
   } else {
-    alert(`Nenhum arquivo PDF encontrado para "${m.nome || m.title}".`);
+    // Tenta abrir diretamente se não houver token/for URL pública externa
+    openPDF(pdfCaminho, m.title || m.nome);
   }
 }
 
@@ -804,18 +836,21 @@ function abrirPDFMusica(index) {
             <td>
               <input type="text" value="${m.obs || ''}" placeholder="Observações..." style="width: 100%;" onchange="atualizarCampo(${originalIndex}, 'obs', this.value)">
             </td>
-            <td style="text-align:center; display: flex; gap: 4px; justify-content: center;">
-              <button style="background-color: ${temPdf ? '#e67e22' : '#9ca3af'}; padding: 5px 8px;" onclick="abrirPDFMusica(${originalIndex})" title="${temPdf ? 'Visualizar Partitura' : 'Sem PDF cadastrado'}">
-                <i class="fa-solid fa-file-pdf"></i>
-              </button>
-              <button style="background-color: #dc2626; padding: 5px 8px;" onclick="removerMusica(${originalIndex})" title="Excluir música">
-                <i class="fa-solid fa-trash"></i>
-              </button>
+            <td style="text-align:center;">
+              <div style="display: flex; gap: 4px; justify-content: center;">
+                <button type="button" class="btn-success" onclick="abrirPDFMusica(${originalIndex})" title="Visualizar Partitura">
+                  <i class="fa-solid fa-file-pdf"></i>
+                </button>
+                <button type="button" class="btn-danger" onclick="removerMusica(${originalIndex})" title="Remover Música">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
             </td>
           </tr>
         `;
       });
     }
+  
 
     function aplicarFiltroMusicas() {
       renderizarTabela();
