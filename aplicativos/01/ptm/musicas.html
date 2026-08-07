@@ -714,66 +714,44 @@
       renderizarTabela();
     }
 
-// 1. Gera a URL base dinamicamente conforme as configurações da conta/repositório
-function getBasePdfUrl() {
-  return `https://raw.githubusercontent.com/${GH_CONFIG.user}/${GH_CONFIG.repo}/${GH_CONFIG.branch}/partituras`;
-}
+const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
 
-// 2. Função para abrir o PDF com suporte a token de autenticação (repros privados)
-async function abrirPDFMusica(index) {
+function abrirPDFMusica(index) {
   const m = repertorioAtual[index];
   if (!m) return;
 
   let pdfCaminho = "";
 
-  // 1. Link HTTP completo cadastrado na música
+  // 1. Se a música já tiver um link HTTP completo cadastrado
   if (m.pdfUrl && m.pdfUrl.startsWith("http")) {
     pdfCaminho = m.pdfUrl;
   } 
-  // 2. Caminho relativo (ex: partituras/musica.pdf)
+  // 2. Se for um caminho relativo cadastrado
   else if (m.pdfUrl) {
     const nomeArquivo = m.pdfUrl.replace(/^partituras\//, '');
-    pdfCaminho = `${getBasePdfUrl()}/${nomeArquivo}`;
+    pdfCaminho = `${BASE_PDF_URL}/${nomeArquivo}`;
   } 
-  // 3. Cadastrado apenas com o ID
+  // 3. Se tiver o ID cadastrado
   else if (m.id) {
-    pdfCaminho = `${getBasePdfUrl()}/${m.id}.pdf`;
+    pdfCaminho = `${BASE_PDF_URL}/${m.id}.pdf`;
+  } 
+  // 4. Se tiver apenas o nome/título, formata para o padrão de arquivo do GitHub
+  else if (m.nome || m.title) {
+    const nomeMusica = m.nome || m.title;
+    const nomeFormatado = nomeMusica
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-z0-9]/g, "_");
+    pdfCaminho = `${BASE_PDF_URL}/${nomeFormatado}.pdf`;
   }
 
   if (!pdfCaminho) {
     return alert(`Nenhum arquivo PDF encontrado para "${m.nome || m.title}".`);
   }
 
-  const token = obterToken();
-
-  // Se houver um Token e o arquivo for do GitHub, faz o download via Fetch autenticado (Blob)
-  if (token && pdfCaminho.includes("githubusercontent.com")) {
-    try {
-      exibirStatus("🔄 Carregando partitura autenticada...", "blue");
-      
-      const res = await fetch(pdfCaminho, {
-        headers: { 'Authorization': `token ${token}` }
-      });
-
-      if (!res.ok) {
-        throw new Error(`Erro HTTP ${res.status}: Não foi possível carregar a partitura.`);
-      }
-
-      const blob = await res.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      
-      openPDF(blobUrl, m.title || m.nome);
-      exibirStatus("");
-    } catch (err) {
-      console.error(err);
-      showToast("⚠️ Falha ao carregar via token. Tentando acesso direto...", "error");
-      openPDF(pdfCaminho, m.title || m.nome);
-      exibirStatus("");
-    }
-  } else {
-    // Tenta abrir diretamente se não houver token/for URL pública externa
-    openPDF(pdfCaminho, m.title || m.nome);
-  }
+  // Abre diretamente no visualizador (iframe)
+  openPDF(pdfCaminho, m.title || m.nome);
 }
 
     function atualizarCampo(index, campo, valor) {
