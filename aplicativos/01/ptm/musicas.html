@@ -5,10 +5,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, user-scalable=yes">
   <title>Repertório de Músicas do Aluno</title>  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-  
-  <!-- PDF.js CDN -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf-viewer.min.css">
 
   <style>
     :root {
@@ -112,7 +108,7 @@
     .main-container { display: flex; gap: 15px; width: 100%; align-items: flex-start; position: relative; }
     .content-area { flex: 1; min-width: 300px; }
 
-    /* VISUALIZADOR DE PARTITURAS REDIMENSIONÁVEL COM PDF.JS */
+    /* VISUALIZADOR DE PARTITURAS REDIMENSIONÁVEL COM O MOUSE */
     .pdf-preview-panel {
       position: relative;
       width: 500px;
@@ -128,6 +124,7 @@
       box-shadow: 0 6px 20px rgba(0,0,0,0.3);
       position: sticky;
       top: 20px;
+      transition: none;
       z-index: 100;
     }
 
@@ -149,9 +146,14 @@
       overflow: hidden;
       text-overflow: ellipsis;
       margin: 0;
-      max-width: 150px;
+      max-width: 120px;
     }
-    .pdf-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .pdf-toolbar { 
+      display: flex; 
+      align-items: center; 
+      gap: 4px; 
+      flex-wrap: wrap;
+    }
     .btn-pdf-action {
       background-color: #2c3e50;
       color: #ecf0f1;
@@ -181,49 +183,79 @@
     }
     .btn-close-preview:hover { color: #e74c3c; }
 
-    /* CONTÊINER DO PDF.JS */
+    .pdf-toolbar-separator {
+      width: 1px;
+      height: 24px;
+      background-color: #455a64;
+      margin: 0 4px;
+    }
+
+    /* CONTÊINER DUAL IFRAME */
     .pdf-container {
-      flex: 1;
+      display: flex;
       width: 100%;
       height: 100%;
+      gap: 6px;
       background-color: #1e293b;
       padding: 4px;
       position: relative;
       overflow: hidden;
-      touch-action: none;
-      display: flex;
-      gap: 4px;
     }
 
-    /* Canvas do PDF.js - permite zoom com os dedos */
-    .pdf-page-container {
+    /* Wrapper para aplicar zoom via CSS nos iframes */
+    .pdf-frame-wrapper {
       flex: 1;
-      width: 50%;
+      width: 100%;
       height: 100%;
       overflow: auto;
-      touch-action: pinch-zoom;
       position: relative;
-      background: #1e293b;
+      background-color: #1e293b;
       display: flex;
       align-items: center;
       justify-content: center;
     }
 
-    .pdf-page-container.hidden {
+    .pdf-frame-wrapper.hidden {
       display: none !important;
     }
 
-    .pdf-page-container canvas {
-      display: block;
-      margin: 0 auto;
-      background: white;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+    .pdf-frame-wrapper iframe {
       width: 100%;
-      height: auto;
-      touch-action: pinch-zoom;
+      height: 100%;
+      border: none;
+      border-radius: 4px;
+      background-color: #ffffff;
+      transform-origin: center center;
+      transition: transform 0.2s ease;
     }
 
-    /* Alça de redimensionamento do painel */
+    /* Controles de Zoom */
+    .pdf-zoom-controls {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .pdf-zoom-controls .btn-pdf-action {
+      font-size: 0.7rem;
+      padding: 2px 8px;
+      min-width: 28px;
+    }
+    .pdf-zoom-controls span {
+      font-size: 0.7rem;
+      min-width: 40px;
+      text-align: center;
+      color: #ecf0f1;
+    }
+
+    /* Sobreposição transparente para capturar o mouse enquanto arrasta sobre o iframe */
+    .iframe-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 10;
+      display: none;
+    }
+
+    /* ALÇAS DE REDIMENSIONAMENTO COM O MOUSE (RESIZE HANDLES) */
     .resize-handle {
       position: absolute;
       z-index: 20;
@@ -246,46 +278,12 @@
       border-radius: 0 0 0 4px;
     }
 
-    /* Controles de zoom para o PDF */
-    .pdf-zoom-controls {
-      display: flex;
-      align-items: center;
-      gap: 4px;
-      margin: 0 4px;
-    }
-    .pdf-zoom-controls .btn-pdf-action {
-      font-size: 0.7rem;
-      padding: 2px 8px;
-    }
-    .pdf-zoom-controls span {
-      font-size: 0.7rem;
-      min-width: 40px;
-      text-align: center;
-      color: #ecf0f1;
-    }
-
-    /* Separador na toolbar */
-    .pdf-toolbar-separator {
-      width: 1px;
-      height: 24px;
-      background-color: #455a64;
-      margin: 0 4px;
-    }
-
-    /* Responsivo */
     @media (max-width: 768px) {
-      .main-container { flex-direction: column; }
-      .pdf-preview-panel { 
-        width: 100% !important; 
-        height: 80vh !important;
-        position: relative;
-        top: 0;
-      }
       .pdf-preview-header h3 {
-        max-width: 100px;
+        max-width: 80px;
         font-size: 0.8rem;
       }
-      .pdf-toolbar .btn-pdf-action {
+      .btn-pdf-action {
         font-size: 0.65rem;
         padding: 2px 6px;
       }
@@ -380,7 +378,7 @@
       </div>
     </div>
 
-    <!-- PAINEL VISUALIZADOR DE PDF COM PDF.JS E SUPORTE A ZOOM COM TOUCH -->
+    <!-- PAINEL VISUALIZADOR DE PDF COM SUPORTE A ZOOM NUMÉRICO -->
     <section class="pdf-preview-panel" id="pdfPreviewPanel">
       <!-- ALÇAS DE REDIMENSIONAMENTO -->
       <div class="resize-handle resize-handle-left" id="handleLeft" title="Arraste para ajustar a largura"></div>
@@ -390,13 +388,12 @@
       <div class="pdf-preview-header">
         <h3 id="pdfPreviewTitle">Partitura</h3>
         <div class="pdf-toolbar">
-          <!-- Botões 1 Pág e 2 Pág -->
           <button type="button" class="btn-pdf-action active" id="btnPage1" title="Visualizar 1 Página">1 Pág</button>
           <button type="button" class="btn-pdf-action" id="btnPage2" title="Visualizar 2 Páginas Lado a Lado">2 Pág</button>
           
           <div class="pdf-toolbar-separator"></div>
           
-          <!-- Controles de Zoom -->
+          <!-- CONTROLES DE ZOOM NUMÉRICO -->
           <div class="pdf-zoom-controls">
             <button type="button" class="btn-pdf-action" id="pdfZoomOut" title="Diminuir Zoom">−</button>
             <span id="pdfZoomLevel">100%</span>
@@ -410,20 +407,20 @@
       </div>
 
       <div class="pdf-container" id="pdfContainer">
-        <div class="pdf-page-container" id="pdfPage1Container">
-          <canvas id="pdfCanvas1"></canvas>
+        <!-- Overlay para cobrir os iframes durante o drag do mouse -->
+        <div class="iframe-overlay" id="iframeOverlay"></div>
+        
+        <div class="pdf-frame-wrapper" id="pdfWrapper1">
+          <iframe class="pdf-frame" id="pdfIframe1" src=""></iframe>
         </div>
-        <div class="pdf-page-container hidden" id="pdfPage2Container">
-          <canvas id="pdfCanvas2"></canvas>
+        <div class="pdf-frame-wrapper hidden" id="pdfWrapper2">
+          <iframe class="pdf-frame" id="pdfIframe2" src=""></iframe>
         </div>
       </div>
     </section>
   </div>
 
   <script>
-    // Configuração do PDF.js
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     let repertorioAtual = [];
     let shaArquivoAtual = null;
@@ -431,13 +428,9 @@
     let loteImportado = [];
     let dadosMusicasCache = null;
     
-    // Variáveis para o PDF
-    let pdfDoc = null;
-    let pdfScale = 1.0;
     let currentPdfUrl = '';
-    let pdfRenderTask1 = null;
-    let pdfRenderTask2 = null;
-    let currentViewMode = 1; // 1 = uma página, 2 = duas páginas
+    let currentViewMode = 1;
+    let pdfZoom = 1.0; // 1.0 = 100%
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -457,15 +450,15 @@
       });
 
       // Eventos do Visualizador PDF
-      document.getElementById('btnClosePreview')?.addEventListener('click', fecharVisualizador);
-      document.getElementById('btnFullscreen')?.addEventListener('click', toggleFullscreen);
-      document.getElementById('pdfZoomIn')?.addEventListener('click', () => changeZoom(0.2));
-      document.getElementById('pdfZoomOut')?.addEventListener('click', () => changeZoom(-0.2));
-      document.getElementById('pdfFitWidth')?.addEventListener('click', fitToWidth);
-      
-      // Botões 1 Pág e 2 Pág
       document.getElementById('btnPage1')?.addEventListener('click', () => setViewMode(1));
       document.getElementById('btnPage2')?.addEventListener('click', () => setViewMode(2));
+      document.getElementById('btnFullscreen')?.addEventListener('click', toggleFullscreen);
+      document.getElementById('btnClosePreview')?.addEventListener('click', fecharVisualizador);
+      
+      // Eventos de Zoom
+      document.getElementById('pdfZoomIn')?.addEventListener('click', () => changeZoom(0.1));
+      document.getElementById('pdfZoomOut')?.addEventListener('click', () => changeZoom(-0.1));
+      document.getElementById('pdfFitWidth')?.addEventListener('click', fitToWidth);
 
       // Inicializa o sistema de Arrastar/Redimensionar com o Mouse
       initResizeHandlers();
@@ -510,6 +503,7 @@
     // --- LÓGICA DE ARRASTAR / REDIMENSIONAR PAINEL PDF COM O MOUSE ---
     function initResizeHandlers() {
       const panel = document.getElementById('pdfPreviewPanel');
+      const overlay = document.getElementById('iframeOverlay');
       const handleLeft = document.getElementById('handleLeft');
       const handleBottom = document.getElementById('handleBottom');
       const handleCorner = document.getElementById('handleCorner');
@@ -518,6 +512,22 @@
       let isResizingBottom = false;
       let startX, startY, startWidth, startHeight;
 
+      handleLeft.addEventListener('mousedown', (e) => {
+        isResizingLeft = true;
+        startDrag(e);
+      });
+
+      handleBottom.addEventListener('mousedown', (e) => {
+        isResizingBottom = true;
+        startDrag(e);
+      });
+
+      handleCorner.addEventListener('mousedown', (e) => {
+        isResizingLeft = true;
+        isResizingBottom = true;
+        startDrag(e);
+      });
+
       function startDrag(e) {
         e.preventDefault();
         startX = e.clientX;
@@ -525,6 +535,8 @@
         startWidth = panel.offsetWidth;
         startHeight = panel.offsetHeight;
         
+        overlay.style.display = 'block';
+
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', stopDrag);
       }
@@ -534,205 +546,129 @@
           const dx = startX - e.clientX;
           const newWidth = Math.max(300, Math.min(window.innerWidth * 0.9, startWidth + dx));
           panel.style.width = `${newWidth}px`;
-          setTimeout(() => renderPDFPages(), 100);
         }
 
         if (isResizingBottom) {
           const dy = e.clientY - startY;
           const newHeight = Math.max(350, Math.min(window.innerHeight * 0.95, startHeight + dy));
           panel.style.height = `${newHeight}px`;
-          setTimeout(() => renderPDFPages(), 100);
         }
       }
 
       function stopDrag() {
         isResizingLeft = false;
         isResizingBottom = false;
+        overlay.style.display = 'none';
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', stopDrag);
       }
-
-      handleLeft.addEventListener('mousedown', (e) => { isResizingLeft = true; startDrag(e); });
-      handleBottom.addEventListener('mousedown', (e) => { isResizingBottom = true; startDrag(e); });
-      handleCorner.addEventListener('mousedown', (e) => { isResizingLeft = true; isResizingBottom = true; startDrag(e); });
     }
 
-    // --- FUNÇÕES DO PDF.JS COM SUPORTE A 2 PÁGINAS ---
-    async function openPDF(url, title = 'Partitura') {
-      const panel = document.getElementById('pdfPreviewPanel');
-      const titleEl = document.getElementById('pdfPreviewTitle');
-      
-      currentPdfUrl = url;
-      if (titleEl) titleEl.textContent = title;
-      
-      panel.style.display = 'flex';
-      
-      try {
-        const loadingTask = pdfjsLib.getDocument(url);
-        pdfDoc = await loadingTask.promise;
-        
-        pdfScale = 1.0;
-        currentViewMode = 1;
-        document.getElementById('btnPage1').classList.add('active');
-        document.getElementById('btnPage2').classList.remove('active');
-        document.getElementById('pdfPage2Container').classList.add('hidden');
-        
-        await renderPDFPages();
-        updateZoomDisplay();
-      } catch (err) {
-        console.error('Erro ao carregar PDF:', err);
-        showToast('❌ Erro ao carregar o PDF', 'error');
-      }
-    }
-
-    function setViewMode(mode) {
-      if (!pdfDoc) return;
-      
-      currentViewMode = mode;
-      const page2Container = document.getElementById('pdfPage2Container');
-      const btn1 = document.getElementById('btnPage1');
-      const btn2 = document.getElementById('btnPage2');
-      
-      if (mode === 1) {
-        page2Container.classList.add('hidden');
-        btn1.classList.add('active');
-        btn2.classList.remove('active');
-        // Ajusta a largura se estiver muito grande
-        const panel = document.getElementById('pdfPreviewPanel');
-        if (parseInt(panel.style.width) > 700) {
-          panel.style.width = '550px';
-        }
-      } else {
-        page2Container.classList.remove('hidden');
-        btn1.classList.remove('active');
-        btn2.classList.add('active');
-        // Aumenta a largura para acomodar 2 páginas
-        const panel = document.getElementById('pdfPreviewPanel');
-        if (parseInt(panel.style.width) < 700 || !panel.style.width) {
-          panel.style.width = '900px';
-        }
-      }
-      
-      renderPDFPages();
-    }
-
-    async function renderPDFPages() {
-      if (!pdfDoc) return;
-      
-      // Renderiza página 1
-      await renderPage(1, 'pdfCanvas1');
-      
-      // Renderiza página 2 se o modo for 2
-      if (currentViewMode === 2) {
-        await renderPage(2, 'pdfCanvas2');
-      } else {
-        // Limpa o canvas 2
-        const canvas2 = document.getElementById('pdfCanvas2');
-        const ctx2 = canvas2.getContext('2d');
-        ctx2.clearRect(0, 0, canvas2.width, canvas2.height);
-        canvas2.width = 0;
-        canvas2.height = 0;
-      }
-      
-      updateZoomDisplay();
-    }
-
-    async function renderPage(pageNum, canvasId) {
-      const canvas = document.getElementById(canvasId);
-      const container = canvas.parentElement;
-      const ctx = canvas.getContext('2d');
-      
-      // Cancela renderização anterior
-      if (pageNum === 1 && pdfRenderTask1) {
-        pdfRenderTask1.cancel();
-        pdfRenderTask1 = null;
-      } else if (pageNum === 2 && pdfRenderTask2) {
-        pdfRenderTask2.cancel();
-        pdfRenderTask2 = null;
-      }
-
-      if (pageNum > pdfDoc.numPages) {
-        // Se a página não existe, limpa o canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        canvas.width = 0;
-        canvas.height = 0;
-        return;
-      }
-
-      const page = await pdfDoc.getPage(pageNum);
-      
-      // Obtém a largura disponível no container
-      const containerWidth = container.clientWidth - 20;
-      const containerHeight = container.clientHeight - 20;
-      
-      // Calcula a escala para caber no container
-      const viewport = page.getViewport({ scale: 1 });
-      let scaleX = containerWidth / viewport.width;
-      let scaleY = containerHeight / viewport.height;
-      let fitScale = Math.min(scaleX, scaleY, 1);
-      
-      let renderScale = pdfScale;
-      if (fitScale < renderScale) {
-        renderScale = fitScale;
-      }
-      
-      // Se for modo 2 páginas, reduz um pouco mais para caber as duas
-      if (currentViewMode === 2) {
-        renderScale = renderScale * 0.95;
-      }
-      
-      const finalViewport = page.getViewport({ scale: renderScale });
-      
-      canvas.width = finalViewport.width;
-      canvas.height = finalViewport.height;
-      
-      const renderContext = {
-        canvasContext: ctx,
-        viewport: finalViewport
-      };
-      
-      const renderTask = page.render(renderContext);
-      
-      if (pageNum === 1) {
-        pdfRenderTask1 = renderTask;
-      } else {
-        pdfRenderTask2 = renderTask;
-      }
-      
-      await renderTask.promise;
-      
-      if (pageNum === 1) {
-        pdfRenderTask1 = null;
-      } else {
-        pdfRenderTask2 = null;
-      }
-    }
-
+    // --- FUNÇÕES DE ZOOM ---
     function changeZoom(delta) {
-      if (!pdfDoc) return;
-      
-      pdfScale = Math.max(0.3, Math.min(3.0, pdfScale + delta));
-      renderPDFPages();
+      pdfZoom = Math.max(0.3, Math.min(3.0, pdfZoom + delta));
+      applyZoom();
       updateZoomDisplay();
+    }
+
+    function applyZoom() {
+      const wrapper1 = document.getElementById('pdfWrapper1');
+      const wrapper2 = document.getElementById('pdfWrapper2');
+      const iframe1 = document.getElementById('pdfIframe1');
+      const iframe2 = document.getElementById('pdfIframe2');
+      
+      // Aplica o zoom via transform CSS
+      const zoomPercent = pdfZoom * 100;
+      iframe1.style.transform = `scale(${pdfZoom})`;
+      iframe1.style.transformOrigin = 'center center';
+      
+      if (currentViewMode === 2) {
+        iframe2.style.transform = `scale(${pdfZoom})`;
+        iframe2.style.transformOrigin = 'center center';
+      }
+      
+      // Ajusta o tamanho do wrapper para acomodar o zoom
+      // O wrapper já tem overflow: auto, então o scroll aparece automaticamente
     }
 
     function fitToWidth() {
-      if (!pdfDoc) return;
+      if (!currentPdfUrl) return;
       
-      const container = document.getElementById('pdfPage1Container');
-      const containerWidth = container.clientWidth - 20;
+      // Tenta ajustar para caber na largura do container
+      const wrapper1 = document.getElementById('pdfWrapper1');
+      const containerWidth = wrapper1.clientWidth - 20;
       
-      pdfDoc.getPage(1).then(page => {
-        const viewport = page.getViewport({ scale: 1 });
-        const fitScale = containerWidth / viewport.width;
-        pdfScale = Math.max(0.3, fitScale);
-        renderPDFPages();
-        updateZoomDisplay();
-      });
+      // Estima o zoom necessário (assumindo que 100% ocupa toda a largura)
+      // Como não temos como saber o tamanho real do PDF, usamos um valor padrão
+      pdfZoom = Math.max(0.5, Math.min(1.0, containerWidth / 800));
+      applyZoom();
+      updateZoomDisplay();
     }
 
     function updateZoomDisplay() {
-      document.getElementById('pdfZoomLevel').textContent = `${Math.round(pdfScale * 100)}%`;
+      document.getElementById('pdfZoomLevel').textContent = `${Math.round(pdfZoom * 100)}%`;
+    }
+
+    // --- PAINEL VISUALIZADOR PDF (1 OU 2 PÁGINAS) ---
+    function openPDF(url, title = 'Partitura') {
+      const panel = document.getElementById('pdfPreviewPanel');
+      const titleEl = document.getElementById('pdfPreviewTitle');
+      
+      currentPdfUrl = url.split('#')[0]; 
+      if (titleEl) titleEl.textContent = title;
+      
+      // Reseta o zoom para 100%
+      pdfZoom = 1.0;
+      
+      // Abre por padrão na visualização de 1 página
+      setViewMode(1);
+      
+      panel.style.display = 'flex';
+      updateZoomDisplay();
+    }
+
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      const panel = document.getElementById('pdfPreviewPanel');
+      const wrapper1 = document.getElementById('pdfWrapper1');
+      const wrapper2 = document.getElementById('pdfWrapper2');
+      const iframe1 = document.getElementById('pdfIframe1');
+      const iframe2 = document.getElementById('pdfIframe2');
+      const btn1 = document.getElementById('btnPage1');
+      const btn2 = document.getElementById('btnPage2');
+
+      if (!currentPdfUrl) return;
+
+      if (mode === 1) {
+        wrapper2.classList.add('hidden');
+        wrapper2.style.display = 'none';
+        iframe2.src = '';
+        iframe1.src = `${currentPdfUrl}#page=1`;
+        
+        if (!panel.style.width || panel.style.width === '') {
+          panel.style.width = '520px';
+        }
+
+        btn1?.classList.add('active');
+        btn2?.classList.remove('active');
+        
+        // Reseta o transform do iframe2
+        iframe2.style.transform = 'scale(1)';
+        iframe2.style.transformOrigin = 'center center';
+      } else if (mode === 2) {
+        wrapper2.classList.remove('hidden');
+        wrapper2.style.display = 'flex';
+        iframe1.src = `${currentPdfUrl}#page=1`;
+        iframe2.src = `${currentPdfUrl}#page=2`;
+
+        panel.style.width = '980px';
+
+        btn1?.classList.remove('active');
+        btn2?.classList.add('active');
+      }
+      
+      // Aplica o zoom após mudar o modo
+      setTimeout(() => applyZoom(), 100);
     }
 
     function toggleFullscreen() {
@@ -748,70 +684,21 @@
 
     function fecharVisualizador() {
       const panel = document.getElementById('pdfPreviewPanel');
-      const canvas1 = document.getElementById('pdfCanvas1');
-      const canvas2 = document.getElementById('pdfCanvas2');
+      const iframe1 = document.getElementById('pdfIframe1');
+      const iframe2 = document.getElementById('pdfIframe2');
       
       panel.style.display = 'none';
+      if (iframe1) iframe1.src = '';
+      if (iframe2) iframe2.src = '';
       
-      if (pdfRenderTask1) {
-        pdfRenderTask1.cancel();
-        pdfRenderTask1 = null;
-      }
-      if (pdfRenderTask2) {
-        pdfRenderTask2.cancel();
-        pdfRenderTask2 = null;
-      }
-      pdfDoc = null;
-      
-      // Limpa os canvases
-      [canvas1, canvas2].forEach(canvas => {
-        const ctx = canvas.getContext('2d');
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        canvas.width = 0;
-        canvas.height = 0;
-      });
-      
-      document.getElementById('pdfPage2Container').classList.add('hidden');
-      document.getElementById('btnPage1').classList.add('active');
-      document.getElementById('btnPage2').classList.remove('active');
-      currentViewMode = 1;
+      // Reseta o zoom
+      pdfZoom = 1.0;
+      updateZoomDisplay();
       
       if (document.fullscreenElement) document.exitFullscreen();
     }
 
-    // --- GESTOS DE PINÇA (TOUCH) ---
-    let initialPinchDistance = 0;
-    let initialPinchScale = 1.0;
-
-    document.getElementById('pdfPage1Container').addEventListener('touchstart', function(e) {
-      if (e.touches.length === 2) {
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        initialPinchDistance = Math.hypot(
-          touch2.clientX - touch1.clientX,
-          touch2.clientY - touch1.clientY
-        );
-        initialPinchScale = pdfScale;
-      }
-    }, { passive: true });
-
-    document.getElementById('pdfPage1Container').addEventListener('touchmove', function(e) {
-      if (e.touches.length === 2) {
-        e.preventDefault();
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        const currentDistance = Math.hypot(
-          touch2.clientX - touch1.clientX,
-          touch2.clientY - touch1.clientY
-        );
-        const scaleFactor = currentDistance / initialPinchDistance;
-        pdfScale = Math.max(0.3, Math.min(3.0, initialPinchScale * scaleFactor));
-        renderPDFPages();
-        updateZoomDisplay();
-      }
-    }, { passive: false });
-
-    // --- LÓGICA DE ALUNOS E REPERTÓRIO (mantida igual) ---
+    // --- LÓGICA DE ALUNOS E REPERTÓRIO ---
     async function buscarIdAluno(busca) {
       const token = obterToken();
       if (!token) return busca.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "_");
@@ -998,7 +885,9 @@
         return alert(`Não foi possível identificar o PDF para: "${m.nome || m.title}".`);
       }
 
-      openPDF(pdfCaminho, m.title || m.nome);
+      const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdfCaminho)}&embedded=true`;
+
+      openPDF(viewerUrl, m.title || m.nome);
     }
 
     function atualizarCampo(index, campo, valor) {
@@ -1035,6 +924,7 @@
         const originalIndex = musicas.indexOf(m);
         const statusClass = getStatusClass(m.status);
         const loteNome = m.lote || 'Geral';
+        const temPdf = !!(m.pdfUrl || m.id);
         
         tbody.innerHTML += `
           <tr>
@@ -1292,19 +1182,13 @@
       }
     }
 
-    // Redimensionamento automático quando a janela muda
-    window.addEventListener('resize', () => {
-      if (pdfDoc) {
-        clearTimeout(window._pdfResizeTimeout);
-        window._pdfResizeTimeout = setTimeout(() => renderPDFPages(), 300);
-      }
+    // Detecta quando o iframe é carregado para aplicar o zoom
+    document.getElementById('pdfIframe1')?.addEventListener('load', function() {
+      setTimeout(applyZoom, 200);
     });
-
-    // Salva o token quando o usuário digita
-    document.getElementById("gh-token").addEventListener("input", (e) => {
-      localStorage.setItem("gh_pat_token", e.target.value.trim());
+    document.getElementById('pdfIframe2')?.addEventListener('load', function() {
+      setTimeout(applyZoom, 200);
     });
-
   </script>
 </body>
 </html>
