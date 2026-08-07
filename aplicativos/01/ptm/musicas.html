@@ -718,40 +718,44 @@ const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/
 
 function abrirPDFMusica(index) {
   const m = repertorioAtual[index];
-  if (!m) return;
+  if (!m) return alert("Erro: Música não encontrada na lista.");
 
   let pdfCaminho = "";
 
-  // 1. Se já tiver um link HTTP completo
+  // 1. Se já for um link http completo
   if (m.pdfUrl && m.pdfUrl.startsWith("http")) {
     pdfCaminho = m.pdfUrl;
   } 
-  // 2. Se a propriedade id, codigo ou numero contiver o valor (ex: 24110)
-  else if (m.id !== undefined && m.id !== null && m.id !== "") {
-    pdfCaminho = `${BASE_PDF_URL}/${m.id}.pdf`;
-  } 
-  else if (m.codigo !== undefined && m.codigo !== null && m.codigo !== "") {
-    pdfCaminho = `${BASE_PDF_URL}/${m.codigo}.pdf`;
-  }
-  else if (m.numero !== undefined && m.numero !== null && m.numero !== "") {
-    pdfCaminho = `${BASE_PDF_URL}/${m.numero}.pdf`;
-  }
-  // 3. Se o nome ou título da música for o próprio número (ex: "24110")
-  else if (m.nome && !isNaN(m.nome)) {
-    pdfCaminho = `${BASE_PDF_URL}/${m.nome}.pdf`;
-  }
-  else if (m.title && !isNaN(m.title)) {
-    pdfCaminho = `${BASE_PDF_URL}/${m.title}.pdf`;
-  }
-  // 4. Fallback padrão caso venha no formato "partituras/24110.pdf"
+  // 2. Se m.pdfUrl tiver o caminho (ex: "partituras/24110.pdf" ou "24110.pdf")
   else if (m.pdfUrl) {
-    const nomeArquivo = m.pdfUrl.replace(/^partituras\//, '');
-    pdfCaminho = `${BASE_PDF_URL}/${nomeArquivo}`;
+    const nomeLimpo = m.pdfUrl.replace(/^partituras\//, '').trim();
+    // Se o que sobrou for só o número ou nome do arquivo
+    if (nomeLimpo.includes("/")) {
+      pdfCaminho = `https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/${nomeLimpo}`;
+    } else {
+      pdfCaminho = `${BASE_PDF_URL}/${nomeLimpo}`;
+    }
+  } 
+  // 3. Se tiver o ID numérico gravado (ex: 24110)
+  else if (m.id) {
+    pdfCaminho = `${BASE_PDF_URL}/${m.id}.pdf`;
+  }
+  // 4. Última tentativa: pega qualquer número que estiver no nome ou título da música
+  else {
+    const textoBusca = m.nome || m.title || "";
+    const matchNumero = textoBusca.match(/\d+/);
+    if (matchNumero) {
+      pdfCaminho = `${BASE_PDF_URL}/${matchNumero[0]}.pdf`;
+    }
   }
 
   if (!pdfCaminho) {
-    return alert(`Nenhum código numérico encontrado para a música "${m.nome || m.title}".`);
+    return alert(`Não foi possível identificar o PDF para: "${m.nome || m.title}". Verifique o cadastro.`);
   }
+
+  // DIAGNÓSTICO: Mostra o link gerado em um alerta. 
+  // Copie esse link e cole no navegador para ver se o PDF abre direto no GitHub.
+  console.log("Tentando abrir URL:", pdfCaminho);
 
   // Abre diretamente no visualizador embutido (iframe)
   openPDF(pdfCaminho, m.title || m.nome);
