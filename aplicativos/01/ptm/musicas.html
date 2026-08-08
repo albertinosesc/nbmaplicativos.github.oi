@@ -1050,40 +1050,109 @@
     function getAbcUrl(m) {
       let abcUrl = '';
       
-      if (m.abcFile && m.abcFile.startsWith('http')) {
-        abcUrl = m.abcFile;
-      } else if (m.abcFile) {
-        const nomeLimpo = m.abcFile.replace(/^abc\//, '').trim();
-        if (nomeLimpo.includes('aplicativos/01/ptm/abc')) {
-          abcUrl = `https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/${nomeLimpo}`;
-        } else if (nomeLimpo.includes('/')) {
-          abcUrl = `https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/${nomeLimpo}`;
+      // Se tem abcFile definido
+      if (m.abcFile) {
+        // Se já é uma URL completa
+        if (m.abcFile.startsWith('http')) {
+          abcUrl = m.abcFile;
         } else {
-          abcUrl = `${BASE_ABC_URL}/${nomeLimpo}`;
+          // Remove 'abc/' do início se existir
+          const nomeLimpo = m.abcFile.replace(/^abc\//, '').trim();
+          // Se já tem o caminho completo
+          if (nomeLimpo.includes('aplicativos/01/ptm/abc')) {
+            abcUrl = `https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/${nomeLimpo}`;
+          } else if (nomeLimpo.includes('/')) {
+            abcUrl = `https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/${nomeLimpo}`;
+          } else {
+            abcUrl = `${BASE_ABC_URL}/${nomeLimpo}`;
+          }
         }
-      } else if (m.id) {
+      } 
+      // Se tem ID, usa o ID para montar a URL
+      else if (m.id) {
         abcUrl = `${BASE_ABC_URL}/${m.id}.txt`;
-      } else {
+      } 
+      // Tenta extrair número do nome
+      else {
         const textoBusca = m.nome || m.title || "";
         const matchNumero = textoBusca.match(/\d+/);
         if (matchNumero) {
           abcUrl = `${BASE_ABC_URL}/${matchNumero[0]}.txt`;
         } else {
+          // Tenta com o nome limpo
           const nomeLimpo = textoBusca.toLowerCase().replace(/[^a-z0-9]/g, '_');
           abcUrl = `${BASE_ABC_URL}/${nomeLimpo}.txt`;
         }
+      }
+
+      // Se ainda não tem URL, tenta com o nome
+      if (!abcUrl) {
+        const textoBusca = m.nome || m.title || "";
+        const nomeLimpo = textoBusca.toLowerCase().replace(/[^a-z0-9]/g, '_');
+        abcUrl = `${BASE_ABC_URL}/${nomeLimpo}.txt`;
       }
 
       return abcUrl;
     }
 
     async function verificarArquivoExiste(url) {
+      if (!url) return false;
+      
       try {
-        const response = await fetch(url, { method: 'HEAD' });
-        return response.ok;
+        // Tenta fazer uma requisição HEAD
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const response = await fetch(url, { 
+          method: 'HEAD',
+          signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        // Se a resposta for 200-299, o arquivo existe
+        const existe = response.ok;
+        console.log(`📄 Verificando: ${url} -> ${existe ? '✅ EXISTE' : '❌ NÃO EXISTE'}`);
+        return existe;
       } catch (e) {
+        console.log(`📄 Verificando: ${url} -> ❌ ERRO: ${e.message}`);
         return false;
       }
+    }
+
+    // ===== VERIFICAÇÃO ALTERNATIVA PARA ABC COM MÚLTIPLAS EXTENSÕES =====
+    async function verificarArquivoABCExiste(m) {
+      // Lista de possíveis extensões
+      const extensoes = ['.txt', '.abc'];
+      
+      for (const ext of extensoes) {
+        // Tenta gerar URL com cada extensão
+        let url = '';
+        
+        if (m.abcFile) {
+          const base = m.abcFile.replace(/\.[^.]+$/, '');
+          url = `${BASE_ABC_URL}/${base}${ext}`;
+        } else if (m.id) {
+          url = `${BASE_ABC_URL}/${m.id}${ext}`;
+        } else {
+          const textoBusca = m.nome || m.title || "";
+          const matchNumero = textoBusca.match(/\d+/);
+          if (matchNumero) {
+            url = `${BASE_ABC_URL}/${matchNumero[0]}${ext}`;
+          } else {
+            const nomeLimpo = textoBusca.toLowerCase().replace(/[^a-z0-9]/g, '_');
+            url = `${BASE_ABC_URL}/${nomeLimpo}${ext}`;
+          }
+        }
+        
+        console.log(`🔍 Tentando: ${url}`);
+        const existe = await verificarArquivoExiste(url);
+        if (existe) {
+          return url;
+        }
+      }
+      
+      return null;
     }
 
     async function abrirPDFMusica(index) {
@@ -1140,25 +1209,21 @@
         const statusClass = getStatusClass(m.status);
         const loteNome = m.lote || 'Geral';
         
+        // Verifica PDF
         const pdfUrl = getPdfUrl(m);
-        const abcUrl = getAbcUrl(m);
-        
         let pdfExiste = false;
+        if (pdfUrl) {
+          pdfExiste = await verificarArquivoExiste(pdfUrl);
+        }
+        
+        // Verifica ABC com múltiplas extensões
         let abcExiste = false;
-        
-        try {
-          if (pdfUrl) {
-            const resPdf = await fetch(pdfUrl, { method: 'HEAD' });
-            pdfExiste = resPdf.ok;
-          }
-        } catch (e) { pdfExiste = false; }
-        
-        try {
-          if (abcUrl) {
-            const resAbc = await fetch(abcUrl, { method: 'HEAD' });
-            abcExiste = resAbc.ok;
-          }
-        } catch (e) { abcExiste = false; }
+        let abcUrlEncontrada = await verificarArquivoABCExiste(m);
+        if (abcUrlEncontrada) {
+          abcExiste = true;
+          // Salva a URL encontrada para usar depois
+          m._abcUrl = abcUrlEncontrada;
+        }
         
         const pdfClass = pdfExiste ? 'btn-pdf' : 'btn-pdf disabled';
         const abcClass = abcExiste ? 'btn-abc' : 'btn-abc disabled';
@@ -1170,6 +1235,7 @@
             <td>
               <strong>${m.title || m.nome}</strong>
               ${m.composer ? `<br><small style="color: #6b7280;"><i class="fa-solid fa-user"></i> ${m.composer}</small>` : ''}
+              ${!abcExiste ? `<br><small style="color: #ef4444;">⚠️ ABC não encontrado</small>` : ''}
             </td>
             <td style="text-align:center;">
               <span class="badge-lote"><i class="fa-solid fa-box"></i> ${loteNome}</span>
@@ -1457,18 +1523,23 @@
 
       titleEl.textContent = `🎵 ${m.nome || m.title || 'Partitura ABC'}`;
 
-      const abcUrl = getAbcUrl(m);
+      // Usar a URL que foi encontrada na verificação, ou gerar uma nova
+      let abcUrl = m._abcUrl || getAbcUrl(m);
       
-      // Log para debug
-      console.log('🔍 URL do ABC:', abcUrl);
+      // Se não tem URL salva, tenta verificar novamente
+      if (!abcUrl || !await verificarArquivoExiste(abcUrl)) {
+        const urlEncontrada = await verificarArquivoABCExiste(m);
+        if (urlEncontrada) {
+          abcUrl = urlEncontrada;
+          m._abcUrl = urlEncontrada;
+        }
+      }
+      
+      console.log('🔍 URL do ABC final:', abcUrl);
 
-      // Verificar se o arquivo existe
-      const existe = await verificarArquivoExiste(abcUrl);
-      console.log('📄 Arquivo existe?', existe);
-      
-      if (!existe) {
+      if (!abcUrl) {
         showToast(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}"`, 'error');
-        return alert(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}".\n\nCaminho: ${abcUrl}`);
+        return alert(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}".\n\nVerifique se o arquivo existe na pasta:\n${BASE_ABC_URL}`);
       }
 
       modal.classList.add('active');
