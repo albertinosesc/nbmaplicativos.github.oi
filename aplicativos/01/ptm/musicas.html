@@ -607,40 +607,46 @@
     let abcCurrentCode = '';
     let abcIsFullscreen = false;
 
+   
     window.onload = function() {
-      const savedToken = localStorage.getItem("gh_pat_token");
-      if (savedToken) {
-        document.getElementById("gh-token").value = savedToken;
-      }
+  const savedToken = localStorage.getItem("gh_pat_token");
+  if (savedToken) {
+    document.getElementById("gh-token").value = savedToken;
+    // Chamar a validação de forma assíncrona
+    validarEAutenticarToken(true);
+  }
 
-      document.getElementById("gh-token").addEventListener("input", (e) => {
-        localStorage.setItem("gh_pat_token", e.target.value.trim());
-      });
+  document.getElementById("gh-token").addEventListener("input", (e) => {
+    localStorage.setItem("gh_pat_token", e.target.value.trim());
+  });
 
-      document.getElementById("buscaAluno").addEventListener("keyup", (e) => {
-        if (e.key === "Enter") carregarMusicasAluno();
-      });
-      document.getElementById("novaMusica").addEventListener("keyup", (e) => {
-        if (e.key === "Enter") adicionarMusica();
-      });
+  document.getElementById("buscaAluno").addEventListener("keyup", (e) => {
+    if (e.key === "Enter") carregarMusicasAluno();
+  });
+  document.getElementById("novaMusica").addEventListener("keyup", (e) => {
+    if (e.key === "Enter") adicionarMusica();
+  });
 
-      document.getElementById('btnPage1')?.addEventListener('click', () => setViewMode(1));
-      document.getElementById('btnPage2')?.addEventListener('click', () => setViewMode(2));
-      document.getElementById('btnFullscreen')?.addEventListener('click', toggleFullscreen);
-      document.getElementById('btnClosePreview')?.addEventListener('click', fecharVisualizador);
+  document.getElementById('btnPage1')?.addEventListener('click', () => setViewMode(1));
+  document.getElementById('btnPage2')?.addEventListener('click', () => setViewMode(2));
+  document.getElementById('btnFullscreen')?.addEventListener('click', toggleFullscreen);
+  document.getElementById('btnClosePreview')?.addEventListener('click', fecharVisualizador);
 
-      initResizeHandlers();
+  initResizeHandlers();
 
-      const urlParams = new URLSearchParams(window.location.search);
-      const loteParam = urlParams.get('lote');
+  const urlParams = new URLSearchParams(window.location.search);
+  const loteParam = urlParams.get('lote');
+  
+  if (loteParam) {
+    exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
+    setTimeout(() => {
+      importarLoteMusicaDireto(loteParam);
+    }, 1000);
+  }
+};
+    
+
       
-      if (loteParam) {
-        exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
-        setTimeout(() => {
-          importarLoteMusicaDireto(loteParam);
-        }, 1000);
-      }
-    };
 
     // ===== FUNÇÕES DE TOAST E STATUS =====
     function obterToken() {
@@ -653,15 +659,47 @@
       toast.innerHTML = mensagem;
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 3000);
-    }
 
-    function validarEAutenticarToken() {
-      const token = obterToken();
-      if (token) {
-        localStorage.setItem("gh_pat_token", token);
-        showToast("🔑 Token salvo com sucesso!", "success");
-      }
+      async function validarEAutenticarToken(silencioso = false) {
+  const token = obterToken();
+  const statusMsg = document.getElementById("token-status-msg");
+
+  if (!token) {
+    if (!silencioso) {
+      statusMsg.style.color = "#dc2626";
+      statusMsg.innerText = "Por favor, digite ou cole um token válido.";
     }
+    return;
+  }
+
+  localStorage.setItem("gh_pat_token", token);
+
+  if (!silencioso) {
+    statusMsg.style.color = "#2563eb";
+    statusMsg.innerText = "Verificando token na API do GitHub...";
+  }
+
+  try {
+    const res = await fetch("https://api.github.com/user", {
+      headers: { "Authorization": `token ${token}` }
+    });
+
+    if (res.ok) {
+      const userData = await res.json();
+      statusMsg.style.color = "#16a34a";
+      statusMsg.innerHTML = `<i class="fa-solid fa-circle-check"></i> Token Autenticado com sucesso! Usuário: <strong>${userData.login}</strong>`;
+      showToast(`✅ Conectado como ${userData.login}`, 'success');
+    } else {
+      statusMsg.style.color = "#dc2626";
+      statusMsg.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Token Inválido ou sem permissão. Verifique se o token tem a permissão 'repo'.`;
+      if (!silencioso) showToast('❌ Token inválido!', 'error');
+    }
+  } catch (err) {
+    statusMsg.style.color = "#dc2626";
+    statusMsg.innerText = "Erro ao conectar com o GitHub para testar o token.";
+    if (!silencioso) showToast('❌ Erro de conexão com GitHub', 'error');
+  }
+}
 
     function exibirStatus(msg, cor = "black") {
       const statusEl = document.getElementById('statusMsg');
