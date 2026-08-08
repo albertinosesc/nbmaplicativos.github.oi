@@ -44,14 +44,6 @@
 
     .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
     
-    .token-status { 
-      font-size: 0.85rem; 
-      font-weight: 600; 
-      margin-top: 4px;
-      width: 100%; 
-      color: #6b7280;
-    }
-
     .toast {
       position: fixed;
       bottom: 20px;
@@ -187,6 +179,7 @@
     }
     .btn-close-preview:hover { color: #e74c3c; }
 
+    /* CONTÊINER COM SCROLL PARA PERMITIR VER TODO O CONTEÚDO DADO O ZOOM */
     .pdf-container {
       display: flex;
       width: 100%;
@@ -217,6 +210,7 @@
       transition: transform 0.1s ease-out;
     }
 
+    /* ALÇAS DE REDIMENSIONAMENTO COM O MOUSE */
     .resize-handle {
       position: absolute;
       z-index: 20;
@@ -236,7 +230,7 @@
       border-radius: 0 0 0 4px;
     }
 
-    /* ===== MODAL ABC ===== */
+    /* ===== MODAL ABC (NOVO) ===== */
     .abc-modal {
       display: none;
       position: fixed;
@@ -445,7 +439,6 @@
     <i class="fa-brands fa-github" style="font-size: 1.2rem;"></i>
     <input type="password" id="gh-token" placeholder="Cole aqui seu Token do GitHub (ghp_...)">
     <button style="background-color: #16a34a;" onclick="validarEAutenticarToken()"><i class="fa-solid fa-key"></i> Confirmar Token</button>
-    <div id="token-status-msg" class="token-status">*O token fica gravado apenas no seu navegador.</div>
   </div>
 
   <div class="main-container">
@@ -526,6 +519,7 @@
           <button type="button" class="btn-pdf-action active" id="btnPage1" title="Visualizar 1 Página">1 Pág</button>
           <button type="button" class="btn-pdf-action" id="btnPage2" title="Visualizar 2 Páginas Lado a Lado">2 Pág</button>
           
+          <!-- CAMPO NUMÉRICO DE ZOOM COM PASSO DE 5% -->
           <div style="display: flex; align-items: center; gap: 3px; background: #2c3e50; padding: 2px 5px; border-radius: 4px; border: 1px solid #455a64;">
             <span style="font-size: 0.72rem; color: #ecf0f1;"><i class="fa-solid fa-magnifying-glass"></i> Zoom:</span>
             <input type="number" id="zoomInput" min="30" max="300" value="100" step="5" style="width: 52px; padding: 1px 3px; font-size: 0.78rem; background: #34495e; color: white; border: 1px solid #55687d; border-radius: 3px; text-align: center;" oninput="alterarZoom(this.value)">
@@ -545,7 +539,7 @@
     </section>
   </div>
 
-  <!-- ===== MODAL ABC ===== -->
+  <!-- ===== MODAL ABC (NOVO) ===== -->
   <div class="abc-modal" id="abcModal">
     <div class="abc-modal-content">
       <div class="abc-modal-header">
@@ -616,54 +610,11 @@
     let abcCurrentCode = '';
     let abcIsFullscreen = false;
 
-    // ===== FUNÇÃO DE VALIDAÇÃO DE TOKEN (CORRIGIDA) =====
-    async function validarEAutenticarToken(silencioso = false) {
-      const token = obterToken();
-      const statusMsg = document.getElementById("token-status-msg");
-
-      if (!token) {
-        if (!silencioso) {
-          statusMsg.style.color = "#dc2626";
-          statusMsg.innerHTML = "⚠️ Por favor, digite ou cole um token válido.";
-          showToast('⚠️ Token não informado!', 'error');
-        }
-        return;
-      }
-
-      localStorage.setItem("gh_pat_token", token);
-
-      if (!silencioso) {
-        statusMsg.style.color = "#2563eb";
-        statusMsg.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> Verificando token na API do GitHub...";
-      }
-
-      try {
-        const res = await fetch("https://api.github.com/user", {
-          headers: { "Authorization": `token ${token}` }
-        });
-
-        if (res.ok) {
-          const userData = await res.json();
-          statusMsg.style.color = "#16a34a";
-          statusMsg.innerHTML = `<i class="fa-solid fa-circle-check"></i> Token Autenticado com sucesso! Usuário: <strong>${userData.login}</strong>`;
-          showToast(`✅ Conectado como ${userData.login}`, 'success');
-        } else {
-          statusMsg.style.color = "#dc2626";
-          statusMsg.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Token Inválido ou sem permissão. Verifique se o token tem a permissão 'repo'.`;
-          if (!silencioso) showToast('❌ Token inválido!', 'error');
-        }
-      } catch (err) {
-        statusMsg.style.color = "#dc2626";
-        statusMsg.innerHTML = "❌ Erro ao conectar com o GitHub para testar o token.";
-        if (!silencioso) showToast('❌ Erro de conexão com GitHub', 'error');
-      }
-    }
-
+    // ===== FUNÇÕES EXISTENTES =====
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
       if (savedToken) {
         document.getElementById("gh-token").value = savedToken;
-        validarEAutenticarToken(true);
       }
 
       document.getElementById("gh-token").addEventListener("input", (e) => {
@@ -695,7 +646,6 @@
       }
     };
 
-    // ===== FUNÇÕES DE TOAST E STATUS =====
     function obterToken() {
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
     }
@@ -708,13 +658,21 @@
       setTimeout(() => toast.remove(), 3000);
     }
 
+    function validarEAutenticarToken() {
+      const token = obterToken();
+      if (token) {
+        localStorage.setItem("gh_pat_token", token);
+        showToast("🔑 Token salvo com sucesso!", "success");
+      }
+    }
+
     function exibirStatus(msg, cor = "black") {
       const statusEl = document.getElementById('statusMsg');
       statusEl.style.color = cor;
       statusEl.innerText = msg;
     }
 
-    // ===== ZOOM PDF =====
+    // --- ZOOM NUMÉRICO CENTRALIZADO (DE 5 EM 5%) ---
     function alterarZoom(valor) {
       let num = parseInt(valor);
       if (isNaN(num)) return;
@@ -735,7 +693,7 @@
       });
     }
 
-    // ===== REDIMENSIONAR PAINEL PDF =====
+    // --- LÓGICA DE ARRASTAR / REDIMENSIONAR PAINEL PDF COM O MOUSE ---
     function initResizeHandlers() {
       const panel = document.getElementById('pdfPreviewPanel');
       const overlay = document.getElementById('iframeOverlay');
@@ -799,7 +757,7 @@
       }
     }
 
-    // ===== PAINEL PDF =====
+    // --- PAINEL VISUALIZADOR PDF (1 OU 2 PÁGINAS) ---
     function openPDF(url, title = 'Partitura') {
       const panel = document.getElementById('pdfPreviewPanel');
       const titleEl = document.getElementById('pdfPreviewTitle');
@@ -873,7 +831,7 @@
       if (document.fullscreenElement) document.exitFullscreen();
     }
 
-    // ===== LÓGICA DE ALUNOS E REPERTÓRIO =====
+    // --- LÓGICA DE ALUNOS E REPERTÓRIO ---
     async function buscarIdAluno(busca) {
       const token = obterToken();
       if (!token) return busca.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "_");
@@ -935,7 +893,7 @@
           `<span onclick="document.getElementById('buscaAluno').value='${id}'; carregarMusicasAluno();" 
                  style="display: inline-block; background: #e5e7eb; padding: 4px 10px; border-radius: 12px; margin: 3px; cursor: pointer; font-size: 0.8rem; font-family: monospace;">
             ${id}
-          </span>
+          </span>`
         ).join(' ');
 
       } catch (e) {
@@ -1012,7 +970,7 @@
         obs: "", 
         lote: "Manual",
         pdfUrl: "",
-        abcFile: ""
+        abcFile: "" 
       });
 
       document.getElementById('novaMusica').value = "";
@@ -1033,7 +991,339 @@
     const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
     const BASE_ABC_URL = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/ptm/abc";
 
-    // ===== FUNÇÃO PARA ABRIR MODAL ABC =====
+    function abrirPDFMusica(index) {
+      const m = repertorioAtual[index];
+      if (!m) return;
+
+      let pdfCaminho = "";
+
+      if (m.pdfUrl && m.pdfUrl.startsWith("http")) {
+        pdfCaminho = m.pdfUrl;
+      } 
+      else if (m.pdfUrl) {
+        const nomeLimpo = m.pdfUrl.replace(/^partituras\//, '').trim();
+        if (nomeLimpo.includes("/")) {
+          pdfCaminho = `https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/${nomeLimpo}`;
+        } else {
+          pdfCaminho = `${BASE_PDF_URL}/${nomeLimpo}`;
+        }
+      } 
+      else if (m.id) {
+        pdfCaminho = `${BASE_PDF_URL}/${m.id}.pdf`;
+      }
+      else {
+        const textoBusca = m.nome || m.title || "";
+        const matchNumero = textoBusca.match(/\d+/);
+        if (matchNumero) {
+          pdfCaminho = `${BASE_PDF_URL}/${matchNumero[0]}.pdf`;
+        }
+      }
+
+      if (!pdfCaminho) {
+        return alert(`Não foi possível identificar o PDF para: "${m.nome || m.title}".`);
+      }
+
+      const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdfCaminho)}&embedded=true`;
+      openPDF(viewerUrl, m.title || m.nome);
+    }
+
+    function atualizarCampo(index, campo, valor) {
+      repertorioAtual[index][campo] = valor;
+      dadosMusicasCache = { repertorio: repertorioAtual };
+      aplicarFiltroMusicas();
+    }
+
+    function renderizarTabela() {
+      const filtroStatus = document.getElementById('filterMusicaStatus').value;
+      const filtroLote = document.getElementById('filterMusicaLote').value;
+      const tbody = document.querySelector('#tbl-musicas tbody');
+      
+      const musicas = dadosMusicasCache && dadosMusicasCache.repertorio ? dadosMusicasCache.repertorio : repertorioAtual;
+
+      let musicasFiltradas = musicas.filter(m => {
+        const statusMatch = (filtroStatus === 'todos') || (m.status === filtroStatus);
+        const loteNome = m.lote || 'Geral';
+        const loteMatch = (filtroLote === 'todos') || (loteNome === filtroLote);
+        return statusMatch && loteMatch;
+      });
+
+      const filterInfo = document.getElementById('musicas-filtro-status');
+      filterInfo.textContent = `Mostrando ${musicasFiltradas.length} de ${musicas.length}`;
+
+      tbody.innerHTML = "";
+
+      if (musicasFiltradas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#9ca3af;">Nenhuma música encontrada para os filtros selecionados.</td></tr>';
+        return;
+      }
+
+      musicasFiltradas.forEach((m) => {
+        const originalIndex = musicas.indexOf(m);
+        const statusClass = getStatusClass(m.status);
+        const loteNome = m.lote || 'Geral';
+        
+        tbody.innerHTML += `
+          <tr>
+            <td>
+              <strong>${m.title || m.nome}</strong>
+              ${m.composer ? `<br><small style="color: #6b7280;"><i class="fa-solid fa-user"></i> ${m.composer}</small>` : ''}
+            </td>
+            <td style="text-align:center;">
+              <span class="badge-lote"><i class="fa-solid fa-box"></i> ${loteNome}</span>
+            </td>
+            <td style="text-align:center;">
+              <select onchange="atualizarCampo(${originalIndex}, 'status', this.value)">
+                <option value="Em Estudo" ${m.status === 'Em Estudo' ? 'selected' : ''}>📝 Em Estudo</option>
+                <option value="Em Andamento" ${m.status === 'Em Andamento' ? 'selected' : ''}>🔄 Em Andamento</option>
+                <option value="Concluída" ${m.status === 'Concluída' ? 'selected' : ''}>✅ Concluída</option>
+                <option value="Revisar" ${m.status === 'Revisar' ? 'selected' : ''}>🔴 Revisar</option>
+              </select>
+              <br>
+              <span class="badge-status ${statusClass}" style="display: inline-block; margin-top: 4px;">
+                ${m.status || 'Em Estudo'}
+              </span>
+            </td>
+            <td>
+              <input type="text" value="${m.obs || ''}" placeholder="Observações..." style="width: 100%;" onchange="atualizarCampo(${originalIndex}, 'obs', this.value)">
+            </td>
+            <td style="text-align:center;">
+              <div style="display: flex; gap: 4px; justify-content: center;">
+                <button type="button" class="btn-success" onclick="abrirPDFMusica(${originalIndex})" title="Visualizar Partitura PDF">
+                  <i class="fa-solid fa-file-pdf"></i>
+                </button>
+                <button type="button" class="btn-abc" onclick="abrirModalABC(${originalIndex})" title="Visualizar Partitura ABC">
+                  <i class="fa-solid fa-music"></i>
+                </button>
+                <button type="button" class="btn-danger" onclick="removerMusica(${originalIndex})" title="Remover Música">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      });
+    }
+
+    function aplicarFiltroMusicas() {
+      renderizarTabela();
+    }
+
+    function getRepertorioDaTabela() {
+      return repertorioAtual;
+    }
+
+    async function importarLoteMusicaDireto(nomeLote) {
+      const token = obterToken();
+      if (!token) return exibirStatus("Configure o token do GitHub primeiro.", "red");
+
+      if (!nomeLote || nomeLote.trim() === "") return exibirStatus("Nome do lote não informado.", "red");
+
+      const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "_");
+      const caminhosParaTestar = [
+        `lotes/lote_musica_${idFormatado}.json`,
+        `lotes/lote_${idFormatado}.json`,
+        `lotes/${idFormatado}.json`
+      ];
+
+      exibirStatus(`Buscando lote "${nomeLote}"...`, "blue");
+
+      let dadosArquivo = null;
+
+      for (const caminho of caminhosParaTestar) {
+        try {
+          const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+            headers: { 'Authorization': `token ${token}` }
+          });
+          if (res.ok) {
+            dadosArquivo = await res.json();
+            break;
+          }
+        } catch (e) {}
+      }
+
+      if (!dadosArquivo) return exibirStatus(`❌ Lote "${nomeLote}" não encontrado.`, "red");
+
+      try {
+        const base64Clean = dadosArquivo.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const json = JSON.parse(jsonStr);
+
+        let novasMusicas = [];
+        if (Array.isArray(json)) novasMusicas = json;
+        else if (Array.isArray(json.musicas)) novasMusicas = json.musicas;
+        else if (Array.isArray(json.repertorio)) novasMusicas = json.repertorio;
+
+        if (novasMusicas.length === 0) return exibirStatus(`⚠️ Lote "${nomeLote}" está vazio.`, "orange");
+
+        loteImportado = [];
+        novasMusicas.forEach(m => {
+          const nomeStr = typeof m === 'string' ? m : (m.title || m.nome || m.titulo || "");
+          if (nomeStr) {
+            loteImportado.push({
+              id: (typeof m === 'object' && m.id) ? m.id : null,
+              nome: nomeStr,
+              title: (typeof m === 'object' && m.title) ? m.title : nomeStr,
+              composer: (typeof m === 'object' && m.composer) ? m.composer : "",
+              pdfUrl: (typeof m === 'object' && m.pdfUrl) ? m.pdfUrl : (m.id ? `partituras/${m.id}.pdf` : ""),
+              abcFile: (typeof m === 'object' && m.abcFile) ? m.abcFile : (m.id ? `${m.id}.txt` : ""),
+              status: (typeof m === 'object' && m.status) ? m.status : "Em Estudo",
+              obs: (typeof m === 'object' && m.obs) ? m.obs : "",
+              lote: (typeof m === 'object' && m.book) ? m.book : nomeLote.trim()
+            });
+          }
+        });
+
+        if (alunoIdAtual) {
+          const musicasAtuais = getRepertorioDaTabela();
+          const nomesExistentes = new Set(musicasAtuais.map(m => m.nome || m.title));
+          repertorioAtual = [...musicasAtuais];
+          
+          let adicionados = 0;
+          loteImportado.forEach(m => {
+            if (!nomesExistentes.has(m.nome)) {
+              repertorioAtual.push({ ...m });
+              adicionados++;
+            }
+          });
+          
+          dadosMusicasCache = { repertorio: repertorioAtual };
+          atualizarOpcoesLote();
+          renderizarTabela();
+          exibirStatus(`✅ Lote "${nomeLote}" mesclado! ${adicionados} novas músicas.`, "green");
+          showToast(`🎶 ${adicionados} novas músicas adicionadas!`, 'success');
+        } else {
+          repertorioAtual = [...loteImportado];
+          dadosMusicasCache = { repertorio: repertorioAtual };
+          atualizarOpcoesLote();
+          renderizarTabela();
+          exibirStatus(`✅ ${repertorioAtual.length} músicas importadas do lote!`, "green");
+          showToast(`🎶 ${repertorioAtual.length} músicas importadas!`, 'success');
+        }
+
+      } catch (err) {
+        exibirStatus("❌ Erro ao importar: " + err.message, "red");
+      }
+    }
+
+    async function importarLoteGithub() {
+      const token = obterToken();
+      if (!token) return alert("Informe e confirme o Token do GitHub.");
+
+      const entradaUsuario = prompt("Digite o nome ou ID do lote de músicas:");
+      if (!entradaUsuario || entradaUsuario.trim() === "") return;
+      await importarLoteMusicaDireto(entradaUsuario.trim());
+    }
+
+    async function carregarMusicasAluno() {
+      const busca = document.getElementById('buscaAluno').value.trim();
+      const token = obterToken();
+
+      if (!busca) return alert("Digite o ID ou nome do aluno.");
+      if (!token) return alert("Informe e confirme o Token do GitHub.");
+
+      const alunoId = await buscarIdAluno(busca);
+      alunoIdAtual = alunoId;
+      const caminho = `alunos/musica_${alunoId}.json`;
+
+      exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+
+        let musicasDoAluno = [];
+
+        if (res.ok) {
+          const data = await res.json();
+          shaArquivoAtual = data.sha;
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          const json = JSON.parse(jsonStr);
+          musicasDoAluno = json.repertorio || [];
+        } else {
+          shaArquivoAtual = null;
+          exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
+        }
+
+        repertorioAtual = musicasDoAluno.map(m => ({
+          ...m,
+          nome: m.nome || m.title,
+          lote: m.lote || m.book || 'Geral',
+          abcFile: m.abcFile || ''
+        }));
+
+        dadosMusicasCache = { repertorio: repertorioAtual };
+        atualizarOpcoesLote();
+        renderizarTabela();
+        exibirStatus(`✅ Aluno ${alunoId} carregado com sucesso!`, "green");
+        showToast(`🎶 ${repertorioAtual.length} músicas carregadas!`, 'success');
+
+      } catch (e) {
+        exibirStatus("❌ Erro ao carregar: " + e.message, "red");
+      }
+    }
+
+    async function salvarMusicasAluno() {
+      const busca = document.getElementById('buscaAluno').value.trim();
+      const token = obterToken();
+
+      if (!busca) return alert("Digite o ID ou nome do aluno.");
+      if (!token) return alert("Informe e confirme o Token do GitHub.");
+
+      const alunoId = await buscarIdAluno(busca);
+      const repertorio = getRepertorioDaTabela();
+
+      if (repertorio.length === 0) return alert("Adicione ao menos uma música.");
+
+      const caminho = `alunos/musica_${alunoId}.json`;
+      const conteudoJson = { 
+        alunoId: alunoId,
+        aluno: busca, 
+        repertorio: repertorio,
+        atualizadoEm: new Date().toISOString()
+      };
+
+      const jsonString = JSON.stringify(conteudoJson, null, 2);
+      const utf8Bytes = new TextEncoder().encode(jsonString);
+      let binaryStr = "";
+      utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+      const conteudoBase64 = btoa(binaryStr);
+
+      const body = {
+        message: `Atualizando músicas do aluno: ${alunoId}`,
+        content: conteudoBase64,
+        branch: GH_CONFIG.branch
+      };
+      if (shaArquivoAtual) body.sha = shaArquivoAtual;
+
+      exibirStatus("Enviando dados para o GitHub...", "blue");
+
+      try {
+        const putRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+        if (putRes.ok) {
+          const resData = await putRes.json();
+          shaArquivoAtual = resData.content.sha;
+          exibirStatus(`✅ Músicas salvas com sucesso!`, "green");
+          showToast(`💾 ${repertorio.length} músicas salvas!`, 'success');
+        } else {
+          const errData = await putRes.json().catch(() => ({}));
+          throw new Error(errData.message || "Erro HTTP: " + putRes.status);
+        }
+      } catch (err) {
+        exibirStatus("❌ Erro ao salvar: " + err.message, "red");
+        showToast("Erro ao salvar no GitHub", "error");
+      }
+    }
+
+    // ===== FUNÇÕES ABC (NOVAS) =====
     async function abrirModalABC(index) {
       const m = repertorioAtual[index];
       if (!m) return;
@@ -1112,7 +1402,6 @@
       }
     }
 
-    // ===== FUNÇÕES DE RENDERIZAÇÃO ABC =====
     async function renderizarABCCompleto(abcText) {
       const paperDiv = document.getElementById('abc-paper');
       const bpm = parseInt(document.getElementById('abcBPM').value) || 120;
@@ -1168,7 +1457,6 @@
       renderizarABCCompleto(abcText);
     }
 
-    // ===== FUNÇÕES DE ÁUDIO ABC =====
     async function tocarABC(mode = 'all') {
       if (!abcVisualObj) {
         renderizarABC();
@@ -1295,342 +1583,6 @@
         document.execCommand('copy');
         showToast('📋 Código ABC copiado!', 'success');
       });
-    }
-
-    // ===== FUNÇÕES DE RENDERIZAÇÃO DA TABELA =====
-    function atualizarCampo(index, campo, valor) {
-      repertorioAtual[index][campo] = valor;
-      dadosMusicasCache = { repertorio: repertorioAtual };
-      aplicarFiltroMusicas();
-    }
-
-    function renderizarTabela() {
-      const filtroStatus = document.getElementById('filterMusicaStatus').value;
-      const filtroLote = document.getElementById('filterMusicaLote').value;
-      const tbody = document.querySelector('#tbl-musicas tbody');
-      
-      const musicas = dadosMusicasCache && dadosMusicasCache.repertorio ? dadosMusicasCache.repertorio : repertorioAtual;
-
-      let musicasFiltradas = musicas.filter(m => {
-        const statusMatch = (filtroStatus === 'todos') || (m.status === filtroStatus);
-        const loteNome = m.lote || 'Geral';
-        const loteMatch = (filtroLote === 'todos') || (loteNome === filtroLote);
-        return statusMatch && loteMatch;
-      });
-
-      const filterInfo = document.getElementById('musicas-filtro-status');
-      filterInfo.textContent = `Mostrando ${musicasFiltradas.length} de ${musicas.length}`;
-
-      tbody.innerHTML = "";
-
-      if (musicasFiltradas.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#9ca3af;">Nenhuma música encontrada para os filtros selecionados.</td></tr>';
-        return;
-      }
-
-      musicasFiltradas.forEach((m) => {
-        const originalIndex = musicas.indexOf(m);
-        const statusClass = getStatusClass(m.status);
-        const loteNome = m.lote || 'Geral';
-        
-        tbody.innerHTML += `
-          <tr>
-            <td>
-              <strong>${m.title || m.nome}</strong>
-              ${m.composer ? `<br><small style="color: #6b7280;"><i class="fa-solid fa-user"></i> ${m.composer}</small>` : ''}
-            </td>
-            <td style="text-align:center;">
-              <span class="badge-lote"><i class="fa-solid fa-box"></i> ${loteNome}</span>
-            </td>
-            <td style="text-align:center;">
-              <select onchange="atualizarCampo(${originalIndex}, 'status', this.value)">
-                <option value="Em Estudo" ${m.status === 'Em Estudo' ? 'selected' : ''}>📝 Em Estudo</option>
-                <option value="Em Andamento" ${m.status === 'Em Andamento' ? 'selected' : ''}>🔄 Em Andamento</option>
-                <option value="Concluída" ${m.status === 'Concluída' ? 'selected' : ''}>✅ Concluída</option>
-                <option value="Revisar" ${m.status === 'Revisar' ? 'selected' : ''}>🔴 Revisar</option>
-              </select>
-              <br>
-              <span class="badge-status ${statusClass}" style="display: inline-block; margin-top: 4px;">
-                ${m.status || 'Em Estudo'}
-              </span>
-            </td>
-            <td>
-              <input type="text" value="${m.obs || ''}" placeholder="Observações..." style="width: 100%;" onchange="atualizarCampo(${originalIndex}, 'obs', this.value)">
-            </td>
-            <td style="text-align:center;">
-              <div style="display: flex; gap: 4px; justify-content: center; flex-wrap: wrap;">
-                <button type="button" class="btn-success" onclick="abrirPDFMusica(${originalIndex})" title="Visualizar Partitura PDF">
-                  <i class="fa-solid fa-file-pdf"></i>
-                </button>
-                <button type="button" class="btn-abc" onclick="abrirModalABC(${originalIndex})" title="Visualizar Partitura ABC">
-                  <i class="fa-solid fa-music"></i>
-                </button>
-                <button type="button" class="btn-danger" onclick="removerMusica(${originalIndex})" title="Remover Música">
-                  <i class="fa-solid fa-trash"></i>
-                </button>
-              </div>
-            </td>
-          </tr>
-        `;
-      });
-    }
-
-    function aplicarFiltroMusicas() {
-      renderizarTabela();
-    }
-
-    function getRepertorioDaTabela() {
-      return repertorioAtual;
-    }
-
-    // ===== FUNÇÕES DE IMPORTAR LOTE =====
-    async function importarLoteMusicaDireto(nomeLote) {
-      const token = obterToken();
-      if (!token) return exibirStatus("Configure o token do GitHub primeiro.", "red");
-
-      if (!nomeLote || nomeLote.trim() === "") return exibirStatus("Nome do lote não informado.", "red");
-
-      const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]/g, "_");
-      const caminhosParaTestar = [
-        `lotes/lote_musica_${idFormatado}.json`,
-        `lotes/lote_${idFormatado}.json`,
-        `lotes/${idFormatado}.json`
-      ];
-
-      exibirStatus(`Buscando lote "${nomeLote}"...`, "blue");
-
-      let dadosArquivo = null;
-
-      for (const caminho of caminhosParaTestar) {
-        try {
-          const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-            headers: { 'Authorization': `token ${token}` }
-          });
-          if (res.ok) {
-            dadosArquivo = await res.json();
-            break;
-          }
-        } catch (e) {}
-      }
-
-      if (!dadosArquivo) return exibirStatus(`❌ Lote "${nomeLote}" não encontrado.`, "red");
-
-      try {
-        const base64Clean = dadosArquivo.content.replace(/\s/g, '');
-        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-        const jsonStr = new TextDecoder('utf-8').decode(bytes);
-        const json = JSON.parse(jsonStr);
-
-        let novasMusicas = [];
-        if (Array.isArray(json)) novasMusicas = json;
-        else if (Array.isArray(json.musicas)) novasMusicas = json.musicas;
-        else if (Array.isArray(json.repertorio)) novasMusicas = json.repertorio;
-
-        if (novasMusicas.length === 0) return exibirStatus(`⚠️ Lote "${nomeLote}" está vazio.`, "orange");
-
-        loteImportado = [];
-        novasMusicas.forEach(m => {
-          const nomeStr = typeof m === 'string' ? m : (m.title || m.nome || m.titulo || "");
-          if (nomeStr) {
-            loteImportado.push({
-              id: (typeof m === 'object' && m.id) ? m.id : null,
-              nome: nomeStr,
-              title: (typeof m === 'object' && m.title) ? m.title : nomeStr,
-              composer: (typeof m === 'object' && m.composer) ? m.composer : "",
-              pdfUrl: (typeof m === 'object' && m.pdfUrl) ? m.pdfUrl : (m.id ? `partituras/${m.id}.pdf` : ""),
-              abcFile: (typeof m === 'object' && m.abcFile) ? m.abcFile : (m.id ? `${m.id}.txt` : ""),
-              status: (typeof m === 'object' && m.status) ? m.status : "Em Estudo",
-              obs: (typeof m === 'object' && m.obs) ? m.obs : "",
-              lote: (typeof m === 'object' && m.book) ? m.book : nomeLote.trim()
-            });
-          }
-        });
-
-        if (alunoIdAtual) {
-          const musicasAtuais = getRepertorioDaTabela();
-          const nomesExistentes = new Set(musicasAtuais.map(m => m.nome || m.title));
-          repertorioAtual = [...musicasAtuais];
-          
-          let adicionados = 0;
-          loteImportado.forEach(m => {
-            if (!nomesExistentes.has(m.nome)) {
-              repertorioAtual.push({ ...m });
-              adicionados++;
-            }
-          });
-          
-          dadosMusicasCache = { repertorio: repertorioAtual };
-          atualizarOpcoesLote();
-          renderizarTabela();
-          exibirStatus(`✅ Lote "${nomeLote}" mesclado! ${adicionados} novas músicas.`, "green");
-          showToast(`🎶 ${adicionados} novas músicas adicionadas!`, 'success');
-        } else {
-          repertorioAtual = [...loteImportado];
-          dadosMusicasCache = { repertorio: repertorioAtual };
-          atualizarOpcoesLote();
-          renderizarTabela();
-          exibirStatus(`✅ ${repertorioAtual.length} músicas importadas do lote!`, "green");
-          showToast(`🎶 ${repertorioAtual.length} músicas importadas!`, 'success');
-        }
-
-      } catch (err) {
-        exibirStatus("❌ Erro ao importar: " + err.message, "red");
-      }
-    }
-
-    async function importarLoteGithub() {
-      const token = obterToken();
-      if (!token) return alert("Informe e confirme o Token do GitHub.");
-
-      const entradaUsuario = prompt("Digite o nome ou ID do lote de músicas:");
-      if (!entradaUsuario || entradaUsuario.trim() === "") return;
-      await importarLoteMusicaDireto(entradaUsuario.trim());
-    }
-
-    // ===== FUNÇÕES DE CARREGAR/SALVAR ALUNO =====
-    async function carregarMusicasAluno() {
-      const busca = document.getElementById('buscaAluno').value.trim();
-      const token = obterToken();
-
-      if (!busca) return alert("Digite o ID ou nome do aluno.");
-      if (!token) return alert("Informe e confirme o Token do GitHub.");
-
-      const alunoId = await buscarIdAluno(busca);
-      alunoIdAtual = alunoId;
-      const caminho = `alunos/musica_${alunoId}.json`;
-
-      exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
-
-      try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
-
-        let musicasDoAluno = [];
-
-        if (res.ok) {
-          const data = await res.json();
-          shaArquivoAtual = data.sha;
-          const base64Clean = data.content.replace(/\s/g, '');
-          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-          const jsonStr = new TextDecoder('utf-8').decode(bytes);
-          const json = JSON.parse(jsonStr);
-          musicasDoAluno = json.repertorio || [];
-        } else {
-          shaArquivoAtual = null;
-          exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
-        }
-
-        repertorioAtual = musicasDoAluno.map(m => ({
-          ...m,
-          nome: m.nome || m.title,
-          lote: m.lote || m.book || 'Geral',
-          abcFile: m.abcFile || ''
-        }));
-
-        dadosMusicasCache = { repertorio: repertorioAtual };
-        atualizarOpcoesLote();
-        renderizarTabela();
-        exibirStatus(`✅ Aluno ${alunoId} carregado com sucesso!`, "green");
-        showToast(`🎶 ${repertorioAtual.length} músicas carregadas!`, 'success');
-
-      } catch (e) {
-        exibirStatus("❌ Erro ao carregar: " + e.message, "red");
-      }
-    }
-
-    async function salvarMusicasAluno() {
-      const busca = document.getElementById('buscaAluno').value.trim();
-      const token = obterToken();
-
-      if (!busca) return alert("Digite o ID ou nome do aluno.");
-      if (!token) return alert("Informe e confirme o Token do GitHub.");
-
-      const alunoId = await buscarIdAluno(busca);
-      const repertorio = getRepertorioDaTabela();
-
-      if (repertorio.length === 0) return alert("Adicione ao menos uma música.");
-
-      const caminho = `alunos/musica_${alunoId}.json`;
-      const conteudoJson = { 
-        alunoId: alunoId,
-        aluno: busca, 
-        repertorio: repertorio,
-        atualizadoEm: new Date().toISOString()
-      };
-
-      const jsonString = JSON.stringify(conteudoJson, null, 2);
-      const utf8Bytes = new TextEncoder().encode(jsonString);
-      let binaryStr = "";
-      utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
-      const conteudoBase64 = btoa(binaryStr);
-
-      const body = {
-        message: `Atualizando músicas do aluno: ${alunoId}`,
-        content: conteudoBase64,
-        branch: GH_CONFIG.branch
-      };
-      if (shaArquivoAtual) body.sha = shaArquivoAtual;
-
-      exibirStatus("Enviando dados para o GitHub...", "blue");
-
-      try {
-        const putRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`, {
-          method: 'PUT',
-          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
-        });
-
-        if (putRes.ok) {
-          const resData = await putRes.json();
-          shaArquivoAtual = resData.content.sha;
-          exibirStatus(`✅ Músicas salvas com sucesso!`, "green");
-          showToast(`💾 ${repertorio.length} músicas salvas!`, 'success');
-        } else {
-          const errData = await putRes.json().catch(() => ({}));
-          throw new Error(errData.message || "Erro HTTP: " + putRes.status);
-        }
-      } catch (err) {
-        exibirStatus("❌ Erro ao salvar: " + err.message, "red");
-        showToast("Erro ao salvar no GitHub", "error");
-      }
-    }
-
-    // ===== FUNÇÕES DE PDF =====
-    function abrirPDFMusica(index) {
-      const m = repertorioAtual[index];
-      if (!m) return;
-
-      let pdfCaminho = "";
-
-      if (m.pdfUrl && m.pdfUrl.startsWith("http")) {
-        pdfCaminho = m.pdfUrl;
-      } 
-      else if (m.pdfUrl) {
-        const nomeLimpo = m.pdfUrl.replace(/^partituras\//, '').trim();
-        if (nomeLimpo.includes("/")) {
-          pdfCaminho = `https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/${nomeLimpo}`;
-        } else {
-          pdfCaminho = `${BASE_PDF_URL}/${nomeLimpo}`;
-        }
-      } 
-      else if (m.id) {
-        pdfCaminho = `${BASE_PDF_URL}/${m.id}.pdf`;
-      }
-      else {
-        const textoBusca = m.nome || m.title || "";
-        const matchNumero = textoBusca.match(/\d+/);
-        if (matchNumero) {
-          pdfCaminho = `${BASE_PDF_URL}/${matchNumero[0]}.pdf`;
-        }
-      }
-
-      if (!pdfCaminho) {
-        return alert(`Não foi possível identificar o PDF para: "${m.nome || m.title}".`);
-      }
-
-      const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdfCaminho)}&embedded=true`;
-      openPDF(viewerUrl, m.title || m.nome);
     }
 
     // Evento para fechar modal ABC com ESC
