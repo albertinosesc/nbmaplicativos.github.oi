@@ -37,6 +37,12 @@
     button.btn-secondary { background-color: #4b5563; }
     button.btn-abc { background-color: #0284c7; }
     button.btn-abc:hover { background-color: #0369a1; }
+    button.btn-abc.disabled { background-color: #94a3b8; cursor: not-allowed; opacity: 0.6; }
+    button.btn-abc.disabled:hover { background-color: #94a3b8; opacity: 0.6; }
+    button.btn-pdf { background-color: var(--accent); }
+    button.btn-pdf:hover { background-color: #15803d; }
+    button.btn-pdf.disabled { background-color: #94a3b8; cursor: not-allowed; opacity: 0.6; }
+    button.btn-pdf.disabled:hover { background-color: #94a3b8; opacity: 0.6; }
 
     table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 15px; }
     th, td { border: 1px solid var(--border); padding: 10px; text-align: left; }
@@ -230,7 +236,7 @@
       border-radius: 0 0 0 4px;
     }
 
-    /* ===== MODAL ABC (NOVO) ===== */
+    /* ===== MODAL ABC ===== */
     .abc-modal {
       display: none;
       position: fixed;
@@ -314,6 +320,10 @@
       border-left: 2px solid #1e293b;
       display: flex;
       flex-direction: column;
+      transition: all 0.3s ease;
+    }
+    .abc-modal-body .abc-code-panel.hidden {
+      display: none;
     }
     .abc-modal-body .abc-code-panel textarea {
       flex: 1;
@@ -377,6 +387,18 @@
     .abc-toolbar button {
       padding: 5px 12px;
       font-size: 0.8rem;
+    }
+    .btn-toggle-code {
+      background-color: #6b7280;
+    }
+    .btn-toggle-code:hover {
+      background-color: #4b5563;
+    }
+    .btn-toggle-code.active {
+      background-color: #3b82f6;
+    }
+    .btn-toggle-code.active:hover {
+      background-color: #2563eb;
     }
     #abc-paper {
       background: white;
@@ -539,7 +561,7 @@
     </section>
   </div>
 
-  <!-- ===== MODAL ABC (NOVO) ===== -->
+  <!-- ===== MODAL ABC ===== -->
   <div class="abc-modal" id="abcModal">
     <div class="abc-modal-content">
       <div class="abc-modal-header">
@@ -571,11 +593,14 @@
               </select>
             </label>
             
+            <button class="btn-toggle-code active" onclick="toggleCodePanel()" title="Mostrar/Ocultar Código ABC">
+              <i class="fa-solid fa-code"></i> Código
+            </button>
             <button class="btn-secondary" onclick="alternarTelaCheiaABC()"><i class="fa-solid fa-expand"></i> Tela Cheia</button>
           </div>
           <div id="abc-paper"></div>
         </div>
-        <div class="abc-code-panel">
+        <div class="abc-code-panel" id="abcCodePanel">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
             <span style="font-weight: 600; font-size: 0.9rem;"><i class="fa-solid fa-code"></i> Código ABC</span>
             <span style="font-size: 0.7rem; color: #94a3b8;">Edite e clique em "Renderizar"</span>
@@ -609,6 +634,7 @@
     let abcCurrentTranspose = 0;
     let abcCurrentCode = '';
     let abcIsFullscreen = false;
+    let codePanelVisible = true;
 
     // ===== FUNÇÕES EXISTENTES =====
     window.onload = function() {
@@ -991,10 +1017,17 @@
     const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
     const BASE_ABC_URL = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/ptm/abc";
 
-    function abrirPDFMusica(index) {
-      const m = repertorioAtual[index];
-      if (!m) return;
+    // Função para verificar se o arquivo existe
+    async function verificarArquivoExiste(url) {
+      try {
+        const response = await fetch(url, { method: 'HEAD' });
+        return response.ok;
+      } catch (e) {
+        return false;
+      }
+    }
 
+    function getPdfUrl(m) {
       let pdfCaminho = "";
 
       if (m.pdfUrl && m.pdfUrl.startsWith("http")) {
@@ -1019,8 +1052,51 @@
         }
       }
 
+      return pdfCaminho;
+    }
+
+    function getAbcUrl(m) {
+      let abcUrl = '';
+      
+      if (m.abcFile && m.abcFile.startsWith('http')) {
+        abcUrl = m.abcFile;
+      } else if (m.abcFile) {
+        const nomeLimpo = m.abcFile.replace(/^abc\//, '').trim();
+        if (nomeLimpo.includes('/')) {
+          abcUrl = `https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/${nomeLimpo}`;
+        } else {
+          abcUrl = `${BASE_ABC_URL}/${nomeLimpo}`;
+        }
+      } else if (m.id) {
+        abcUrl = `${BASE_ABC_URL}/${m.id}.txt`;
+      } else {
+        const textoBusca = m.nome || m.title || "";
+        const matchNumero = textoBusca.match(/\d+/);
+        if (matchNumero) {
+          abcUrl = `${BASE_ABC_URL}/${matchNumero[0]}.txt`;
+        } else {
+          const nomeLimpo = textoBusca.toLowerCase().replace(/[^a-z0-9]/g, '_');
+          abcUrl = `${BASE_ABC_URL}/${nomeLimpo}.txt`;
+        }
+      }
+
+      return abcUrl;
+    }
+
+    async function abrirPDFMusica(index) {
+      const m = repertorioAtual[index];
+      if (!m) return;
+
+      const pdfCaminho = getPdfUrl(m);
+
       if (!pdfCaminho) {
         return alert(`Não foi possível identificar o PDF para: "${m.nome || m.title}".`);
+      }
+
+      // Verificar se o arquivo existe
+      const existe = await verificarArquivoExiste(pdfCaminho);
+      if (!existe) {
+        return alert(`📄 Arquivo PDF não encontrado para: "${m.nome || m.title}".\n\nCaminho: ${pdfCaminho}`);
       }
 
       const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdfCaminho)}&embedded=true`;
@@ -1033,7 +1109,7 @@
       aplicarFiltroMusicas();
     }
 
-    function renderizarTabela() {
+    async function renderizarTabela() {
       const filtroStatus = document.getElementById('filterMusicaStatus').value;
       const filtroLote = document.getElementById('filterMusicaLote').value;
       const tbody = document.querySelector('#tbl-musicas tbody');
@@ -1057,10 +1133,37 @@
         return;
       }
 
-      musicasFiltradas.forEach((m) => {
+      // Verificar existência dos arquivos para cada música
+      for (const m of musicasFiltradas) {
         const originalIndex = musicas.indexOf(m);
         const statusClass = getStatusClass(m.status);
         const loteNome = m.lote || 'Geral';
+        
+        const pdfUrl = getPdfUrl(m);
+        const abcUrl = getAbcUrl(m);
+        
+        // Verificar se os arquivos existem (async)
+        let pdfExiste = false;
+        let abcExiste = false;
+        
+        try {
+          if (pdfUrl) {
+            const resPdf = await fetch(pdfUrl, { method: 'HEAD' });
+            pdfExiste = resPdf.ok;
+          }
+        } catch (e) { pdfExiste = false; }
+        
+        try {
+          if (abcUrl) {
+            const resAbc = await fetch(abcUrl, { method: 'HEAD' });
+            abcExiste = resAbc.ok;
+          }
+        } catch (e) { abcExiste = false; }
+        
+        const pdfClass = pdfExiste ? 'btn-pdf' : 'btn-pdf disabled';
+        const abcClass = abcExiste ? 'btn-abc' : 'btn-abc disabled';
+        const pdfTitle = pdfExiste ? 'Visualizar Partitura PDF' : '📄 PDF não encontrado';
+        const abcTitle = abcExiste ? 'Visualizar Partitura ABC' : '🎵 ABC não encontrado';
         
         tbody.innerHTML += `
           <tr>
@@ -1088,10 +1191,10 @@
             </td>
             <td style="text-align:center;">
               <div style="display: flex; gap: 4px; justify-content: center;">
-                <button type="button" class="btn-success" onclick="abrirPDFMusica(${originalIndex})" title="Visualizar Partitura PDF">
+                <button type="button" class="${pdfClass}" onclick="abrirPDFMusica(${originalIndex})" title="${pdfTitle}" ${!pdfExiste ? 'disabled' : ''}>
                   <i class="fa-solid fa-file-pdf"></i>
                 </button>
-                <button type="button" class="btn-abc" onclick="abrirModalABC(${originalIndex})" title="Visualizar Partitura ABC">
+                <button type="button" class="${abcClass}" onclick="abrirModalABC(${originalIndex})" title="${abcTitle}" ${!abcExiste ? 'disabled' : ''}>
                   <i class="fa-solid fa-music"></i>
                 </button>
                 <button type="button" class="btn-danger" onclick="removerMusica(${originalIndex})" title="Remover Música">
@@ -1101,7 +1204,7 @@
             </td>
           </tr>
         `;
-      });
+      }
     }
 
     function aplicarFiltroMusicas() {
@@ -1324,6 +1427,25 @@
     }
 
     // ===== FUNÇÕES ABC (NOVAS) =====
+    function toggleCodePanel() {
+      const panel = document.getElementById('abcCodePanel');
+      const btn = document.querySelector('.btn-toggle-code');
+      
+      if (panel) {
+        panel.classList.toggle('hidden');
+        codePanelVisible = !panel.classList.contains('hidden');
+        
+        if (btn) {
+          btn.classList.toggle('active');
+          if (codePanelVisible) {
+            btn.innerHTML = '<i class="fa-solid fa-code"></i> Código';
+          } else {
+            btn.innerHTML = '<i class="fa-solid fa-code"></i> Mostrar Código';
+          }
+        }
+      }
+    }
+
     async function abrirModalABC(index) {
       const m = repertorioAtual[index];
       if (!m) return;
@@ -1335,34 +1457,29 @@
 
       titleEl.textContent = `🎵 ${m.nome || m.title || 'Partitura ABC'}`;
 
-      let abcUrl = '';
-      
-      if (m.abcFile && m.abcFile.startsWith('http')) {
-        abcUrl = m.abcFile;
-      } else if (m.abcFile) {
-        const nomeLimpo = m.abcFile.replace(/^abc\//, '').trim();
-        if (nomeLimpo.includes('/')) {
-          abcUrl = `https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/${nomeLimpo}`;
-        } else {
-          abcUrl = `${BASE_ABC_URL}/${nomeLimpo}`;
-        }
-      } else if (m.id) {
-        abcUrl = `${BASE_ABC_URL}/${m.id}.txt`;
-      } else {
-        const textoBusca = m.nome || m.title || "";
-        const matchNumero = textoBusca.match(/\d+/);
-        if (matchNumero) {
-          abcUrl = `${BASE_ABC_URL}/${matchNumero[0]}.txt`;
-        } else {
-          const nomeLimpo = textoBusca.toLowerCase().replace(/[^a-z0-9]/g, '_');
-          abcUrl = `${BASE_ABC_URL}/${nomeLimpo}.txt`;
-        }
+      const abcUrl = getAbcUrl(m);
+
+      // Verificar se o arquivo existe
+      const existe = await verificarArquivoExiste(abcUrl);
+      if (!existe) {
+        showToast(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}"`, 'error');
+        return alert(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}".\n\nCaminho: ${abcUrl}`);
       }
 
       modal.classList.add('active');
       paperDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando partitura...</div>';
       codeEditor.value = 'Carregando...';
       codeEditor.disabled = true;
+
+      // Mostrar o painel de código por padrão
+      const panel = document.getElementById('abcCodePanel');
+      const btn = document.querySelector('.btn-toggle-code');
+      if (panel) panel.classList.remove('hidden');
+      if (btn) {
+        btn.classList.add('active');
+        btn.innerHTML = '<i class="fa-solid fa-code"></i> Código';
+      }
+      codePanelVisible = true;
 
       try {
         const response = await fetch(abcUrl);
