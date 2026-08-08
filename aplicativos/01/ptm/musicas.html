@@ -640,6 +640,9 @@
     const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
     const BASE_ABC_URL = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/ptm/abc";
 
+    // ===== CACHE PARA ARQUIVOS VERIFICADOS =====
+    const fileCache = new Map();
+
     // ===== FUNÇÕES EXISTENTES =====
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -1050,15 +1053,11 @@
     function getAbcUrl(m) {
       let abcUrl = '';
       
-      // Se tem abcFile definido
       if (m.abcFile) {
-        // Se já é uma URL completa
         if (m.abcFile.startsWith('http')) {
           abcUrl = m.abcFile;
         } else {
-          // Remove 'abc/' do início se existir
           const nomeLimpo = m.abcFile.replace(/^abc\//, '').trim();
-          // Se já tem o caminho completo
           if (nomeLimpo.includes('aplicativos/01/ptm/abc')) {
             abcUrl = `https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/${nomeLimpo}`;
           } else if (nomeLimpo.includes('/')) {
@@ -1068,24 +1067,20 @@
           }
         }
       } 
-      // Se tem ID, usa o ID para montar a URL
       else if (m.id) {
         abcUrl = `${BASE_ABC_URL}/${m.id}.txt`;
       } 
-      // Tenta extrair número do nome
       else {
         const textoBusca = m.nome || m.title || "";
         const matchNumero = textoBusca.match(/\d+/);
         if (matchNumero) {
           abcUrl = `${BASE_ABC_URL}/${matchNumero[0]}.txt`;
         } else {
-          // Tenta com o nome limpo
           const nomeLimpo = textoBusca.toLowerCase().replace(/[^a-z0-9]/g, '_');
           abcUrl = `${BASE_ABC_URL}/${nomeLimpo}.txt`;
         }
       }
 
-      // Se ainda não tem URL, tenta com o nome
       if (!abcUrl) {
         const textoBusca = m.nome || m.title || "";
         const nomeLimpo = textoBusca.toLowerCase().replace(/[^a-z0-9]/g, '_');
@@ -1095,13 +1090,18 @@
       return abcUrl;
     }
 
+    // ===== VERIFICAÇÃO DE ARQUIVO COM CACHE =====
     async function verificarArquivoExiste(url) {
       if (!url) return false;
       
+      // Verifica se já está no cache
+      if (fileCache.has(url)) {
+        return fileCache.get(url);
+      }
+      
       try {
-        // Tenta fazer uma requisição HEAD
         const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
         
         const response = await fetch(url, { 
           method: 'HEAD',
@@ -1110,23 +1110,31 @@
         
         clearTimeout(timeoutId);
         
-        // Se a resposta for 200-299, o arquivo existe
         const existe = response.ok;
-        console.log(`📄 Verificando: ${url} -> ${existe ? '✅ EXISTE' : '❌ NÃO EXISTE'}`);
+        // Armazena no cache
+        fileCache.set(url, existe);
         return existe;
       } catch (e) {
-        console.log(`📄 Verificando: ${url} -> ❌ ERRO: ${e.message}`);
+        fileCache.set(url, false);
         return false;
       }
     }
 
-    // ===== VERIFICAÇÃO ALTERNATIVA PARA ABC COM MÚLTIPLAS EXTENSÕES =====
+    // ===== VERIFICAÇÃO ABC COM CACHE =====
     async function verificarArquivoABCExiste(m) {
-      // Lista de possíveis extensões
+      // Gera uma chave única para a música
+      const chave = m.id || m.nome || m.title || '';
+      if (!chave) return null;
+      
+      // Verifica no cache
+      const cacheKey = `abc_${chave}`;
+      if (fileCache.has(cacheKey)) {
+        return fileCache.get(cacheKey);
+      }
+      
       const extensoes = ['.txt', '.abc'];
       
       for (const ext of extensoes) {
-        // Tenta gerar URL com cada extensão
         let url = '';
         
         if (m.abcFile) {
@@ -1145,13 +1153,14 @@
           }
         }
         
-        console.log(`🔍 Tentando: ${url}`);
         const existe = await verificarArquivoExiste(url);
         if (existe) {
+          fileCache.set(cacheKey, url);
           return url;
         }
       }
       
+      fileCache.set(cacheKey, null);
       return null;
     }
 
@@ -1162,12 +1171,14 @@
       const pdfCaminho = getPdfUrl(m);
 
       if (!pdfCaminho) {
-        return alert(`Não foi possível identificar o PDF para: "${m.nome || m.title}".`);
+        showToast(`📄 Não foi possível identificar o PDF para: "${m.nome || m.title}"`, 'error');
+        return;
       }
 
       const existe = await verificarArquivoExiste(pdfCaminho);
       if (!existe) {
-        return alert(`📄 Arquivo PDF não encontrado para: "${m.nome || m.title}".\n\nCaminho: ${pdfCaminho}`);
+        showToast(`📄 PDF não encontrado: "${m.nome || m.title}"`, 'error');
+        return;
       }
 
       const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdfCaminho)}&embedded=true`;
@@ -1180,6 +1191,7 @@
       aplicarFiltroMusicas();
     }
 
+    // ===== RENDERIZAÇÃO DA TABELA OTIMIZADA =====
     async function renderizarTabela() {
       const filtroStatus = document.getElementById('filterMusicaStatus').value;
       const filtroLote = document.getElementById('filterMusicaLote').value;
@@ -1204,26 +1216,45 @@
         return;
       }
 
+      // Verifica apenas os arquivos que ainda não foram verificados
+      const verificacoes = [];
+      for (const m of musicasFiltradas) {
+        // Só verifica se não tiver no cache
+        const chave = m.id || m.nome || m.title || '';
+        const cacheKey = `abc_${chave}`;
+        const pdfChave = `pdf_${chave}`;
+        
+        if (!fileCache.has(cacheKey)) {
+          verificacoes.push(verificarArquivoABCExiste(m));
+        }
+        if (!fileCache.has(pdfChave)) {
+          const pdfUrl = getPdfUrl(m);
+          if (pdfUrl) {
+            verificacoes.push(verificarArquivoExiste(pdfUrl).then(result => {
+              fileCache.set(pdfChave, result);
+            }));
+          }
+        }
+      }
+      
+      // Aguarda todas as verificações (paralelas)
+      if (verificacoes.length > 0) {
+        await Promise.all(verificacoes);
+      }
+
+      // Renderiza as linhas
       for (const m of musicasFiltradas) {
         const originalIndex = musicas.indexOf(m);
         const statusClass = getStatusClass(m.status);
         const loteNome = m.lote || 'Geral';
         
-        // Verifica PDF
-        const pdfUrl = getPdfUrl(m);
-        let pdfExiste = false;
-        if (pdfUrl) {
-          pdfExiste = await verificarArquivoExiste(pdfUrl);
-        }
+        const chave = m.id || m.nome || m.title || '';
+        const cacheKey = `abc_${chave}`;
+        const pdfChave = `pdf_${chave}`;
         
-        // Verifica ABC com múltiplas extensões
-        let abcExiste = false;
-        let abcUrlEncontrada = await verificarArquivoABCExiste(m);
-        if (abcUrlEncontrada) {
-          abcExiste = true;
-          // Salva a URL encontrada para usar depois
-          m._abcUrl = abcUrlEncontrada;
-        }
+        const abcUrlEncontrada = fileCache.get(cacheKey) || null;
+        const pdfExiste = fileCache.get(pdfChave) || false;
+        const abcExiste = abcUrlEncontrada !== null;
         
         const pdfClass = pdfExiste ? 'btn-pdf' : 'btn-pdf disabled';
         const abcClass = abcExiste ? 'btn-abc' : 'btn-abc disabled';
@@ -1235,7 +1266,6 @@
             <td>
               <strong>${m.title || m.nome}</strong>
               ${m.composer ? `<br><small style="color: #6b7280;"><i class="fa-solid fa-user"></i> ${m.composer}</small>` : ''}
-              ${!abcExiste ? `<br><small style="color: #ef4444;">⚠️ ABC não encontrado</small>` : ''}
             </td>
             <td style="text-align:center;">
               <span class="badge-lote"><i class="fa-solid fa-box"></i> ${loteNome}</span>
@@ -1426,7 +1456,7 @@
 
         dadosMusicasCache = { repertorio: repertorioAtual };
         atualizarOpcoesLote();
-        renderizarTabela();
+        await renderizarTabela();
         exibirStatus(`✅ Aluno ${alunoId} carregado com sucesso!`, "green");
         showToast(`🎶 ${repertorioAtual.length} músicas carregadas!`, 'success');
 
@@ -1523,23 +1553,17 @@
 
       titleEl.textContent = `🎵 ${m.nome || m.title || 'Partitura ABC'}`;
 
-      // Usar a URL que foi encontrada na verificação, ou gerar uma nova
-      let abcUrl = m._abcUrl || getAbcUrl(m);
+      const chave = m.id || m.nome || m.title || '';
+      const cacheKey = `abc_${chave}`;
+      let abcUrl = fileCache.get(cacheKey) || null;
       
-      // Se não tem URL salva, tenta verificar novamente
-      if (!abcUrl || !await verificarArquivoExiste(abcUrl)) {
-        const urlEncontrada = await verificarArquivoABCExiste(m);
-        if (urlEncontrada) {
-          abcUrl = urlEncontrada;
-          m._abcUrl = urlEncontrada;
-        }
+      if (!abcUrl) {
+        abcUrl = await verificarArquivoABCExiste(m);
       }
-      
-      console.log('🔍 URL do ABC final:', abcUrl);
 
       if (!abcUrl) {
         showToast(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}"`, 'error');
-        return alert(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}".\n\nVerifique se o arquivo existe na pasta:\n${BASE_ABC_URL}`);
+        return;
       }
 
       modal.classList.add('active');
@@ -1547,7 +1571,6 @@
       codeEditor.value = 'Carregando...';
       codeEditor.disabled = true;
 
-      // Mostrar o painel de código por padrão
       const panel = document.getElementById('abcCodePanel');
       const btn = document.querySelector('.btn-toggle-code');
       if (panel) panel.classList.remove('hidden');
@@ -1571,7 +1594,7 @@
           codeEditor.value = abcBasico;
           codeEditor.disabled = false;
           await renderizarABCCompleto(abcBasico);
-          showToast(`⚠️ Arquivo ABC não encontrado. Usando exemplo básico.`, 'info');
+          showToast(`⚠️ Erro ao carregar arquivo. Usando exemplo básico.`, 'info');
         }
       } catch (error) {
         console.error('Erro ao carregar ABC:', error);
@@ -1797,6 +1820,7 @@
 
     console.log('✅ Repertório de Músicas do Aluno com suporte ABC carregado!');
     console.log('📁 Pasta ABC:', BASE_ABC_URL);
+    console.log('⚡ Cache de arquivos ativado para melhor performance!');
   </script>
 </body>
 </html>
