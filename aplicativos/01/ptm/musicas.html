@@ -636,6 +636,10 @@
     let abcIsFullscreen = false;
     let codePanelVisible = true;
 
+    // ===== CONSTANTES =====
+    const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
+    const BASE_ABC_URL = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/ptm/abc";
+
     // ===== FUNÇÕES EXISTENTES =====
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -1014,19 +1018,7 @@
       renderizarTabela();
     }
 
-    const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
-    const BASE_ABC_URL = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/ptm/abc";
-
-    // Função para verificar se o arquivo existe
-    async function verificarArquivoExiste(url) {
-      try {
-        const response = await fetch(url, { method: 'HEAD' });
-        return response.ok;
-      } catch (e) {
-        return false;
-      }
-    }
-
+    // ===== FUNÇÕES DE URL PDF E ABC =====
     function getPdfUrl(m) {
       let pdfCaminho = "";
 
@@ -1062,7 +1054,9 @@
         abcUrl = m.abcFile;
       } else if (m.abcFile) {
         const nomeLimpo = m.abcFile.replace(/^abc\//, '').trim();
-        if (nomeLimpo.includes('/')) {
+        if (nomeLimpo.includes('aplicativos/01/ptm/abc')) {
+          abcUrl = `https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/${nomeLimpo}`;
+        } else if (nomeLimpo.includes('/')) {
           abcUrl = `https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/${nomeLimpo}`;
         } else {
           abcUrl = `${BASE_ABC_URL}/${nomeLimpo}`;
@@ -1083,6 +1077,15 @@
       return abcUrl;
     }
 
+    async function verificarArquivoExiste(url) {
+      try {
+        const response = await fetch(url, { method: 'HEAD' });
+        return response.ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
     async function abrirPDFMusica(index) {
       const m = repertorioAtual[index];
       if (!m) return;
@@ -1093,7 +1096,6 @@
         return alert(`Não foi possível identificar o PDF para: "${m.nome || m.title}".`);
       }
 
-      // Verificar se o arquivo existe
       const existe = await verificarArquivoExiste(pdfCaminho);
       if (!existe) {
         return alert(`📄 Arquivo PDF não encontrado para: "${m.nome || m.title}".\n\nCaminho: ${pdfCaminho}`);
@@ -1133,7 +1135,6 @@
         return;
       }
 
-      // Verificar existência dos arquivos para cada música
       for (const m of musicasFiltradas) {
         const originalIndex = musicas.indexOf(m);
         const statusClass = getStatusClass(m.status);
@@ -1142,7 +1143,6 @@
         const pdfUrl = getPdfUrl(m);
         const abcUrl = getAbcUrl(m);
         
-        // Verificar se os arquivos existem (async)
         let pdfExiste = false;
         let abcExiste = false;
         
@@ -1426,7 +1426,7 @@
       }
     }
 
-    // ===== FUNÇÕES ABC (NOVAS) =====
+    // ===== FUNÇÕES ABC =====
     function toggleCodePanel() {
       const panel = document.getElementById('abcCodePanel');
       const btn = document.querySelector('.btn-toggle-code');
@@ -1458,9 +1458,14 @@
       titleEl.textContent = `🎵 ${m.nome || m.title || 'Partitura ABC'}`;
 
       const abcUrl = getAbcUrl(m);
+      
+      // Log para debug
+      console.log('🔍 URL do ABC:', abcUrl);
 
       // Verificar se o arquivo existe
       const existe = await verificarArquivoExiste(abcUrl);
+      console.log('📄 Arquivo existe?', existe);
+      
       if (!existe) {
         showToast(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}"`, 'error');
         return alert(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}".\n\nCaminho: ${abcUrl}`);
@@ -1720,6 +1725,7 @@
     });
 
     console.log('✅ Repertório de Músicas do Aluno com suporte ABC carregado!');
+    console.log('📁 Pasta ABC:', BASE_ABC_URL);
   </script>
 </body>
 </html>
