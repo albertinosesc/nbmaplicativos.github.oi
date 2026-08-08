@@ -587,7 +587,8 @@
     </div>
   </div>
 
-  <script>
+  
+<script>
     // ===== CONFIGURAÇÕES GERAIS =====
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     let repertorioAtual = [];
@@ -607,46 +608,97 @@
     let abcCurrentCode = '';
     let abcIsFullscreen = false;
 
-   
-    window.onload = function() {
-  const savedToken = localStorage.getItem("gh_pat_token");
-  if (savedToken) {
-    document.getElementById("gh-token").value = savedToken;
-    // Chamar a validação de forma assíncrona
-    validarEAutenticarToken(true);
-  }
-
-  document.getElementById("gh-token").addEventListener("input", (e) => {
-    localStorage.setItem("gh_pat_token", e.target.value.trim());
-  });
-
-  document.getElementById("buscaAluno").addEventListener("keyup", (e) => {
-    if (e.key === "Enter") carregarMusicasAluno();
-  });
-  document.getElementById("novaMusica").addEventListener("keyup", (e) => {
-    if (e.key === "Enter") adicionarMusica();
-  });
-
-  document.getElementById('btnPage1')?.addEventListener('click', () => setViewMode(1));
-  document.getElementById('btnPage2')?.addEventListener('click', () => setViewMode(2));
-  document.getElementById('btnFullscreen')?.addEventListener('click', toggleFullscreen);
-  document.getElementById('btnClosePreview')?.addEventListener('click', fecharVisualizador);
-
-  initResizeHandlers();
-
-  const urlParams = new URLSearchParams(window.location.search);
-  const loteParam = urlParams.get('lote');
-  
-  if (loteParam) {
-    exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
-    setTimeout(() => {
-      importarLoteMusicaDireto(loteParam);
-    }, 1000);
-  }
-};
-    
-
+    // ===== FUNÇÃO DE VALIDAÇÃO DE TOKEN (CORRIGIDA) =====
+    async function validarEAutenticarToken(silencioso = false) {
+      const token = obterToken();
       
+      // Verificar se o elemento existe, se não, criar
+      let statusMsg = document.getElementById("token-status-msg");
+      if (!statusMsg) {
+        // Criar o elemento se não existir
+        const panel = document.querySelector('.github-auth-panel');
+        statusMsg = document.createElement('div');
+        statusMsg.id = 'token-status-msg';
+        statusMsg.className = 'token-status';
+        statusMsg.style.cssText = 'font-size: 0.85rem; font-weight: 600; margin-top: 4px; width: 100%; color: #6b7280;';
+        statusMsg.textContent = '*O token fica gravado apenas no seu navegador.';
+        panel.appendChild(statusMsg);
+      }
+
+      if (!token) {
+        if (!silencioso) {
+          statusMsg.style.color = "#dc2626";
+          statusMsg.innerHTML = "⚠️ Por favor, digite ou cole um token válido.";
+          showToast('⚠️ Token não informado!', 'error');
+        }
+        return;
+      }
+
+      localStorage.setItem("gh_pat_token", token);
+
+      if (!silencioso) {
+        statusMsg.style.color = "#2563eb";
+        statusMsg.innerHTML = "<i class='fa-solid fa-spinner fa-spin'></i> Verificando token na API do GitHub...";
+      }
+
+      try {
+        const res = await fetch("https://api.github.com/user", {
+          headers: { "Authorization": `token ${token}` }
+        });
+
+        if (res.ok) {
+          const userData = await res.json();
+          statusMsg.style.color = "#16a34a";
+          statusMsg.innerHTML = `<i class="fa-solid fa-circle-check"></i> Token Autenticado com sucesso! Usuário: <strong>${userData.login}</strong>`;
+          showToast(`✅ Conectado como ${userData.login}`, 'success');
+        } else {
+          statusMsg.style.color = "#dc2626";
+          statusMsg.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Token Inválido ou sem permissão. Verifique se o token tem a permissão 'repo'.`;
+          if (!silencioso) showToast('❌ Token inválido!', 'error');
+        }
+      } catch (err) {
+        statusMsg.style.color = "#dc2626";
+        statusMsg.innerHTML = "❌ Erro ao conectar com o GitHub para testar o token.";
+        if (!silencioso) showToast('❌ Erro de conexão com GitHub', 'error');
+      }
+    }
+
+    window.onload = function() {
+      const savedToken = localStorage.getItem("gh_pat_token");
+      if (savedToken) {
+        document.getElementById("gh-token").value = savedToken;
+        // Chamar a validação de forma assíncrona
+        validarEAutenticarToken(true);
+      }
+
+      document.getElementById("gh-token").addEventListener("input", (e) => {
+        localStorage.setItem("gh_pat_token", e.target.value.trim());
+      });
+
+      document.getElementById("buscaAluno").addEventListener("keyup", (e) => {
+        if (e.key === "Enter") carregarMusicasAluno();
+      });
+      document.getElementById("novaMusica").addEventListener("keyup", (e) => {
+        if (e.key === "Enter") adicionarMusica();
+      });
+
+      document.getElementById('btnPage1')?.addEventListener('click', () => setViewMode(1));
+      document.getElementById('btnPage2')?.addEventListener('click', () => setViewMode(2));
+      document.getElementById('btnFullscreen')?.addEventListener('click', toggleFullscreen);
+      document.getElementById('btnClosePreview')?.addEventListener('click', fecharVisualizador);
+
+      initResizeHandlers();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const loteParam = urlParams.get('lote');
+      
+      if (loteParam) {
+        exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
+        setTimeout(() => {
+          importarLoteMusicaDireto(loteParam);
+        }, 1000);
+      }
+    };
 
     // ===== FUNÇÕES DE TOAST E STATUS =====
     function obterToken() {
@@ -659,47 +711,7 @@
       toast.innerHTML = mensagem;
       document.body.appendChild(toast);
       setTimeout(() => toast.remove(), 3000);
-
-      async function validarEAutenticarToken(silencioso = false) {
-  const token = obterToken();
-  const statusMsg = document.getElementById("token-status-msg");
-
-  if (!token) {
-    if (!silencioso) {
-      statusMsg.style.color = "#dc2626";
-      statusMsg.innerText = "Por favor, digite ou cole um token válido.";
     }
-    return;
-  }
-
-  localStorage.setItem("gh_pat_token", token);
-
-  if (!silencioso) {
-    statusMsg.style.color = "#2563eb";
-    statusMsg.innerText = "Verificando token na API do GitHub...";
-  }
-
-  try {
-    const res = await fetch("https://api.github.com/user", {
-      headers: { "Authorization": `token ${token}` }
-    });
-
-    if (res.ok) {
-      const userData = await res.json();
-      statusMsg.style.color = "#16a34a";
-      statusMsg.innerHTML = `<i class="fa-solid fa-circle-check"></i> Token Autenticado com sucesso! Usuário: <strong>${userData.login}</strong>`;
-      showToast(`✅ Conectado como ${userData.login}`, 'success');
-    } else {
-      statusMsg.style.color = "#dc2626";
-      statusMsg.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> Token Inválido ou sem permissão. Verifique se o token tem a permissão 'repo'.`;
-      if (!silencioso) showToast('❌ Token inválido!', 'error');
-    }
-  } catch (err) {
-    statusMsg.style.color = "#dc2626";
-    statusMsg.innerText = "Erro ao conectar com o GitHub para testar o token.";
-    if (!silencioso) showToast('❌ Erro de conexão com GitHub', 'error');
-  }
-}
 
     function exibirStatus(msg, cor = "black") {
       const statusEl = document.getElementById('statusMsg');
@@ -1005,7 +1017,7 @@
         obs: "", 
         lote: "Manual",
         pdfUrl: "",
-        abcFile: "" // Novo campo para arquivo ABC
+        abcFile: ""
       });
 
       document.getElementById('novaMusica').value = "";
@@ -1036,10 +1048,8 @@
       const codeEditor = document.getElementById('abcCodeEditor');
       const paperDiv = document.getElementById('abc-paper');
 
-      // Título da música
       titleEl.textContent = `🎵 ${m.nome || m.title || 'Partitura ABC'}`;
 
-      // Determinar o arquivo ABC
       let abcUrl = '';
       
       if (m.abcFile && m.abcFile.startsWith('http')) {
@@ -1054,37 +1064,30 @@
       } else if (m.id) {
         abcUrl = `${BASE_ABC_URL}/${m.id}.txt`;
       } else {
-        // Tentar buscar por nome ou número
         const textoBusca = m.nome || m.title || "";
         const matchNumero = textoBusca.match(/\d+/);
         if (matchNumero) {
           abcUrl = `${BASE_ABC_URL}/${matchNumero[0]}.txt`;
         } else {
-          // Tentar com o nome limpo
           const nomeLimpo = textoBusca.toLowerCase().replace(/[^a-z0-9]/g, '_');
           abcUrl = `${BASE_ABC_URL}/${nomeLimpo}.txt`;
         }
       }
 
-      // Mostrar modal com loading
       modal.classList.add('active');
       paperDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando partitura...</div>';
       codeEditor.value = 'Carregando...';
       codeEditor.disabled = true;
 
       try {
-        // Tentar buscar o arquivo ABC
         const response = await fetch(abcUrl);
         if (response.ok) {
           const abcText = await response.text();
           abcCurrentCode = abcText;
           codeEditor.value = abcText;
           codeEditor.disabled = false;
-          
-          // Renderizar a partitura
           await renderizarABCCompleto(abcText);
         } else {
-          // Se não encontrar, criar um ABC básico
           const abcBasico = `X:1\nT:${m.nome || m.title || 'Música'}\nM:4/4\nL:1/4\nK:C\nC D E F | G A B c |\nw: 1 2 3 4 | 5 6 7 8 |`;
           abcCurrentCode = abcBasico;
           codeEditor.value = abcBasico;
@@ -1108,7 +1111,6 @@
       modal.classList.remove('active');
       pararABC();
       
-      // Sair da tela cheia se estiver
       if (abcIsFullscreen && document.exitFullscreen) {
         document.exitFullscreen();
         abcIsFullscreen = false;
@@ -1122,10 +1124,8 @@
       const midiProgram = parseInt(document.getElementById('abcMidiProgram').value) || 0;
       
       try {
-        // Preparar o código ABC com configurações
         let processedAbc = abcText;
         
-        // Adicionar Q: se não tiver
         if (!/^Q:/m.test(processedAbc)) {
           const kMatch = processedAbc.match(/^(K:.*)$/m);
           if (kMatch) {
@@ -1135,7 +1135,6 @@
           }
         }
         
-        // Adicionar MIDI program se não tiver
         if (!/^%%MIDI\s+program/m.test(processedAbc)) {
           const kMatch = processedAbc.match(/^(K:.*)$/m);
           if (kMatch) {
@@ -1143,7 +1142,6 @@
           }
         }
 
-        // Renderizar usando ABCJS
         paperDiv.innerHTML = '';
         const visual = ABCJS.renderAbc('abc-paper', processedAbc, {
           responsive: 'resize',
@@ -1254,7 +1252,6 @@
 
     function atualizarBPMABC(valor) {
       const bpm = parseInt(valor) || 120;
-      // Atualizar o código ABC com o novo BPM
       const codeEditor = document.getElementById('abcCodeEditor');
       let text = codeEditor.value;
       
@@ -1264,7 +1261,6 @@
         abcCurrentCode = text;
         renderizarABCCompleto(text);
       } else {
-        // Se não tiver Q:, adicionar
         const kMatch = text.match(/^(K:.*)$/m);
         if (kMatch) {
           text = text.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
@@ -1300,7 +1296,6 @@
       navigator.clipboard.writeText(codeEditor.value).then(() => {
         showToast('📋 Código ABC copiado!', 'success');
       }).catch(() => {
-        // Fallback
         codeEditor.select();
         document.execCommand('copy');
         showToast('📋 Código ABC copiado!', 'success');
@@ -1662,5 +1657,9 @@
 
     console.log('✅ Repertório de Músicas do Aluno com suporte ABC carregado!');
   </script>
+
+
+
+
 </body>
 </html>
