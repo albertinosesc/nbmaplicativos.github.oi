@@ -330,7 +330,7 @@
       background: #ffffff;
       border-radius: 12px;
       width: 95%;
-      max-width: 1300px;
+      max-width: 1400px;
       height: 90vh;
       display: flex;
       flex-direction: column;
@@ -449,6 +449,7 @@
     .md-preview-panel .md-preview .chord-diagram { display: inline-block; margin: 10px; }
     .md-preview-panel .md-preview .abcjs-container { max-width: 100%; overflow-x: auto; }
     .md-preview-panel .md-preview .abcjs-container svg { max-width: 100%; height: auto; }
+    .md-preview-panel .md-preview .piano-diagram-container { display: inline-block; margin: 10px; }
 
     .md-toolbar {
       display: flex;
@@ -490,6 +491,10 @@
     }
     .md-toolbar .btn-view-toggle:hover {
       background: #581c87;
+    }
+    .md-toolbar .btn-view-toggle.active {
+      background: #3b82f6;
+      border-color: #3b82f6;
     }
     .md-status.saving { color: #3b82f6; }
     .md-status.saved { color: #16a34a; }
@@ -674,14 +679,15 @@
 
   <script>
     // ============================================================
-    // INCLUSÃO DOS SCRIPTS EXTERNOS DINAMICAMENTE
+    // CARREGAR SCRIPTS MUSICAIS DINAMICAMENTE
     // ============================================================
     function carregarScriptsMusicais() {
-      const scripts = [
+      // Scripts CDN
+      const cdnScripts = [
         'https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js'
       ];
       
-      scripts.forEach(src => {
+      cdnScripts.forEach(src => {
         if (!document.querySelector(`script[src="${src}"]`)) {
           const script = document.createElement('script');
           script.src = src;
@@ -690,7 +696,7 @@
         }
       });
       
-      // Scripts locais (se existirem)
+      // Scripts locais (se existirem na pasta js/)
       const scriptsLocais = [
         'acordeviolao.js',
         'acordes_dinamicos.js',
@@ -708,13 +714,171 @@
           const script = document.createElement('script');
           script.src = `js/${nome}`;
           script.async = true;
+          script.onerror = function() {
+            // Tenta carregar da mesma pasta se não encontrar em js/
+            console.log(`⚠️ Script ${nome} não encontrado em js/, tentando na mesma pasta...`);
+            const script2 = document.createElement('script');
+            script2.src = nome;
+            script2.async = true;
+            document.head.appendChild(script2);
+          };
           document.head.appendChild(script);
         }
       });
     }
 
-    // Carregar scripts quando a página carregar
-    document.addEventListener('DOMContentLoaded', carregarScriptsMusicais);
+    // ============================================================
+    // FUNÇÃO PARA RENDERIZAR PIANO NO PREVIEW
+    // ============================================================
+    function processarPianoNoPreview(container) {
+      const elementos = container.querySelectorAll('p, div, li, span');
+      elementos.forEach(el => {
+        const texto = el.innerHTML;
+        if (texto && texto.includes('[PIANO:')) {
+          const match = texto.match(/\[PIANO:([^\]]+)\]([\s\S]*?)\[\/PIANO\]/);
+          if (match) {
+            const sigla = match[1].trim();
+            const nome = match[2].trim() || sigla;
+            const pianoDiv = document.createElement('div');
+            pianoDiv.className = 'piano-diagram-container';
+            el.innerHTML = '';
+            el.appendChild(pianoDiv);
+            
+            // Tentar usar a função do acordes_piano.js se disponível
+            if (typeof window.ACORDES_PIANO !== 'undefined' && window.ACORDES_PIANO[sigla]) {
+              const acorde = window.ACORDES_PIANO[sigla];
+              // Tentar usar a função de desenho do piano
+              if (typeof desenharTecladoPiano === 'function') {
+                desenharTecladoPiano(pianoDiv, sigla, acorde.nome || nome, acorde.notas, acorde.startOitava, acorde.endOitava, acorde.dedosTreble);
+              } else {
+                pianoDiv.innerHTML = `<div style="color:#8b5cf6;font-weight:bold;">🎹 ${nome} (${sigla})</div>`;
+              }
+            } else {
+              pianoDiv.innerHTML = `<div style="color:#8b5cf6;font-weight:bold;">🎹 ${nome} (${sigla})</div>`;
+            }
+          }
+        }
+      });
+    }
+
+    // ============================================================
+    // FUNÇÃO PARA RENDERIZAR ABC NO PREVIEW
+    // ============================================================
+    function processarABCNoPreview(container) {
+      const elementos = container.querySelectorAll('p, div, li, pre, code');
+      elementos.forEach(el => {
+        const texto = el.innerHTML;
+        if (texto && texto.includes('[ABC]') && texto.includes('[/ABC]')) {
+          const match = texto.match(/\[ABC\]([\s\S]*?)\[\/ABC\]/);
+          if (match) {
+            const codigoABC = match[1].trim();
+            const abcDiv = document.createElement('div');
+            abcDiv.className = 'abcjs-container';
+            abcDiv.id = 'abc-preview-' + Date.now() + '-' + Math.random().toString(36).substr(2, 5);
+            el.innerHTML = '';
+            el.appendChild(abcDiv);
+            
+            // Renderizar com ABCJS
+            if (typeof ABCJS !== 'undefined') {
+              try {
+                ABCJS.renderAbc(abcDiv.id, codigoABC, {
+                  responsive: 'resize',
+                  add_classes: true,
+                  paddingtop: 10,
+                  paddingbottom: 10,
+                  paddingright: 10,
+                  paddingleft: 10
+                });
+              } catch (e) {
+                abcDiv.innerHTML = `<div style="color:red;">❌ Erro ao renderizar partitura: ${e.message}</div>`;
+              }
+            } else {
+              abcDiv.innerHTML = `<pre style="background:#1e293b;color:#e2e8f0;padding:15px;border-radius:6px;">${codigoABC}</pre>`;
+            }
+          }
+        }
+      });
+    }
+
+    // ============================================================
+    // FUNÇÃO PARA RENDERIZAR ACORDES NO PREVIEW
+    // ============================================================
+    function processarAcordesNoPreview(container) {
+      const elementos = container.querySelectorAll('p, div, li');
+      elementos.forEach(el => {
+        const texto = el.innerHTML;
+        if (texto && texto.includes('[Acorde:')) {
+          const match = texto.match(/\[Acorde:([^\]]+)\]([\s\S]*?)\[\/Acorde\]/);
+          if (match) {
+            const sigla = match[1].trim();
+            const nome = match[2].trim() || sigla;
+            const chordDiv = document.createElement('div');
+            chordDiv.className = 'chord-diagram';
+            el.innerHTML = '';
+            el.appendChild(chordDiv);
+            
+            // Tentar usar a função do acordeviolao.js se disponível
+            if (typeof desenharAcorde === 'function') {
+              desenharAcorde(chordDiv, sigla, nome);
+            } else {
+              chordDiv.innerHTML = `<div style="color:#6b21a8;font-weight:bold;">🎸 ${nome} (${sigla})</div>`;
+            }
+          }
+        }
+      });
+    }
+
+    // ============================================================
+    // FUNÇÃO PRINCIPAL DE RENDERIZAÇÃO DO MD
+    // ============================================================
+    function mdRenderizar() {
+      const editor = document.getElementById('mdEditor');
+      const preview = document.getElementById('mdPreview');
+      const wordCount = document.getElementById('mdWordCount');
+      const conteudo = editor.value || '';
+      
+      try {
+        // Renderizar Markdown
+        let html = marked.parse(conteudo);
+        preview.innerHTML = html;
+        
+        // Processar elementos especiais
+        setTimeout(() => {
+          processarAcordesNoPreview(preview);
+          processarABCNoPreview(preview);
+          processarPianoNoPreview(preview);
+        }, 100);
+        
+        const palavras = conteudo.trim().split(/\s+/).filter(p => p.length > 0);
+        if (wordCount) wordCount.textContent = `${palavras.length} palavras`;
+      } catch (e) {
+        preview.innerHTML = `<div style="color:red;">❌ Erro ao renderizar: ${e.message}</div>`;
+      }
+    }
+
+    // ============================================================
+    // FUNÇÃO PARA ALTERNAR MODO DE VISUALIZAÇÃO
+    // ============================================================
+    function toggleMdViewMode() {
+      const body = document.getElementById('mdModalBody');
+      const toggleBtn = document.querySelector('.btn-view-toggle');
+      
+      if (mdViewMode === 'split') {
+        mdViewMode = 'preview-only';
+        body.classList.add('preview-only');
+        if (toggleBtn) {
+          toggleBtn.innerHTML = '<i class="fa-solid fa-pen"></i> Editor + Visualizador';
+          toggleBtn.classList.add('active');
+        }
+      } else {
+        mdViewMode = 'split';
+        body.classList.remove('preview-only');
+        if (toggleBtn) {
+          toggleBtn.innerHTML = '<i class="fa-solid fa-eye"></i> Só Visualizador';
+          toggleBtn.classList.remove('active');
+        }
+      }
+    }
 
     // ============================================================
     // CONFIGURAÇÕES
@@ -731,7 +895,7 @@
     let currentMdFile = '';
     let currentMdSha = null;
     let mdTimeout = null;
-    let mdViewMode = 'split'; // 'split' ou 'preview-only'
+    let mdViewMode = 'split';
 
     // ===== BASE URL DOS ARQUIVOS =====
     const BASE_PDF_CONCEITO_URL = "https://raw.githubusercontent.com/albertinosesc/pdf-conceito/main";
@@ -742,6 +906,9 @@
     // FUNÇÕES DE AUTENTICAÇÃO E UTILITÁRIOS
     // ============================================================
     window.onload = function() {
+      // Carregar scripts musicais
+      carregarScriptsMusicais();
+      
       const savedToken = localStorage.getItem("gh_pat_token");
       if (savedToken) {
         document.getElementById("gh-token").value = savedToken;
@@ -1061,7 +1228,10 @@
       mdViewMode = 'split';
       document.getElementById('mdModalBody').classList.remove('preview-only');
       const toggleBtn = document.querySelector('.btn-view-toggle');
-      if (toggleBtn) toggleBtn.innerHTML = '<i class="fa-solid fa-eye"></i> Só Visualizador';
+      if (toggleBtn) {
+        toggleBtn.innerHTML = '<i class="fa-solid fa-eye"></i> Só Visualizador';
+        toggleBtn.classList.remove('active');
+      }
       
       editor.value = 'Carregando...';
       editor.disabled = true;
@@ -1129,53 +1299,6 @@
       }
     }
 
-    function mdRenderizar() {
-      const editor = document.getElementById('mdEditor');
-      const preview = document.getElementById('mdPreview');
-      const wordCount = document.getElementById('mdWordCount');
-      const conteudo = editor.value || '';
-      
-      try {
-        let html = marked.parse(conteudo);
-        preview.innerHTML = html;
-        
-        // Processar diagramas de acordes no preview
-        setTimeout(() => {
-          processarDiagramasNoPreview(preview);
-        }, 100);
-        
-        const palavras = conteudo.trim().split(/\s+/).filter(p => p.length > 0);
-        if (wordCount) wordCount.textContent = `${palavras.length} palavras`;
-      } catch (e) {
-        preview.innerHTML = `<div style="color:red;">❌ Erro ao renderizar: ${e.message}</div>`;
-      }
-    }
-
-    function processarDiagramasNoPreview(container) {
-      // Processar [Acorde:X] no preview
-      const elementos = container.querySelectorAll('p, div, li');
-      elementos.forEach(el => {
-        const texto = el.innerHTML;
-        if (texto && texto.includes('[Acorde:')) {
-          const match = texto.match(/\[Acorde:([^\]]+)\]([\s\S]*?)\[\/Acorde\]/);
-          if (match) {
-            const sigla = match[1].trim();
-            const nome = match[2].trim() || sigla;
-            const chordDiv = document.createElement('div');
-            chordDiv.className = 'chord-diagram';
-            el.innerHTML = '';
-            el.appendChild(chordDiv);
-            // Tentar usar a função do acordeviolao.js se disponível
-            if (typeof desenharAcorde === 'function') {
-              desenharAcorde(chordDiv, sigla, nome);
-            } else {
-              chordDiv.innerHTML = `<div style="color:#6b21a8;font-weight:bold;">🎸 ${nome} (${sigla})</div>`;
-            }
-          }
-        }
-      });
-    }
-
     function mdAddFormat(antes, depois) {
       const editor = document.getElementById('mdEditor');
       const start = editor.selectionStart;
@@ -1223,21 +1346,6 @@
         editor.value = texto.substring(0, start) + img + texto.substring(start);
         mdRenderizar();
         editor.focus();
-      }
-    }
-
-    function toggleMdViewMode() {
-      const body = document.getElementById('mdModalBody');
-      const toggleBtn = document.querySelector('.btn-view-toggle');
-      
-      if (mdViewMode === 'split') {
-        mdViewMode = 'preview-only';
-        body.classList.add('preview-only');
-        if (toggleBtn) toggleBtn.innerHTML = '<i class="fa-solid fa-pen"></i> Editor + Visualizador';
-      } else {
-        mdViewMode = 'split';
-        body.classList.remove('preview-only');
-        if (toggleBtn) toggleBtn.innerHTML = '<i class="fa-solid fa-eye"></i> Só Visualizador';
       }
     }
 
