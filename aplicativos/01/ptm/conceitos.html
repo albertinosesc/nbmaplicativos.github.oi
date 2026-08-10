@@ -57,6 +57,8 @@
     button.btn-secondary { background-color: #4b5563; }
     button.btn-pdf { background-color: #dc2626; }
     button.btn-pdf:hover { background-color: #b91c1c; }
+    button.btn-txt { background-color: #d97706; }
+    button.btn-txt:hover { background-color: #b45309; }
 
     .table-toolbar {
       display: flex;
@@ -68,7 +70,7 @@
     }
 
     .table-container { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 650px; }
+    table { width: 100%; border-collapse: collapse; min-width: 750px; }
     th, td { border: 1px solid var(--border); padding: 10px; text-align: left; }
     th { background-color: #f1f5f9; font-weight: 600; font-size: 0.85rem; text-align: center; }
     
@@ -189,6 +191,127 @@
     .btn-fullscreen-pdf:hover {
       background-color: #374151;
     }
+
+    /* ===== MODAL TXT ===== */
+    .txt-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      z-index: 99998;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .txt-modal.active {
+      display: flex;
+    }
+    .txt-modal-content {
+      background: #ffffff;
+      border-radius: 12px;
+      width: 95%;
+      max-width: 900px;
+      height: 85vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      animation: modalFadeIn 0.3s ease;
+    }
+    .txt-modal-header {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .txt-modal-header h2 {
+      font-size: 1.2rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .txt-modal-header .close-modal {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.8rem;
+      cursor: pointer;
+      padding: 0 8px;
+      transition: color 0.2s;
+    }
+    .txt-modal-header .close-modal:hover {
+      color: #ef4444;
+    }
+    .txt-modal-body {
+      flex: 1;
+      padding: 20px;
+      background: #f8fafc;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .txt-modal-body textarea {
+      flex: 1;
+      width: 100%;
+      padding: 15px;
+      font-family: "Courier New", Courier, monospace;
+      font-size: 0.95rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      resize: none;
+      background: #ffffff;
+      color: #1f2937;
+      line-height: 1.6;
+    }
+    .txt-modal-body textarea:focus {
+      outline: 2px solid var(--primary);
+      outline-offset: 2px;
+    }
+    .txt-toolbar {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .txt-toolbar button {
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      border-radius: 4px;
+    }
+    .txt-status {
+      font-size: 0.85rem;
+      color: #6b7280;
+      margin-left: 8px;
+    }
+    .txt-status.saving {
+      color: #2563eb;
+    }
+    .txt-status.saved {
+      color: #16a34a;
+    }
+    .txt-status.error {
+      color: #dc2626;
+    }
+    .btn-save-txt {
+      background-color: #16a34a;
+    }
+    .btn-save-txt:hover {
+      background-color: #15803d;
+    }
+    .btn-fullscreen-txt {
+      background-color: #4b5563;
+    }
+    .btn-fullscreen-txt:hover {
+      background-color: #374151;
+    }
   </style>
 </head>
 <body>
@@ -262,8 +385,9 @@
         <thead>
           <tr>
             <th>Título do Conceito / Assunto Teórico</th>
-            <th style="width: 100px;" class="col-center">Concluído</th>
-            <th style="width: 100px;" class="col-center">PDF</th>
+            <th style="width: 90px;" class="col-center">Concluído</th>
+            <th style="width: 80px;" class="col-center">PDF</th>
+            <th style="width: 80px;" class="col-center">TXT</th>
             <th style="width: 60px;" class="col-center">Ação</th>
           </tr>
         </thead>
@@ -290,6 +414,28 @@
     </div>
   </div>
 
+  <!-- ===== MODAL TXT ===== -->
+  <div class="txt-modal" id="txtModal">
+    <div class="txt-modal-content">
+      <div class="txt-modal-header">
+        <h2><i class="fa-solid fa-file-lines"></i> <span id="txtModalTitle">Arquivo de Texto</span></h2>
+        <div style="display: flex; gap: 8px; align-items: center;">
+          <span id="txtStatus" class="txt-status">Pronto</span>
+          <button class="btn-fullscreen-txt" onclick="toggleTxtFullscreen()"><i class="fa-solid fa-expand"></i> Tela Cheia</button>
+          <button class="close-modal" onclick="fecharTxtModal()">&times;</button>
+        </div>
+      </div>
+      <div class="txt-modal-body" id="txtModalBody">
+        <textarea id="txtEditor" spellcheck="true"></textarea>
+        <div class="txt-toolbar">
+          <button class="btn-save-txt" onclick="salvarArquivoTxt()"><i class="fa-solid fa-floppy-disk"></i> Salvar no GitHub</button>
+          <button class="btn-secondary" onclick="recarregarArquivoTxt()"><i class="fa-solid fa-rotate"></i> Recarregar</button>
+          <span id="txtStatusDetail" class="txt-status">Editando...</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script>
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     let shaArquivoAtual = null;
@@ -297,9 +443,13 @@
     let loteImportado = [];
     let currentPdfUrl = '';
     let pdfIsFullscreen = false;
+    let txtIsFullscreen = false;
+    let currentTxtFile = '';
+    let currentTxtSha = null;
 
-    // ===== BASE URL DOS PDFs =====
+    // ===== BASE URL DOS PDFs e TXTs =====
     const BASE_PDF_CONCEITO_URL = "https://raw.githubusercontent.com/albertinosesc/pdf-conceito/main";
+    const BASE_TXT_CONCEITO_URL = "https://raw.githubusercontent.com/albertinosesc/pdf-conceito/main/txt";
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -374,19 +524,12 @@
       const iframe = document.getElementById('pdfIframe');
       const titleEl = document.getElementById('pdfModalTitle');
       
-      // Monta a URL do PDF usando o Google Docs Viewer
       const pdfRawUrl = `${BASE_PDF_CONCEITO_URL}/${numeroTopico}.pdf`;
       const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdfRawUrl)}&embedded=true`;
       
       currentPdfUrl = viewerUrl;
-      
-      // Atualiza título
       titleEl.textContent = `📄 ${titulo}`;
-      
-      // Carrega o PDF no iframe usando o Google Docs Viewer
       iframe.src = viewerUrl;
-      
-      // Mostra o modal
       modal.classList.add('active');
     }
 
@@ -397,7 +540,6 @@
       modal.classList.remove('active');
       iframe.src = '';
       
-      // Sai da tela cheia se estiver
       if (pdfIsFullscreen && document.exitFullscreen) {
         document.exitFullscreen();
         pdfIsFullscreen = false;
@@ -424,20 +566,241 @@
       }
     }
 
-    // Fechar modal com ESC
+    // ===== FUNÇÕES TXT =====
+    async function abrirTxtConceito(numeroTopico, titulo) {
+      const modal = document.getElementById('txtModal');
+      const editor = document.getElementById('txtEditor');
+      const titleEl = document.getElementById('txtModalTitle');
+      const statusEl = document.getElementById('txtStatusDetail');
+      
+      currentTxtFile = `${numeroTopico}.txt`;
+      titleEl.textContent = `📄 ${titulo} - ${currentTxtFile}`;
+      
+      // Mostrar modal com loading
+      modal.classList.add('active');
+      editor.value = 'Carregando...';
+      editor.disabled = true;
+      statusEl.textContent = 'Carregando...';
+      statusEl.className = 'txt-status';
+      
+      const token = obterToken();
+      if (!token) {
+        editor.value = '⚠️ Token do GitHub não configurado.';
+        editor.disabled = true;
+        statusEl.textContent = 'Sem token';
+        statusEl.className = 'txt-status error';
+        return;
+      }
+
+      try {
+        const url = `${BASE_TXT_CONCEITO_URL}/${currentTxtFile}`;
+        const response = await fetch(url);
+        
+        if (response.ok) {
+          const conteudo = await response.text();
+          editor.value = conteudo;
+          editor.disabled = false;
+          statusEl.textContent = 'Editando...';
+          statusEl.className = 'txt-status';
+          
+          // Tentar obter o SHA para salvar depois
+          await obterShaArquivoTxt(currentTxtFile);
+        } else if (response.status === 404) {
+          editor.value = `# Arquivo ${currentTxtFile} não encontrado.\n# Clique em "Salvar" para criá-lo.`;
+          editor.disabled = false;
+          statusEl.textContent = 'Novo arquivo';
+          statusEl.className = 'txt-status';
+          currentTxtSha = null;
+        } else {
+          throw new Error(`Erro ${response.status}: ${response.statusText}`);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar TXT:', error);
+        editor.value = `⚠️ Erro ao carregar o arquivo:\n${error.message}`;
+        editor.disabled = true;
+        statusEl.textContent = 'Erro';
+        statusEl.className = 'txt-status error';
+      }
+    }
+
+    async function obterShaArquivoTxt(nomeArquivo) {
+      const token = obterToken();
+      if (!token) return;
+      
+      try {
+        const apiUrl = `https://api.github.com/repos/albertinosesc/pdf-conceito/contents/txt/${nomeArquivo}`;
+        const response = await fetch(apiUrl, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          currentTxtSha = data.sha;
+        } else {
+          currentTxtSha = null;
+        }
+      } catch (e) {
+        currentTxtSha = null;
+      }
+    }
+
+    async function salvarArquivoTxt() {
+      const editor = document.getElementById('txtEditor');
+      const statusEl = document.getElementById('txtStatusDetail');
+      const token = obterToken();
+      
+      if (!token) {
+        alert('Token do GitHub não configurado!');
+        return;
+      }
+      
+      if (!currentTxtFile) {
+        alert('Nenhum arquivo aberto!');
+        return;
+      }
+
+      const conteudo = editor.value;
+      const utf8Bytes = new TextEncoder().encode(conteudo);
+      let binaryStr = "";
+      utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+      const conteudoBase64 = btoa(binaryStr);
+
+      statusEl.textContent = 'Salvando...';
+      statusEl.className = 'txt-status saving';
+
+      try {
+        const apiUrl = `https://api.github.com/repos/albertinosesc/pdf-conceito/contents/txt/${currentTxtFile}`;
+        
+        const body = {
+          message: `Atualizando arquivo ${currentTxtFile}`,
+          content: conteudoBase64,
+          branch: 'main'
+        };
+        if (currentTxtSha) body.sha = currentTxtSha;
+
+        const response = await fetch(apiUrl, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          currentTxtSha = data.content.sha;
+          statusEl.textContent = '✅ Salvo!';
+          statusEl.className = 'txt-status saved';
+          showToast(`✅ Arquivo ${currentTxtFile} salvo com sucesso!`, 'success');
+          
+          // Resetar status após 2 segundos
+          setTimeout(() => {
+            statusEl.textContent = 'Editando...';
+            statusEl.className = 'txt-status';
+          }, 2000);
+        } else {
+          const errData = await response.json();
+          throw new Error(errData.message || 'Erro ao salvar');
+        }
+      } catch (error) {
+        console.error('Erro ao salvar TXT:', error);
+        statusEl.textContent = `❌ ${error.message}`;
+        statusEl.className = 'txt-status error';
+        showToast(`❌ Erro ao salvar: ${error.message}`, 'error');
+      }
+    }
+
+    async function recarregarArquivoTxt() {
+      if (!currentTxtFile) return;
+      
+      const editor = document.getElementById('txtEditor');
+      const statusEl = document.getElementById('txtStatusDetail');
+      
+      statusEl.textContent = 'Recarregando...';
+      statusEl.className = 'txt-status saving';
+      
+      try {
+        const url = `${BASE_TXT_CONCEITO_URL}/${currentTxtFile}`;
+        const response = await fetch(url);
+        
+        if (response.ok) {
+          const conteudo = await response.text();
+          editor.value = conteudo;
+          await obterShaArquivoTxt(currentTxtFile);
+          statusEl.textContent = 'Recarregado!';
+          statusEl.className = 'txt-status saved';
+          setTimeout(() => {
+            statusEl.textContent = 'Editando...';
+            statusEl.className = 'txt-status';
+          }, 1500);
+        } else {
+          throw new Error('Arquivo não encontrado');
+        }
+      } catch (error) {
+        statusEl.textContent = '❌ Erro ao recarregar';
+        statusEl.className = 'txt-status error';
+      }
+    }
+
+    function fecharTxtModal() {
+      const modal = document.getElementById('txtModal');
+      const editor = document.getElementById('txtEditor');
+      
+      modal.classList.remove('active');
+      editor.value = '';
+      currentTxtFile = '';
+      currentTxtSha = null;
+      
+      if (txtIsFullscreen && document.exitFullscreen) {
+        document.exitFullscreen();
+        txtIsFullscreen = false;
+      }
+    }
+
+    function toggleTxtFullscreen() {
+      const modalBody = document.getElementById('txtModalBody');
+      
+      if (!txtIsFullscreen) {
+        if (modalBody.requestFullscreen) {
+          modalBody.requestFullscreen();
+        } else if (modalBody.webkitRequestFullscreen) {
+          modalBody.webkitRequestFullscreen();
+        }
+        txtIsFullscreen = true;
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
+        txtIsFullscreen = false;
+      }
+    }
+
+    // Fechar modais com ESC
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
-        const modal = document.getElementById('pdfModal');
-        if (modal.classList.contains('active')) {
+        const pdfModal = document.getElementById('pdfModal');
+        if (pdfModal.classList.contains('active')) {
           fecharPdfModal();
+        }
+        const txtModal = document.getElementById('txtModal');
+        if (txtModal.classList.contains('active')) {
+          fecharTxtModal();
         }
       }
     });
 
-    // Fechar modal clicando fora
+    // Fechar modais clicando fora
     document.getElementById('pdfModal').addEventListener('click', function(e) {
       if (e.target === this) {
         fecharPdfModal();
+      }
+    });
+    document.getElementById('txtModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        fecharTxtModal();
       }
     });
 
@@ -517,7 +880,6 @@
       const tbody = document.getElementById('corpoTabela');
       const tr = document.createElement('tr');
 
-      // Extrair número do título se possível
       let numTopico = numeroTopico;
       if (!numTopico && tituloConceito) {
         const match = tituloConceito.match(/^(\d+)\s*[-.]?\s*/);
@@ -533,11 +895,15 @@
           <i class="fa-solid fa-file-pdf"></i>
         </button>
       </td>`;
+      let tdTxt = `<td class="col-center">
+        <button class="btn-txt" style="padding: 4px 8px;" onclick="abrirTxtPorLinha(this)" title="Abrir/Editar TXT do Conceito">
+          <i class="fa-solid fa-file-lines"></i>
+        </button>
+      </td>`;
       let tdAcao = `<td class="col-center"><button class="btn-danger" style="padding: 4px 8px;" onclick="removerLinha(this)" title="Excluir"><i class="fa-solid fa-trash"></i></button></td>`;
 
-      tr.innerHTML = tdNome + tdCheck + tdPdf + tdAcao;
+      tr.innerHTML = tdNome + tdCheck + tdPdf + tdTxt + tdAcao;
       
-      // Armazenar o número do tópico como data attribute
       if (numTopico) {
         tr.dataset.numeroTopico = numTopico;
       }
@@ -561,23 +927,37 @@
       const tituloInput = tr.querySelector('input[type="text"]');
       const titulo = tituloInput ? tituloInput.value.trim() : 'Conceito';
       
-      // Tentar obter o número do tópico do data attribute
       let numTopico = tr.dataset.numeroTopico;
-      
-      // Se não tiver, tentar extrair do título
       if (!numTopico) {
         const match = titulo.match(/^(\d+)\s*[-.]?\s*/);
-        if (match) {
-          numTopico = match[1];
-        }
+        if (match) numTopico = match[1];
       }
       
       if (!numTopico) {
-        showToast('⚠️ Não foi possível identificar o número do tópico. Use o formato: "1 - Nome do Conceito"', 'error');
+        showToast('⚠️ Use o formato: "1 - Nome do Conceito"', 'error');
         return;
       }
       
       abrirPdfConceito(numTopico, titulo);
+    }
+
+    function abrirTxtPorLinha(btn) {
+      const tr = btn.closest('tr');
+      const tituloInput = tr.querySelector('input[type="text"]');
+      const titulo = tituloInput ? tituloInput.value.trim() : 'Conceito';
+      
+      let numTopico = tr.dataset.numeroTopico;
+      if (!numTopico) {
+        const match = titulo.match(/^(\d+)\s*[-.]?\s*/);
+        if (match) numTopico = match[1];
+      }
+      
+      if (!numTopico) {
+        showToast('⚠️ Use o formato: "1 - Nome do Conceito"', 'error');
+        return;
+      }
+      
+      abrirTxtConceito(numTopico, titulo);
     }
 
     function removerLinha(btn) {
@@ -677,7 +1057,6 @@
           return;
         }
 
-        // GUARDAR O LOTE IMPORTADO
         loteImportado = [];
         listaConceitos.forEach(c => {
           const nomeStr = typeof c === 'string' ? c : (c.titulo || c.nome || "");
@@ -687,23 +1066,16 @@
           }
         });
 
-        // Se já tem um aluno carregado, MESCLAR com o lote
         if (alunoIdAtual) {
-          // Pegar conceitos atuais da tabela
           const conceitosAtuais = getConceitosDaTabela();
-          
-          // Mesclar: manter os que já existem, adicionar os novos do lote
           const titulosExistentes = new Set(conceitosAtuais.map(c => c.titulo));
           
-          // Limpar tabela
           document.getElementById('corpoTabela').innerHTML = "";
           
-          // Adicionar conceitos existentes
           conceitosAtuais.forEach(c => {
             adicionarLinhaConceito(c.titulo, c.concluido, c.numeroTopico);
           });
           
-          // Adicionar novos conceitos do lote que não existem
           let adicionados = 0;
           loteImportado.forEach(c => {
             if (!titulosExistentes.has(c.titulo)) {
@@ -715,7 +1087,6 @@
           exibirStatus(`✅ Lote "${nomeLote}" mesclado! ${adicionados} novos conceitos adicionados.`, "green");
           showToast(`📚 ${adicionados} novos conceitos adicionados ao aluno!`, 'success');
         } else {
-          // Se não tem aluno, substituir a tabela pelo lote
           document.getElementById('corpoTabela').innerHTML = "";
           loteImportado.forEach(c => {
             adicionarLinhaConceito(c.titulo, false, c.numeroTopico);
@@ -760,7 +1131,6 @@
           headers: { 'Authorization': `token ${token}` }
         });
 
-        // Limpar tabela atual
         document.getElementById('corpoTabela').innerHTML = "";
 
         let conceitosDoAluno = [];
@@ -783,15 +1153,12 @@
           }
         }
 
-        // ===== MESCLAR CONCEITOS DO ALUNO COM LOTE IMPORTADO =====
         const titulosExistentes = new Set(conceitosDoAluno.map(c => c.titulo));
 
-        // Adicionar conceitos do aluno
         conceitosDoAluno.forEach(c => {
           adicionarLinhaConceito(c.titulo, c.concluido, c.numeroTopico || '');
         });
 
-        // Adicionar conceitos do lote que não existem no aluno
         let adicionadosDoLote = 0;
         loteImportado.forEach(c => {
           if (!titulosExistentes.has(c.titulo)) {
