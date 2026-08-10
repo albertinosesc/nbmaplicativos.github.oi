@@ -10,6 +10,9 @@
 
   <!-- Marked.js para renderização Markdown -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
+  <!-- ABCJS para partituras -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js"></script>
 
   <style>
     :root {
@@ -327,7 +330,7 @@
       background: #ffffff;
       border-radius: 12px;
       width: 95%;
-      max-width: 1200px;
+      max-width: 1300px;
       height: 90vh;
       display: flex;
       flex-direction: column;
@@ -368,6 +371,14 @@
       display: flex;
       overflow: hidden;
       min-height: 0;
+      transition: all 0.3s ease;
+    }
+    .md-modal-body.preview-only .md-editor-panel {
+      display: none;
+    }
+    .md-modal-body.preview-only .md-preview-panel {
+      flex: 2;
+      border-left: none;
     }
     .md-editor-panel {
       flex: 1;
@@ -399,6 +410,7 @@
       background: #f8fafc;
       overflow-y: auto;
       border-left: 2px solid #1e293b;
+      transition: all 0.3s ease;
     }
     .md-preview-panel .md-preview {
       max-width: 100%;
@@ -433,6 +445,10 @@
       color: #e2e8f0;
       padding: 0;
     }
+    /* Diagramas no preview */
+    .md-preview-panel .md-preview .chord-diagram { display: inline-block; margin: 10px; }
+    .md-preview-panel .md-preview .abcjs-container { max-width: 100%; overflow-x: auto; }
+    .md-preview-panel .md-preview .abcjs-container svg { max-width: 100%; height: auto; }
 
     .md-toolbar {
       display: flex;
@@ -467,6 +483,13 @@
     }
     .md-toolbar .btn-save-md:hover {
       background: #15803d;
+    }
+    .md-toolbar .btn-view-toggle {
+      background: #6b21a8;
+      border-color: #6b21a8;
+    }
+    .md-toolbar .btn-view-toggle:hover {
+      background: #581c87;
     }
     .md-status.saving { color: #3b82f6; }
     .md-status.saved { color: #16a34a; }
@@ -637,6 +660,7 @@
             <button onclick="mdAddImage()">🖼️</button>
             <button onclick="mdRenderizar()" style="background:#3b82f6;">Renderizar</button>
             <button class="btn-save-md" onclick="salvarArquivoMd()"><i class="fa-solid fa-floppy-disk"></i> Salvar</button>
+            <button class="btn-view-toggle" onclick="toggleMdViewMode()"><i class="fa-solid fa-eye"></i> Só Visualizador</button>
             <span class="md-status" id="mdWordCount">0 palavras</span>
           </div>
           <textarea id="mdEditor" spellcheck="true"></textarea>
@@ -649,6 +673,52 @@
   </div>
 
   <script>
+    // ============================================================
+    // INCLUSÃO DOS SCRIPTS EXTERNOS DINAMICAMENTE
+    // ============================================================
+    function carregarScriptsMusicais() {
+      const scripts = [
+        'https://cdnjs.cloudflare.com/ajax/libs/abcjs/6.2.2/abcjs-basic-min.js'
+      ];
+      
+      scripts.forEach(src => {
+        if (!document.querySelector(`script[src="${src}"]`)) {
+          const script = document.createElement('script');
+          script.src = src;
+          script.async = true;
+          document.head.appendChild(script);
+        }
+      });
+      
+      // Scripts locais (se existirem)
+      const scriptsLocais = [
+        'acordeviolao.js',
+        'acordes_dinamicos.js',
+        'escala.js',
+        'acordes_piano.js',
+        'editor_acordes.js',
+        'piano_editor.js',
+        'main4.js',
+        'exportar.js',
+        'abc_infantil.js'
+      ];
+      
+      scriptsLocais.forEach(nome => {
+        if (!document.querySelector(`script[src*="${nome}"]`)) {
+          const script = document.createElement('script');
+          script.src = `js/${nome}`;
+          script.async = true;
+          document.head.appendChild(script);
+        }
+      });
+    }
+
+    // Carregar scripts quando a página carregar
+    document.addEventListener('DOMContentLoaded', carregarScriptsMusicais);
+
+    // ============================================================
+    // CONFIGURAÇÕES
+    // ============================================================
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     let shaArquivoAtual = null;
     let alunoIdAtual = null;
@@ -661,12 +731,16 @@
     let currentMdFile = '';
     let currentMdSha = null;
     let mdTimeout = null;
+    let mdViewMode = 'split'; // 'split' ou 'preview-only'
 
     // ===== BASE URL DOS ARQUIVOS =====
     const BASE_PDF_CONCEITO_URL = "https://raw.githubusercontent.com/albertinosesc/pdf-conceito/main";
     const BASE_TXT_CONCEITO_URL = "https://raw.githubusercontent.com/albertinosesc/pdf-conceito/main/txt";
     const BASE_MD_CONCEITO_URL = "https://raw.githubusercontent.com/albertinosesc/pdf-conceito/main/md";
 
+    // ============================================================
+    // FUNÇÕES DE AUTENTICAÇÃO E UTILITÁRIOS
+    // ============================================================
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
       if (savedToken) {
@@ -731,7 +805,9 @@
       el.innerText = mensagem;
     }
 
-    // ===== FUNÇÕES PDF =====
+    // ============================================================
+    // FUNÇÕES PDF
+    // ============================================================
     function abrirPdfConceito(numeroTopico, titulo) {
       const modal = document.getElementById('pdfModal');
       const iframe = document.getElementById('pdfIframe');
@@ -775,7 +851,9 @@
       }
     }
 
-    // ===== FUNÇÕES TXT =====
+    // ============================================================
+    // FUNÇÕES TXT
+    // ============================================================
     async function abrirTxtConceito(numeroTopico, titulo) {
       const modal = document.getElementById('txtModal');
       const editor = document.getElementById('txtEditor');
@@ -965,7 +1043,9 @@
       }
     }
 
-    // ===== FUNÇÕES MD (Markdown) =====
+    // ============================================================
+    // FUNÇÕES MD (Markdown)
+    // ============================================================
     async function abrirMdConceito(numeroTopico, titulo) {
       const modal = document.getElementById('mdModal');
       const editor = document.getElementById('mdEditor');
@@ -977,6 +1057,12 @@
       titleEl.textContent = `📝 ${titulo} - ${currentMdFile}`;
       
       modal.classList.add('active');
+      // Resetar modo de visualização para split
+      mdViewMode = 'split';
+      document.getElementById('mdModalBody').classList.remove('preview-only');
+      const toggleBtn = document.querySelector('.btn-view-toggle');
+      if (toggleBtn) toggleBtn.innerHTML = '<i class="fa-solid fa-eye"></i> Só Visualizador';
+      
       editor.value = 'Carregando...';
       editor.disabled = true;
       preview.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando...</div>';
@@ -1050,12 +1136,44 @@
       const conteudo = editor.value || '';
       
       try {
-        preview.innerHTML = marked.parse(conteudo);
+        let html = marked.parse(conteudo);
+        preview.innerHTML = html;
+        
+        // Processar diagramas de acordes no preview
+        setTimeout(() => {
+          processarDiagramasNoPreview(preview);
+        }, 100);
+        
         const palavras = conteudo.trim().split(/\s+/).filter(p => p.length > 0);
         if (wordCount) wordCount.textContent = `${palavras.length} palavras`;
       } catch (e) {
         preview.innerHTML = `<div style="color:red;">❌ Erro ao renderizar: ${e.message}</div>`;
       }
+    }
+
+    function processarDiagramasNoPreview(container) {
+      // Processar [Acorde:X] no preview
+      const elementos = container.querySelectorAll('p, div, li');
+      elementos.forEach(el => {
+        const texto = el.innerHTML;
+        if (texto && texto.includes('[Acorde:')) {
+          const match = texto.match(/\[Acorde:([^\]]+)\]([\s\S]*?)\[\/Acorde\]/);
+          if (match) {
+            const sigla = match[1].trim();
+            const nome = match[2].trim() || sigla;
+            const chordDiv = document.createElement('div');
+            chordDiv.className = 'chord-diagram';
+            el.innerHTML = '';
+            el.appendChild(chordDiv);
+            // Tentar usar a função do acordeviolao.js se disponível
+            if (typeof desenharAcorde === 'function') {
+              desenharAcorde(chordDiv, sigla, nome);
+            } else {
+              chordDiv.innerHTML = `<div style="color:#6b21a8;font-weight:bold;">🎸 ${nome} (${sigla})</div>`;
+            }
+          }
+        }
+      });
     }
 
     function mdAddFormat(antes, depois) {
@@ -1105,6 +1223,21 @@
         editor.value = texto.substring(0, start) + img + texto.substring(start);
         mdRenderizar();
         editor.focus();
+      }
+    }
+
+    function toggleMdViewMode() {
+      const body = document.getElementById('mdModalBody');
+      const toggleBtn = document.querySelector('.btn-view-toggle');
+      
+      if (mdViewMode === 'split') {
+        mdViewMode = 'preview-only';
+        body.classList.add('preview-only');
+        if (toggleBtn) toggleBtn.innerHTML = '<i class="fa-solid fa-pen"></i> Editor + Visualizador';
+      } else {
+        mdViewMode = 'split';
+        body.classList.remove('preview-only');
+        if (toggleBtn) toggleBtn.innerHTML = '<i class="fa-solid fa-eye"></i> Só Visualizador';
       }
     }
 
@@ -1205,7 +1338,9 @@
       }, 300);
     });
 
-    // ===== FECHAR MODAIS COM ESC E CLICK FORA =====
+    // ============================================================
+    // FECHAR MODAIS COM ESC E CLICK FORA
+    // ============================================================
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         const pdfModal = document.getElementById('pdfModal');
@@ -1227,7 +1362,9 @@
       if (e.target === this) fecharMdModal();
     });
 
-    // ===== FUNÇÕES DA TABELA =====
+    // ============================================================
+    // FUNÇÕES DA TABELA
+    // ============================================================
     function adicionarLinhaConceito(tituloConceito = "", concluido = false, numeroTopico = "") {
       const tbody = document.getElementById('corpoTabela');
       const tr = document.createElement('tr');
@@ -1358,7 +1495,9 @@
       return conceitos;
     }
 
-    // ===== FUNÇÕES DE BUSCA E IMPORTAÇÃO =====
+    // ============================================================
+    // FUNÇÕES DE BUSCA E IMPORTAÇÃO
+    // ============================================================
     async function buscarIdAluno(busca) {
       const token = obterToken();
       if (!token) return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
@@ -1488,7 +1627,9 @@
       await importarLoteTeoriaDireto(nomeLote);
     }
 
-    // ===== CARREGAR E SALVAR DADOS DO ALUNO =====
+    // ============================================================
+    // CARREGAR E SALVAR DADOS DO ALUNO
+    // ============================================================
     async function carregarDadosAluno() {
       const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
@@ -1609,7 +1750,7 @@
       }
     }
 
-    console.log('✅ Conceitos Teóricos com PDF, TXT e MD carregado!');
+    console.log('✅ Conceitos Teóricos com PDF, TXT, MD e recursos musicais carregado!');
   </script>
 </body>
 </html>
