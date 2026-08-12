@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
 
   <style>
+    /* ===== CSS COMPLETO (mantenha o mesmo) ===== */
     :root {
       --primary: #8e44ad;
       --accent: #27ae60;
@@ -727,7 +728,7 @@
     }
 
     // =============================================
-    // ===== FUNÇÕES DO CRONÔMETRO - CORRIGIDAS =====
+    // ===== FUNÇÕES DO CRONÔMETRO =====
     // =============================================
 
     function formatarTempo(segundos) {
@@ -766,18 +767,16 @@
       }
     }
 
+    // FUNÇÃO CORRIGIDA - SÓ CARREGA O TEMPO, NÃO INICIA
     async function carregarTempoLote(loteNome) {
-      const token = obterToken();
-      
-      // SÓ MOSTRA O CRONÔMETRO SE TIVER ALUNO E LOTE SELECIONADO
-      if (!token || !alunoIdAtual || loteNome === 'todos') {
+      // SÓ EXECUTA SE TIVER ALUNO E LOTE VÁLIDO
+      if (!alunoIdAtual || !loteNome || loteNome === 'todos') {
         document.getElementById('cronometroBar').style.display = 'none';
-        cronometroSegundos = 0;
-        cronometroRodando = false;
-        cronometroLoteAtual = null;
-        atualizarDisplayCronometro();
         return;
       }
+
+      const token = obterToken();
+      if (!token) return;
 
       try {
         const caminho = `alunos/musica_${alunoIdAtual}.json`;
@@ -795,7 +794,7 @@
           const lotesTempo = json.lotesTempo || {};
           if (lotesTempo[loteNome]) {
             cronometroSegundos = lotesTempo[loteNome].tempoSegundos || 0;
-            cronometroRodando = false; // SEMPRE COMEÇA PAUSADO
+            cronometroRodando = false; // SEMPRE PAUSADO AO CARREGAR
             cronometroLoteAtual = loteNome;
             document.getElementById('cronometroBar').style.display = 'flex';
             document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
@@ -814,12 +813,6 @@
         
       } catch (e) {
         console.error('Erro ao carregar tempo do lote:', e);
-        cronometroSegundos = 0;
-        cronometroRodando = false;
-        cronometroLoteAtual = loteNome;
-        document.getElementById('cronometroBar').style.display = 'flex';
-        document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
-        atualizarDisplayCronometro();
       }
     }
 
@@ -906,7 +899,6 @@
         return;
       }
       
-      // Se não tem aluno carregado
       if (!alunoIdAtual) {
         showToast("⚠️ Carregue um aluno primeiro.", 'error');
         return;
@@ -918,12 +910,11 @@
         salvarTempoLote();
       }
       
-      // Atualizar o lote atual
       cronometroLoteAtual = loteSelecionado;
       document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
       document.getElementById('cronometroBar').style.display = 'flex';
       
-      // Carregar o tempo salvo para este lote (NÃO RESETA)
+      // Carregar tempo salvo (NÃO INICIA)
       await carregarTempoLote(loteSelecionado);
       
       // INICIAR - mantém o tempo que foi carregado
@@ -936,25 +927,18 @@
     }
 
     function pausarCronometro() {
-      // Se já está pausado, não faz nada
       if (!cronometroRodando) {
         showToast("⚠️ O cronômetro já está pausado.", 'info');
         return;
       }
       
-      // Para o intervalo
       if (cronometroInterval) {
         clearInterval(cronometroInterval);
         cronometroInterval = null;
       }
       
-      // Muda o estado
       cronometroRodando = false;
-      
-      // Salva o tempo
       salvarTempoLote();
-      
-      // Atualiza a interface
       atualizarDisplayCronometro();
       
       showToast(`⏸️ Cronômetro pausado. Tempo: ${formatarTempo(cronometroSegundos)}`, 'info');
@@ -967,20 +951,14 @@
       }
       if (!confirm(`Tem certeza que deseja resetar o cronômetro do lote "${cronometroLoteAtual}"?`)) return;
       
-      // Para o intervalo
       if (cronometroInterval) {
         clearInterval(cronometroInterval);
         cronometroInterval = null;
       }
       
-      // Reseta valores
       cronometroSegundos = 0;
       cronometroRodando = false;
-      
-      // Salva o tempo zerado
       salvarTempoLote();
-      
-      // Atualiza a interface
       atualizarDisplayCronometro();
       
       showToast(`🔄 Cronômetro resetado!`, 'info');
@@ -994,8 +972,10 @@
       const selectLote = document.getElementById('filterMusicaLote');
       const loteSelecionado = selectLote.value;
       
-      // Se já estiver rodando, não carrega novo tempo
+      // Se estiver rodando, não pode mudar de lote
       if (cronometroRodando) {
+        showToast("⚠️ Pare o cronômetro antes de mudar de lote.", 'info');
+        selectLote.value = cronometroLoteAtual || 'todos';
         return;
       }
       
@@ -1008,17 +988,13 @@
       // Carregar tempo do lote selecionado
       if (loteSelecionado !== 'todos' && alunoIdAtual) {
         carregarTempoLote(loteSelecionado);
-      } else if (loteSelecionado === 'todos') {
+      } else {
         document.getElementById('cronometroBar').style.display = 'none';
-        cronometroSegundos = 0;
-        cronometroRodando = false;
-        cronometroLoteAtual = null;
-        atualizarDisplayCronometro();
       }
     }
 
     // =============================================
-    // ===== FUNÇÃO CORRIGIDA PARA BUSCAR ALUNO =====
+    // ===== FUNÇÃO PARA BUSCAR ALUNO =====
     // =============================================
 
     async function buscarIdAluno(busca) {
@@ -1535,17 +1511,6 @@
       });
 
       verificarLoteConcluido();
-      
-      // Se tiver aluno e lote selecionado, carregar tempo
-      if (valorSelecionado !== 'todos' && alunoIdAtual) {
-        carregarTempoLote(valorSelecionado);
-      } else if (valorSelecionado === 'todos') {
-        document.getElementById('cronometroBar').style.display = 'none';
-        cronometroSegundos = 0;
-        cronometroRodando = false;
-        cronometroLoteAtual = null;
-        atualizarDisplayCronometro();
-      }
     }
 
     function removerLoteDoRepertorio() {
@@ -2006,7 +1971,7 @@
     }
 
     // =============================================
-    // ===== CARREGAR E SALVAR ALUNO =====
+    // ===== CARREGAR ALUNO =====
     // =============================================
 
     async function carregarMusicasAluno() {
@@ -2045,7 +2010,7 @@
           const json = JSON.parse(jsonStr);
           musicasDoAluno = json.repertorio || [];
           
-          // Carregar tempos dos lotes (NUNCA iniciar automaticamente)
+          // Carregar tempos dos lotes (SÓ CARREGA, NÃO INICIA)
           const lotesTempo = json.lotesTempo || {};
           const selectLote = document.getElementById('filterMusicaLote');
           const loteSelecionado = selectLote.value;
@@ -2080,6 +2045,10 @@
         exibirStatus("❌ Erro ao carregar: " + e.message, "red");
       }
     }
+
+    // =============================================
+    // ===== SALVAR ALUNO =====
+    // =============================================
 
     async function salvarMusicasAluno() {
       const busca = document.getElementById('buscaAluno').value.trim();
