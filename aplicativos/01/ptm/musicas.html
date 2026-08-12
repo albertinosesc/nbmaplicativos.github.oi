@@ -10,6 +10,7 @@
   <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
 
   <style>
+    /* ===== TODO O SEU CSS AQUI (mantenha o mesmo) ===== */
     :root {
       --primary: #8e44ad;
       --accent: #27ae60;
@@ -513,7 +514,7 @@
 
           <div class="filter-item">
             <label><i class="fa-solid fa-layer-group"></i> Lote:</label>
-            <select id="filterMusicaLote" onchange="aplicarFiltroMusicas(); verificarLoteConcluido(); carregarTempoLote(this.value);">
+            <select id="filterMusicaLote" onchange="aplicarFiltroMusicas(); verificarLoteConcluido();">
               <option value="todos">Todos os Lotes</option>
             </select>
           </div>
@@ -726,271 +727,288 @@
       statusEl.innerText = msg;
     }
 
-// =============================================
-// ===== FUNÇÕES DO CRONÔMETRO - CORRIGIDAS =====
-// =============================================
+    // =============================================
+    // ===== FUNÇÕES DO CRONÔMETRO - CORRIGIDAS =====
+    // =============================================
 
-function formatarTempo(segundos) {
-  const horas = Math.floor(segundos / 3600);
-  const minutos = Math.floor((segundos % 3600) / 60);
-  const segs = segundos % 60;
-  return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segs).padStart(2, '0')}`;
-}
-
-function atualizarDisplayCronometro() {
-  const display = document.getElementById('cronometroDisplay');
-  const statusEl = document.getElementById('cronometroStatus');
-  const btnIniciar = document.getElementById('btnCronometroIniciar');
-  const btnPausar = document.getElementById('btnCronometroPausar');
-  
-  if (display) display.textContent = formatarTempo(cronometroSegundos);
-  
-  if (statusEl) {
-    if (cronometroRodando) {
-      statusEl.textContent = '▶️ Em andamento';
-      statusEl.className = 'cronometro-status rodando';
-    } else {
-      statusEl.textContent = '⏸️ Pausado';
-      statusEl.className = 'cronometro-status pausado';
+    function formatarTempo(segundos) {
+      const horas = Math.floor(segundos / 3600);
+      const minutos = Math.floor((segundos % 3600) / 60);
+      const segs = segundos % 60;
+      return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segs).padStart(2, '0')}`;
     }
-  }
-  
-  // Botão Iniciar: ativo quando PAUSADO, desativado quando RODANDO
-  if (btnIniciar) {
-    btnIniciar.style.opacity = cronometroRodando ? '0.5' : '1';
-    btnIniciar.style.cursor = cronometroRodando ? 'not-allowed' : 'pointer';
-  }
-  
-  // Botão Pausar: ativo quando RODANDO, desativado quando PAUSADO
-  if (btnPausar) {
-    btnPausar.style.opacity = cronometroRodando ? '1' : '0.5';
-    btnPausar.style.cursor = cronometroRodando ? 'pointer' : 'not-allowed';
-  }
-}
 
-async function carregarTempoLote(loteNome) {
-  const token = obterToken();
-  if (!token || !alunoIdAtual || loteNome === 'todos') {
-    document.getElementById('cronometroBar').style.display = 'none';
-    cronometroSegundos = 0;
-    cronometroRodando = false;
-    cronometroLoteAtual = null;
-    atualizarDisplayCronometro();
-    return;
-  }
-
-  try {
-    const caminho = `alunos/musica_${alunoIdAtual}.json`;
-    const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-      headers: { 'Authorization': `token ${token}` }
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      const base64Clean = data.content.replace(/\s/g, '');
-      const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-      const jsonStr = new TextDecoder('utf-8').decode(bytes);
-      const json = JSON.parse(jsonStr);
+    function atualizarDisplayCronometro() {
+      const display = document.getElementById('cronometroDisplay');
+      const statusEl = document.getElementById('cronometroStatus');
+      const btnIniciar = document.getElementById('btnCronometroIniciar');
+      const btnPausar = document.getElementById('btnCronometroPausar');
       
-      const lotesTempo = json.lotesTempo || {};
-      if (lotesTempo[loteNome]) {
-        // CARREGA O TEMPO SALVO
-        cronometroSegundos = lotesTempo[loteNome].tempoSegundos || 0;
-        const status = lotesTempo[loteNome].status || 'pausado';
-        cronometroRodando = (status === 'em_andamento');
+      if (display) display.textContent = formatarTempo(cronometroSegundos);
+      
+      if (statusEl) {
+        if (cronometroRodando) {
+          statusEl.textContent = '▶️ Em andamento';
+          statusEl.className = 'cronometro-status rodando';
+        } else {
+          statusEl.textContent = '⏸️ Pausado';
+          statusEl.className = 'cronometro-status pausado';
+        }
+      }
+      
+      // Botão Iniciar: ativo quando PAUSADO, desativado quando RODANDO
+      if (btnIniciar) {
+        btnIniciar.style.opacity = cronometroRodando ? '0.5' : '1';
+        btnIniciar.style.cursor = cronometroRodando ? 'not-allowed' : 'pointer';
+      }
+      
+      // Botão Pausar: ativo quando RODANDO, desativado quando PAUSADO
+      if (btnPausar) {
+        btnPausar.style.opacity = cronometroRodando ? '1' : '0.5';
+        btnPausar.style.cursor = cronometroRodando ? 'pointer' : 'not-allowed';
+      }
+    }
+
+    // FUNÇÃO CORRIGIDA - NÃO INICIA AUTOMATICAMENTE
+    async function carregarTempoLote(loteNome) {
+      const token = obterToken();
+      if (!token || !alunoIdAtual || loteNome === 'todos') {
+        document.getElementById('cronometroBar').style.display = 'none';
+        cronometroSegundos = 0;
+        cronometroRodando = false;
+        cronometroLoteAtual = null;
+        atualizarDisplayCronometro();
+        return;
+      }
+
+      try {
+        const caminho = `alunos/musica_${alunoIdAtual}.json`;
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+
+        if (res.ok) {
+          const data = await res.json();
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          const json = JSON.parse(jsonStr);
+          
+          const lotesTempo = json.lotesTempo || {};
+          if (lotesTempo[loteNome]) {
+            // CARREGA O TEMPO SALVO - NÃO INICIA AUTOMATICAMENTE
+            cronometroSegundos = lotesTempo[loteNome].tempoSegundos || 0;
+            // NÃO muda o status para rodando automaticamente
+            cronometroRodando = false; // FORÇA PAUSADO
+            cronometroLoteAtual = loteNome;
+            document.getElementById('cronometroBar').style.display = 'flex';
+            document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+            atualizarDisplayCronometro();
+            return;
+          }
+        }
+        
+        // Se não encontrar, inicia do zero
+        cronometroSegundos = 0;
+        cronometroRodando = false;
         cronometroLoteAtual = loteNome;
         document.getElementById('cronometroBar').style.display = 'flex';
         document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
         atualizarDisplayCronometro();
         
-        if (cronometroRodando) {
-          iniciarCronometroInterno();
-        }
-        return;
+      } catch (e) {
+        console.error('Erro ao carregar tempo do lote:', e);
+        cronometroSegundos = 0;
+        cronometroRodando = false;
+        cronometroLoteAtual = loteNome;
+        document.getElementById('cronometroBar').style.display = 'flex';
+        document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+        atualizarDisplayCronometro();
       }
     }
-    
-    // Se não encontrar, inicia do zero
-    cronometroSegundos = 0;
-    cronometroRodando = false;
-    cronometroLoteAtual = loteNome;
-    document.getElementById('cronometroBar').style.display = 'flex';
-    document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
-    atualizarDisplayCronometro();
-    
-  } catch (e) {
-    console.error('Erro ao carregar tempo do lote:', e);
-    cronometroSegundos = 0;
-    cronometroRodando = false;
-    cronometroLoteAtual = loteNome;
-    document.getElementById('cronometroBar').style.display = 'flex';
-    document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
-    atualizarDisplayCronometro();
-  }
-}
 
-async function salvarTempoLote() {
-  const token = obterToken();
-  if (!token || !alunoIdAtual || !cronometroLoteAtual) return;
+    async function salvarTempoLote() {
+      const token = obterToken();
+      if (!token || !alunoIdAtual || !cronometroLoteAtual) return;
 
-  try {
-    const caminho = `alunos/musica_${alunoIdAtual}.json`;
-    const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-      headers: { 'Authorization': `token ${token}` }
-    });
+      try {
+        const caminho = `alunos/musica_${alunoIdAtual}.json`;
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
 
-    let dados = { alunoId: alunoIdAtual, aluno: '', repertorio: [], lotesTempo: {} };
-    let sha = null;
+        let dados = { alunoId: alunoIdAtual, aluno: '', repertorio: [], lotesTempo: {} };
+        let sha = null;
 
-    if (res.ok) {
-      const data = await res.json();
-      sha = data.sha;
-      const base64Clean = data.content.replace(/\s/g, '');
-      const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-      const jsonStr = new TextDecoder('utf-8').decode(bytes);
-      dados = JSON.parse(jsonStr);
+        if (res.ok) {
+          const data = await res.json();
+          sha = data.sha;
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          dados = JSON.parse(jsonStr);
+        }
+
+        if (!dados.lotesTempo) dados.lotesTempo = {};
+        dados.lotesTempo[cronometroLoteAtual] = {
+          tempoSegundos: cronometroSegundos,
+          ultimaPausa: new Date().toISOString(),
+          status: cronometroRodando ? 'em_andamento' : 'pausado'
+        };
+
+        const jsonString = JSON.stringify(dados, null, 2);
+        const utf8Bytes = new TextEncoder().encode(jsonString);
+        let binaryStr = "";
+        utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+        const conteudoBase64 = btoa(binaryStr);
+
+        const body = {
+          message: `Atualizando tempo do lote: ${cronometroLoteAtual}`,
+          content: conteudoBase64,
+          branch: GH_CONFIG.branch
+        };
+        if (sha) body.sha = sha;
+
+        await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`, {
+          method: 'PUT',
+          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+
+      } catch (e) {
+        console.error('Erro ao salvar tempo do lote:', e);
+      }
     }
 
-    if (!dados.lotesTempo) dados.lotesTempo = {};
-    dados.lotesTempo[cronometroLoteAtual] = {
-      tempoSegundos: cronometroSegundos,
-      ultimaPausa: new Date().toISOString(),
-      status: cronometroRodando ? 'em_andamento' : 'pausado'
-    };
+    function iniciarCronometroInterno() {
+      if (cronometroInterval) {
+        clearInterval(cronometroInterval);
+        cronometroInterval = null;
+      }
+      
+      cronometroInterval = setInterval(() => {
+        cronometroSegundos++;
+        atualizarDisplayCronometro();
+        if (cronometroSegundos % 30 === 0) {
+          salvarTempoLote();
+        }
+      }, 1000);
+    }
 
-    const jsonString = JSON.stringify(dados, null, 2);
-    const utf8Bytes = new TextEncoder().encode(jsonString);
-    let binaryStr = "";
-    utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
-    const conteudoBase64 = btoa(binaryStr);
+    // FUNÇÃO CORRIGIDA - INICIA A PARTIR DO TEMPO CARREGADO
+    function iniciarCronometro() {
+      // Se já está rodando, não faz nada
+      if (cronometroRodando) {
+        showToast("⚠️ O cronômetro já está em andamento.", 'info');
+        return;
+      }
 
-    const body = {
-      message: `Atualizando tempo do lote: ${cronometroLoteAtual}`,
-      content: conteudoBase64,
-      branch: GH_CONFIG.branch
-    };
-    if (sha) body.sha = sha;
-
-    await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`, {
-      method: 'PUT',
-      headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-  } catch (e) {
-    console.error('Erro ao salvar tempo do lote:', e);
-  }
-}
-
-function iniciarCronometroInterno() {
-  if (cronometroInterval) {
-    clearInterval(cronometroInterval);
-    cronometroInterval = null;
-  }
-  
-  cronometroInterval = setInterval(() => {
-    cronometroSegundos++;
-    atualizarDisplayCronometro();
-    if (cronometroSegundos % 30 === 0) {
+      const selectLote = document.getElementById('filterMusicaLote');
+      const loteSelecionado = selectLote.value;
+      
+      if (loteSelecionado === 'todos') {
+        showToast("⚠️ Selecione um lote específico para iniciar o cronômetro.", 'error');
+        return;
+      }
+      
+      // Se mudou de lote, salvar o anterior
+      if (cronometroLoteAtual && cronometroLoteAtual !== loteSelecionado) {
+        if (!confirm(`Deseja mudar para o lote "${loteSelecionado}"? O tempo atual será salvo.`)) return;
+        salvarTempoLote();
+      }
+      
+      // Atualizar o lote atual
+      cronometroLoteAtual = loteSelecionado;
+      document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
+      document.getElementById('cronometroBar').style.display = 'flex';
+      
+      // Carregar o tempo salvo para este lote (NÃO RESETA, NÃO INICIA)
+      carregarTempoLote(loteSelecionado);
+      
+      // INICIAR - mantém o tempo que foi carregado
+      cronometroRodando = true;
+      iniciarCronometroInterno();
       salvarTempoLote();
+      atualizarDisplayCronometro();
+      
+      showToast(`⏱️ Cronômetro iniciado para "${loteSelecionado}"!`, 'success');
     }
-  }, 1000);
-}
 
-async function iniciarCronometro() {
-  // Se já está rodando, não faz nada
-  if (cronometroRodando) {
-    showToast("⚠️ O cronômetro já está em andamento.", 'info');
-    return;
-  }
+    function pausarCronometro() {
+      // Se já está pausado, não faz nada
+      if (!cronometroRodando) {
+        showToast("⚠️ O cronômetro já está pausado.", 'info');
+        return;
+      }
+      
+      // Para o intervalo
+      if (cronometroInterval) {
+        clearInterval(cronometroInterval);
+        cronometroInterval = null;
+      }
+      
+      // Muda o estado
+      cronometroRodando = false;
+      
+      // Salva o tempo
+      salvarTempoLote();
+      
+      // Atualiza a interface
+      atualizarDisplayCronometro();
+      
+      showToast(`⏸️ Cronômetro pausado. Tempo: ${formatarTempo(cronometroSegundos)}`, 'info');
+    }
 
-  const selectLote = document.getElementById('filterMusicaLote');
-  const loteSelecionado = selectLote.value;
-  
-  if (loteSelecionado === 'todos') {
-    showToast("⚠️ Selecione um lote específico para iniciar o cronômetro.", 'error');
-    return;
-  }
-  
-  // Se mudou de lote, salvar o anterior
-  if (cronometroLoteAtual && cronometroLoteAtual !== loteSelecionado) {
-    if (!confirm(`Deseja mudar para o lote "${loteSelecionado}"? O tempo atual será salvo.`)) return;
-    salvarTempoLote();
-  }
-  
-  // Atualizar o lote atual
-  cronometroLoteAtual = loteSelecionado;
-  document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
-  document.getElementById('cronometroBar').style.display = 'flex';
-  
-  // Carregar o tempo salvo para este lote (NÃO RESETA)
-  await carregarTempoLote(loteSelecionado);
-  
-  // Se o cronômetro já estava rodando, não faz nada
-  if (cronometroRodando) {
-    showToast("⏱️ Cronômetro já está rodando para este lote.", 'info');
-    return;
-  }
-  
-  // INICIAR - mantém o tempo que foi carregado
-  cronometroRodando = true;
-  iniciarCronometroInterno();
-  salvarTempoLote();
-  atualizarDisplayCronometro();
-  
-  showToast(`⏱️ Cronômetro iniciado para "${loteSelecionado}"!`, 'success');
-}
+    function resetarCronometro() {
+      if (!cronometroLoteAtual) {
+        showToast("⚠️ Nenhum lote selecionado para resetar.", 'error');
+        return;
+      }
+      if (!confirm(`Tem certeza que deseja resetar o cronômetro do lote "${cronometroLoteAtual}"?`)) return;
+      
+      // Para o intervalo
+      if (cronometroInterval) {
+        clearInterval(cronometroInterval);
+        cronometroInterval = null;
+      }
+      
+      // Reseta valores
+      cronometroSegundos = 0;
+      cronometroRodando = false;
+      
+      // Salva o tempo zerado
+      salvarTempoLote();
+      
+      // Atualiza a interface
+      atualizarDisplayCronometro();
+      
+      showToast(`🔄 Cronômetro resetado!`, 'info');
+    }
 
-function pausarCronometro() {
-  // Se já está pausado, não faz nada
-  if (!cronometroRodando) {
-    showToast("⚠️ O cronômetro já está pausado.", 'info');
-    return;
-  }
-  
-  // Para o intervalo
-  if (cronometroInterval) {
-    clearInterval(cronometroInterval);
-    cronometroInterval = null;
-  }
-  
-  // Muda o estado
-  cronometroRodando = false;
-  
-  // Salva o tempo
-  salvarTempoLote();
-  
-  // Atualiza a interface
-  atualizarDisplayCronometro();
-  
-  showToast(`⏸️ Cronômetro pausado. Tempo: ${formatarTempo(cronometroSegundos)}`, 'info');
-}
+    // =============================================
+    // ===== FUNÇÃO PARA CARREGAR TEMPO AO SELECIONAR LOTE =====
+    // =============================================
 
-function resetarCronometro() {
-  if (!cronometroLoteAtual) {
-    showToast("⚠️ Nenhum lote selecionado para resetar.", 'error');
-    return;
-  }
-  if (!confirm(`Tem certeza que deseja resetar o cronômetro do lote "${cronometroLoteAtual}"?`)) return;
-  
-  // Para o intervalo
-  if (cronometroInterval) {
-    clearInterval(cronometroInterval);
-    cronometroInterval = null;
-  }
-  
-  // Reseta valores
-  cronometroSegundos = 0;
-  cronometroRodando = false;
-  
-  // Salva o tempo zerado
-  salvarTempoLote();
-  
-  // Atualiza a interface
-  atualizarDisplayCronometro();
-  
-  showToast(`🔄 Cronômetro resetado!`, 'info');
-}
+    // Função chamada quando o select de lote muda
+    function aoSelecionarLote() {
+      const selectLote = document.getElementById('filterMusicaLote');
+      const loteSelecionado = selectLote.value;
+      
+      // Se já estiver rodando, não carrega novo tempo
+      if (cronometroRodando) {
+        return;
+      }
+      
+      if (loteSelecionado !== 'todos') {
+        carregarTempoLote(loteSelecionado);
+      } else {
+        document.getElementById('cronometroBar').style.display = 'none';
+        cronometroSegundos = 0;
+        cronometroRodando = false;
+        cronometroLoteAtual = null;
+        atualizarDisplayCronometro();
+      }
+    }
 
     // =============================================
     // ===== FUNÇÃO CORRIGIDA PARA BUSCAR ALUNO =====
@@ -999,12 +1017,9 @@ function resetarCronometro() {
     async function buscarIdAluno(busca) {
       const token = obterToken();
       if (!token) {
-        // Se não tem token, usa o nome como ID
         return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
       }
       
-      // Primeiro, verifica se o que foi digitado é um ID ou nome
-      // Tenta buscar o index.json (opcional)
       try {
         const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos/index.json?ref=${GH_CONFIG.branch}`, {
           headers: { 'Authorization': `token ${token}` }
@@ -1024,11 +1039,8 @@ function resetarCronometro() {
             return encontrado.id;
           }
         }
-      } catch (e) {
-        // Index não existe, continuar
-      }
+      } catch (e) {}
       
-      // Se não encontrou no index, retorna o próprio texto normalizado
       return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
     }
 
@@ -1517,10 +1529,15 @@ function resetarCronometro() {
 
       verificarLoteConcluido();
       
+      // CARREGAR TEMPO AO SELECIONAR LOTE (sem iniciar)
       if (valorSelecionado !== 'todos') {
         carregarTempoLote(valorSelecionado);
       } else {
         document.getElementById('cronometroBar').style.display = 'none';
+        cronometroSegundos = 0;
+        cronometroRodando = false;
+        cronometroLoteAtual = null;
+        atualizarDisplayCronometro();
       }
     }
 
@@ -1998,7 +2015,6 @@ function resetarCronometro() {
         return;
       }
 
-      // Buscar o ID do aluno (normalizado)
       const alunoId = await buscarIdAluno(busca);
       alunoIdAtual = alunoId;
       
@@ -2022,20 +2038,17 @@ function resetarCronometro() {
           const json = JSON.parse(jsonStr);
           musicasDoAluno = json.repertorio || [];
           
-          // Carregar tempos dos lotes
+          // Carregar tempos dos lotes (sem iniciar)
           const lotesTempo = json.lotesTempo || {};
           const selectLote = document.getElementById('filterMusicaLote');
           const loteSelecionado = selectLote.value;
           if (loteSelecionado !== 'todos' && lotesTempo[loteSelecionado]) {
             cronometroSegundos = lotesTempo[loteSelecionado].tempoSegundos || 0;
-            cronometroRodando = (lotesTempo[loteSelecionado].status === 'em_andamento');
+            cronometroRodando = false; // NUNCA inicia automaticamente
             cronometroLoteAtual = loteSelecionado;
             document.getElementById('cronometroBar').style.display = 'flex';
             document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
             atualizarDisplayCronometro();
-            if (cronometroRodando) {
-              iniciarCronometroInterno();
-            }
           }
         } else {
           shaArquivoAtual = null;
