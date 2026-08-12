@@ -628,333 +628,857 @@
   </div>
 
   <script>
-    // ===== CONFIGURAÇÕES GERAIS =====
-    const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
-    let repertorioAtual = [];
-    let shaArquivoAtual = null;
-    let alunoIdAtual = null;
-    let loteImportado = [];
-    let dadosMusicasCache = null;
+// =============================================
+  // ===== VARIÁVEIS DO CRONÔMETRO =====
+  // =============================================
+  let cronometroSegundos = 0;
+  let cronometroRodando = false;
+  let cronometroInterval = null;
+  let cronometroLoteAtual = '';
+
+  function atualizarDisplayCronometro() {
+    const display = document.getElementById('cronometroDisplay');
+    if (!display) return;
+    const horas = String(Math.floor(cronometroSegundos / 3600)).padStart(2, '0');
+    const minutos = String(Math.floor((cronometroSegundos % 3600) / 60)).padStart(2, '0');
+    const segundos = String(cronometroSegundos % 60).padStart(2, '0');
+    display.textContent = `${horas}:${minutos}:${segundos}`;
+  }
+
+  function iniciarCronometro() {
+    const selectLote = document.getElementById('filterMusicaLote');
+    const loteSelecionado = selectLote ? selectLote.value : 'Geral';
     
-    let currentPdfUrl = '';
-    let currentViewMode = 1;
+    if (loteSelecionado === 'todos') {
+      showToast('⚠️ Selecione um lote específico para usar o cronômetro.', 'info');
+      return;
+    }
 
-    // ===== CRONÔMETRO =====
-    let cronometroInterval = null;
-    let cronometroSegundos = 0;
-    let cronometroRodando = false;
-    let cronometroLoteAtual = null;
+    if (cronometroRodando) return;
 
-    // ===== ABC GLOBALS =====
-    let abcVisualObj = null;
-    let abcsynthController = null;
-    let abcAudioContext = null;
-    let abcCurrentTranspose = 0;
-    let abcCurrentCode = '';
-    let abcIsFullscreen = false;
-    let codePanelVisible = true;
+    cronometroLoteAtual = loteSelecionado;
+    cronometroRodando = true;
+    
+    const statusEl = document.getElementById('cronometroStatus');
+    if (statusEl) {
+      statusEl.textContent = '▶️ Rodando';
+      statusEl.className = 'cronometro-status rodando';
+    }
+    
+    const infoEl = document.getElementById('cronometroInfo');
+    if (infoEl) infoEl.textContent = `📦 ${loteSelecionado}`;
+    
+    const bar = document.getElementById('cronometroBar');
+    if (bar) bar.style.display = 'flex';
 
-    // ===== CONSTANTES =====
-    const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
-    const BASE_ABC_URL = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/ptm/abc";
+    cronometroInterval = setInterval(() => {
+      cronometroSegundos++;
+      atualizarDisplayCronometro();
+    }, 1000);
+  }
 
-    // ===== CACHE PARA ARQUIVOS VERIFICADOS =====
-    const fileCache = new Map();
+  function pausarCronometro() {
+    if (!cronometroRodando) return;
+    cronometroRodando = false;
+    clearInterval(cronometroInterval);
+    cronometroInterval = null;
 
-    // =============================================
-    // ===== FUNÇÕES INICIAIS =====
-    // =============================================
+    const statusEl = document.getElementById('cronometroStatus');
+    if (statusEl) {
+      statusEl.textContent = '⏸️ Pausado';
+      statusEl.className = 'cronometro-status pausado';
+    }
+  }
 
-    window.onload = function() {
-      const savedToken = localStorage.getItem("gh_pat_token");
-      if (savedToken) {
-        document.getElementById("gh-token").value = savedToken;
-      }
+  function resetarCronometro() {
+    pausarCronometro();
+    cronometroSegundos = 0;
+    atualizarDisplayCronometro();
 
-      document.getElementById("gh-token").addEventListener("input", (e) => {
-        localStorage.setItem("gh_pat_token", e.target.value.trim());
-      });
+    const statusEl = document.getElementById('cronometroStatus');
+    if (statusEl) {
+      statusEl.textContent = '⏸️ Pausado';
+      statusEl.className = 'cronometro-status pausado';
+    }
+  }
 
-      document.getElementById("buscaAluno").addEventListener("keyup", (e) => {
-        if (e.key === "Enter") carregarMusicasAluno();
-      });
-      document.getElementById("novaMusica").addEventListener("keyup", (e) => {
-        if (e.key === "Enter") adicionarMusica();
-      });
+  // =============================================
+  // ===== VERIFICAÇÃO DE ARQUIVO COM CACHE =====
+  // =============================================
 
-      document.getElementById('btnPage1')?.addEventListener('click', () => setViewMode(1));
-      document.getElementById('btnPage2')?.addEventListener('click', () => setViewMode(2));
-      document.getElementById('btnFullscreen')?.addEventListener('click', toggleFullscreen);
-      document.getElementById('btnClosePreview')?.addEventListener('click', fecharVisualizador);
-
-      initResizeHandlers();
-
-      const urlParams = new URLSearchParams(window.location.search);
-      const loteParam = urlParams.get('lote');
+  async function verificarArquivoExiste(url) {
+    if (!url) return false;
+    
+    if (fileCache.has(url)) {
+      return fileCache.get(url);
+    }
+    
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 3000);
       
-      if (loteParam) {
-        exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
-        setTimeout(() => {
-          importarLoteMusicaDireto(loteParam);
-        }, 1000);
-      }
-    };
-
-    function obterToken() {
-      return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
-    }
-
-    function showToast(mensagem, tipo = 'info') {
-      const toast = document.createElement('div');
-      toast.className = `toast ${tipo}`;
-      toast.innerHTML = mensagem;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
-    }
-
-    function validarEAutenticarToken() {
-      const token = obterToken();
-      if (token) {
-        localStorage.setItem("gh_pat_token", token);
-        showToast("🔑 Token salvo com sucesso!", "success");
-      }
-    }
-
-    function exibirStatus(msg, cor = "black") {
-      const statusEl = document.getElementById('statusMsg');
-      statusEl.style.color = cor;
-      statusEl.innerText = msg;
-    }
-
-    // =============================================
-    // ===== FUNÇÕES DO CRONÔMETRO (COMPLETAS) =====
-    // =============================================
-
-    function formatarTempo(segundos) {
-      const horas = Math.floor(segundos / 3600);
-      const minutos = Math.floor((segundos % 3600) / 60);
-      const segs = segundos % 60;
-      return `${String(horas).padStart(2, '0')}:${String(minutos).padStart(2, '0')}:${String(segs).padStart(2, '0')}`;
-    }
-
-    function atualizarDisplayCronometro() {
-      const display = document.getElementById('cronometroDisplay');
-      const statusEl = document.getElementById('cronometroStatus');
-      const btnIniciar = document.getElementById('btnCronometroIniciar');
-      const btnPausar = document.getElementById('btnCronometroPausar');
+      const response = await fetch(url, { 
+        method: 'HEAD',
+        signal: controller.signal
+      });
       
-      if (display) display.textContent = formatarTempo(cronometroSegundos);
+      clearTimeout(timeoutId);
       
-      if (statusEl) {
-        if (cronometroRodando) {
-          statusEl.textContent = '▶️ Em andamento';
-          statusEl.className = 'cronometro-status rodando';
+      const existe = response.ok;
+      fileCache.set(url, existe);
+      return existe;
+    } catch (e) {
+      fileCache.set(url, false);
+      return false;
+    }
+  }
+
+  async function verificarArquivoABCExiste(m) {
+    const chave = m.id || m.nome || m.title || '';
+    if (!chave) return null;
+    
+    const cacheKey = `abc_${chave}`;
+    if (fileCache.has(cacheKey)) {
+      return fileCache.get(cacheKey);
+    }
+    
+    const extensoes = ['.txt', '.abc'];
+    
+    for (const ext of extensoes) {
+      let url = '';
+      
+      if (m.abcFile) {
+        const base = m.abcFile.replace(/\.[^.]+$/, '');
+        url = `${BASE_ABC_URL}/${base}${ext}`;
+      } else if (m.id) {
+        url = `${BASE_ABC_URL}/${m.id}${ext}`;
+      } else {
+        const textoBusca = m.nome || m.title || "";
+        const matchNumero = textoBusca.match(/\d+/);
+        if (matchNumero) {
+          url = `${BASE_ABC_URL}/${matchNumero[0]}${ext}`;
         } else {
-          statusEl.textContent = '⏸️ Pausado';
-          statusEl.className = 'cronometro-status pausado';
+          const nomeLimpo = textoBusca.toLowerCase().replace(/[^a-z0-9]/g, '_');
+          url = `${BASE_ABC_URL}/${nomeLimpo}${ext}`;
         }
       }
       
-      if (btnIniciar) {
-        btnIniciar.style.opacity = cronometroRodando ? '0.5' : '1';
-        btnIniciar.style.cursor = cronometroRodando ? 'not-allowed' : 'pointer';
-      }
-      
-      if (btnPausar) {
-        btnPausar.style.opacity = cronometroRodando ? '1' : '0.5';
-        btnPausar.style.cursor = cronometroRodando ? 'pointer' : 'not-allowed';
+      const existe = await verificarArquivoExiste(url);
+      if (existe) {
+        fileCache.set(cacheKey, url);
+        return url;
       }
     }
+    
+    fileCache.set(cacheKey, null);
+    return null;
+  }
 
-    async function carregarTempoLote(loteNome) {
-      if (!alunoIdAtual || !loteNome || loteNome === 'todos') {
-        document.getElementById('cronometroBar').style.display = 'none';
-        return;
+  async function abrirPDFMusica(index) {
+    const m = repertorioAtual[index];
+    if (!m) return;
+
+    const pdfCaminho = getPdfUrl(m);
+
+    if (!pdfCaminho) {
+      showToast(`📄 Não foi possível identificar o PDF para: "${m.nome || m.title}"`, 'error');
+      return;
+    }
+
+    const existe = await verificarArquivoExiste(pdfCaminho);
+    if (!existe) {
+      showToast(`📄 PDF não encontrado: "${m.nome || m.title}"`, 'error');
+      return;
+    }
+
+    const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdfCaminho)}&embedded=true`;
+    openPDF(viewerUrl, m.title || m.nome);
+  }
+
+  function atualizarCampo(index, campo, valor) {
+    repertorioAtual[index][campo] = valor;
+    dadosMusicasCache = { repertorio: repertorioAtual };
+    aplicarFiltroMusicas();
+    verificarLoteConcluido();
+  }
+
+  // =============================================
+  // ===== RENDERIZAÇÃO DA TABELA =====
+  // =============================================
+
+  async function renderizarTabela() {
+    const filtroStatus = document.getElementById('filterMusicaStatus').value;
+    const filtroLote = document.getElementById('filterMusicaLote').value;
+    const tbody = document.querySelector('#tbl-musicas tbody');
+    
+    const musicas = dadosMusicasCache && dadosMusicasCache.repertorio ? dadosMusicasCache.repertorio : repertorioAtual;
+
+    let musicasFiltradas = musicas.filter(m => {
+      const statusMatch = (filtroStatus === 'todos') || (m.status === filtroStatus);
+      const loteNome = m.lote || 'Geral';
+      const loteMatch = (filtroLote === 'todos') || (loteNome === filtroLote);
+      return statusMatch && loteMatch;
+    });
+
+    const filterInfo = document.getElementById('musicas-filtro-status');
+    filterInfo.textContent = `Mostrando ${musicasFiltradas.length} de ${musicas.length}`;
+
+    tbody.innerHTML = "";
+
+    if (musicasFiltradas.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#9ca3af;">Nenhuma música encontrada para os filtros selecionados.</td></tr>';
+      return;
+    }
+
+    const verificacoes = [];
+    for (const m of musicasFiltradas) {
+      const chave = m.id || m.nome || m.title || '';
+      const cacheKey = `abc_${chave}`;
+      const pdfChave = `pdf_${chave}`;
+      
+      if (!fileCache.has(cacheKey)) {
+        verificacoes.push(verificarArquivoABCExiste(m));
       }
-
-      document.getElementById('cronometroBar').style.display = 'flex';
-      document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
-      cronometroLoteAtual = loteNome;
-
-      cronometroSegundos = 0;
-      atualizarDisplayCronometro();
-
-      // Busca do LocalStorage primeiro para resposta instantânea
-      const savedTime = localStorage.getItem(`cronometro_${alunoIdAtual}_${loteNome}`);
-      if (savedTime) {
-        cronometroSegundos = parseInt(savedTime, 10);
-        atualizarDisplayCronometro();
+      if (!fileCache.has(pdfChave)) {
+        const pdfUrl = getPdfUrl(m);
+        if (pdfUrl) {
+          verificacoes.push(verificarArquivoExiste(pdfUrl).then(result => {
+            fileCache.set(pdfChave, result);
+          }));
+        }
       }
+    }
+    
+    if (verificacoes.length > 0) {
+      await Promise.all(verificacoes);
+    }
 
-      const token = obterToken();
-      if (!token) return;
+    for (const m of musicasFiltradas) {
+      const originalIndex = musicas.indexOf(m);
+      const statusClass = getStatusClass(m.status);
+      const loteNome = m.lote || 'Geral';
+      
+      const chave = m.id || m.nome || m.title || '';
+      const cacheKey = `abc_${chave}`;
+      const pdfChave = `pdf_${chave}`;
+      
+      const abcUrlEncontrada = fileCache.get(cacheKey) || null;
+      const pdfExiste = fileCache.get(pdfChave) || false;
+      const abcExiste = abcUrlEncontrada !== null;
+      
+      const pdfClass = pdfExiste ? 'btn-pdf' : 'btn-pdf disabled';
+      const abcClass = abcExiste ? 'btn-abc' : 'btn-abc disabled';
+      const pdfTitle = pdfExiste ? 'Visualizar Partitura PDF' : '📄 PDF não encontrado';
+      const abcTitle = abcExiste ? 'Visualizar Partitura ABC' : '🎵 ABC não encontrado';
+      
+      tbody.innerHTML += `
+        <tr>
+          <td>
+            <strong>${m.title || m.nome}</strong>
+            ${m.composer ? `<br><small style="color: #6b7280;"><i class="fa-solid fa-user"></i> ${m.composer}</small>` : ''}
+          </td>
+          <td style="text-align:center;">
+            <span class="badge-lote"><i class="fa-solid fa-box"></i> ${loteNome}</span>
+          </td>
+          <td style="text-align:center;">
+            <select onchange="atualizarCampo(${originalIndex}, 'status', this.value)">
+              <option value="Em Estudo" ${m.status === 'Em Estudo' ? 'selected' : ''}>📝 Em Estudo</option>
+              <option value="Em Andamento" ${m.status === 'Em Andamento' ? 'selected' : ''}>🔄 Em Andamento</option>
+              <option value="Concluída" ${m.status === 'Concluída' ? 'selected' : ''}>✅ Concluída</option>
+              <option value="Revisar" ${m.status === 'Revisar' ? 'selected' : ''}>🔴 Revisar</option>
+            </select>
+            <br>
+            <span class="badge-status ${statusClass}" style="display: inline-block; margin-top: 4px;">
+              ${m.status || 'Em Estudo'}
+            </span>
+          </td>
+          <td>
+            <input type="text" value="${m.obs || ''}" placeholder="Observações..." style="width: 100%;" onchange="atualizarCampo(${originalIndex}, 'obs', this.value)">
+          </td>
+          <td style="text-align:center;">
+            <div style="display: flex; gap: 4px; justify-content: center;">
+              <button type="button" class="${pdfClass}" onclick="abrirPDFMusica(${originalIndex})" title="${pdfTitle}" ${!pdfExiste ? 'disabled' : ''}>
+                <i class="fa-solid fa-file-pdf"></i>
+              </button>
+              <button type="button" class="${abcClass}" onclick="abrirModalABC(${originalIndex})" title="${abcTitle}" ${!abcExiste ? 'disabled' : ''}>
+                <i class="fa-solid fa-music"></i>
+              </button>
+              <button type="button" class="btn-danger" onclick="removerMusica(${originalIndex})" title="Remover Música">
+                <i class="fa-solid fa-trash"></i>
+              </button>
+            </div>
+          </td>
+        </tr>
+      `;
+    }
+    
+    verificarLoteConcluido();
+  }
 
+  function aplicarFiltroMusicas() {
+    renderizarTabela();
+  }
+
+  function getRepertorioDaTabela() {
+    return repertorioAtual;
+  }
+
+  // =============================================
+  // ===== IMPORTAÇÃO DE LOTE =====
+  // =============================================
+
+  async function importarLoteMusicaDireto(nomeLote) {
+    const token = obterToken();
+    if (!token) return exibirStatus("Configure o token do GitHub primeiro.", "red");
+
+    if (!nomeLote || nomeLote.trim() === "") return exibirStatus("Nome do lote não informado.", "red");
+
+    const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+    const caminhosParaTestar = [
+      `lotes/lote_musica_${idFormatado}.json`,
+      `lotes/lote_${idFormatado}.json`,
+      `lotes/${idFormatado}.json`
+    ];
+
+    exibirStatus(`Buscando lote "${nomeLote}"...`, "blue");
+
+    let dadosArquivo = null;
+
+    for (const caminho of caminhosParaTestar) {
       try {
-        const path = `alunos/${alunoIdAtual}/cronometro_${loteNome}.json`;
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${path}`, {
-          headers: { "Authorization": `token ${token}` }
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
         });
         if (res.ok) {
-          const data = await res.json();
-          const content = JSON.parse(atob(data.content));
-          if (content.segundos) {
-            cronometroSegundos = content.segundos;
-            localStorage.setItem(`cronometro_${alunoIdAtual}_${loteNome}`, cronometroSegundos);
-            atualizarDisplayCronometro();
-          }
+          dadosArquivo = await res.json();
+          break;
         }
-      } catch (err) {
-        console.error("Erro ao carregar cronômetro:", err);
-      }
+      } catch (e) {}
     }
 
-    function iniciarCronometro() {
-      if (cronometroRodando) return;
-      cronometroRodando = true;
-      atualizarDisplayCronometro();
+    if (!dadosArquivo) return exibirStatus(`❌ Lote "${nomeLote}" não encontrado.`, "red");
 
-      if (cronometroInterval) clearInterval(cronometroInterval);
-      cronometroInterval = setInterval(() => {
-        cronometroSegundos++;
-        atualizarDisplayCronometro();
-        if (cronometroSegundos % 5 === 0) {
-          salvarTempoCronometro(); // Salva periodicamente
+    try {
+      const base64Clean = dadosArquivo.content.replace(/\s/g, '');
+      const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+      const jsonStr = new TextDecoder('utf-8').decode(bytes);
+      const json = JSON.parse(jsonStr);
+
+      let novasMusicas = [];
+      if (Array.isArray(json)) novasMusicas = json;
+      else if (Array.isArray(json.musicas)) novasMusicas = json.musicas;
+      else if (Array.isArray(json.repertorio)) novasMusicas = json.repertorio;
+
+      if (novasMusicas.length === 0) return exibirStatus(`⚠️ Lote "${nomeLote}" está vazio.`, "orange");
+
+      loteImportado = [];
+      novasMusicas.forEach(m => {
+        const nomeStr = typeof m === 'string' ? m : (m.title || m.nome || m.titulo || "");
+        if (nomeStr) {
+          loteImportado.push({
+            id: (typeof m === 'object' && m.id) ? m.id : null,
+            nome: nomeStr,
+            title: (typeof m === 'object' && m.title) ? m.title : nomeStr,
+            composer: (typeof m === 'object' && m.composer) ? m.composer : "",
+            pdfUrl: (typeof m === 'object' && m.pdfUrl) ? m.pdfUrl : (m.id ? `partituras/${m.id}.pdf` : ""),
+            abcFile: (typeof m === 'object' && m.abcFile) ? m.abcFile : (m.id ? `${m.id}.txt` : ""),
+            status: (typeof m === 'object' && m.status) ? m.status : "Em Estudo",
+            obs: (typeof m === 'object' && m.obs) ? m.obs : "",
+            lote: (typeof m === 'object' && m.book) ? m.book : nomeLote.trim()
+          });
         }
-      }, 1000);
-    }
+      });
 
-    function pausarCronometro() {
-      if (!cronometroRodando) return;
-      cronometroRodando = false;
-      if (cronometroInterval) {
-        clearInterval(cronometroInterval);
-        cronometroInterval = null;
-      }
-      atualizarDisplayCronometro();
-      salvarTempoCronometro();
-    }
-
-    function resetarCronometro() {
-      cronometroRodando = false;
-      if (cronometroInterval) {
-        clearInterval(cronometroInterval);
-        cronometroInterval = null;
-      }
-      cronometroSegundos = 0;
-      atualizarDisplayCronometro();
-      salvarTempoCronometro();
-    }
-
-    async function salvarTempoCronometro() {
-      if (!alunoIdAtual || !cronometroLoteAtual) return;
-      
-      localStorage.setItem(`cronometro_${alunoIdAtual}_${cronometroLoteAtual}`, cronometroSegundos);
-
-      const token = obterToken();
-      if (!token) return;
-
-      try {
-        const path = `alunos/${alunoIdAtual}/cronometro_${cronometroLoteAtual}.json`;
-        let sha = null;
+      if (alunoIdAtual) {
+        const musicasAtuais = getRepertorioDaTabela();
+        const nomesExistentes = new Set(musicasAtuais.map(m => m.nome || m.title));
+        repertorioAtual = [...musicasAtuais];
         
-        const checkRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${path}`, {
-          headers: { "Authorization": `token ${token}` }
+        let adicionados = 0;
+        loteImportado.forEach(m => {
+          if (!nomesExistentes.has(m.nome)) {
+            repertorioAtual.push({ ...m });
+            adicionados++;
+          }
         });
-        if (checkRes.ok) {
-          const fileData = await checkRes.json();
-          sha = fileData.sha;
+        
+        dadosMusicasCache = { repertorio: repertorioAtual };
+        atualizarOpcoesLote();
+        renderizarTabela();
+        exibirStatus(`✅ Lote "${nomeLote}" mesclado! ${adicionados} novas músicas.`, "green");
+        showToast(`🎶 ${adicionados} novas músicas adicionadas!`, 'success');
+      } else {
+        repertorioAtual = [...loteImportado];
+        dadosMusicasCache = { repertorio: repertorioAtual };
+        atualizarOpcoesLote();
+        renderizarTabela();
+        exibirStatus(`✅ ${repertorioAtual.length} músicas importadas do lote!`, "green");
+        showToast(`🎶 ${repertorioAtual.length} músicas importadas!`, 'success');
+      }
+
+    } catch (err) {
+      exibirStatus("❌ Erro ao importar: " + err.message, "red");
+    }
+  }
+
+  async function importarLoteGithub() {
+    const token = obterToken();
+    if (!token) return alert("Informe e confirme o Token do GitHub.");
+
+    const entradaUsuario = prompt("Digite o nome ou ID do lote de músicas:");
+    if (!entradaUsuario || entradaUsuario.trim() === "") return;
+    await importarLoteMusicaDireto(entradaUsuario.trim());
+  }
+
+  // =============================================
+  // ===== CARREGAR ALUNO =====
+  // =============================================
+
+  async function carregarMusicasAluno() {
+    const busca = document.getElementById('buscaAluno').value.trim();
+    const token = obterToken();
+
+    if (!busca) {
+      alert("Digite o ID ou nome do aluno.");
+      return;
+    }
+    if (!token) {
+      alert("Informe e confirme o Token do GitHub.");
+      return;
+    }
+
+    const alunoId = await buscarIdAluno(busca);
+    alunoIdAtual = alunoId;
+    
+    const caminho = `alunos/musica_${alunoId}.json`;
+
+    exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
+
+    try {
+      const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+        headers: { 'Authorization': `token ${token}` }
+      });
+
+      let musicasDoAluno = [];
+
+      if (res.ok) {
+        const data = await res.json();
+        shaArquivoAtual = data.sha;
+        const base64Clean = data.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const json = JSON.parse(jsonStr);
+        musicasDoAluno = json.repertorio || [];
+        
+        const lotesTempo = json.lotesTempo || {};
+        const selectLote = document.getElementById('filterMusicaLote');
+        const loteSelecionado = selectLote.value;
+        if (loteSelecionado !== 'todos' && lotesTempo[loteSelecionado]) {
+          cronometroSegundos = lotesTempo[loteSelecionado].tempoSegundos || 0;
+          cronometroRodando = false;
+          cronometroLoteAtual = loteSelecionado;
+          document.getElementById('cronometroBar').style.display = 'flex';
+          document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
+          atualizarDisplayCronometro();
         }
+      } else {
+        shaArquivoAtual = null;
+        exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
+      }
 
-        const content = btoa(unescape(encodeURIComponent(JSON.stringify({ segundos: cronometroSegundos }, null, 2))));
-        await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${path}`, {
-          method: "PUT",
-          headers: {
-            "Authorization": `token ${token}`,
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            message: `Atualiza cronômetro do lote ${cronometroLoteAtual}`,
-            content: content,
-            sha: sha,
-            branch: GH_CONFIG.branch
-          })
-        });
-      } catch (err) {
-        console.error("Erro ao salvar cronômetro no GitHub:", err);
+      repertorioAtual = musicasDoAluno.map(m => ({
+        ...m,
+        nome: m.nome || m.title,
+        lote: m.lote || m.book || 'Geral',
+        abcFile: m.abcFile || ''
+      }));
+
+      dadosMusicasCache = { repertorio: repertorioAtual };
+      atualizarOpcoesLote();
+      await renderizarTabela();
+      verificarLoteConcluido();
+      exibirStatus(`✅ Aluno ${alunoId} carregado com sucesso!`, "green");
+      showToast(`🎶 ${repertorioAtual.length} músicas carregadas!`, 'success');
+
+    } catch (e) {
+      exibirStatus("❌ Erro ao carregar: " + e.message, "red");
+    }
+  }
+
+  // =============================================
+  // ===== SALVAR ALUNO =====
+  // =============================================
+
+  async function salvarMusicasAluno() {
+    const busca = document.getElementById('buscaAluno').value.trim();
+    const token = obterToken();
+
+    if (!busca) return alert("Digite o ID ou nome do aluno.");
+    if (!token) return alert("Informe e confirme o Token do GitHub.");
+
+    const alunoId = await buscarIdAluno(busca);
+    const repertorio = getRepertorioDaTabela();
+
+    if (repertorio.length === 0) return alert("Adicione ao menos uma música.");
+
+    const caminho = `alunos/musica_${alunoId}.json`;
+    
+    let lotesTempo = {};
+    try {
+      const getRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+        headers: { 'Authorization': `token ${token}` }
+      });
+      if (getRes.ok) {
+        const data = await getRes.json();
+        const base64Clean = data.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        const json = JSON.parse(jsonStr);
+        if (json.lotesTempo) lotesTempo = json.lotesTempo;
+      }
+    } catch (e) {}
+
+    const conteudoJson = { 
+      alunoId: alunoId,
+      aluno: busca, 
+      repertorio: repertorio,
+      lotesTempo: lotesTempo,
+      atualizadoEm: new Date().toISOString()
+    };
+
+    const jsonString = JSON.stringify(conteudoJson, null, 2);
+    const utf8Bytes = new TextEncoder().encode(jsonString);
+    let binaryStr = "";
+    utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+    const conteudoBase64 = btoa(binaryStr);
+
+    const body = {
+      message: `Atualizando músicas do aluno: ${alunoId}`,
+      content: conteudoBase64,
+      branch: GH_CONFIG.branch
+    };
+    if (shaArquivoAtual) body.sha = shaArquivoAtual;
+
+    exibirStatus("Enviando dados para o GitHub...", "blue");
+
+    try {
+      const putRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (putRes.ok) {
+        const resData = await putRes.json();
+        shaArquivoAtual = resData.content.sha;
+        exibirStatus(`✅ Músicas salvas com sucesso!`, "green");
+        showToast(`💾 ${repertorio.length} músicas salvas!`, 'success');
+      } else {
+        const errData = await putRes.json().catch(() => ({}));
+        throw new Error(errData.message || "Erro HTTP: " + putRes.status);
+      }
+    } catch (err) {
+      exibirStatus("❌ Erro ao salvar: " + err.message, "red");
+      showToast("Erro ao salvar no GitHub", "error");
+    }
+  }
+
+  // =============================================
+  // ===== FUNÇÕES ABC =====
+  // =============================================
+
+  function toggleCodePanel() {
+    const panel = document.getElementById('abcCodePanel');
+    const btn = document.querySelector('.btn-toggle-code');
+    
+    if (panel) {
+      panel.classList.toggle('hidden');
+      codePanelVisible = !panel.classList.contains('hidden');
+      if (btn) {
+        btn.classList.toggle('active');
+        btn.innerHTML = codePanelVisible ? '<i class="fa-solid fa-code"></i> Código' : '<i class="fa-solid fa-code"></i> Mostrar Código';
       }
     }
+  }
 
-    // =============================================
-    // ===== DEMAIS FUNÇÕES DE SUPORTE DO SISTEMA ==
-    // =============================================
+  async function abrirModalABC(index) {
+    const m = repertorioAtual[index];
+    if (!m) return;
 
-    async function carregarMusicasAluno() {
-      const inputAluno = document.getElementById('buscaAluno').value.trim();
-      if (!inputAluno) {
-        showToast("Digite o nome ou ID do aluno.", "error");
-        return;
+    const modal = document.getElementById('abcModal');
+    const titleEl = document.getElementById('abcModalTitle');
+    const codeEditor = document.getElementById('abcCodeEditor');
+    const paperDiv = document.getElementById('abc-paper');
+
+    titleEl.textContent = `🎵 ${m.nome || m.title || 'Partitura ABC'}`;
+
+    const chave = m.id || m.nome || m.title || '';
+    const cacheKey = `abc_${chave}`;
+    let abcUrl = fileCache.get(cacheKey) || null;
+    
+    if (!abcUrl) {
+      abcUrl = await verificarArquivoABCExiste(m);
+    }
+
+    if (!abcUrl) {
+      showToast(`📄 Arquivo ABC não encontrado para: "${m.nome || m.title}"`, 'error');
+      return;
+    }
+
+    modal.classList.add('active');
+    paperDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando partitura...</div>';
+    codeEditor.value = 'Carregando...';
+    codeEditor.disabled = true;
+
+    const panel = document.getElementById('abcCodePanel');
+    const btn = document.querySelector('.btn-toggle-code');
+    if (panel) panel.classList.remove('hidden');
+    if (btn) {
+      btn.classList.add('active');
+      btn.innerHTML = '<i class="fa-solid fa-code"></i> Código';
+    }
+    codePanelVisible = true;
+
+    try {
+      const response = await fetch(abcUrl);
+      if (response.ok) {
+        const abcText = await response.text();
+        abcCurrentCode = abcText;
+        codeEditor.value = abcText;
+        codeEditor.disabled = false;
+        await renderizarABCCompleto(abcText);
+      } else {
+        const abcBasico = `X:1\nT:${m.nome || m.title || 'Música'}\nM:4/4\nL:1/4\nK:C\nC D E F | G A B c |\nw: 1 2 3 4 | 5 6 7 8 |`;
+        abcCurrentCode = abcBasico;
+        codeEditor.value = abcBasico;
+        codeEditor.disabled = false;
+        await renderizarABCCompleto(abcBasico);
+        showToast(`⚠️ Erro ao carregar arquivo. Usando exemplo básico.`, 'info');
       }
-      alunoIdAtual = inputAluno;
-      exibirStatus(`Carregando músicas para ${alunoIdAtual}...`, "blue");
+    } catch (error) {
+      console.error('Erro ao carregar ABC:', error);
+      const abcBasico = `X:1\nT:${m.nome || m.title || 'Música'}\nM:4/4\nL:1/4\nK:C\nC D E F | G A B c |\nw: 1 2 3 4 | 5 6 7 8 |`;
+      abcCurrentCode = abcBasico;
+      codeEditor.value = abcBasico;
+      codeEditor.disabled = false;
+      await renderizarABCCompleto(abcBasico);
+      showToast('⚠️ Erro ao carregar arquivo. Usando exemplo básico.', 'error');
+    }
+  }
+
+  function fecharModalABC() {
+    const modal = document.getElementById('abcModal');
+    modal.classList.remove('active');
+    pararABC();
+    
+    if (abcIsFullscreen && document.exitFullscreen) {
+      document.exitFullscreen();
+      abcIsFullscreen = false;
+    }
+  }
+
+  async function renderizarABCCompleto(abcText) {
+    const paperDiv = document.getElementById('abc-paper');
+    const bpm = parseInt(document.getElementById('abcBPM').value) || 120;
+    const midiProgram = parseInt(document.getElementById('abcMidiProgram').value) || 0;
+    
+    try {
+      let processedAbc = abcText;
       
-      // Simulação ou chamada real para preencher a tabela e filtros
-      const token = obterToken();
-      // ... A lógica existente de carregamento do aluno continua integrada aqui ...
-      showToast(`Aluno ${alunoIdAtual} carregado com sucesso!`, "success");
-      exibirStatus(`Aluno: ${alunoIdAtual}`, "green");
+      if (!/^Q:/m.test(processedAbc)) {
+        const kMatch = processedAbc.match(/^(K:.*)$/m);
+        if (kMatch) {
+          processedAbc = processedAbc.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
+        } else {
+          processedAbc = `Q:${bpm}\n` + processedAbc;
+        }
+      }
       
-      // Exemplo de chamada para o cronômetro do primeiro lote selecionado
-      carregarTempoLote("Lote 1");
+      if (!/^%%MIDI\s+program/m.test(processedAbc)) {
+        const kMatch = processedAbc.match(/^(K:.*)$/m);
+        if (kMatch) {
+          processedAbc = processedAbc.replace(/^(K:.*)$/m, `$1\n%%MIDI program ${midiProgram}`);
+        }
+      }
+
+      paperDiv.innerHTML = '';
+      const visual = ABCJS.renderAbc('abc-paper', processedAbc, {
+        responsive: 'resize',
+        add_classes: true,
+        paddingtop: 10,
+        paddingbottom: 10,
+        paddingright: 10,
+        paddingleft: 10,
+        visualTranspose: abcCurrentTranspose
+      });
+      
+      if (visual && visual.length > 0) {
+        abcVisualObj = visual[0];
+      } else {
+        paperDiv.innerHTML = '<div style="text-align:center;padding:40px;color:#ef4444;">⚠️ Erro ao renderizar a partitura. Verifique o código ABC.</div>';
+        abcVisualObj = null;
+      }
+    } catch (error) {
+      console.error('Erro ao renderizar ABC:', error);
+      paperDiv.innerHTML = `<div style="text-align:center;padding:40px;color:#ef4444;">⚠️ Erro ao renderizar: ${error.message}</div>`;
+      abcVisualObj = null;
+    }
+  }
+
+  function renderizarABC() {
+    const codeEditor = document.getElementById('abcCodeEditor');
+    const abcText = codeEditor.value;
+    abcCurrentCode = abcText;
+    renderizarABCCompleto(abcText);
+  }
+
+  async function tocarABC(mode = 'all') {
+    if (!abcVisualObj) {
+      renderizarABC();
+      if (!abcVisualObj) return;
     }
 
-    function salvarMusicasAluno() {
-      showToast("Dados salvos com sucesso!", "success");
+    pararABC();
+
+    if (!abcAudioContext) {
+      abcAudioContext = new (window.AudioContext || window.webkitAudioContext)();
     }
 
-    function importarLoteGithub() {
-      showToast("Importação de lote iniciada.", "info");
+    try {
+      await abcAudioContext.resume();
+    } catch (e) {
+      console.error('Erro ao resumir contexto de áudio:', e);
+      return;
     }
 
-    function carregarListaAlunos() {
-      const painel = document.getElementById('listaAlunos');
-      painel.style.display = painel.style.display === 'none' ? 'block' : 'none';
-    }
+    const bpm = parseInt(document.getElementById('abcBPM').value) || 120;
+    const midiProgram = parseInt(document.getElementById('abcMidiProgram').value) || 0;
 
-    function adicionarMusica() {
-      const nome = document.getElementById('novaMusica').value.trim();
-      if (!nome) return;
-      showToast(`Música "${nome}" adicionada!`, "success");
-      document.getElementById('novaMusica').value = '';
-    }
+    document.getElementById('abcAudioIndicator').classList.add('active');
 
-    function arquivarLote() {
-      showToast("Lote arquivado com sucesso!", "success");
-    }
+    try {
+      const createSynth = new ABCJS.synth.CreateSynth();
+      
+      let audioOptions = {
+        qpm: bpm,
+        midiTranspose: abcCurrentTranspose,
+        program: midiProgram
+      };
+      
+      if (mode === 'chords') {
+        audioOptions.voicesOff = true;
+      } else if (mode === 'm1') {
+        audioOptions.chordsOff = true;
+        audioOptions.voicesOff = [1];
+      } else if (mode === 'm2') {
+        audioOptions.chordsOff = true;
+        audioOptions.voicesOff = [0];
+      }
 
-    function aplicarFiltroMusicas() {}
-    function onLoteChange() {
-      const selectLote = document.getElementById('filterMusicaLote');
-      if (selectLote) {
-        carregarTempoLote(selectLote.value);
+      await createSynth.init({
+        visualObj: abcVisualObj,
+        audioContext: abcAudioContext,
+        millisecondsPerMeasure: abcVisualObj.millisecondsPerMeasure ? abcVisualObj.millisecondsPerMeasure() : undefined,
+        options: audioOptions
+      });
+
+      await createSynth.prime();
+      createSynth.start();
+      
+      abcsynthController = createSynth;
+      
+    } catch (err) {
+      console.error('Erro ao tocar áudio ABC:', err);
+      document.getElementById('abcAudioIndicator').classList.remove('active');
+    }
+  }
+
+  function pararABC() {
+    if (abcsynthController) {
+      try {
+        abcsynthController.stop();
+      } catch (e) {
+        console.warn('Erro ao parar ABC:', e);
+      }
+      abcsynthController = null;
+    }
+    if (abcAudioContext && abcAudioContext.state === 'running') {
+      abcAudioContext.suspend();
+    }
+    document.getElementById('abcAudioIndicator').classList.remove('active');
+  }
+
+  function atualizarBPMABC(valor) {
+    const bpm = parseInt(valor) || 120;
+    const codeEditor = document.getElementById('abcCodeEditor');
+    let text = codeEditor.value;
+    
+    if (/^Q:\s*\d+/m.test(text)) {
+      text = text.replace(/^Q:\s*\d+/m, `Q:${bpm}`);
+      codeEditor.value = text;
+      abcCurrentCode = text;
+      renderizarABCCompleto(text);
+    } else {
+      const kMatch = text.match(/^(K:.*)$/m);
+      if (kMatch) {
+        text = text.replace(/^(K:.*)$/m, `$1\nQ:${bpm}`);
+        codeEditor.value = text;
+        abcCurrentCode = text;
+        renderizarABCCompleto(text);
       }
     }
-    function removerLoteDoRepertorio() {}
+  }
 
-    // Funções de visualizador PDF e ABCJS mantidas
-    function setViewMode(mode) { currentViewMode = mode; }
-    function toggleFullscreen() {}
-    function fecharVisualizador() { document.getElementById('pdfPreviewPanel').style.display = 'none'; }
-    function alterarZoom(val) {}
-    function initResizeHandlers() {}
-    function fecharModalABC() { document.getElementById('abcModal').classList.remove('active'); }
-    function tocarABC(tipo) {}
-    function pararABC() {}
-    function atualizarBPMABC(bpm) {}
-    function renderizarABC() {}
-    function toggleCodePanel() {}
-    function alternarTelaCheiaABC() {}
-    function copiarABC() {}
-  </script>
+  function alternarTelaCheiaABC() {
+    const modalContent = document.querySelector('.abc-modal-content');
+    
+    if (!abcIsFullscreen) {
+      if (modalContent.requestFullscreen) {
+        modalContent.requestFullscreen();
+      } else if (modalContent.webkitRequestFullscreen) {
+        modalContent.webkitRequestFullscreen();
+      }
+      abcIsFullscreen = true;
+    } else {
+      if (document.exitFullscreen) {
+        document.exitFullscreen();
+      } else if (document.webkitExitFullscreen) {
+        document.webkitExitFullscreen();
+      }
+      abcIsFullscreen = false;
+    }
+  }
 
+  function copiarABC() {
+    const codeEditor = document.getElementById('abcCodeEditor');
+    navigator.clipboard.writeText(codeEditor.value).then(() => {
+      showToast('📋 Código ABC copiado!', 'success');
+    }).catch(() => {
+      codeEditor.select();
+      document.execCommand('copy');
+      showToast('📋 Código ABC copiado!', 'success');
+    });
+  }
+
+  // Eventos para fechar modal ABC com ESC
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      const modal = document.getElementById('abcModal');
+      if (modal.classList.contains('active')) {
+        fecharModalABC();
+      }
+    }
+  });
+
+  document.getElementById('abcModal').addEventListener('click', function(e) {
+    if (e.target === this) {
+      fecharModalABC();
+    }
+  });
+
+  console.log('✅ Repertório de Músicas do Aluno com suporte ABC e Cronômetro carregado!');
+  console.log('📁 Pasta ABC:', BASE_ABC_URL);
+  console.log('⚡ Cache de arquivos ativado para melhor performance!');
+</script>
 </body>
 </html>
