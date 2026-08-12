@@ -447,7 +447,7 @@
     <div class="content-area">
       <div class="card">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
-          <input type="text" id="buscaAluno" placeholder="Digite o ID ou Nome do aluno...">
+          <input type="text" id="buscaAluno" placeholder="Digite o ID ou Nome do aluno..." style="flex: 2;">
           <button onclick="carregarMusicasAluno()"><i class="fa-solid fa-magnifying-glass"></i> Carregar Aluno</button>
           <button style="background-color: #16a34a;" onclick="salvarMusicasAluno()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar no GitHub</button>
           <button style="background-color: #0284c7;" onclick="importarLoteGithub()"><i class="fa-solid fa-file-import"></i> Importar Lote GitHub</button>
@@ -474,15 +474,12 @@
             <span class="cronometro-display" id="cronometroDisplay">00:00:00</span>
             <span class="cronometro-status pausado" id="cronometroStatus">⏸️ Pausado</span>
             <div style="display: flex; gap: 6px; flex-wrap: wrap;">
-              <!-- BOTÃO INICIAR -->
               <button id="btnCronometroIniciar" class="btn-success" onclick="iniciarCronometro()" style="padding: 4px 12px; font-size: 0.8rem;">
                 <i class="fa-solid fa-play"></i> Iniciar
               </button>
-              <!-- BOTÃO PAUSAR -->
               <button id="btnCronometroPausar" class="btn-secondary" onclick="pausarCronometro()" style="padding: 4px 12px; font-size: 0.8rem;">
                 <i class="fa-solid fa-pause"></i> Pausar
               </button>
-              <!-- BOTÃO RESETAR -->
               <button id="btnCronometroResetar" class="btn-danger" onclick="resetarCronometro()" style="padding: 4px 12px; font-size: 0.8rem;">
                 <i class="fa-solid fa-rotate-left"></i> Resetar
               </button>
@@ -665,6 +662,71 @@
     const fileCache = new Map();
 
     // =============================================
+    // ===== FUNÇÕES INICIAIS =====
+    // =============================================
+
+    window.onload = function() {
+      const savedToken = localStorage.getItem("gh_pat_token");
+      if (savedToken) {
+        document.getElementById("gh-token").value = savedToken;
+      }
+
+      document.getElementById("gh-token").addEventListener("input", (e) => {
+        localStorage.setItem("gh_pat_token", e.target.value.trim());
+      });
+
+      document.getElementById("buscaAluno").addEventListener("keyup", (e) => {
+        if (e.key === "Enter") carregarMusicasAluno();
+      });
+      document.getElementById("novaMusica").addEventListener("keyup", (e) => {
+        if (e.key === "Enter") adicionarMusica();
+      });
+
+      document.getElementById('btnPage1')?.addEventListener('click', () => setViewMode(1));
+      document.getElementById('btnPage2')?.addEventListener('click', () => setViewMode(2));
+      document.getElementById('btnFullscreen')?.addEventListener('click', toggleFullscreen);
+      document.getElementById('btnClosePreview')?.addEventListener('click', fecharVisualizador);
+
+      initResizeHandlers();
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const loteParam = urlParams.get('lote');
+      
+      if (loteParam) {
+        exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
+        setTimeout(() => {
+          importarLoteMusicaDireto(loteParam);
+        }, 1000);
+      }
+    };
+
+    function obterToken() {
+      return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
+    }
+
+    function showToast(mensagem, tipo = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${tipo}`;
+      toast.innerHTML = mensagem;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function validarEAutenticarToken() {
+      const token = obterToken();
+      if (token) {
+        localStorage.setItem("gh_pat_token", token);
+        showToast("🔑 Token salvo com sucesso!", "success");
+      }
+    }
+
+    function exibirStatus(msg, cor = "black") {
+      const statusEl = document.getElementById('statusMsg');
+      statusEl.style.color = cor;
+      statusEl.innerText = msg;
+    }
+
+    // =============================================
     // ===== FUNÇÕES DO CRONÔMETRO =====
     // =============================================
 
@@ -693,7 +755,6 @@
         }
       }
       
-      // Todos os botões sempre visíveis
       if (btnIniciar) {
         btnIniciar.style.display = 'inline-flex';
         btnIniciar.style.opacity = cronometroRodando ? '0.5' : '1';
@@ -744,7 +805,6 @@
           }
         }
         
-        // Se não encontrar, iniciar do zero
         cronometroSegundos = 0;
         cronometroRodando = false;
         cronometroLoteAtual = loteNome;
@@ -825,8 +885,6 @@
       cronometroInterval = setInterval(() => {
         cronometroSegundos++;
         atualizarDisplayCronometro();
-        
-        // Salvar a cada 30 segundos
         if (cronometroSegundos % 30 === 0) {
           salvarTempoLote();
         }
@@ -834,7 +892,6 @@
     }
 
     function iniciarCronometro() {
-      // Verificar se já está rodando
       if (cronometroRodando) {
         showToast("⚠️ O cronômetro já está em andamento.", 'info');
         return;
@@ -848,7 +905,6 @@
         return;
       }
       
-      // Se mudou de lote
       if (cronometroLoteAtual && cronometroLoteAtual !== loteSelecionado) {
         if (!confirm(`Deseja mudar para o lote "${loteSelecionado}"? O tempo atual será salvo.`)) return;
         salvarTempoLote();
@@ -858,10 +914,8 @@
       document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
       document.getElementById('cronometroBar').style.display = 'flex';
       
-      // Carregar tempo salvo
       carregarTempoLote(loteSelecionado);
       
-      // Iniciar
       cronometroRodando = true;
       iniciarCronometroInterno();
       salvarTempoLote();
@@ -871,25 +925,18 @@
     }
 
     function pausarCronometro() {
-      // Verificar se já está pausado
       if (!cronometroRodando) {
         showToast("⚠️ O cronômetro já está pausado.", 'info');
         return;
       }
       
-      // Para o intervalo
       if (cronometroInterval) {
         clearInterval(cronometroInterval);
         cronometroInterval = null;
       }
       
-      // Muda o estado
       cronometroRodando = false;
-      
-      // Salva o tempo
       salvarTempoLote();
-      
-      // Atualiza a interface
       atualizarDisplayCronometro();
       
       showToast(`⏸️ Cronômetro pausado. Tempo: ${formatarTempo(cronometroSegundos)}`, 'info');
@@ -902,23 +949,57 @@
       }
       if (!confirm(`Tem certeza que deseja resetar o cronômetro do lote "${cronometroLoteAtual}"?`)) return;
       
-      // Para o intervalo
       if (cronometroInterval) {
         clearInterval(cronometroInterval);
         cronometroInterval = null;
       }
       
-      // Reseta valores
       cronometroSegundos = 0;
       cronometroRodando = false;
-      
-      // Salva o tempo zerado
       salvarTempoLote();
-      
-      // Atualiza a interface
       atualizarDisplayCronometro();
       
       showToast(`🔄 Cronômetro resetado!`, 'info');
+    }
+
+    // =============================================
+    // ===== FUNÇÃO CORRIGIDA PARA BUSCAR ALUNO =====
+    // =============================================
+
+    async function buscarIdAluno(busca) {
+      const token = obterToken();
+      if (!token) {
+        // Se não tem token, usa o nome como ID
+        return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      }
+      
+      // Primeiro, verifica se o que foi digitado é um ID ou nome
+      // Tenta buscar o index.json (opcional)
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos/index.json?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          const indexData = JSON.parse(jsonStr);
+          
+          let encontrado = indexData.alunos.find(a => a.id === busca);
+          if (!encontrado) {
+            encontrado = indexData.alunos.find(a => a.nome.toLowerCase() === busca.toLowerCase());
+          }
+          if (encontrado) {
+            return encontrado.id;
+          }
+        }
+      } catch (e) {
+        // Index não existe, continuar
+      }
+      
+      // Se não encontrou no index, retorna o próprio texto normalizado
+      return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
     }
 
     // =============================================
@@ -1039,18 +1120,14 @@
         iframe2.style.display = 'none';
         iframe2.src = '';
         iframe1.src = `${currentPdfUrl}#page=1`;
-        
         if (!panel.style.width) panel.style.width = '520px';
-
         btn1?.classList.add('active');
         btn2?.classList.remove('active');
       } else if (mode === 2) {
         iframe2.style.display = 'block';
         iframe1.src = `${currentPdfUrl}#page=1`;
         iframe2.src = `${currentPdfUrl}#page=2`;
-
         panel.style.width = '980px';
-
         btn1?.classList.remove('active');
         btn2?.classList.add('active');
       }
@@ -1335,32 +1412,6 @@
     // =============================================
     // ===== FUNÇÕES DE ALUNOS E REPERTÓRIO =====
     // =============================================
-
-    async function buscarIdAluno(busca) {
-      const token = obterToken();
-      if (!token) return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-      
-      try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos/index.json?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
-        if (!res.ok) return busca;
-        
-        const data = await res.json();
-        const base64Clean = data.content.replace(/\s/g, '');
-        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-        const jsonStr = new TextDecoder('utf-8').decode(bytes);
-        const indexData = JSON.parse(jsonStr);
-        
-        let encontrado = indexData.alunos.find(a => a.id === busca);
-        if (!encontrado) {
-          encontrado = indexData.alunos.find(a => a.nome.toLowerCase() === busca.toLowerCase());
-        }
-        return encontrado ? encontrado.id : busca;
-      } catch (e) {
-        return busca;
-      }
-    }
 
     async function carregarListaAlunos() {
       const token = obterToken();
@@ -1908,11 +1959,19 @@
       const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
 
-      if (!busca) return alert("Digite o ID ou nome do aluno.");
-      if (!token) return alert("Informe e confirme o Token do GitHub.");
+      if (!busca) {
+        alert("Digite o ID ou nome do aluno.");
+        return;
+      }
+      if (!token) {
+        alert("Informe e confirme o Token do GitHub.");
+        return;
+      }
 
+      // Buscar o ID do aluno (normalizado)
       const alunoId = await buscarIdAluno(busca);
       alunoIdAtual = alunoId;
+      
       const caminho = `alunos/musica_${alunoId}.json`;
 
       exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
@@ -1933,6 +1992,7 @@
           const json = JSON.parse(jsonStr);
           musicasDoAluno = json.repertorio || [];
           
+          // Carregar tempos dos lotes
           const lotesTempo = json.lotesTempo || {};
           const selectLote = document.getElementById('filterMusicaLote');
           const loteSelecionado = selectLote.value;
@@ -2056,14 +2116,9 @@
       if (panel) {
         panel.classList.toggle('hidden');
         codePanelVisible = !panel.classList.contains('hidden');
-        
         if (btn) {
           btn.classList.toggle('active');
-          if (codePanelVisible) {
-            btn.innerHTML = '<i class="fa-solid fa-code"></i> Código';
-          } else {
-            btn.innerHTML = '<i class="fa-solid fa-code"></i> Mostrar Código';
-          }
+          btn.innerHTML = codePanelVisible ? '<i class="fa-solid fa-code"></i> Código' : '<i class="fa-solid fa-code"></i> Mostrar Código';
         }
       }
     }
@@ -2327,7 +2382,7 @@
       });
     }
 
-    // Evento para fechar modal ABC com ESC
+    // Eventos para fechar modal ABC com ESC
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Escape') {
         const modal = document.getElementById('abcModal');
@@ -2337,7 +2392,6 @@
       }
     });
 
-    // Fechar modal clicando fora do conteúdo
     document.getElementById('abcModal').addEventListener('click', function(e) {
       if (e.target === this) {
         fecharModalABC();
