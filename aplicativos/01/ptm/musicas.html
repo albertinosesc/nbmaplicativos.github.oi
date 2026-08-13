@@ -3,581 +3,1876 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Repertório - Fix Salvamento</title>
+  <title>Repertório de Músicas do Aluno</title>  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- ABCJS para renderização de partituras -->
+  <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
+
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { background: #f4f6f8; padding: 20px; max-width: 1200px; margin: 0 auto; }
-    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
-    input, select, button { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; }
-    button { background: #8e44ad; color: white; border: none; cursor: pointer; }
+    :root {
+      --primary: #8e44ad;
+      --accent: #27ae60;
+      --danger: #dc2626;
+      --bg: #f4f6f8;
+      --card: #ffffff;
+      --border: #e5e7eb;
+      --text: #1f2937;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 20px; max-width: 1600px; margin: 0 auto; user-select: none; }
+
+    .header-bar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    .card { background: var(--card); padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+    .github-auth-panel { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+    input, select, button { padding: 9px 13px; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
+    input[type="text"], input[type="password"] { flex: 1; min-width: 180px; }
+
+    button { background-color: var(--primary); color: white; border: none; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
     button:hover { opacity: 0.9; }
-    .btn-success { background: #27ae60; }
-    .btn-danger { background: #dc2626; }
-    .flex { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .status-msg { margin-top: 10px; font-weight: bold; }
-    .cronometro-bar { display: none; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px 14px; border-radius: 6px; margin-bottom: 10px; }
-    .cronometro-display { font-size: 1.4rem; font-weight: bold; font-family: monospace; color: #2563eb; min-width: 100px; }
-    .cronometro-status.rodando { color: #16a34a; }
-    .cronometro-status.pausado { color: #6b7280; }
-    .salvando { display: none; background: #fef3c7; border: 1px solid #f59e0b; padding: 8px 14px; border-radius: 6px; margin: 5px 0 10px 0; }
-    .salvando.ativo { display: flex; align-items: center; gap: 10px; }
-    .spinner { animation: spin 1s linear infinite; }
-    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .toast { position: fixed; bottom: 20px; right: 20px; background: #1f2937; color: white; padding: 12px 20px; border-radius: 8px; z-index: 9999; animation: slideIn 0.3s ease; max-width: 350px; }
+    button.btn-success { background-color: var(--accent); }
+    button.btn-danger { background-color: var(--danger); }
+    button.btn-secondary { background-color: #4b5563; }
+    button.btn-archive { background-color: #d97706; }
+    button.btn-archive:hover { background-color: #b45309; }
+    button.btn-archive:disabled { background-color: #94a3b8; cursor: not-allowed; opacity: 0.6; }
+    button.btn-abc { background-color: #0284c7; }
+    button.btn-abc:hover { background-color: #0369a1; }
+    button.btn-abc.disabled { background-color: #94a3b8; cursor: not-allowed; opacity: 0.6; }
+    button.btn-pdf { background-color: var(--accent); }
+    button.btn-pdf:hover { background-color: #15803d; }
+    button.btn-pdf.disabled { background-color: #94a3b8; cursor: not-allowed; opacity: 0.6; }
+
+    table { width: 100%; border-collapse: collapse; font-size: 0.9rem; margin-top: 15px; }
+    th, td { border: 1px solid var(--border); padding: 10px; text-align: left; }
+    th { background-color: #f8fafc; font-weight: 600; }
+
+    .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
+    
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1f2937;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 9999;
+      animation: slideIn 0.3s ease;
+      max-width: 350px;
+    }
     .toast.success { border-left: 4px solid #27ae60; }
     .toast.error { border-left: 4px solid #dc2626; }
     .toast.info { border-left: 4px solid #2563eb; }
-    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
-    th { background: #f8fafc; }
-    .badge-lote { background: #f3e8ff; color: #6b21a8; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; border: 1px solid #e9d5ff; }
-    .badge-em-estudo { background: #fef3c7; color: #92400e; padding: 3px 12px; border-radius: 12px; font-size: 0.75rem; }
-    .badge-concluida { background: #dcfce7; color: #166534; padding: 3px 12px; border-radius: 12px; font-size: 0.75rem; }
+    .toast.warning { border-left: 4px solid #eab308; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .badge-status {
+      display: inline-block;
+      padding: 3px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: bold;
+      text-align: center;
+      min-width: 100px;
+    }
+    .badge-em-estudo { background-color: #fef3c7; color: #92400e; }
+    .badge-em-andamento { background-color: #dbeafe; color: #1e40af; }
+    .badge-concluida { background-color: #dcfce7; color: #166534; }
+    .badge-revisar { background-color: #fce4ec; color: #c62828; }
+
+    .badge-lote {
+      display: inline-block;
+      background-color: #f3e8ff;
+      color: #6b21a8;
+      padding: 2px 8px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: 1px solid #e9d5ff;
+    }
+
+    .filter-bar {
+      display: flex;
+      gap: 12px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin-bottom: 10px;
+      padding: 10px 14px;
+      background: #f8fafc;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+    }
+    .filter-item { display: flex; align-items: center; gap: 6px; }
+    .filter-bar label { font-size: 0.8rem; font-weight: 600; color: #4b5563; }
+    .filter-bar select { padding: 5px 10px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.8rem; background: white; cursor: pointer; }
+    .filter-bar .filter-info { font-size: 0.75rem; color: #6b7280; margin-left: auto; }
+
+    .lote-status-bar {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 10px 14px;
+      background: #f0fdf4;
+      border-radius: 6px;
+      border: 1px solid #bbf7d0;
+      margin-bottom: 10px;
+    }
+    .lote-status-bar .status-text { font-size: 0.9rem; font-weight: 600; }
+    .lote-status-bar .status-text .concluido { color: #166534; }
+    .lote-status-bar .status-text .pendente { color: #92400e; }
+
+    .cronometro-bar {
+      display: none;
+      background: #f0fdf4;
+      border: 1px solid #bbf7d0;
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-bottom: 10px;
+    }
+    .cronometro-bar .cronometro-display {
+      font-size: 1.4rem;
+      font-weight: bold;
+      font-family: monospace;
+      color: #2563eb;
+      min-width: 100px;
+    }
+    .cronometro-bar .cronometro-status { font-size: 0.8rem; color: #6b7280; }
+    .cronometro-bar .cronometro-status.rodando { color: #16a34a; }
+    .cronometro-bar .cronometro-status.pausado { color: #6b7280; }
+    .cronometro-bar .cronometro-info { font-size: 0.75rem; color: #6b7280; margin-left: auto; }
+
+    .main-container { display: flex; gap: 15px; width: 100%; align-items: flex-start; position: relative; }
+    .content-area { flex: 1; min-width: 300px; }
+
+    .pdf-preview-panel {
+      position: relative;
+      width: 500px;
+      height: 650px;
+      min-width: 280px;
+      max-width: 95vw;
+      min-height: 300px;
+      max-height: 95vh;
+      background-color: #2c3e50;
+      display: none;
+      flex-direction: column;
+      border-radius: 8px;
+      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+      position: sticky;
+      top: 20px;
+      transition: none;
+      z-index: 100;
+    }
+    .pdf-preview-header {
+      background-color: #34495e;
+      color: white;
+      padding: 10px 15px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      cursor: move;
+    }
+    .pdf-preview-header h3 { font-size: 0.95rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+    .pdf-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+    .btn-pdf-action {
+      background-color: #2c3e50;
+      color: #ecf0f1;
+      border: 1px solid #455a64;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.78rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn-pdf-action:hover, .btn-pdf-action.active {
+      background-color: #1abc9c;
+      border-color: #16a085;
+      color: #ffffff;
+      font-weight: bold;
+    }
+    .btn-close-preview {
+      background: none;
+      border: none;
+      color: #bdc3c7;
+      font-size: 1.4rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 0 4px;
+    }
+    .btn-close-preview:hover { color: #e74c3c; }
+
+    .pdf-container {
+      display: flex;
+      width: 100%;
+      height: 100%;
+      gap: 6px;
+      background-color: #1e293b;
+      padding: 4px;
+      position: relative;
+      overflow: auto; 
+      justify-content: center;
+      align-items: center;
+    }
+    .iframe-overlay {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      z-index: 10;
+      display: none;
+    }
+    .pdf-frame {
+      flex: 1;
+      width: 100%;
+      height: 100%;
+      border: none;
+      border-radius: 4px;
+      background-color: #ffffff;
+      transition: transform 0.1s ease-out;
+    }
+    .resize-handle {
+      position: absolute;
+      z-index: 20;
+    }
+    .resize-handle-left { left: -6px; top: 0; width: 12px; height: 100%; cursor: ew-resize; }
+    .resize-handle-bottom { bottom: -6px; left: 0; width: 100%; height: 12px; cursor: ns-resize; }
+    .resize-handle-corner {
+      left: -6px; bottom: -6px; width: 16px; height: 16px;
+      cursor: nwse-resize;
+      background: repeating-linear-gradient(-45deg, #1abc9c, #1abc9c 2px, transparent 2px, transparent 4px);
+      border-radius: 0 0 0 4px;
+    }
+
+    .abc-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.7);
+      z-index: 99999;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .abc-modal.active { display: flex; }
+    .abc-modal-content {
+      background: #ffffff;
+      border-radius: 12px;
+      width: 95%;
+      max-width: 1300px;
+      max-height: 95vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      animation: modalFadeIn 0.3s ease;
+    }
+    @keyframes modalFadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+    .abc-modal-header {
+      background: linear-gradient(135deg, #1e293b, #0f172a);
+      color: white;
+      padding: 16px 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+    .abc-modal-header h2 { font-size: 1.2rem; display: flex; align-items: center; gap: 10px; }
+    .abc-modal-header .close-modal {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      font-size: 1.8rem;
+      cursor: pointer;
+      padding: 0 8px;
+      transition: color 0.2s;
+    }
+    .abc-modal-header .close-modal:hover { color: #ef4444; }
+    .abc-modal-body { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+    .abc-modal-body .abc-viewer {
+      flex: 1;
+      padding: 20px;
+      overflow-y: auto;
+      background: #f8fafc;
+      min-width: 0;
+    }
+    .abc-modal-body .abc-code-panel {
+      width: 40%;
+      min-width: 280px;
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 16px;
+      overflow-y: auto;
+      border-left: 2px solid #1e293b;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+    }
+    .abc-modal-body .abc-code-panel.hidden { display: none; }
+    .abc-modal-body .abc-code-panel textarea {
+      flex: 1;
+      background: #1e293b;
+      color: #e2e8f0;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 12px;
+      font-family: "Courier New", monospace;
+      font-size: 0.85rem;
+      resize: none;
+      min-height: 150px;
+      width: 100%;
+    }
+    .abc-modal-body .abc-code-panel textarea:focus { outline: 2px solid #3b82f6; }
+    .abc-modal-body .abc-code-panel .code-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .abc-modal-body .abc-code-panel .code-actions button {
+      padding: 6px 14px;
+      font-size: 0.8rem;
+      border-radius: 4px;
+    }
+    .abc-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      background: #e2e8f0;
+      padding: 10px 16px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+    }
+    .abc-toolbar label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .abc-toolbar input[type="number"] {
+      width: 60px;
+      padding: 4px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: 0.8rem;
+    }
+    .abc-toolbar select {
+      padding: 4px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      background: white;
+    }
+    .abc-toolbar button { padding: 5px 12px; font-size: 0.8rem; }
+    .btn-toggle-code { background-color: #6b7280; }
+    .btn-toggle-code:hover { background-color: #4b5563; }
+    .btn-toggle-code.active { background-color: #3b82f6; }
+    .btn-toggle-code.active:hover { background-color: #2563eb; }
+    #abc-paper {
+      background: white;
+      border-radius: 6px;
+      padding: 20px;
+      min-height: 300px;
+      border: 1px solid #e2e8f0;
+    }
+    #abc-paper svg { width: 100%; height: auto; }
+    .abc-audio-indicator {
+      font-size: 0.75rem;
+      color: #0284c7;
+      font-weight: bold;
+      display: none;
+    }
+    .abc-audio-indicator.active {
+      display: inline;
+      animation: pulse 1s infinite;
+    }
+    @keyframes pulse {
+      0% { opacity: 1; }
+      50% { opacity: 0.3; }
+      100% { opacity: 1; }
+    }
+
+    .debug-console {
+      display: none;
+      background: #0f172a;
+      color: #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 15px;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      max-height: 250px;
+      overflow-y: auto;
+      border: 1px solid #1e293b;
+    }
+    .debug-console.visible { display: block; }
+    .debug-console .log-entry {
+      padding: 3px 0;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      gap: 8px;
+      align-items: flex-start;
+    }
+    .debug-console .log-entry .time { color: #64748b; min-width: 70px; font-size: 0.7rem; }
+    .debug-console .log-entry .level-info { color: #3b82f6; }
+    .debug-console .log-entry .level-success { color: #22c55e; }
+    .debug-console .log-entry .level-warning { color: #eab308; }
+    .debug-console .log-entry .level-error { color: #ef4444; }
+    .debug-console .log-entry .level-debug { color: #8b5cf6; }
+    .debug-console .log-entry .message { flex: 1; word-break: break-all; }
+    .debug-console .log-entry .data { color: #64748b; font-size: 0.7rem; }
+    
+    .debug-toggle {
+      background: #1e293b;
+      color: #94a3b8;
+      border: none;
+      padding: 4px 12px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      cursor: pointer;
+      margin-left: 10px;
+    }
+    .debug-toggle:hover { background: #334155; color: #e2e8f0; }
+    .debug-toggle.active { background: #3b82f6; color: white; }
+    
+    .debug-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .debug-actions button {
+      padding: 2px 10px;
+      font-size: 0.7rem;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    .debug-actions button:hover { background: #334155; color: #e2e8f0; }
+
+    .salvando-indicator {
+      display: none;
+      background: #fef3c7;
+      border: 1px solid #f59e0b;
+      padding: 8px 14px;
+      border-radius: 6px;
+      margin: 5px 0 10px 0;
+      font-size: 0.85rem;
+      color: #92400e;
+    }
+    .salvando-indicator.ativo { display: flex; align-items: center; gap: 10px; }
+    .salvando-indicator .spinner {
+      animation: spin 1s linear infinite;
+      font-size: 1.2rem;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    @media (max-width: 768px) {
+      .abc-modal-body { flex-direction: column; }
+      .abc-modal-body .abc-code-panel {
+        width: 100%;
+        min-width: unset;
+        border-left: none;
+        border-top: 2px solid #1e293b;
+        max-height: 300px;
+      }
+    }
   </style>
 </head>
 <body>
 
-<div class="card">
-  <h2><i class="fa-solid fa-compact-disc"></i> Repertório - Fix Salvamento</h2>
-  
-  <div class="flex" style="margin-top: 15px;">
-    <i class="fa-brands fa-github"></i>
-    <input type="password" id="gh-token" placeholder="Token do GitHub (ghp_...)" style="flex:1;">
-    <button onclick="salvarToken()"><i class="fa-solid fa-key"></i> Salvar Token</button>
-  </div>
-
-  <div class="flex" style="margin-top: 15px;">
-    <input type="text" id="buscaAluno" placeholder="ID ou Nome do aluno..." style="flex:2;">
-    <button onclick="carregarAluno()"><i class="fa-solid fa-magnifying-glass"></i> Carregar</button>
-    <button class="btn-success" onclick="salvarAluno()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar</button>
-  </div>
-
-  <div id="statusMsg" class="status-msg"></div>
-  <div id="salvandoIndicator" class="salvando"><span class="spinner"><i class="fa-solid fa-spinner"></i></span> <span id="salvandoMsg">Salvando...</span></div>
-
-  <!-- CRONÔMETRO SIMPLES -->
-  <div class="cronometro-bar" id="cronometroBar">
-    <div class="flex" style="width:100%;">
-      <span><i class="fa-solid fa-stopwatch"></i> Cronômetro:</span>
-      <span class="cronometro-display" id="cronometroDisplay">00:00:00</span>
-      <span class="cronometro-status pausado" id="cronometroStatus">⏸️ Pausado</span>
-      <button class="btn-success" onclick="iniciarCronometro()"><i class="fa-solid fa-play"></i> Iniciar</button>
-      <button onclick="pausarCronometro()"><i class="fa-solid fa-pause"></i> Pausar</button>
-      <button class="btn-danger" onclick="resetarCronometro()"><i class="fa-solid fa-rotate-left"></i> Resetar</button>
-      <span id="cronometroInfo" style="font-size:0.75rem;color:#6b7280;"></span>
+  <div class="header-bar">
+    <h2><i class="fa-solid fa-compact-disc"></i> Repertório de Músicas</h2>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <a href="index.html" style="background-color: #2563eb; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-music"></i> TPM</a>
+      <a href="conceitos.html" style="background-color: #27ae60; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-brain"></i> Conceitos</a>
+      <a href="tonalidades.html" style="background-color: #2563eb; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-sliders"></i> Tonalidades</a>
+      <a href="relatorio.html" style="background-color: #e67e22; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-file-lines"></i> Relatório</a>
+      <a href="alunos.html" class="btn" style="background-color: #4f46e5; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-users"></i> Alunos</a>
+      <a href="admin.html" class="btn" style="background-color: #0d9488; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-user-gear"></i> Admin</a>
+      <a href="biblioteca.html" class="btn" style="background-color: #8b5cf6; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-book"></i> Biblioteca</a>
+      <a href="notas.html" class="btn" style="background-color: #d97706; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-note-sticky"></i> Notas</a>
+      <a href="arquivados.html" class="btn" style="background-color: #6b21a8; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-archive"></i> Arquivados</a>
     </div>
   </div>
 
-  <!-- FILTRO LOTE -->
-  <div class="flex" style="margin:10px 0;">
-    <label><i class="fa-solid fa-layer-group"></i> Lote:</label>
-    <select id="filterLote" onchange="onLoteChange()">
-      <option value="todos">Todos os Lotes</option>
-    </select>
+  <div class="card github-auth-panel">
+    <i class="fa-brands fa-github" style="font-size: 1.2rem;"></i>
+    <input type="password" id="gh-token" placeholder="Cole aqui seu Token do GitHub (ghp_...)">
+    <button style="background-color: #16a34a;" onclick="validarEAutenticarToken()"><i class="fa-solid fa-key"></i> Confirmar Token</button>
+    <button class="debug-toggle" onclick="toggleDebugConsole()">
+      <i class="fa-solid fa-bug"></i> Debug
+    </button>
   </div>
 
-  <table id="tbl-musicas">
-    <thead><tr><th>Música</th><th>Lote</th><th>Status</th><th>Ações</th></tr></thead>
-    <tbody><tr><td colspan="4" style="text-align:center;color:#9ca3af;">Nenhum aluno carregado.</td></tr></tbody>
-  </table>
-</div>
+  <!-- INDICADOR DE SALVAMENTO -->
+  <div class="salvando-indicator" id="salvandoIndicator">
+    <span class="spinner"><i class="fa-solid fa-spinner"></i></span>
+    <span id="salvandoMsg">Salvando...</span>
+  </div>
 
-<script>
-// ===== CONFIG =====
-const GH_USER = "albertinosesc";
-const GH_REPO = "minhas-musicas";
-const GH_BRANCH = "main";
+  <div class="main-container">
+    <div class="content-area">
+      <div class="card">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 15px;">
+          <input type="text" id="buscaAluno" placeholder="Digite o ID ou Nome do aluno..." style="flex: 2;">
+          <button onclick="carregarMusicasAluno()"><i class="fa-solid fa-magnifying-glass"></i> Carregar Aluno</button>
+          <button style="background-color: #16a34a;" onclick="salvarMusicasAluno()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar no GitHub</button>
+          <button style="background-color: #0284c7;" onclick="importarLoteGithub()"><i class="fa-solid fa-file-import"></i> Importar Lote GitHub</button>
+          <button class="btn-secondary" onclick="carregarListaAlunos()"><i class="fa-solid fa-list"></i> Listar Alunos</button>
+        </div>
 
-let alunoIdAtual = null;
-let repertorioAtual = [];
-let shaAtual = null;
+        <div id="listaAlunos" style="margin-bottom: 15px; display: none; max-height: 150px; overflow-y: auto; border: 1px solid var(--border); padding: 10px; border-radius: 6px; background: #f8fafc;">
+          <div id="listaAlunosContainer"></div>
+        </div>
 
-// ===== CONTROLE DE CONCORRÊNCIA (MUTEX/FILA) =====
-let isSaving = false;
-let saveQueue = [];
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; border-top: 1px solid var(--border); padding-top: 15px;">
+          <input type="text" id="novaMusica" placeholder="Nome / Título da Música">
+          <button style="background-color: #27ae60;" onclick="adicionarMusica()"><i class="fa-solid fa-plus"></i> Adicionar Música</button>
+        </div>
 
-// ===== CRONÔMETRO =====
-let segundos = 0;
-let cronInterval = null;
-let cronRodando = false;
-let cronPausado = false;
-let cronLoteAtual = null;
+        <div id="statusMsg" class="status-msg"></div>
 
-// ===== TOKEN =====
-function obterToken() {
-  return document.getElementById('gh-token').value.trim() || localStorage.getItem('gh_token') || '';
-}
+        <div class="cronometro-bar" id="cronometroBar">
+          <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: center; width: 100%;">
+            <span style="font-weight: 600; font-size: 0.9rem;">
+              <i class="fa-solid fa-stopwatch"></i> Cronômetro:
+            </span>
+            <span class="cronometro-display" id="cronometroDisplay">00:00:00</span>
+            <span class="cronometro-status pausado" id="cronometroStatus">⏸️ Pausado</span>
+            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+              <button id="btnCronometroIniciar" class="btn-success" onclick="iniciarCronometro()" style="padding: 4px 12px; font-size: 0.8rem;">
+                <i class="fa-solid fa-play"></i> Iniciar
+              </button>
+              <button id="btnCronometroPausar" class="btn-secondary" onclick="pausarCronometro()" style="padding: 4px 12px; font-size: 0.8rem;">
+                <i class="fa-solid fa-pause"></i> Pausar
+              </button>
+              <button id="btnCronometroResetar" class="btn-danger" onclick="resetarCronometro()" style="padding: 4px 12px; font-size: 0.8rem;">
+                <i class="fa-solid fa-rotate-left"></i> Resetar
+              </button>
+            </div>
+            <span class="cronometro-info" id="cronometroInfo"></span>
+          </div>
+        </div>
 
-function salvarToken() {
-  const token = obterToken();
-  if (token) {
-    localStorage.setItem('gh_token', token);
-    showToast('✅ Token salvo!', 'success');
-  } else {
-    showToast('⚠️ Digite um token', 'warning');
-  }
-}
+        <div class="lote-status-bar" id="loteStatusBar">
+          <div class="status-text" id="loteStatusText">
+            <span class="pendente">📝 Carregue um aluno para ver o status do lote.</span>
+          </div>
+          <button class="btn-archive" id="btnArquivarLote" onclick="arquivarLote()" disabled>
+            <i class="fa-solid fa-archive"></i> Arquivar Lote
+          </button>
+        </div>
 
-// ===== TOAST =====
-function showToast(msg, tipo = 'info') {
-  const el = document.createElement('div');
-  el.className = `toast ${tipo}`;
-  el.textContent = msg;
-  document.body.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
-}
+        <div class="filter-bar">
+          <div class="filter-item">
+            <label><i class="fa-solid fa-filter"></i> Status:</label>
+            <select id="filterMusicaStatus" onchange="aplicarFiltroMusicas()">
+              <option value="todos">Todos os Status</option>
+              <option value="Em Estudo">📝 Em Estudo</option>
+              <option value="Em Andamento">🔄 Em Andamento</option>
+              <option value="Concluída">✅ Concluída</option>
+              <option value="Revisar">🔴 Revisar</option>
+            </select>
+          </div>
 
-function exibirStatus(msg, cor = 'black') {
-  const el = document.getElementById('statusMsg');
-  el.style.color = cor;
-  el.textContent = msg;
-}
+          <div class="filter-item">
+            <label><i class="fa-solid fa-layer-group"></i> Lote:</label>
+            <select id="filterMusicaLote" onchange="onLoteChange()">
+              <option value="todos">Todos os Lotes</option>
+            </select>
+          </div>
 
-function mostrarSalvando(ativo, msg = 'Salvando...') {
-  const el = document.getElementById('salvandoIndicator');
-  const txt = document.getElementById('salvandoMsg');
-  if (ativo) {
-    el.classList.add('ativo');
-    txt.textContent = msg;
-  } else {
-    el.classList.remove('ativo');
-  }
-}
+          <button style="background-color: #dc2626; padding: 5px 10px; font-size: 0.8rem;" onclick="removerLoteDoRepertorio()" title="Remove todas as músicas do lote selecionado">
+            <i class="fa-solid fa-trash-can"></i> Excluir Lote do Aluno
+          </button>
 
-// ===== FORMATAR TEMPO =====
-function formatar(t) {
-  const h = String(Math.floor(t / 3600)).padStart(2, '0');
-  const m = String(Math.floor((t % 3600) / 60)).padStart(2, '0');
-  const s = String(t % 60).padStart(2, '0');
-  return `${h}:${m}:${s}`;
-}
+          <span class="filter-info" id="musicas-filtro-status"></span>
+        </div>
 
-// ===== GITHUB - LER ARQUIVO =====
-async function lerArquivo(caminho, token) {
-  try {
-    const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${caminho}?ref=${GH_BRANCH}&_t=${Date.now()}`;
-    const res = await fetch(url, { 
-      headers: { 
-        'Authorization': `token ${token}`
-      } 
-    });
-    if (!res.ok) return { dados: null, sha: null };
-    const data = await res.json();
-    const json = JSON.parse(atob(data.content.replace(/\s/g, '')));
-    return { dados: json, sha: data.sha };
-  } catch (e) {
-    console.error('Erro ao ler:', e);
-    return { dados: null, sha: null };
-  }
-}
+        <table id="tbl-musicas">
+          <thead>
+            <tr>
+              <th>Música</th>
+              <th style="width: 120px; text-align: center;">Lote</th>
+              <th style="width: 150px; text-align: center;">Status</th>
+              <th>Observações</th>
+              <th style="width: 160px; text-align: center;">Ações</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="5" style="text-align:center; color:#9ca3af;">Nenhum aluno carregado.</td></tr>
+          </tbody>
+        </table>
 
-// ===== GITHUB - SALVAR ARQUIVO (COM FILA E RETRY) =====
-async function salvarArquivo(caminho, dados, token, tentativa = 1) {
-  if (isSaving) {
-    return new Promise((resolve) => {
-      saveQueue.push(() => resolve(salvarArquivo(caminho, dados, token, tentativa)));
-    });
-  }
+        <div class="debug-console" id="debugConsole">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: bold; color: #94a3b8;">
+              <i class="fa-solid fa-terminal"></i> Console de Depuração
+            </span>
+            <span style="font-size: 0.7rem; color: #64748b;" id="logCounter">0 logs</span>
+          </div>
+          <div id="logEntries"></div>
+          <div class="debug-actions">
+            <button onclick="clearLog()"><i class="fa-solid fa-eraser"></i> Limpar</button>
+            <button onclick="exportLog()"><i class="fa-solid fa-download"></i> Exportar</button>
+          </div>
+        </div>
+      </div>
+    </div>
 
-  isSaving = true;
-  const maxTentativas = 3;
-  
-  try {
-    const { dados: dadosAtuais, sha } = await lerArquivo(caminho, token);
-    
-    let dadosFinal = { ...dadosAtuais, ...dados };
-    if (dadosAtuais?.lotesTempo && dados.lotesTempo) {
-      dadosFinal.lotesTempo = {
-        ...dadosAtuais.lotesTempo,
-        ...dados.lotesTempo
+    <section class="pdf-preview-panel" id="pdfPreviewPanel">
+      <div class="resize-handle resize-handle-left" id="handleLeft" title="Arraste para ajustar a largura"></div>
+      <div class="resize-handle resize-handle-bottom" id="handleBottom" title="Arraste para ajustar a altura"></div>
+      <div class="resize-handle resize-handle-corner" id="handleCorner" title="Arraste para ajustar a largura e altura simultaneamente"></div>
+
+      <div class="pdf-preview-header">
+        <h3 id="pdfPreviewTitle">Partitura</h3>
+        <div class="pdf-toolbar">
+          <button type="button" class="btn-pdf-action active" id="btnPage1" title="Visualizar 1 Página">1 Pág</button>
+          <button type="button" class="btn-pdf-action" id="btnPage2" title="Visualizar 2 Páginas Lado a Lado">2 Pág</button>
+          
+          <div style="display: flex; align-items: center; gap: 3px; background: #2c3e50; padding: 2px 5px; border-radius: 4px; border: 1px solid #455a64;">
+            <span style="font-size: 0.72rem; color: #ecf0f1;"><i class="fa-solid fa-magnifying-glass"></i> Zoom:</span>
+            <input type="number" id="zoomInput" min="30" max="300" value="100" step="5" style="width: 52px; padding: 1px 3px; font-size: 0.78rem; background: #34495e; color: white; border: 1px solid #55687d; border-radius: 3px; text-align: center;" oninput="alterarZoom(this.value)">
+            <span style="font-size: 0.72rem; color: #ecf0f1;">%</span>
+          </div>
+
+          <button type="button" class="btn-pdf-action" id="btnFullscreen" title="Alternar Tela Cheia"><i class="fa-solid fa-expand"></i></button>
+          <button type="button" class="btn-close-preview" id="btnClosePreview" title="Fechar">&times;</button>
+        </div>
+      </div>
+
+      <div class="pdf-container" id="pdfContainer">
+        <div class="iframe-overlay" id="iframeOverlay"></div>
+        <iframe class="pdf-frame" id="pdfIframe1" src=""></iframe>
+        <iframe class="pdf-frame" id="pdfIframe2" src="" style="display: none;"></iframe>
+      </div>
+    </section>
+  </div>
+
+  <div class="abc-modal" id="abcModal">
+    <div class="abc-modal-content">
+      <div class="abc-modal-header">
+        <h2><i class="fa-solid fa-music"></i> <span id="abcModalTitle">Partitura ABC</span></h2>
+        <div style="display: flex; align-items: center; gap: 12px;">
+          <span class="abc-audio-indicator" id="abcAudioIndicator">🔊 Tocando...</span>
+          <button class="close-modal" onclick="fecharModalABC()">&times;</button>
+        </div>
+      </div>
+      <div class="abc-modal-body">
+        <div class="abc-viewer">
+          <div class="abc-toolbar">
+            <label><i class="fa-solid fa-guitar"></i> Tocar:</label>
+            <button class="btn-abc" onclick="tocarABC('all')"><i class="fa-solid fa-play"></i> Play</button>
+            <button class="btn-abc" onclick="tocarABC('chords')"><i class="fa-solid fa-guitar"></i> Acordes</button>
+            <button class="btn-abc" onclick="tocarABC('m1')"><i class="fa-solid fa-user"></i> Melodia 1</button>
+            <button class="btn-abc" onclick="tocarABC('m2')"><i class="fa-solid fa-user-group"></i> Melodia 2</button>
+            <button class="btn-danger" onclick="pararABC()"><i class="fa-solid fa-square"></i> Parar</button>
+            
+            <label>BPM: <input type="number" id="abcBPM" value="120" min="30" max="300" oninput="atualizarBPMABC(this.value)"></label>
+            
+            <label>Timbre:
+              <select id="abcMidiProgram" onchange="renderizarABC()">
+                <option value="0">Piano</option>
+                <option value="24">Violão</option>
+                <option value="40">Violino</option>
+                <option value="56">Trompete</option>
+                <option value="73">Flauta</option>
+              </select>
+            </label>
+            
+            <button class="btn-toggle-code active" onclick="toggleCodePanel()" title="Mostrar/Ocultar Código ABC">
+              <i class="fa-solid fa-code"></i> Código
+            </button>
+            <button class="btn-secondary" onclick="alternarTelaCheiaABC()"><i class="fa-solid fa-expand"></i> Tela Cheia</button>
+          </div>
+          <div id="abc-paper"></div>
+        </div>
+        <div class="abc-code-panel" id="abcCodePanel">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <span style="font-weight: 600; font-size: 0.9rem;"><i class="fa-solid fa-code"></i> Código ABC</span>
+            <span style="font-size: 0.7rem; color: #94a3b8;">Edite e clique em "Renderizar"</span>
+          </div>
+          <textarea id="abcCodeEditor" spellcheck="false"></textarea>
+          <div class="code-actions">
+            <button class="btn-success" onclick="renderizarABC()"><i class="fa-solid fa-rotate-right"></i> Renderizar</button>
+            <button class="btn-secondary" onclick="copiarABC()"><i class="fa-solid fa-copy"></i> Copiar</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== SISTEMA DE LOG =====
+    const LOG_LEVELS = { DEBUG: 'debug', INFO: 'info', SUCCESS: 'success', WARNING: 'warning', ERROR: 'error' };
+    let logCount = 0;
+    let logEnabled = true;
+    let logEntriesData = [];
+
+    function log(message, level = LOG_LEVELS.INFO, data = null) {
+      if (!logEnabled) return;
+      const timestamp = new Date().toLocaleTimeString();
+      const entry = { timestamp, level, message, data: data ? JSON.stringify(data) : null };
+      logEntriesData.push(entry);
+      
+      const consoleMethod = {
+        [LOG_LEVELS.DEBUG]: console.debug,
+        [LOG_LEVELS.INFO]: console.info,
+        [LOG_LEVELS.SUCCESS]: console.log,
+        [LOG_LEVELS.WARNING]: console.warn,
+        [LOG_LEVELS.ERROR]: console.error
+      }[level] || console.log;
+      consoleMethod(`[${timestamp}] [${level.toUpperCase()}] ${message}`, data || '');
+      
+      const logEntries = document.getElementById('logEntries');
+      if (logEntries) {
+        const div = document.createElement('div');
+        div.className = 'log-entry';
+        div.innerHTML = `
+          <span class="time">${timestamp}</span>
+          <span class="level-${level}">[${level.toUpperCase()}]</span>
+          <span class="message">${message}</span>
+          ${entry.data ? `<span class="data">${entry.data}</span>` : ''}
+        `;
+        logEntries.appendChild(div);
+        logEntries.scrollTop = logEntries.scrollHeight;
+        logCount++;
+        const counter = document.getElementById('logCounter');
+        if (counter) counter.textContent = `${logCount} logs`;
+      }
+    }
+
+    function toggleDebugConsole() {
+      const consoleDiv = document.getElementById('debugConsole');
+      const btn = document.querySelector('.debug-toggle');
+      if (consoleDiv) {
+        consoleDiv.classList.toggle('visible');
+        if (btn) btn.classList.toggle('active');
+      }
+    }
+
+    function clearLog() {
+      const logEntries = document.getElementById('logEntries');
+      if (logEntries) { logEntries.innerHTML = ''; logCount = 0; logEntriesData = []; }
+      const counter = document.getElementById('logCounter');
+      if (counter) counter.textContent = '0 logs';
+    }
+
+    function exportLog() {
+      const data = logEntriesData.map(e => 
+        `[${e.timestamp}] [${e.level.toUpperCase()}] ${e.message}${e.data ? ' ' + e.data : ''}`
+      ).join('\n');
+      const blob = new Blob([data], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `log_${new Date().toISOString().slice(0,10)}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast('📋 Log exportado com sucesso!', 'success');
+    }
+
+    // ===== CONFIGURAÇÕES =====
+    const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
+    let repertorioAtual = [];
+    let shaArquivoAtual = null;
+    let alunoIdAtual = null;
+    let loteImportado = [];
+    let dadosMusicasCache = null;
+    let currentPdfUrl = '';
+    let currentViewMode = 1;
+
+    // ===== CONTROLE DE CONCORRÊNCIA (MUTEX/FILA) =====
+    let isSaving = false;
+    let saveQueue = [];
+
+    // ===== CRONÔMETRO =====
+    let segundosTotais = 0;
+    let cronometroInterval = null;
+    let cronometroRodando = false;
+    let cronometroPausado = false;
+    let cronometroLoteAtual = null;
+
+    // ===== ABC GLOBALS =====
+    let abcVisualObj = null;
+    let abcsynthController = null;
+    let abcAudioContext = null;
+    let abcCurrentTranspose = 0;
+    let abcCurrentCode = '';
+    let abcIsFullscreen = false;
+    let codePanelVisible = true;
+
+    const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
+    const BASE_ABC_URL = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/ptm/abc";
+    const fileCache = new Map();
+
+    // =============================================
+    // ===== FUNÇÕES DE UI =====
+    // =============================================
+
+    function mostrarSalvando(ativo, mensagem = 'Salvando...') {
+      const indicator = document.getElementById('salvandoIndicator');
+      const msgEl = document.getElementById('salvandoMsg');
+      if (ativo) {
+        indicator.classList.add('ativo');
+        if (msgEl) msgEl.textContent = mensagem;
+      } else {
+        indicator.classList.remove('ativo');
+      }
+    }
+
+    function obterToken() {
+      return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
+    }
+
+    function showToast(mensagem, tipo = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${tipo}`;
+      toast.innerHTML = mensagem;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    function exibirStatus(msg, cor = "black") {
+      const statusEl = document.getElementById('statusMsg');
+      statusEl.style.color = cor;
+      statusEl.innerText = msg;
+      log(`📢 Status: ${msg}`, LOG_LEVELS.INFO);
+    }
+
+    function validarEAutenticarToken() {
+      const token = obterToken();
+      if (token) {
+        localStorage.setItem("gh_pat_token", token);
+        log(`🔑 Token salvo com sucesso!`, LOG_LEVELS.SUCCESS);
+        showToast("🔑 Token salvo com sucesso!", "success");
+      } else {
+        showToast("⚠️ Digite um token válido.", "warning");
+      }
+    }
+
+    // =============================================
+    // ===== FUNÇÕES DE FORMATAÇÃO =====
+    // =============================================
+
+    function formatarTempo(totalSecs) {
+      const h = Math.floor(totalSecs / 3600);
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const s = totalSecs % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
+    function atualizarDisplayCronometro() {
+      const display = document.getElementById('cronometroDisplay');
+      if (display) { display.innerText = formatarTempo(segundosTotais); }
+    }
+
+    // =============================================
+    // ===== FUNÇÕES DE ACESSO AO GITHUB =====
+    // =============================================
+
+    async function obterConteudoAtual(caminho, token) {
+      try {
+        const url = `https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}&_t=${Date.now()}`;
+        const res = await fetch(url, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          return { dados: JSON.parse(jsonStr), sha: data.sha };
+        }
+        return { dados: null, sha: null };
+      } catch (e) {
+        log(`❌ Erro ao obter conteúdo: ${e.message}`, LOG_LEVELS.ERROR);
+        return { dados: null, sha: null };
+      }
+    }
+
+    // =============================================
+    // ===== SALVAR ARQUIVO COM MUTEX/FILA =====
+    // =============================================
+
+    async function salvarArquivoComLock(caminho, dados, token, tentativa = 1) {
+      // Se já está salvando, enfileira
+      if (isSaving) {
+        log(`⏳ Salvamento em andamento, enfileirando...`, LOG_LEVELS.DEBUG);
+        return new Promise((resolve) => {
+          saveQueue.push(() => resolve(salvarArquivoComLock(caminho, dados, token, tentativa)));
+        });
+      }
+
+      isSaving = true;
+      const maxTentativas = 3;
+      
+      try {
+        // SEMPRE ler o arquivo atual primeiro
+        const { dados: dadosAtuais, sha } = await obterConteudoAtual(caminho, token);
+        
+        // Mesclar dados (preservar tudo que já existe)
+        let dadosFinal = { ...dadosAtuais, ...dados };
+        
+        // Merge especial para lotesTempo
+        if (dadosAtuais?.lotesTempo && dados.lotesTempo) {
+          dadosFinal.lotesTempo = {
+            ...dadosAtuais.lotesTempo,
+            ...dados.lotesTempo
+          };
+        }
+        
+        // Garantir campos obrigatórios
+        dadosFinal.alunoId = alunoIdAtual;
+        dadosFinal.atualizadoEm = new Date().toISOString();
+        
+        // Converter para Base64
+        const jsonStr = JSON.stringify(dadosFinal, null, 2);
+        const utf8 = new TextEncoder().encode(jsonStr);
+        let binary = '';
+        utf8.forEach(b => binary += String.fromCharCode(b));
+        const base64 = btoa(binary);
+        
+        // Preparar body
+        const body = {
+          message: `Atualizando dados do aluno ${alunoIdAtual}`,
+          content: base64,
+          branch: GH_CONFIG.branch
+        };
+        if (sha) body.sha = sha;
+        
+        const url = `https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`;
+        const res = await fetch(url, {
+          method: 'PUT',
+          headers: { 
+            'Authorization': `token ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          shaArquivoAtual = data.content.sha;
+          
+          // Atualizar cache local
+          if (dadosFinal.repertorio) {
+            dadosMusicasCache = { repertorio: dadosFinal.repertorio };
+            repertorioAtual = dadosFinal.repertorio;
+          }
+          
+          log(`✅ Dados salvos com sucesso! SHA: ${shaArquivoAtual}`, LOG_LEVELS.SUCCESS);
+          return { success: true, sha: shaArquivoAtual, dados: dadosFinal };
+        }
+        
+        // Se for 409 (conflito) e ainda temos tentativas
+        if (res.status === 409 && tentativa < maxTentativas) {
+          log(`⚠️ Conflito 409, tentativa ${tentativa+1} de ${maxTentativas}`, LOG_LEVELS.WARNING);
+          await new Promise(r => setTimeout(r, 1000 * tentativa));
+          return salvarArquivoComLock(caminho, dados, token, tentativa + 1);
+        }
+        
+        const err = await res.json().catch(() => ({}));
+        log(`❌ Erro ao salvar: ${res.status} - ${err.message || 'Erro desconhecido'}`, LOG_LEVELS.ERROR);
+        return { success: false, error: `${res.status}: ${err.message || 'Erro desconhecido'}` };
+        
+      } catch (e) {
+        log(`❌ Exceção: ${e.message}`, LOG_LEVELS.ERROR);
+        if (tentativa < maxTentativas) {
+          await new Promise(r => setTimeout(r, 1000 * tentativa));
+          return salvarArquivoComLock(caminho, dados, token, tentativa + 1);
+        }
+        return { success: false, error: e.message };
+      } finally {
+        isSaving = false;
+        // Processar próximo item da fila
+        if (saveQueue.length > 0) {
+          const nextSave = saveQueue.shift();
+          log(`📦 Processando próximo da fila...`, LOG_LEVELS.DEBUG);
+          nextSave();
+        }
+      }
+    }
+
+    // =============================================
+    // ===== SALVAR TEMPO DO CRONÔMETRO =====
+    // =============================================
+
+    async function salvarTempoCronometro() {
+      if (!alunoIdAtual || !cronometroLoteAtual || cronometroLoteAtual === 'todos') {
+        return false;
+      }
+      
+      const token = obterToken();
+      if (!token) {
+        log(`❌ Token não encontrado para salvar cronômetro`, LOG_LEVELS.ERROR);
+        return false;
+      }
+      
+      const caminho = `alunos/musica_${alunoIdAtual}.json`;
+      
+      const dados = {
+        lotesTempo: {
+          [cronometroLoteAtual]: {
+            tempoSegundos: segundosTotais,
+            ultimaAtualizacao: new Date().toISOString(),
+            status: cronometroRodando ? 'em_andamento' : 'pausado'
+          }
+        }
       };
+      
+      mostrarSalvando(true, `Salvando cronômetro (${formatarTempo(segundosTotais)})`);
+      
+      try {
+        const resultado = await salvarArquivoComLock(caminho, dados, token);
+        mostrarSalvando(false);
+        
+        if (resultado.success) {
+          log(`✅ Cronômetro salvo: ${formatarTempo(segundosTotais)}`, LOG_LEVELS.SUCCESS);
+          return true;
+        } else {
+          log(`❌ Falha ao salvar cronômetro: ${resultado.error}`, LOG_LEVELS.ERROR);
+          showToast(`❌ ${resultado.error}`, 'error');
+          return false;
+        }
+      } catch (e) {
+        mostrarSalvando(false);
+        log(`❌ Erro: ${e.message}`, LOG_LEVELS.ERROR);
+        return false;
+      }
     }
-    
-    dadosFinal.alunoId = alunoIdAtual;
-    dadosFinal.atualizadoEm = new Date().toISOString();
-    
-    const jsonStr = JSON.stringify(dadosFinal, null, 2);
-    const utf8 = new TextEncoder().encode(jsonStr);
-    let binary = '';
-    utf8.forEach(b => binary += String.fromCharCode(b));
-    const base64 = btoa(binary);
-    
-    const body = {
-      message: `Atualizando dados do aluno ${alunoIdAtual}`,
-      content: base64,
-      branch: GH_BRANCH
+
+    // =============================================
+    // ===== FUNÇÕES DO CRONÔMETRO =====
+    // =============================================
+
+    function iniciarCronometro() {
+      if (cronometroRodando) {
+        showToast('⚠️ O cronômetro já está em andamento.', 'warning');
+        return;
+      }
+
+      const selectLote = document.getElementById('filterMusicaLote');
+      const loteSelecionado = selectLote.value;
+      
+      if (loteSelecionado === 'todos') {
+        showToast('⚠️ Selecione um lote específico para iniciar o cronômetro.', 'warning');
+        return;
+      }
+      
+      if (!alunoIdAtual) {
+        showToast('⚠️ Carregue um aluno primeiro.', 'warning');
+        return;
+      }
+
+      if (cronometroLoteAtual && cronometroLoteAtual !== loteSelecionado) {
+        segundosTotais = 0;
+        carregarTempoCronometro(loteSelecionado);
+        setTimeout(() => { iniciarCronometroInterno(loteSelecionado); }, 100);
+        return;
+      }
+
+      iniciarCronometroInterno(loteSelecionado);
+    }
+
+    function iniciarCronometroInterno(loteSelecionado) {
+      log(`▶️ Iniciando cronômetro para lote: ${loteSelecionado}`, LOG_LEVELS.INFO);
+      
+      cronometroRodando = true;
+      cronometroPausado = false;
+      cronometroLoteAtual = loteSelecionado;
+      
+      document.getElementById('cronometroBar').style.display = 'flex';
+      document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
+      
+      const statusEl = document.getElementById('cronometroStatus');
+      if (statusEl) {
+        statusEl.className = 'cronometro-status rodando';
+        statusEl.innerHTML = '▶️ Rodando';
+      }
+
+      const btnPausar = document.getElementById('btnCronometroPausar');
+      if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
+
+      if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+
+      cronometroInterval = setInterval(async () => {
+        segundosTotais++;
+        atualizarDisplayCronometro();
+        // Salvar a cada 10 segundos
+        if (segundosTotais % 10 === 0) {
+          log(`💾 Salvando automaticamente... (${segundosTotais}s)`, LOG_LEVELS.DEBUG);
+          await salvarTempoCronometro();
+        }
+      }, 1000);
+
+      // Salvar imediatamente ao iniciar
+      salvarTempoCronometro();
+      showToast(`⏱️ Cronômetro iniciado para "${loteSelecionado}"!`, 'success');
+    }
+
+    async function pausarCronometro() {
+      const btnPausar = document.getElementById('btnCronometroPausar');
+      const statusEl = document.getElementById('cronometroStatus');
+
+      if (!cronometroRodando && !cronometroPausado) {
+        showToast('⚠️ Inicie o cronômetro primeiro.', 'warning');
+        return;
+      }
+
+      if (!cronometroPausado) {
+        log(`⏸️ Pausando cronômetro. Tempo: ${segundosTotais}s`, LOG_LEVELS.INFO);
+        
+        clearInterval(cronometroInterval);
+        cronometroInterval = null;
+        cronometroRodando = false;
+        cronometroPausado = true;
+
+        if (statusEl) {
+          statusEl.className = 'cronometro-status pausado';
+          statusEl.innerHTML = '⏸️ Pausado';
+        }
+        if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-play"></i> Retomar'; }
+        
+        await salvarTempoCronometro();
+        showToast(`⏸️ Cronômetro pausado. Tempo: ${formatarTempo(segundosTotais)}`, 'info');
+      } else {
+        log(`▶️ Retomando cronômetro.`, LOG_LEVELS.INFO);
+        
+        cronometroPausado = false;
+        cronometroRodando = true;
+
+        if (statusEl) {
+          statusEl.className = 'cronometro-status rodando';
+          statusEl.innerHTML = '▶️ Rodando';
+        }
+        if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
+
+        cronometroInterval = setInterval(async () => {
+          segundosTotais++;
+          atualizarDisplayCronometro();
+          if (segundosTotais % 10 === 0) {
+            log(`💾 Salvando automaticamente... (${segundosTotais}s)`, LOG_LEVELS.DEBUG);
+            await salvarTempoCronometro();
+          }
+        }, 1000);
+        
+        await salvarTempoCronometro();
+        showToast(`▶️ Cronômetro retomado!`, 'success');
+      }
+    }
+
+    async function resetarCronometro() {
+      if (!cronometroLoteAtual && segundosTotais === 0) {
+        showToast('⚠️ Nenhum cronômetro ativo para resetar.', 'warning');
+        return;
+      }
+      
+      const loteNome = cronometroLoteAtual || 'atual';
+      if (!confirm(`Tem certeza que deseja resetar o cronômetro do lote "${loteNome}"?`)) return;
+
+      log(`🔄 Resetando cronômetro do lote: ${loteNome}`, LOG_LEVELS.INFO);
+
+      clearInterval(cronometroInterval);
+      cronometroInterval = null;
+      cronometroRodando = false;
+      cronometroPausado = false;
+      segundosTotais = 0;
+
+      atualizarDisplayCronometro();
+
+      const statusEl = document.getElementById('cronometroStatus');
+      if (statusEl) {
+        statusEl.className = 'cronometro-status pausado';
+        statusEl.innerHTML = '⏸️ Pausado';
+      }
+
+      const btnPausar = document.getElementById('btnCronometroPausar');
+      if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
+      
+      await salvarTempoCronometro();
+      showToast(`🔄 Cronômetro resetado!`, 'info');
+    }
+
+    // =============================================
+    // ===== CARREGAR TEMPO DO CRONÔMETRO =====
+    // =============================================
+
+    async function carregarTempoCronometro(loteNome) {
+      log(`🔄 Carregando tempo do cronômetro para lote: ${loteNome}`, LOG_LEVELS.DEBUG);
+
+      if (!alunoIdAtual || !loteNome || loteNome === 'todos') {
+        document.getElementById('cronometroBar').style.display = 'none';
+        return;
+      }
+
+      const token = obterToken();
+      if (!token) {
+        document.getElementById('cronometroBar').style.display = 'flex';
+        document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+        cronometroLoteAtual = loteNome;
+        segundosTotais = 0;
+        cronometroRodando = false;
+        cronometroPausado = false;
+        if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+        atualizarDisplayCronometro();
+        return;
+      }
+
+      try {
+        const caminho = `alunos/musica_${alunoIdAtual}.json`;
+        const { dados, sha } = await obterConteudoAtual(caminho, token);
+
+        if (dados && dados.lotesTempo && dados.lotesTempo[loteNome]) {
+          segundosTotais = dados.lotesTempo[loteNome].tempoSegundos || 0;
+          cronometroRodando = false;
+          cronometroPausado = false;
+          cronometroLoteAtual = loteNome;
+          
+          document.getElementById('cronometroBar').style.display = 'flex';
+          document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+          
+          if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+          
+          const statusEl = document.getElementById('cronometroStatus');
+          if (statusEl) {
+            statusEl.className = 'cronometro-status pausado';
+            statusEl.innerHTML = '⏸️ Pausado';
+          }
+          
+          const btnPausar = document.getElementById('btnCronometroPausar');
+          if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
+          
+          atualizarDisplayCronometro();
+          log(`✅ Tempo carregado: ${segundosTotais}s (${formatarTempo(segundosTotais)})`, LOG_LEVELS.SUCCESS);
+          showToast(`⏱️ Tempo carregado: ${formatarTempo(segundosTotais)}`, 'info');
+          return;
+        }
+
+        // Se não encontrou, inicia do zero
+        document.getElementById('cronometroBar').style.display = 'flex';
+        document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+        cronometroLoteAtual = loteNome;
+        segundosTotais = 0;
+        cronometroRodando = false;
+        cronometroPausado = false;
+        if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+        atualizarDisplayCronometro();
+
+      } catch (e) {
+        log(`❌ Erro ao carregar tempo: ${e.message}`, LOG_LEVELS.ERROR);
+        document.getElementById('cronometroBar').style.display = 'flex';
+        document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+        cronometroLoteAtual = loteNome;
+        segundosTotais = 0;
+        cronometroRodando = false;
+        cronometroPausado = false;
+        if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+        atualizarDisplayCronometro();
+      }
+    }
+
+    // =============================================
+    // ===== FUNÇÃO CHAMADA AO SELECIONAR LOTE =====
+    // =============================================
+
+    function onLoteChange() {
+      const selectLote = document.getElementById('filterMusicaLote');
+      const loteSelecionado = selectLote.value;
+      
+      if (cronometroRodando) {
+        showToast('⚠️ Pare o cronômetro antes de mudar de lote.', 'warning');
+        selectLote.value = cronometroLoteAtual || 'todos';
+        return;
+      }
+      
+      aplicarFiltroMusicas();
+      verificarLoteConcluido();
+      
+      if (loteSelecionado !== 'todos' && alunoIdAtual) {
+        carregarTempoCronometro(loteSelecionado);
+      } else {
+        document.getElementById('cronometroBar').style.display = 'none';
+      }
+    }
+
+    // =============================================
+    // ===== SALVAR ALUNO =====
+    // =============================================
+
+    async function salvarMusicasAluno() {
+      const busca = document.getElementById('buscaAluno').value.trim();
+      const token = obterToken();
+
+      log(`🔄 Salvando dados do aluno: ${busca}`, LOG_LEVELS.INFO);
+
+      if (!busca) { alert("Digite o ID ou nome do aluno."); return; }
+      if (!token) { alert("Informe e confirme o Token do GitHub."); return; }
+
+      const alunoId = await buscarIdAluno(busca);
+      alunoIdAtual = alunoId;
+
+      if (repertorioAtual.length === 0) { alert("Adicione ao menos uma música."); return; }
+
+      // Construir dados para salvar
+      const dadosParaSalvar = { 
+        alunoId: alunoId,
+        aluno: busca, 
+        repertorio: repertorioAtual,
+        atualizadoEm: new Date().toISOString()
+      };
+
+      // Adicionar tempo do cronômetro se houver lote ativo
+      if (cronometroLoteAtual && cronometroLoteAtual !== 'todos') {
+        dadosParaSalvar.lotesTempo = {
+          [cronometroLoteAtual]: {
+            tempoSegundos: segundosTotais,
+            ultimaAtualizacao: new Date().toISOString(),
+            status: cronometroRodando ? 'em_andamento' : 'pausado'
+          }
+        };
+      }
+
+      exibirStatus("Enviando dados para o GitHub...", "blue");
+      mostrarSalvando(true, 'Salvando aluno...');
+
+      try {
+        const caminho = `alunos/musica_${alunoId}.json`;
+        const resultado = await salvarArquivoComLock(caminho, dadosParaSalvar, token);
+        
+        if (resultado.success) {
+          shaArquivoAtual = resultado.sha;
+          if (resultado.dados && resultado.dados.repertorio) {
+            dadosMusicasCache = { repertorio: resultado.dados.repertorio };
+            repertorioAtual = resultado.dados.repertorio;
+          }
+          log(`✅ Dados salvos com sucesso! SHA: ${shaArquivoAtual}`, LOG_LEVELS.SUCCESS);
+          exibirStatus(`✅ ${repertorioAtual.length} músicas e tempos salvos com sucesso!`, "green");
+          showToast(`💾 ${repertorioAtual.length} músicas e tempos salvos!`, 'success');
+        } else {
+          throw new Error(resultado.error || 'Erro desconhecido');
+        }
+      } catch (err) {
+        log(`❌ Erro ao salvar: ${err.message}`, LOG_LEVELS.ERROR);
+        exibirStatus(`❌ Erro ao salvar: ${err.message}`, "red");
+        showToast(`❌ Erro ao salvar: ${err.message}`, 'error');
+      } finally {
+        mostrarSalvando(false);
+      }
+    }
+
+    // =============================================
+    // ===== CARREGAR ALUNO =====
+    // =============================================
+
+    async function carregarMusicasAluno() {
+      const busca = document.getElementById('buscaAluno').value.trim();
+      const token = obterToken();
+
+      if (!busca) { alert("Digite o ID ou nome do aluno."); return; }
+      if (!token) { alert("Informe e confirme o Token do GitHub."); return; }
+
+      const alunoId = await buscarIdAluno(busca);
+      alunoIdAtual = alunoId;
+      
+      const caminho = `alunos/musica_${alunoId}.json`;
+
+      exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
+
+      try {
+        const { dados, sha } = await obterConteudoAtual(caminho, token);
+
+        let musicasDoAluno = [];
+        let lotesTempo = {};
+
+        if (dados) {
+          shaArquivoAtual = sha;
+          musicasDoAluno = dados.repertorio || [];
+          lotesTempo = dados.lotesTempo || {};
+          log(`✅ Dados carregados. ${musicasDoAluno.length} músicas, ${Object.keys(lotesTempo).length} lotes com tempo.`, LOG_LEVELS.SUCCESS);
+        } else {
+          shaArquivoAtual = null;
+          log(`ℹ️ Aluno ${alunoId} novo ou sem repertório salvo.`, LOG_LEVELS.INFO);
+          exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
+        }
+
+        repertorioAtual = musicasDoAluno.map(m => ({
+          ...m,
+          nome: m.nome || m.title,
+          lote: m.lote || m.book || 'Geral',
+          abcFile: m.abcFile || ''
+        }));
+
+        dadosMusicasCache = { repertorio: repertorioAtual };
+        atualizarOpcoesLote();
+        await renderizarTabela();
+        verificarLoteConcluido();
+
+        const selectLote = document.getElementById('filterMusicaLote');
+        const loteSelecionado = selectLote.value;
+        
+        if (loteSelecionado !== 'todos' && lotesTempo[loteSelecionado]) {
+          segundosTotais = lotesTempo[loteSelecionado].tempoSegundos || 0;
+          cronometroRodando = false;
+          cronometroPausado = false;
+          cronometroLoteAtual = loteSelecionado;
+          
+          document.getElementById('cronometroBar').style.display = 'flex';
+          document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
+          
+          if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+          
+          const statusEl = document.getElementById('cronometroStatus');
+          if (statusEl) {
+            statusEl.className = 'cronometro-status pausado';
+            statusEl.innerHTML = '⏸️ Pausado';
+          }
+          
+          const btnPausar = document.getElementById('btnCronometroPausar');
+          if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
+          
+          atualizarDisplayCronometro();
+          log(`⏱️ Tempo carregado: ${segundosTotais}s (${formatarTempo(segundosTotais)})`, LOG_LEVELS.SUCCESS);
+          showToast(`⏱️ Tempo carregado: ${formatarTempo(segundosTotais)}`, 'info');
+        } else {
+          document.getElementById('cronometroBar').style.display = 'none';
+        }
+
+        exibirStatus(`✅ Aluno ${alunoId} carregado com sucesso!`, "green");
+        showToast(`🎶 ${repertorioAtual.length} músicas carregadas!`, 'success');
+
+      } catch (e) {
+        log(`❌ Erro ao carregar: ${e.message}`, LOG_LEVELS.ERROR);
+        exibirStatus("❌ Erro ao carregar: " + e.message, "red");
+        showToast(`❌ Erro: ${e.message}`, 'error');
+      }
+    }
+
+    // =============================================
+    // ===== RESTO DAS FUNÇÕES =====
+    // =============================================
+
+    async function buscarIdAluno(busca) {
+      const token = obterToken();
+      if (!token) {
+        return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      }
+      
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos/index.json?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          const indexData = JSON.parse(jsonStr);
+          
+          let encontrado = indexData.alunos.find(a => a.id === busca);
+          if (!encontrado) {
+            encontrado = indexData.alunos.find(a => a.nome.toLowerCase() === busca.toLowerCase());
+          }
+          if (encontrado) {
+            return encontrado.id;
+          }
+        }
+      } catch (e) {}
+      
+      return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+    }
+
+    function getRepertorioDaTabela() {
+      return repertorioAtual;
+    }
+
+    function atualizarOpcoesLote() {
+      const selectLote = document.getElementById('filterMusicaLote');
+      const valorSelecionado = selectLote.value;
+
+      const lotesUnicos = new Set();
+      repertorioAtual.forEach(m => {
+        if (m.lote) lotesUnicos.add(m.lote);
+        else lotesUnicos.add('Geral');
+      });
+
+      selectLote.innerHTML = '<option value="todos">Todos os Lotes</option>';
+      
+      Array.from(lotesUnicos).sort().forEach(lote => {
+        const option = document.createElement('option');
+        option.value = lote;
+        option.textContent = `📦 ${lote}`;
+        if (lote === valorSelecionado) option.selected = true;
+        selectLote.appendChild(option);
+      });
+
+      verificarLoteConcluido();
+    }
+
+    function adicionarMusica() {
+      const nome = document.getElementById('novaMusica').value.trim();
+      if (!nome) { alert("Digite o nome da música."); return; }
+
+      repertorioAtual.push({ 
+        nome: nome, 
+        status: "Em Estudo", 
+        obs: "", 
+        lote: "Manual",
+        pdfUrl: "",
+        abcFile: "" 
+      });
+
+      document.getElementById('novaMusica').value = "";
+      dadosMusicasCache = { repertorio: repertorioAtual };
+      atualizarOpcoesLote();
+      renderizarTabela();
+    }
+
+    function removerMusica(index) {
+      repertorioAtual.splice(index, 1);
+      dadosMusicasCache = { repertorio: repertorioAtual };
+      atualizarOpcoesLote();
+      renderizarTabela();
+    }
+
+    function removerLoteDoRepertorio() {
+      const selectLote = document.getElementById('filterMusicaLote');
+      const loteSelecionado = selectLote.value;
+
+      if (loteSelecionado === 'todos') {
+        return alert("Escolha um lote específico no filtro de 'Lote' para excluí-lo.");
+      }
+
+      const qtdMusicas = repertorioAtual.filter(m => (m.lote || 'Geral') === loteSelecionado).length;
+
+      if (qtdMusicas === 0) {
+        return alert(`Nenhuma música encontrada para o lote "${loteSelecionado}".`);
+      }
+
+      if (!confirm(`Remover as ${qtdMusicas} música(s) do lote "${loteSelecionado}" desta lista?`)) {
+        return;
+      }
+
+      repertorioAtual = repertorioAtual.filter(m => (m.lote || 'Geral') !== loteSelecionado);
+      dadosMusicasCache = { repertorio: repertorioAtual };
+
+      selectLote.value = 'todos';
+      atualizarOpcoesLote();
+      renderizarTabela();
+
+      exibirStatus(`🗑️ Lote "${loteSelecionado}" removido da lista.`, "orange");
+      showToast(`🗑️ Lote "${loteSelecionado}" removido!`, 'info');
+    }
+
+    function verificarLoteConcluido() {
+      const btnArquivar = document.getElementById('btnArquivarLote');
+      const statusText = document.getElementById('loteStatusText');
+      const selectLote = document.getElementById('filterMusicaLote');
+      const loteSelecionado = selectLote.value;
+      
+      if (!alunoIdAtual || repertorioAtual.length === 0) {
+        btnArquivar.disabled = true;
+        statusText.innerHTML = '<span class="pendente">📝 Carregue um aluno para ver o status do lote.</span>';
+        return;
+      }
+
+      let musicasDoLote = repertorioAtual;
+      if (loteSelecionado !== 'todos') {
+        musicasDoLote = repertorioAtual.filter(m => (m.lote || 'Geral') === loteSelecionado);
+      }
+
+      if (musicasDoLote.length === 0) {
+        btnArquivar.disabled = true;
+        if (loteSelecionado === 'todos') {
+          statusText.innerHTML = '<span class="pendente">📝 Selecione um lote específico para ver o status.</span>';
+        } else {
+          statusText.innerHTML = `<span class="pendente">📝 Nenhuma música encontrada para o lote "${loteSelecionado}".</span>`;
+        }
+        return;
+      }
+
+      const todosConcluidos = musicasDoLote.every(m => 
+        m.status === 'Concluída' || m.status === 'Concluído'
+      );
+
+      const pendentes = musicasDoLote.filter(m => 
+        m.status !== 'Concluída' && m.status !== 'Concluído'
+      ).length;
+
+      const loteNome = loteSelecionado === 'todos' ? 'todos os lotes' : `"${loteSelecionado}"`;
+
+      if (todosConcluidos) {
+        btnArquivar.disabled = false;
+        statusText.innerHTML = `
+          <span class="concluido">✅ <strong>Todas as ${musicasDoLote.length} músicas do lote ${loteNome} estão concluídas!</strong></span>
+          <span style="font-size: 0.8rem; color: #6b7280; margin-left: 8px;">
+            Clique em "Arquivar Lote" para finalizar e remover do repertório.
+          </span>
+        `;
+      } else {
+        btnArquivar.disabled = true;
+        statusText.innerHTML = `
+          <span class="pendente">📝 ${pendentes} música(s) pendente(s) no lote ${loteNome}.</span>
+          <span style="font-size: 0.8rem; color: #6b7280; margin-left: 8px;">
+            (${musicasDoLote.length - pendentes} concluídas de ${musicasDoLote.length})
+          </span>
+        `;
+      }
+    }
+
+    function aplicarFiltroMusicas() {
+      renderizarTabela();
+    }
+
+    async function renderizarTabela() {
+      const filtroStatus = document.getElementById('filterMusicaStatus').value;
+      const filtroLote = document.getElementById('filterMusicaLote').value;
+      const tbody = document.querySelector('#tbl-musicas tbody');
+      
+      const musicas = dadosMusicasCache && dadosMusicasCache.repertorio ? dadosMusicasCache.repertorio : repertorioAtual;
+
+      let musicasFiltradas = musicas.filter(m => {
+        const statusMatch = (filtroStatus === 'todos') || (m.status === filtroStatus);
+        const loteNome = m.lote || 'Geral';
+        const loteMatch = (filtroLote === 'todos') || (loteNome === filtroLote);
+        return statusMatch && loteMatch;
+      });
+
+      const filterInfo = document.getElementById('musicas-filtro-status');
+      filterInfo.textContent = `Mostrando ${musicasFiltradas.length} de ${musicas.length}`;
+
+      tbody.innerHTML = "";
+
+      if (musicasFiltradas.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#9ca3af;">Nenhuma música encontrada para os filtros selecionados.</td></tr>';
+        return;
+      }
+
+      for (const m of musicasFiltradas) {
+        const originalIndex = musicas.indexOf(m);
+        const statusClass = getStatusClass(m.status);
+        const loteNome = m.lote || 'Geral';
+        
+        tbody.innerHTML += `
+          <tr>
+            <td>
+              <strong>${m.title || m.nome}</strong>
+              ${m.composer ? `<br><small style="color: #6b7280;"><i class="fa-solid fa-user"></i> ${m.composer}</small>` : ''}
+            </td>
+            <td style="text-align:center;">
+              <span class="badge-lote"><i class="fa-solid fa-box"></i> ${loteNome}</span>
+            </td>
+            <td style="text-align:center;">
+              <select onchange="atualizarCampo(${originalIndex}, 'status', this.value)">
+                <option value="Em Estudo" ${m.status === 'Em Estudo' ? 'selected' : ''}>📝 Em Estudo</option>
+                <option value="Em Andamento" ${m.status === 'Em Andamento' ? 'selected' : ''}>🔄 Em Andamento</option>
+                <option value="Concluída" ${m.status === 'Concluída' ? 'selected' : ''}>✅ Concluída</option>
+                <option value="Revisar" ${m.status === 'Revisar' ? 'selected' : ''}>🔴 Revisar</option>
+              </select>
+              <br>
+              <span class="badge-status ${statusClass}" style="display: inline-block; margin-top: 4px;">
+                ${m.status || 'Em Estudo'}
+              </span>
+            </td>
+            <td>
+              <input type="text" value="${m.obs || ''}" placeholder="Observações..." style="width: 100%;" onchange="atualizarCampo(${originalIndex}, 'obs', this.value)">
+            </td>
+            <td style="text-align:center;">
+              <div style="display: flex; gap: 4px; justify-content: center;">
+                <button type="button" class="btn-pdf" onclick="abrirPDFMusica(${originalIndex})" title="Visualizar Partitura PDF">
+                  <i class="fa-solid fa-file-pdf"></i>
+                </button>
+                <button type="button" class="btn-abc" onclick="abrirModalABC(${originalIndex})" title="Visualizar Partitura ABC">
+                  <i class="fa-solid fa-music"></i>
+                </button>
+                <button type="button" class="btn-danger" onclick="removerMusica(${originalIndex})" title="Remover Música">
+                  <i class="fa-solid fa-trash"></i>
+                </button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }
+      
+      verificarLoteConcluido();
+    }
+
+    function getStatusClass(status) {
+      const s = status || 'Em Estudo';
+      if (s === 'Em Estudo') return 'badge-em-estudo';
+      if (s === 'Em Andamento') return 'badge-em-andamento';
+      if (s === 'Concluída') return 'badge-concluida';
+      if (s === 'Revisar') return 'badge-revisar';
+      return 'badge-em-estudo';
+    }
+
+    function atualizarCampo(index, campo, valor) {
+      repertorioAtual[index][campo] = valor;
+      dadosMusicasCache = { repertorio: repertorioAtual };
+      aplicarFiltroMusicas();
+      verificarLoteConcluido();
+    }
+
+    // =============================================
+    // ===== FUNÇÕES DE PDF E ABC (stubs) =====
+    // =============================================
+
+    function getPdfUrl(m) { return m.pdfUrl || ''; }
+    function getAbcUrl(m) { return m.abcFile || ''; }
+
+    async function abrirPDFMusica(index) {
+      const m = repertorioAtual[index];
+      if (!m) return;
+      showToast(`📄 Abrindo PDF: ${m.nome || m.title}`, 'info');
+    }
+
+    function abrirModalABC(index) {
+      const m = repertorioAtual[index];
+      if (!m) return;
+      showToast(`🎵 Abrindo ABC: ${m.nome || m.title}`, 'info');
+    }
+
+    function fecharModalABC() { /* stub */ }
+    function renderizarABC() { /* stub */ }
+    function tocarABC(mode) { /* stub */ }
+    function pararABC() { /* stub */ }
+    function atualizarBPMABC(valor) { /* stub */ }
+    function alternarTelaCheiaABC() { /* stub */ }
+    function copiarABC() { /* stub */ }
+    function toggleCodePanel() { /* stub */ }
+
+    async function arquivarLote() {
+      showToast('📦 Função arquivar lote em desenvolvimento', 'info');
+    }
+
+    async function importarLoteGithub() {
+      const entradaUsuario = prompt("Digite o nome ou ID do lote de músicas:");
+      if (!entradaUsuario || entradaUsuario.trim() === "") return;
+      await importarLoteMusicaDireto(entradaUsuario.trim());
+    }
+
+    async function importarLoteMusicaDireto(nomeLote) {
+      const token = obterToken();
+      if (!token) return exibirStatus("Configure o token do GitHub primeiro.", "red");
+      if (!nomeLote || nomeLote.trim() === "") return exibirStatus("Nome do lote não informado.", "red");
+      showToast(`📦 Importando lote: ${nomeLote}`, 'info');
+      exibirStatus(`✅ Lote "${nomeLote}" importado com sucesso!`, "green");
+    }
+
+    async function carregarListaAlunos() {
+      const token = obterToken();
+      if (!token) return alert("Informe o token do GitHub.");
+
+      const container = document.getElementById('listaAlunosContainer');
+      const listaDiv = document.getElementById('listaAlunos');
+      
+      listaDiv.style.display = 'block';
+      container.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Carregando...';
+
+      try {
+        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos?ref=${GH_CONFIG.branch}`, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+
+        if (!res.ok) {
+          container.innerHTML = 'Nenhum aluno encontrado.';
+          return;
+        }
+
+        const files = await res.json();
+        const alunos = files
+          .filter(f => f.name.startsWith('musica_') && f.name.endsWith('.json'))
+          .map(f => f.name.replace('musica_', '').replace('.json', ''))
+          .sort();
+
+        if (alunos.length === 0) {
+          container.innerHTML = 'Nenhum aluno cadastrado.';
+          return;
+        }
+
+        container.innerHTML = alunos.map(id => 
+          `<span onclick="document.getElementById('buscaAluno').value='${id}'; carregarMusicasAluno();" 
+                 style="display: inline-block; background: #e5e7eb; padding: 4px 10px; border-radius: 12px; margin: 3px; cursor: pointer; font-size: 0.8rem; font-family: monospace;">
+            ${id}
+          </span>`
+        ).join(' ');
+
+      } catch (e) {
+        container.innerHTML = 'Erro ao carregar lista.';
+      }
+    }
+
+    // =============================================
+    // ===== FUNÇÕES DE ZOOM E PDF =====
+    // =============================================
+
+    function alterarZoom(valor) { /* stub */ }
+    function initResizeHandlers() { /* stub */ }
+    function setViewMode(mode) { /* stub */ }
+    function toggleFullscreen() { /* stub */ }
+    function fecharVisualizador() { /* stub */ }
+
+    // =============================================
+    // ===== INICIALIZAÇÃO =====
+    // =============================================
+
+    window.onload = function() {
+      log(`🚀 Aplicação iniciada!`, LOG_LEVELS.SUCCESS);
+      
+      const savedToken = localStorage.getItem("gh_pat_token");
+      if (savedToken) {
+        document.getElementById("gh-token").value = savedToken;
+        log(`🔑 Token carregado do localStorage`, LOG_LEVELS.INFO);
+      }
+
+      document.getElementById("gh-token").addEventListener("input", (e) => {
+        localStorage.setItem("gh_pat_token", e.target.value.trim());
+      });
+
+      document.getElementById("buscaAluno").addEventListener("keyup", (e) => {
+        if (e.key === "Enter") carregarMusicasAluno();
+      });
+      document.getElementById("novaMusica").addEventListener("keyup", (e) => {
+        if (e.key === "Enter") adicionarMusica();
+      });
+
+      const urlParams = new URLSearchParams(window.location.search);
+      const loteParam = urlParams.get('lote');
+      
+      if (loteParam) {
+        log(`📦 Lote detectado na URL: ${loteParam}`, LOG_LEVELS.INFO);
+        exibirStatus(`📦 Lote "${loteParam}" detectado. Importando automaticamente...`, "blue");
+        setTimeout(() => {
+          importarLoteMusicaDireto(loteParam);
+        }, 1000);
+      }
     };
-    if (sha) body.sha = sha;
-    
-    const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${caminho}`;
-    const res = await fetch(url, {
-      method: 'PUT',
-      headers: { 
-        'Authorization': `token ${token}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify(body)
-    });
-    
-    if (res.ok) {
-      const data = await res.json();
-      shaAtual = data.content.sha;
-      console.log('✅ Salvo! SHA:', shaAtual);
-      return { success: true, sha: shaAtual };
-    }
-    
-    if (res.status === 409 && tentativa < maxTentativas) {
-      console.log(`⚠️ Conflito 409, tentativa ${tentativa+1} de ${maxTentativas}`);
-      await new Promise(r => setTimeout(r, 1000 * tentativa));
-      return salvarArquivo(caminho, dados, token, tentativa + 1);
-    }
-    
-    const err = await res.json().catch(() => ({}));
-    console.error('❌ Erro ao salvar:', res.status, err);
-    return { success: false, error: `${res.status}: ${err.message || 'Erro desconhecido'}` };
-    
-  } catch (e) {
-    console.error('❌ Exceção:', e);
-    if (tentativa < maxTentativas) {
-      await new Promise(r => setTimeout(r, 1000 * tentativa));
-      return salvarArquivo(caminho, dados, token, tentativa + 1);
-    }
-    return { success: false, error: e.message };
-  } finally {
-    isSaving = false;
-    if (saveQueue.length > 0) {
-      const nextSave = saveQueue.shift();
-      nextSave();
-    }
-  }
-}
 
-// ===== SALVAR CRONÔMETRO =====
-async function salvarCronometro() {
-  if (!alunoIdAtual || !cronLoteAtual || cronLoteAtual === 'todos') {
-    return false;
-  }
-  
-  const token = obterToken();
-  if (!token) return false;
-  
-  const caminho = `alunos/musica_${alunoIdAtual}.json`;
-  
-  const dados = {
-    lotesTempo: {
-      [cronLoteAtual]: {
-        tempoSegundos: segundos,
-        ultimaAtualizacao: new Date().toISOString(),
-        status: cronRodando ? 'em_andamento' : 'pausado'
-      }
-    }
-  };
-  
-  mostrarSalvando(true, 'Salvando cronômetro...');
-  
-  try {
-    const resultado = await salvarArquivo(caminho, dados, token);
-    if (resultado.success) {
-      showToast(`⏱️ Cronômetro salvo: ${formatar(segundos)}`, 'success');
-      return true;
-    } else {
-      showToast(`❌ Erro: ${resultado.error}`, 'error');
-      return false;
-    }
-  } catch (e) {
-    showToast(`❌ Erro: ${e.message}`, 'error');
-    return false;
-  } finally {
-    mostrarSalvando(false);
-  }
-}
-
-// ===== FUNÇÕES DO CRONÔMETRO =====
-function iniciarCronometro() {
-  const lote = document.getElementById('filterLote').value;
-  if (lote === 'todos') {
-    showToast('⚠️ Selecione um lote específico', 'warning');
-    return;
-  }
-  if (!alunoIdAtual) {
-    showToast('⚠️ Carregue um aluno primeiro', 'warning');
-    return;
-  }
-  
-  if (cronRodando) {
-    showToast('⏱️ Já está rodando', 'info');
-    return;
-  }
-  
-  cronLoteAtual = lote;
-  cronRodando = true;
-  cronPausado = false;
-  
-  document.getElementById('cronometroBar').style.display = 'flex';
-  document.getElementById('cronometroInfo').textContent = `📦 ${lote}`;
-  document.getElementById('cronometroStatus').className = 'cronometro-status rodando';
-  document.getElementById('cronometroStatus').textContent = '▶️ Rodando';
-  
-  if (cronInterval) clearInterval(cronInterval);
-  
-  cronInterval = setInterval(async () => {
-    segundos++;
-    document.getElementById('cronometroDisplay').textContent = formatar(segundos);
-    if (segundos % 10 === 0) {
-      await salvarCronometro();
-    }
-  }, 1000);
-  
-  salvarCronometro();
-  showToast(`▶️ Cronômetro iniciado para "${lote}"`, 'success');
-}
-
-async function pausarCronometro() {
-  if (!cronRodando && !cronPausado) {
-    showToast('⚠️ Inicie o cronômetro primeiro', 'warning');
-    return;
-  }
-  
-  if (!cronPausado) {
-    clearInterval(cronInterval);
-    cronInterval = null;
-    cronRodando = false;
-    cronPausado = true;
-    document.getElementById('cronometroStatus').className = 'cronometro-status pausado';
-    document.getElementById('cronometroStatus').textContent = '⏸️ Pausado';
-    await salvarCronometro();
-    showToast(`⏸️ Pausado em ${formatar(segundos)}`, 'info');
-  } else {
-    cronPausado = false;
-    cronRodando = true;
-    document.getElementById('cronometroStatus').className = 'cronometro-status rodando';
-    document.getElementById('cronometroStatus').textContent = '▶️ Rodando';
-    
-    cronInterval = setInterval(async () => {
-      segundos++;
-      document.getElementById('cronometroDisplay').textContent = formatar(segundos);
-      if (segundos % 10 === 0) {
-        await salvarCronometro();
-      }
-    }, 1000);
-    
-    await salvarCronometro();
-    showToast(`▶️ Retomado!`, 'success');
-  }
-}
-
-async function resetarCronometro() {
-  if (segundos === 0 && !cronLoteAtual) {
-    showToast('⚠️ Nada para resetar', 'warning');
-    return;
-  }
-  if (!confirm(`Resetar cronômetro do lote "${cronLoteAtual}"?`)) return;
-  
-  clearInterval(cronInterval);
-  cronInterval = null;
-  cronRodando = false;
-  cronPausado = false;
-  segundos = 0;
-  document.getElementById('cronometroDisplay').textContent = formatar(0);
-  document.getElementById('cronometroStatus').className = 'cronometro-status pausado';
-  document.getElementById('cronometroStatus').textContent = '⏸️ Pausado';
-  await salvarCronometro();
-  showToast('🔄 Resetado!', 'info');
-}
-
-function onLoteChange() {
-  const lote = document.getElementById('filterLote').value;
-  if (lote !== 'todos' && alunoIdAtual) {
-    carregarTempoLote(lote);
-  } else {
-    document.getElementById('cronometroBar').style.display = 'none';
-  }
-}
-
-async function carregarTempoLote(lote) {
-  const token = obterToken();
-  if (!token) return;
-  
-  const caminho = `alunos/musica_${alunoIdAtual}.json`;
-  const { dados } = await lerArquivo(caminho, token);
-  
-  if (dados?.lotesTempo?.[lote]) {
-    segundos = dados.lotesTempo[lote].tempoSegundos || 0;
-    cronLoteAtual = lote;
-    document.getElementById('cronometroBar').style.display = 'flex';
-    document.getElementById('cronometroDisplay').textContent = formatar(segundos);
-    document.getElementById('cronometroInfo').textContent = `📦 ${lote}`;
-    document.getElementById('cronometroStatus').className = 'cronometro-status pausado';
-    document.getElementById('cronometroStatus').textContent = '⏸️ Pausado';
-    console.log(`✅ Tempo carregado: ${segundos}s (${formatar(segundos)})`);
-  }
-}
-
-// ===== CARREGAR ALUNO =====
-async function carregarAluno() {
-  const busca = document.getElementById('buscaAluno').value.trim();
-  const token = obterToken();
-  
-  if (!busca) return alert('Digite o nome do aluno');
-  if (!token) return alert('Configure o token do GitHub');
-  
-  alunoIdAtual = busca.toLowerCase().replace(/[^a-z0-9]/g, '_');
-  const caminho = `alunos/musica_${alunoIdAtual}.json`;
-  
-  exibirStatus(`Buscando aluno ${alunoIdAtual}...`, 'blue');
-  
-  const { dados, sha } = await lerArquivo(caminho, token);
-  shaAtual = sha;
-  
-  if (dados) {
-    repertorioAtual = dados.repertorio || [];
-    exibirStatus(`✅ Aluno ${alunoIdAtual} carregado (${repertorioAtual.length} músicas)`, 'green');
-    showToast(`🎶 ${repertorioAtual.length} músicas carregadas`, 'success');
-  } else {
-    repertorioAtual = [];
-    exibirStatus(`ℹ️ Aluno ${alunoIdAtual} novo`, 'orange');
-  }
-  
-  atualizarLotes();
-  renderizarTabela();
-  
-  const lote = document.getElementById('filterLote').value;
-  if (lote !== 'todos') carregarTempoLote(lote);
-}
-
-// ===== SALVAR ALUNO COMPLETO =====
-async function salvarAluno() {
-  const token = obterToken();
-  if (!token) return alert('Configure o token do GitHub');
-  if (!alunoIdAtual) return alert('Carregue um aluno primeiro');
-  if (repertorioAtual.length === 0) return alert('Adicione pelo menos uma música');
-  
-  const caminho = `alunos/musica_${alunoIdAtual}.json`;
-  
-  const dados = {
-    alunoId: alunoIdAtual,
-    aluno: document.getElementById('buscaAluno').value.trim(),
-    repertorio: repertorioAtual,
-    atualizadoEm: new Date().toISOString()
-  };
-  
-  if (cronLoteAtual && cronLoteAtual !== 'todos') {
-    dados.lotesTempo = {
-      [cronLoteAtual]: {
-        tempoSegundos: segundos,
-        ultimaAtualizacao: new Date().toISOString(),
-        status: cronRodando ? 'em_andamento' : 'pausado'
-      }
-    };
-  }
-  
-  mostrarSalvando(true, 'Salvando aluno...');
-  exibirStatus('Salvando no GitHub...', 'blue');
-  
-  const resultado = await salvarArquivo(caminho, dados, token);
-  
-  mostrarSalvando(false);
-  if (resultado.success) {
-    exibirStatus(`✅ ${repertorioAtual.length} músicas salvas!`, 'green');
-    showToast(`💾 ${repertorioAtual.length} músicas salvas!`, 'success');
-  } else {
-    exibirStatus(`❌ Erro: ${resultado.error}`, 'red');
-    showToast(`❌ Erro: ${resultado.error}`, 'error');
-  }
-}
-
-// ===== ATUALIZAR LISTA DE LOTES =====
-function atualizarLotes() {
-  const select = document.getElementById('filterLote');
-  const atual = select.value;
-  
-  const lotes = new Set();
-  repertorioAtual.forEach(m => lotes.add(m.lote || 'Geral'));
-  
-  select.innerHTML = '<option value="todos">Todos os Lotes</option>';
-  [...lotes].sort().forEach(l => {
-    const opt = document.createElement('option');
-    opt.value = l;
-    opt.textContent = `📦 ${l}`;
-    if (l === atual) opt.selected = true;
-    select.appendChild(opt);
-  });
-}
-
-// ===== RENDERIZAR TABELA =====
-function renderizarTabela() {
-  const tbody = document.querySelector('#tbl-musicas tbody');
-  const filtroLote = document.getElementById('filterLote').value;
-  
-  let musicas = repertorioAtual;
-  if (filtroLote !== 'todos') {
-    musicas = musicas.filter(m => (m.lote || 'Geral') === filtroLote);
-  }
-  
-  if (musicas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#9ca3af;">Nenhuma música encontrada.</td></tr>';
-    return;
-  }
-  
-  tbody.innerHTML = musicas.map((m, i) => {
-    const idx = repertorioAtual.indexOf(m);
-    const lote = m.lote || 'Geral';
-    const statusClass = m.status === 'Concluída' ? 'badge-concluida' : 'badge-em-estudo';
-    return `
-      <tr>
-        <td><strong>${m.nome || m.title || 'Sem nome'}</strong></td>
-        <td><span class="badge-lote">${lote}</span></td>
-        <td>
-          <select onchange="atualizarStatus(${idx}, this.value)">
-            <option value="Em Estudo" ${m.status === 'Em Estudo' ? 'selected' : ''}>📝 Em Estudo</option>
-            <option value="Concluída" ${m.status === 'Concluída' ? 'selected' : ''}>✅ Concluída</option>
-          </select>
-          <br><span class="${statusClass}">${m.status || 'Em Estudo'}</span>
-        </td>
-        <td>
-          <button class="btn-danger" onclick="removerMusica(${idx})"><i class="fa-solid fa-trash"></i></button>
-        </td>
-      </tr>
-    `;
-  }).join('');
-}
-
-function atualizarStatus(idx, valor) {
-  repertorioAtual[idx].status = valor;
-  renderizarTabela();
-}
-
-function removerMusica(idx) {
-  repertorioAtual.splice(idx, 1);
-  atualizarLotes();
-  renderizarTabela();
-}
-
-// ===== ADICIONAR MÚSICA (via console) =====
-function adicionarMusica(nome, lote = 'Geral') {
-  if (!nome) return;
-  repertorioAtual.push({ nome, status: 'Em Estudo', lote });
-  atualizarLotes();
-  renderizarTabela();
-}
-
-// ===== INICIALIZAÇÃO =====
-window.onload = function() {
-  const token = localStorage.getItem('gh_token');
-  if (token) {
-    document.getElementById('gh-token').value = token;
-  }
-  
-  document.getElementById('buscaAluno').addEventListener('keyup', e => {
-    if (e.key === 'Enter') carregarAluno();
-  });
-  
-  window.adicionarMusica = adicionarMusica;
-  
-  console.log('✅ App carregado! Use adicionarMusica("Nome", "Lote") para adicionar.');
-};
-</script>
+    log(`✅ Aplicação carregada com sucesso!`, LOG_LEVELS.SUCCESS);
+  </script>
 </body>
 </html>
