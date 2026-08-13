@@ -3,64 +3,78 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Repertório - Fix Salvamento</title>
+  <title>Fix Salvamento - Versão Simples</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-    body { background: #f4f6f8; padding: 20px; max-width: 1200px; margin: 0 auto; }
+    body { background: #f4f6f8; padding: 20px; max-width: 1000px; margin: 0 auto; }
     .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
     input, select, button { padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px; font-size: 0.9rem; }
     button { background: #8e44ad; color: white; border: none; cursor: pointer; }
     button:hover { opacity: 0.9; }
     .btn-success { background: #27ae60; }
     .btn-danger { background: #dc2626; }
+    .btn-warning { background: #d97706; }
     .flex { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-    .status-msg { margin-top: 10px; font-weight: bold; }
+    .status-msg { margin-top: 10px; font-weight: bold; padding: 8px; border-radius: 4px; }
+    .status-msg.ok { background: #dcfce7; color: #166534; }
+    .status-msg.erro { background: #fecaca; color: #991b1b; }
+    .status-msg.info { background: #dbeafe; color: #1e40af; }
     .cronometro-bar { display: none; background: #f0fdf4; border: 1px solid #bbf7d0; padding: 10px 14px; border-radius: 6px; margin-bottom: 10px; }
-    .cronometro-display { font-size: 1.4rem; font-weight: bold; font-family: monospace; color: #2563eb; min-width: 100px; }
+    .cronometro-display { font-size: 1.8rem; font-weight: bold; font-family: monospace; color: #2563eb; min-width: 120px; }
     .cronometro-status.rodando { color: #16a34a; }
     .cronometro-status.pausado { color: #6b7280; }
     .salvando { display: none; background: #fef3c7; border: 1px solid #f59e0b; padding: 8px 14px; border-radius: 6px; margin: 5px 0 10px 0; }
     .salvando.ativo { display: flex; align-items: center; gap: 10px; }
     .spinner { animation: spin 1s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    .toast { position: fixed; bottom: 20px; right: 20px; background: #1f2937; color: white; padding: 12px 20px; border-radius: 8px; z-index: 9999; animation: slideIn 0.3s ease; max-width: 350px; }
+    .toast { position: fixed; bottom: 20px; right: 20px; background: #1f2937; color: white; padding: 12px 20px; border-radius: 8px; z-index: 9999; max-width: 350px; }
     .toast.success { border-left: 4px solid #27ae60; }
     .toast.error { border-left: 4px solid #dc2626; }
     .toast.info { border-left: 4px solid #2563eb; }
-    @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-    table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-    th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; font-size: 0.9rem; }
+    th, td { border: 1px solid #ddd; padding: 8px 10px; text-align: left; }
     th { background: #f8fafc; }
-    .badge-lote { background: #f3e8ff; color: #6b21a8; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; border: 1px solid #e9d5ff; }
-    .badge-em-estudo { background: #fef3c7; color: #92400e; padding: 3px 12px; border-radius: 12px; font-size: 0.75rem; }
-    .badge-concluida { background: #dcfce7; color: #166534; padding: 3px 12px; border-radius: 12px; font-size: 0.75rem; }
+    .badge-lote { background: #f3e8ff; color: #6b21a8; padding: 2px 8px; border-radius: 6px; font-size: 0.75rem; }
+    .badge-status { padding: 2px 10px; border-radius: 12px; font-size: 0.7rem; font-weight: bold; display: inline-block; }
+    .badge-em-estudo { background: #fef3c7; color: #92400e; }
+    .badge-concluida { background: #dcfce7; color: #166534; }
+    .badge-revisar { background: #fce4ec; color: #c62828; }
+    .debug { background: #1e293b; color: #94a3b8; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 0.75rem; max-height: 200px; overflow-y: auto; margin-top: 10px; display: none; }
+    .debug.ativo { display: block; }
+    .debug .log { color: #e2e8f0; border-bottom: 1px solid #334155; padding: 2px 0; }
+    .debug .erro { color: #ef4444; }
+    .debug .ok { color: #22c55e; }
+    .debug .info { color: #3b82f6; }
   </style>
 </head>
 <body>
 
 <div class="card">
-  <h2><i class="fa-solid fa-compact-disc"></i> Repertório - Fix Salvamento</h2>
+  <h2><i class="fa-solid fa-stopwatch"></i> Fix Salvamento Cronômetro</h2>
   
+  <!-- TOKEN -->
   <div class="flex" style="margin-top: 15px;">
     <i class="fa-brands fa-github"></i>
-    <input type="password" id="gh-token" placeholder="Token do GitHub (ghp_...)" style="flex:1;">
-    <button onclick="salvarToken()"><i class="fa-solid fa-key"></i> Salvar Token</button>
+    <input type="password" id="gh-token" placeholder="Token GitHub (ghp_...)" style="flex:1;">
+    <button onclick="salvarToken()"><i class="fa-solid fa-key"></i> Salvar</button>
+    <button class="btn-warning" onclick="toggleDebug()"><i class="fa-solid fa-bug"></i> Debug</button>
   </div>
 
+  <!-- ALUNO -->
   <div class="flex" style="margin-top: 15px;">
-    <input type="text" id="buscaAluno" placeholder="ID ou Nome do aluno..." style="flex:2;">
+    <input type="text" id="buscaAluno" placeholder="ID do aluno (ex: jefferson_2026)" style="flex:2;">
     <button onclick="carregarAluno()"><i class="fa-solid fa-magnifying-glass"></i> Carregar</button>
-    <button class="btn-success" onclick="salvarAluno()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar</button>
+    <button class="btn-success" onclick="salvarAluno()"><i class="fa-solid fa-cloud-arrow-up"></i> Salvar Tudo</button>
   </div>
 
   <div id="statusMsg" class="status-msg"></div>
-  <div id="salvandoIndicator" class="salvando"><span class="spinner"><i class="fa-solid fa-spinner"></i></span> <span id="salvandoMsg">Salvando...</span></div>
+  <div id="salvandoIndicator" class="salvando"><span class="spinner">⏳</span> <span id="salvandoMsg">Salvando...</span></div>
 
-  <!-- CRONÔMETRO SIMPLES -->
+  <!-- CRONÔMETRO -->
   <div class="cronometro-bar" id="cronometroBar">
     <div class="flex" style="width:100%;">
-      <span><i class="fa-solid fa-stopwatch"></i> Cronômetro:</span>
+      <span style="font-weight:bold;"><i class="fa-solid fa-stopwatch"></i> Cronômetro:</span>
       <span class="cronometro-display" id="cronometroDisplay">00:00:00</span>
       <span class="cronometro-status pausado" id="cronometroStatus">⏸️ Pausado</span>
       <button class="btn-success" onclick="iniciarCronometro()"><i class="fa-solid fa-play"></i> Iniciar</button>
@@ -76,12 +90,19 @@
     <select id="filterLote" onchange="onLoteChange()">
       <option value="todos">Todos os Lotes</option>
     </select>
+    <span style="font-size:0.8rem;color:#6b7280;" id="contadorMusicas"></span>
   </div>
 
+  <!-- TABELA -->
   <table id="tbl-musicas">
     <thead><tr><th>Música</th><th>Lote</th><th>Status</th><th>Ações</th></tr></thead>
-    <tbody><tr><td colspan="4" style="text-align:center;color:#9ca3af;">Nenhum aluno carregado.</td></tr></tbody>
+    <tbody><tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:20px;">Nenhum aluno carregado.</td></tr></tbody>
   </table>
+
+  <!-- DEBUG -->
+  <div class="debug" id="debugPanel">
+    <div id="debugLogs"></div>
+  </div>
 </div>
 
 <script>
@@ -94,16 +115,30 @@ let alunoIdAtual = null;
 let repertorioAtual = [];
 let shaAtual = null;
 
-// ===== CONTROLE DE CONCORRÊNCIA (MUTEX/FILA) =====
-let isSaving = false;
-let saveQueue = [];
-
 // ===== CRONÔMETRO =====
 let segundos = 0;
 let cronInterval = null;
 let cronRodando = false;
 let cronPausado = false;
 let cronLoteAtual = null;
+
+// ===== DEBUG =====
+let debugAtivo = false;
+
+function toggleDebug() {
+  debugAtivo = !debugAtivo;
+  document.getElementById('debugPanel').classList.toggle('ativo');
+}
+
+function debugLog(msg, tipo = 'info') {
+  if (!debugAtivo) return;
+  const panel = document.getElementById('debugLogs');
+  const div = document.createElement('div');
+  div.className = `log ${tipo}`;
+  div.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+  panel.appendChild(div);
+  panel.scrollTop = panel.scrollHeight;
+}
 
 // ===== TOKEN =====
 function obterToken() {
@@ -115,6 +150,7 @@ function salvarToken() {
   if (token) {
     localStorage.setItem('gh_token', token);
     showToast('✅ Token salvo!', 'success');
+    debugLog('Token salvo com sucesso', 'ok');
   } else {
     showToast('⚠️ Digite um token', 'warning');
   }
@@ -129,10 +165,11 @@ function showToast(msg, tipo = 'info') {
   setTimeout(() => el.remove(), 3000);
 }
 
-function exibirStatus(msg, cor = 'black') {
+function exibirStatus(msg, tipo = 'info') {
   const el = document.getElementById('statusMsg');
-  el.style.color = cor;
+  el.className = `status-msg ${tipo}`;
   el.textContent = msg;
+  debugLog(msg, tipo);
 }
 
 function mostrarSalvando(ativo, msg = 'Salvando...') {
@@ -146,7 +183,7 @@ function mostrarSalvando(ativo, msg = 'Salvando...') {
   }
 }
 
-// ===== FORMATAR TEMPO =====
+// ===== FORMATAR =====
 function formatar(t) {
   const h = String(Math.floor(t / 3600)).padStart(2, '0');
   const m = String(Math.floor((t % 3600) / 60)).padStart(2, '0');
@@ -154,76 +191,76 @@ function formatar(t) {
   return `${h}:${m}:${s}`;
 }
 
-// ===== GITHUB - LER ARQUIVO =====
+// ===== GITHUB - LER SEMPRE O MAIS RECENTE =====
 async function lerArquivo(caminho, token) {
   try {
-    const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${caminho}?ref=${GH_BRANCH}&_t=${Date.now()}`;
+    const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${caminho}?ref=${GH_BRANCH}`;
+    debugLog(`📖 Lendo: ${caminho}`, 'info');
+    
     const res = await fetch(url, { 
-      headers: { 
-        'Authorization': `token ${token}`,
-        'Cache-Control': 'no-cache'
-      } 
+      headers: { 'Authorization': `token ${token}`,
+                 'Accept': 'application/vnd.github.v3+json' }
     });
-    if (!res.ok) return { dados: null, sha: null };
+    
+    if (!res.ok) {
+      if (res.status === 404) {
+        debugLog('📄 Arquivo não encontrado (novo)', 'info');
+        return { dados: null, sha: null };
+      }
+      debugLog(`❌ Erro ${res.status} ao ler`, 'erro');
+      return { dados: null, sha: null };
+    }
+    
     const data = await res.json();
-    const json = JSON.parse(atob(data.content.replace(/\s/g, '')));
-    return { dados: json, sha: data.sha };
+    const jsonStr = atob(data.content.replace(/\s/g, ''));
+    const dados = JSON.parse(jsonStr);
+    debugLog(`✅ Lido com sucesso. SHA: ${data.sha.substring(0,8)}...`, 'ok');
+    return { dados, sha: data.sha };
   } catch (e) {
-    console.error('Erro ao ler:', e);
+    debugLog(`❌ Exceção ao ler: ${e.message}`, 'erro');
     return { dados: null, sha: null };
   }
 }
 
-// ===== GITHUB - SALVAR ARQUIVO (COM FILA E RETRY) =====
+// ===== GITHUB - SALVAR (SEMPRE COM SHA ATUALIZADO) =====
 async function salvarArquivo(caminho, dados, token, tentativa = 1) {
-  // Se já houver um salvamento em andamento, enfileira a requisição para evitar conflito (409)
-  if (isSaving) {
-    return new Promise((resolve) => {
-      saveQueue.push(() => resolve(salvarArquivo(caminho, dados, token, tentativa)));
-    });
-  }
-
-  isSaving = true;
-  const maxTentativas = 3;
+  const maxTentativas = 4;
   
   try {
-    // 1. Ler o arquivo atual para pegar o SHA mais recente
-    const { dados: dadosAtuais, sha } = await lerArquivo(caminho, token);
+    // SEMPRE ler o arquivo atual para pegar o SHA mais recente
+    const { dados: dadosExistentes, sha } = await lerArquivo(caminho, token);
     
-    // 2. Mesclar dados preservando estruturas aninhadas (ex: lotesTempo)
-    let dadosFinal = { ...dadosAtuais, ...dados };
-    if (dadosAtuais?.lotesTempo && dados.lotesTempo) {
-      dadosFinal.lotesTempo = {
-        ...dadosAtuais.lotesTempo,
-        ...dados.lotesTempo
-      };
-    }
+    debugLog(`📝 SHA atual: ${sha ? sha.substring(0,8) : 'NOVO'} (tentativa ${tentativa})`, 'info');
     
-    // Garantir campos obrigatórios
-    dadosFinal.alunoId = alunoIdAtual;
+    // Mesclar dados (preservar tudo que já existe)
+    const dadosFinal = { ...dadosExistentes, ...dados };
     dadosFinal.atualizadoEm = new Date().toISOString();
     
-    // 3. Converter para Base64
+    // Converter para base64
     const jsonStr = JSON.stringify(dadosFinal, null, 2);
     const utf8 = new TextEncoder().encode(jsonStr);
     let binary = '';
     utf8.forEach(b => binary += String.fromCharCode(b));
     const base64 = btoa(binary);
     
-    // 4. Enviar com o SHA atual
+    // Preparar body
     const body = {
-      message: `Atualizando dados do aluno ${alunoIdAtual}`,
+      message: `Atualizando ${caminho}`,
       content: base64,
       branch: GH_BRANCH
     };
     if (sha) body.sha = sha;
     
+    // Enviar
     const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${caminho}`;
+    debugLog(`📤 Enviando PUT...`, 'info');
+    
     const res = await fetch(url, {
       method: 'PUT',
-      headers: { 
+      headers: {
         'Authorization': `token ${token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json'
       },
       body: JSON.stringify(body)
     });
@@ -231,47 +268,51 @@ async function salvarArquivo(caminho, dados, token, tentativa = 1) {
     if (res.ok) {
       const data = await res.json();
       shaAtual = data.content.sha;
-      console.log('✅ Salvo! SHA:', shaAtual);
+      debugLog(`✅ Salvo! SHA: ${shaAtual.substring(0,8)}...`, 'ok');
       return { success: true, sha: shaAtual };
     }
     
-    // Se deu conflito (409), tenta novamente após aguardar
+    // Erro específico
+    const errData = await res.json().catch(() => ({}));
+    debugLog(`❌ HTTP ${res.status}: ${errData.message || 'Erro'}`, 'erro');
+    
+    // Se for 409 (conflito) e ainda temos tentativas
     if (res.status === 409 && tentativa < maxTentativas) {
-      console.log(`⚠️ Conflito 409, tentativa ${tentativa+1} de ${maxTentativas}`);
-      await new Promise(r => setTimeout(r, 1000 * tentativa));
+      const espera = 2000 * tentativa; // 2s, 4s, 6s
+      debugLog(`🔄 Conflito 409! Tentativa ${tentativa+1}/${maxTentativas} em ${espera}ms`, 'erro');
+      await new Promise(r => setTimeout(r, espera));
       return salvarArquivo(caminho, dados, token, tentativa + 1);
     }
     
-    // Outro erro
-    const err = await res.json().catch(() => ({}));
-    console.error('❌ Erro ao salvar:', res.status, err);
-    return { success: false, error: `${res.status}: ${err.message || 'Erro desconhecido'}` };
+    return { success: false, error: `${res.status}: ${errData.message || 'Erro'}` };
     
   } catch (e) {
-    console.error('❌ Exceção:', e);
+    debugLog(`❌ Exceção: ${e.message}`, 'erro');
     if (tentativa < maxTentativas) {
-      await new Promise(r => setTimeout(r, 1000 * tentativa));
+      await new Promise(r => setTimeout(r, 2000 * tentativa));
       return salvarArquivo(caminho, dados, token, tentativa + 1);
     }
     return { success: false, error: e.message };
-  } finally {
-    isSaving = false;
-    // Processar o próximo item da fila se houver
-    if (saveQueue.length > 0) {
-      const nextSave = saveQueue.shift();
-      nextSave();
-    }
   }
 }
 
-// ===== SALVAR CRONÔMETRO =====
+// ===== SALVAR CRONÔMETRO (FUNÇÃO PRINCIPAL) =====
 async function salvarCronometro() {
-  if (!alunoIdAtual || !cronLoteAtual || cronLoteAtual === 'todos') {
+  if (!alunoIdAtual) {
+    debugLog('⏭️ Sem aluno carregado', 'info');
+    return false;
+  }
+  
+  if (!cronLoteAtual || cronLoteAtual === 'todos') {
+    debugLog('⏭️ Nenhum lote específico selecionado', 'info');
     return false;
   }
   
   const token = obterToken();
-  if (!token) return false;
+  if (!token) {
+    showToast('⚠️ Token não configurado', 'warning');
+    return false;
+  }
   
   const caminho = `alunos/musica_${alunoIdAtual}.json`;
   
@@ -285,32 +326,36 @@ async function salvarCronometro() {
     }
   };
   
-  mostrarSalvando(true, 'Salvando cronômetro...');
+  mostrarSalvando(true, `Salvando cronômetro (${formatar(segundos)})`);
   
   try {
     const resultado = await salvarArquivo(caminho, dados, token);
+    mostrarSalvando(false);
+    
     if (resultado.success) {
-      showToast(`⏱️ Cronômetro salvo: ${formatar(segundos)}`, 'success');
+      debugLog(`✅ Cronômetro salvo: ${formatar(segundos)}`, 'ok');
       return true;
     } else {
-      showToast(`❌ Erro: ${resultado.error}`, 'error');
+      debugLog(`❌ Falha ao salvar: ${resultado.error}`, 'erro');
+      showToast(`❌ ${resultado.error}`, 'error');
       return false;
     }
   } catch (e) {
-    showToast(`❌ Erro: ${e.message}`, 'error');
-    return false;
-  } finally {
     mostrarSalvando(false);
+    debugLog(`❌ Erro: ${e.message}`, 'erro');
+    return false;
   }
 }
 
 // ===== FUNÇÕES DO CRONÔMETRO =====
 function iniciarCronometro() {
   const lote = document.getElementById('filterLote').value;
+  
   if (lote === 'todos') {
-    showToast('⚠️ Selecione um lote específico', 'warning');
+    showToast('⚠️ Selecione um lote específico no filtro', 'warning');
     return;
   }
+  
   if (!alunoIdAtual) {
     showToast('⚠️ Carregue um aluno primeiro', 'warning');
     return;
@@ -319,6 +364,11 @@ function iniciarCronometro() {
   if (cronRodando) {
     showToast('⏱️ Já está rodando', 'info');
     return;
+  }
+  
+  // Se mudou de lote, resetar
+  if (cronLoteAtual && cronLoteAtual !== lote) {
+    segundos = 0;
   }
   
   cronLoteAtual = lote;
@@ -335,13 +385,17 @@ function iniciarCronometro() {
   cronInterval = setInterval(async () => {
     segundos++;
     document.getElementById('cronometroDisplay').textContent = formatar(segundos);
+    // Salvar a cada 10 segundos
     if (segundos % 10 === 0) {
+      debugLog(`⏱️ Auto-save: ${formatar(segundos)}`, 'info');
       await salvarCronometro();
     }
   }, 1000);
   
+  // Salvar imediatamente ao iniciar
   salvarCronometro();
-  showToast(`▶️ Cronômetro iniciado para "${lote}"`, 'success');
+  showToast(`▶️ Cronômetro iniciado: "${lote}"`, 'success');
+  debugLog(`▶️ Iniciado: ${lote}`, 'ok');
 }
 
 async function pausarCronometro() {
@@ -351,6 +405,7 @@ async function pausarCronometro() {
   }
   
   if (!cronPausado) {
+    // PAUSAR
     clearInterval(cronInterval);
     cronInterval = null;
     cronRodando = false;
@@ -358,8 +413,10 @@ async function pausarCronometro() {
     document.getElementById('cronometroStatus').className = 'cronometro-status pausado';
     document.getElementById('cronometroStatus').textContent = '⏸️ Pausado';
     await salvarCronometro();
-    showToast(`⏸️ Pausado em ${formatar(segundos)}`, 'info');
+    showToast(`⏸️ Pausado: ${formatar(segundos)}`, 'info');
+    debugLog(`⏸️ Pausado: ${formatar(segundos)}`, 'info');
   } else {
+    // RETOMAR
     cronPausado = false;
     cronRodando = true;
     document.getElementById('cronometroStatus').className = 'cronometro-status rodando';
@@ -375,6 +432,7 @@ async function pausarCronometro() {
     
     await salvarCronometro();
     showToast(`▶️ Retomado!`, 'success');
+    debugLog(`▶️ Retomado`, 'ok');
   }
 }
 
@@ -383,6 +441,7 @@ async function resetarCronometro() {
     showToast('⚠️ Nada para resetar', 'warning');
     return;
   }
+  
   if (!confirm(`Resetar cronômetro do lote "${cronLoteAtual}"?`)) return;
   
   clearInterval(cronInterval);
@@ -395,6 +454,7 @@ async function resetarCronometro() {
   document.getElementById('cronometroStatus').textContent = '⏸️ Pausado';
   await salvarCronometro();
   showToast('🔄 Resetado!', 'info');
+  debugLog('🔄 Resetado', 'info');
 }
 
 function onLoteChange() {
@@ -404,6 +464,7 @@ function onLoteChange() {
   } else {
     document.getElementById('cronometroBar').style.display = 'none';
   }
+  renderizarTabela();
 }
 
 async function carregarTempoLote(lote) {
@@ -416,12 +477,28 @@ async function carregarTempoLote(lote) {
   if (dados?.lotesTempo?.[lote]) {
     segundos = dados.lotesTempo[lote].tempoSegundos || 0;
     cronLoteAtual = lote;
+    cronRodando = false;
+    cronPausado = false;
+    
     document.getElementById('cronometroBar').style.display = 'flex';
     document.getElementById('cronometroDisplay').textContent = formatar(segundos);
     document.getElementById('cronometroInfo').textContent = `📦 ${lote}`;
     document.getElementById('cronometroStatus').className = 'cronometro-status pausado';
     document.getElementById('cronometroStatus').textContent = '⏸️ Pausado';
-    console.log(`✅ Tempo carregado: ${segundos}s (${formatar(segundos)})`);
+    
+    if (cronInterval) { clearInterval(cronInterval); cronInterval = null; }
+    
+    debugLog(`✅ Tempo carregado: ${segundos}s (${formatar(segundos)})`, 'ok');
+    showToast(`⏱️ Tempo: ${formatar(segundos)}`, 'info');
+  } else {
+    segundos = 0;
+    cronLoteAtual = lote;
+    document.getElementById('cronometroBar').style.display = 'flex';
+    document.getElementById('cronometroDisplay').textContent = formatar(0);
+    document.getElementById('cronometroInfo').textContent = `📦 ${lote}`;
+    document.getElementById('cronometroStatus').className = 'cronometro-status pausado';
+    document.getElementById('cronometroStatus').textContent = '⏸️ Pausado';
+    debugLog(`ℹ️ Novo lote: ${lote}`, 'info');
   }
 }
 
@@ -430,29 +507,33 @@ async function carregarAluno() {
   const busca = document.getElementById('buscaAluno').value.trim();
   const token = obterToken();
   
-  if (!busca) return alert('Digite o nome do aluno');
-  if (!token) return alert('Configure o token do GitHub');
+  if (!busca) return showToast('Digite o nome do aluno', 'warning');
+  if (!token) return showToast('Configure o token do GitHub', 'warning');
   
   alunoIdAtual = busca.toLowerCase().replace(/[^a-z0-9]/g, '_');
   const caminho = `alunos/musica_${alunoIdAtual}.json`;
   
-  exibirStatus(`Buscando aluno ${alunoIdAtual}...`, 'blue');
+  exibirStatus(`Buscando ${alunoIdAtual}...`, 'info');
+  debugLog(`📂 Carregando: ${alunoIdAtual}`, 'info');
   
   const { dados, sha } = await lerArquivo(caminho, token);
   shaAtual = sha;
   
   if (dados) {
     repertorioAtual = dados.repertorio || [];
-    exibirStatus(`✅ Aluno ${alunoIdAtual} carregado (${repertorioAtual.length} músicas)`, 'green');
-    showToast(`🎶 ${repertorioAtual.length} músicas carregadas`, 'success');
+    exibirStatus(`✅ ${repertorioAtual.length} músicas`, 'ok');
+    showToast(`🎶 ${repertorioAtual.length} músicas`, 'success');
+    debugLog(`✅ Carregado: ${repertorioAtual.length} músicas`, 'ok');
   } else {
     repertorioAtual = [];
-    exibirStatus(`ℹ️ Aluno ${alunoIdAtual} novo`, 'orange');
+    exibirStatus(`ℹ️ Novo aluno: ${alunoIdAtual}`, 'info');
+    debugLog(`ℹ️ Aluno novo`, 'info');
   }
   
   atualizarLotes();
   renderizarTabela();
   
+  // Carregar tempo do lote selecionado
   const lote = document.getElementById('filterLote').value;
   if (lote !== 'todos') carregarTempoLote(lote);
 }
@@ -460,9 +541,8 @@ async function carregarAluno() {
 // ===== SALVAR ALUNO COMPLETO =====
 async function salvarAluno() {
   const token = obterToken();
-  if (!token) return alert('Configure o token do GitHub');
-  if (!alunoIdAtual) return alert('Carregue um aluno primeiro');
-  if (repertorioAtual.length === 0) return alert('Adicione pelo menos uma música');
+  if (!token) return showToast('Configure o token', 'warning');
+  if (!alunoIdAtual) return showToast('Carregue um aluno', 'warning');
   
   const caminho = `alunos/musica_${alunoIdAtual}.json`;
   
@@ -484,17 +564,20 @@ async function salvarAluno() {
   }
   
   mostrarSalvando(true, 'Salvando aluno...');
-  exibirStatus('Salvando no GitHub...', 'blue');
+  exibirStatus('Salvando...', 'info');
+  debugLog(`💾 Salvando aluno completo...`, 'info');
   
   const resultado = await salvarArquivo(caminho, dados, token);
   
   mostrarSalvando(false);
   if (resultado.success) {
-    exibirStatus(`✅ ${repertorioAtual.length} músicas salvas!`, 'green');
+    exibirStatus(`✅ ${repertorioAtual.length} músicas salvas!`, 'ok');
     showToast(`💾 ${repertorioAtual.length} músicas salvas!`, 'success');
+    debugLog(`✅ Salvo: ${repertorioAtual.length} músicas`, 'ok');
   } else {
-    exibirStatus(`❌ Erro: ${resultado.error}`, 'red');
-    showToast(`❌ Erro: ${resultado.error}`, 'error');
+    exibirStatus(`❌ ${resultado.error}`, 'erro');
+    showToast(`❌ ${resultado.error}`, 'error');
+    debugLog(`❌ Erro: ${resultado.error}`, 'erro');
   }
 }
 
@@ -514,6 +597,8 @@ function atualizarLotes() {
     if (l === atual) opt.selected = true;
     select.appendChild(opt);
   });
+  
+  document.getElementById('contadorMusicas').textContent = `${repertorioAtual.length} músicas`;
 }
 
 // ===== RENDERIZAR TABELA =====
@@ -527,14 +612,15 @@ function renderizarTabela() {
   }
   
   if (musicas.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#9ca3af;">Nenhuma música encontrada.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:#9ca3af;padding:20px;">Nenhuma música encontrada.</td></tr>';
     return;
   }
   
   tbody.innerHTML = musicas.map((m, i) => {
     const idx = repertorioAtual.indexOf(m);
     const lote = m.lote || 'Geral';
-    const statusClass = m.status === 'Concluída' ? 'badge-concluida' : 'badge-em-estudo';
+    const statusClass = m.status === 'Concluída' ? 'badge-concluida' : 
+                       m.status === 'Revisar' ? 'badge-revisar' : 'badge-em-estudo';
     return `
       <tr>
         <td><strong>${m.nome || m.title || 'Sem nome'}</strong></td>
@@ -543,8 +629,9 @@ function renderizarTabela() {
           <select onchange="atualizarStatus(${idx}, this.value)">
             <option value="Em Estudo" ${m.status === 'Em Estudo' ? 'selected' : ''}>📝 Em Estudo</option>
             <option value="Concluída" ${m.status === 'Concluída' ? 'selected' : ''}>✅ Concluída</option>
+            <option value="Revisar" ${m.status === 'Revisar' ? 'selected' : ''}>🔴 Revisar</option>
           </select>
-          <br><span class="${statusClass}">${m.status || 'Em Estudo'}</span>
+          <br><span class="badge-status ${statusClass}">${m.status || 'Em Estudo'}</span>
         </td>
         <td>
           <button class="btn-danger" onclick="removerMusica(${idx})"><i class="fa-solid fa-trash"></i></button>
@@ -567,10 +654,23 @@ function removerMusica(idx) {
 
 // ===== ADICIONAR MÚSICA (via console) =====
 function adicionarMusica(nome, lote = 'Geral') {
-  if (!nome) return;
+  if (!nome) return showToast('Digite um nome', 'warning');
   repertorioAtual.push({ nome, status: 'Em Estudo', lote });
   atualizarLotes();
   renderizarTabela();
+  showToast(`➕ "${nome}" adicionado`, 'success');
+  debugLog(`➕ Adicionado: ${nome} (${lote})`, 'ok');
+}
+
+// ===== TESTE RÁPIDO =====
+async function testarSalvamento() {
+  if (!alunoIdAtual) {
+    showToast('Carregue um aluno primeiro', 'warning');
+    return;
+  }
+  debugLog('🧪 Testando salvamento...', 'info');
+  const result = await salvarCronometro();
+  debugLog(`🧪 Resultado: ${result ? 'OK' : 'FALHA'}`, result ? 'ok' : 'erro');
 }
 
 // ===== INICIALIZAÇÃO =====
@@ -578,15 +678,25 @@ window.onload = function() {
   const token = localStorage.getItem('gh_token');
   if (token) {
     document.getElementById('gh-token').value = token;
+    debugLog('🔑 Token carregado', 'ok');
   }
   
   document.getElementById('buscaAluno').addEventListener('keyup', e => {
     if (e.key === 'Enter') carregarAluno();
   });
   
+  // Expor funções para o console
   window.adicionarMusica = adicionarMusica;
+  window.testarSalvamento = testarSalvamento;
+  window.carregarAluno = carregarAluno;
+  window.salvarAluno = salvarAluno;
   
-  console.log('✅ App carregado! Use adicionarMusica("Nome", "Lote") para adicionar.');
+  console.log('✅ App carregado!');
+  console.log('📌 Comandos:');
+  console.log('  adicionarMusica("Nome", "Lote")');
+  console.log('  carregarAluno()');
+  console.log('  salvarAluno()');
+  console.log('  testarSalvamento()');
 };
 </script>
 </body>
