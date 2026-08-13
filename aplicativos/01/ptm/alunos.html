@@ -74,6 +74,7 @@
     button.btn-success { background-color: var(--accent); }
     button.btn-danger { background-color: var(--danger); }
     button.btn-secondary { background-color: #4b5563; }
+    button.btn-warning { background-color: var(--warning); }
 
     .table-toolbar {
       display: flex;
@@ -108,13 +109,6 @@
     }
     th .sort-icon.active {
       color: var(--primary);
-    }
-    th .sort-icon.asc {
-      color: var(--primary);
-    }
-    th .sort-icon.desc {
-      color: var(--primary);
-      transform: rotate(180deg);
     }
     
     .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
@@ -151,24 +145,29 @@
       font-weight: bold;
     }
 
-    /* TOOLTIP PARA ORDENAÇÃO */
-    th .sort-tip {
-      position: absolute;
-      bottom: -25px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: #1f2937;
-      color: white;
-      font-size: 0.6rem;
-      padding: 2px 8px;
-      border-radius: 4px;
-      white-space: nowrap;
-      opacity: 0;
-      transition: 0.2s;
-      pointer-events: none;
+    .id-helper {
+      font-size: 0.7rem;
+      color: #6b7280;
+      margin-top: 3px;
     }
-    th:hover .sort-tip {
-      opacity: 1;
+    .id-helper .btn-gerar-id {
+      background: none;
+      border: none;
+      color: var(--primary);
+      cursor: pointer;
+      font-size: 0.7rem;
+      text-decoration: underline;
+      padding: 0;
+    }
+    .id-helper .btn-gerar-id:hover {
+      color: #1d4ed8;
+    }
+
+    .form-row {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 15px;
     }
   </style>
 </head>
@@ -222,7 +221,7 @@
       <div class="form-grid">
         <div class="form-group">
           <label for="cadNome">Nome do Aluno *</label>
-          <input type="text" id="cadNome" placeholder="Ex: João da Silva" required>
+          <input type="text" id="cadNome" placeholder="Ex: Carlos Gomes da Silva" required>
         </div>
 
         <div class="form-group">
@@ -250,13 +249,16 @@
         </div>
         
         <div class="form-group">
-          <label for="cadId">ID do Aluno (gerado automaticamente)</label>
-          <input type="text" id="cadId" readonly style="background: #f3f4f6; font-family: monospace;">
-          <small style="color: #6b7280;">Este ID é único e usado em todas as páginas</small>
+          <label for="cadId">ID do Aluno (identificador único) *</label>
+          <input type="text" id="cadId" placeholder="Ex: carlos_gomes" required>
+          <div class="id-helper">
+            <span>Exemplo: carlos_gomes, joao_silva_2024</span>
+            <button type="button" class="btn-gerar-id" onclick="gerarIdAutomatico()"> Gerar ID automático</button>
+          </div>
         </div>
       </div>
 
-      <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
+      <div class="form-row">
         <button type="submit" class="btn-success"><i class="fa-solid fa-floppy-disk"></i> Salvar Aluno no GitHub</button>
         <button type="button" class="btn-secondary" onclick="limparFormulario()"><i class="fa-solid fa-eraser"></i> Limpar Campos</button>
         <button type="button" class="btn-secondary" onclick="sincronizarTodosOsArquivos()" style="background-color: #8b5cf6;">
@@ -291,32 +293,26 @@
             <th onclick="ordenarTabela('id')" data-coluna="id">
               ID do Aluno
               <span class="sort-indicator" id="sort-id">⇅</span>
-              <span class="sort-tip">Clique para ordenar</span>
             </th>
             <th onclick="ordenarTabela('nome')" data-coluna="nome">
               Nome do Aluno
               <span class="sort-indicator" id="sort-nome">⇅</span>
-              <span class="sort-tip">Clique para ordenar</span>
             </th>
             <th onclick="ordenarTabela('instrumento')" data-coluna="instrumento">
               Instrumento
               <span class="sort-indicator" id="sort-instrumento">⇅</span>
-              <span class="sort-tip">Clique para ordenar</span>
             </th>
             <th onclick="ordenarTabela('horario')" data-coluna="horario">
               Horário da Aula
               <span class="sort-indicator" id="sort-horario">⇅</span>
-              <span class="sort-tip">Clique para ordenar</span>
             </th>
             <th onclick="ordenarTabela('nivel')" data-coluna="nivel">
               Nível
               <span class="sort-indicator" id="sort-nivel">⇅</span>
-              <span class="sort-tip">Clique para ordenar</span>
             </th>
             <th onclick="ordenarTabela('dataInicio')" data-coluna="dataInicio">
               Data de Início
               <span class="sort-indicator" id="sort-dataInicio">⇅</span>
-              <span class="sort-tip">Clique para ordenar</span>
             </th>
             <th style="text-align: center; width: 180px;">Ações</th>
           </tr>
@@ -331,7 +327,6 @@
       </table>
     </div>
 
-    <!-- INFO DE ORDENAÇÃO -->
     <div id="ordenacaoInfo" style="margin-top: 10px; font-size: 0.8rem; color: #6b7280; text-align: right;">
       <span id="ordenacaoStatus">Nenhuma ordenação aplicada</span>
     </div>
@@ -343,6 +338,7 @@
     let listaAlunosCache = [];
     let listaAlunosFiltrados = [];
     let shaEdicaoAtual = null;
+    let editandoId = null;
     
     // ===== CONTROLE DE ORDENAÇÃO =====
     let ordemAtual = {
@@ -360,25 +356,26 @@
       document.getElementById("gh-token").addEventListener("input", (e) => {
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
-      
-      document.getElementById("cadNome").addEventListener("input", function() {
-        if (!shaEdicaoAtual) {
-          const id = gerarIdUnico(this.value);
-          document.getElementById("cadId").value = id;
-        }
-      });
     };
 
     function obterToken() {
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
     }
 
+    function gerarIdAutomatico() {
+      const nome = document.getElementById('cadNome').value.trim();
+      if (!nome) {
+        alert('Digite o nome do aluno primeiro para gerar o ID automaticamente.');
+        return;
+      }
+      const id = gerarIdUnico(nome);
+      document.getElementById('cadId').value = id;
+    }
+
     function gerarIdUnico(nome) {
       if (!nome) return "";
       const nomeLimpo = nome.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-      const data = new Date();
-      const ano = data.getFullYear();
-      return `${nomeLimpo}_${ano}`;
+      return nomeLimpo;
     }
 
     function validarEAutenticarToken(silencioso = false) {
@@ -437,6 +434,7 @@
       document.getElementById('cadDataInicio').value = "";
       document.getElementById('cadId').value = "";
       shaEdicaoAtual = null;
+      editandoId = null;
       document.getElementById('formTitulo').innerHTML = `<i class="fa-solid fa-user-plus"></i> Cadastrar / Editar Aluno`;
     }
 
@@ -445,7 +443,6 @@
     // =============================================
 
     function ordenarTabela(coluna) {
-      // Se já está ordenando por esta coluna, inverte a direção
       if (ordemAtual.coluna === coluna) {
         ordemAtual.direcao = ordemAtual.direcao === 'asc' ? 'desc' : 'asc';
       } else {
@@ -453,10 +450,8 @@
         ordemAtual.direcao = 'asc';
       }
 
-      // Atualizar indicadores visuais
       atualizarIndicadoresOrdenacao();
 
-      // Aplicar ordenação
       const alunosParaOrdenar = listaAlunosFiltrados.length > 0 ? listaAlunosFiltrados : listaAlunosCache;
       const alunosOrdenados = [...alunosParaOrdenar];
 
@@ -464,11 +459,9 @@
         let valorA = a[coluna] || '';
         let valorB = b[coluna] || '';
         
-        // Tratamento especial para strings (case insensitive)
         if (typeof valorA === 'string') valorA = valorA.toLowerCase().trim();
         if (typeof valorB === 'string') valorB = valorB.toLowerCase().trim();
         
-        // Tratamento para datas
         if (coluna === 'dataInicio') {
           if (!valorA) return 1;
           if (!valorB) return -1;
@@ -479,21 +472,17 @@
           return ordemAtual.direcao === 'asc' ? dataA - dataB : dataB - dataA;
         }
 
-        // Tratamento para números
         if (typeof valorA === 'number' && typeof valorB === 'number') {
           return ordemAtual.direcao === 'asc' ? valorA - valorB : valorB - valorA;
         }
 
-        // Comparação de strings
         if (valorA < valorB) return ordemAtual.direcao === 'asc' ? -1 : 1;
         if (valorA > valorB) return ordemAtual.direcao === 'asc' ? 1 : -1;
         return 0;
       });
 
-      // Atualizar a exibição
       renderizarTabela(alunosOrdenados);
 
-      // Atualizar status
       const nomesColunas = {
         'id': 'ID',
         'nome': 'Nome',
@@ -507,13 +496,11 @@
     }
 
     function atualizarIndicadoresOrdenacao() {
-      // Resetar todos os indicadores
       document.querySelectorAll('.sort-indicator').forEach(el => {
         el.textContent = '⇅';
         el.className = 'sort-indicator';
       });
 
-      // Atualizar o indicador da coluna ativa
       if (ordemAtual.coluna) {
         const indicador = document.getElementById(`sort-${ordemAtual.coluna}`);
         if (indicador) {
@@ -528,13 +515,11 @@
       ordemAtual.direcao = null;
       document.getElementById('ordenacaoStatus').textContent = 'Nenhuma ordenação aplicada';
       
-      // Resetar indicadores
       document.querySelectorAll('.sort-indicator').forEach(el => {
         el.textContent = '⇅';
         el.className = 'sort-indicator';
       });
 
-      // Re-renderizar sem ordenação
       const alunosParaMostrar = listaAlunosFiltrados.length > 0 ? listaAlunosFiltrados : listaAlunosCache;
       renderizarTabela(alunosParaMostrar);
     }
@@ -636,7 +621,9 @@
         if (nivLower.includes("intermed")) classeNivel = "nivel-intermediario";
         if (nivLower.includes("avan")) classeNivel = "nivel-avancado";
 
-        const alunoJsonEscapado = JSON.stringify(aluno).replace(/'/g, "&apos;").replace(/"/g, "&quot;");
+        // 🔥 CORREÇÃO: Escapar corretamente o JSON para o onclick
+        const alunoJson = JSON.stringify(aluno);
+        const alunoJsonEscapado = alunoJson.replace(/'/g, "\\'");
 
         tr.innerHTML = `
           <td><span class="id-badge">${aluno.id}</span></td>
@@ -661,21 +648,28 @@
       });
     }
 
+    // =============================================
+    // ===== PREENCHER PARA EDIÇÃO (CORRIGIDO) =====
+    // =============================================
+
     function preencherParaEdicao(aluno) {
-      document.getElementById('cadNome').value = aluno.nome;
-      document.getElementById('cadInstrumento').value = aluno.instrumento;
-      document.getElementById('cadHorario').value = aluno.horario === "Não informado" ? "" : aluno.horario;
+      document.getElementById('cadNome').value = aluno.nome || '';
+      document.getElementById('cadInstrumento').value = aluno.instrumento || '';
+      document.getElementById('cadHorario').value = (aluno.horario === "Não informado" || aluno.horario === '') ? '' : aluno.horario;
       document.getElementById('cadNivel').value = aluno.nivel || "Iniciante";
-      document.getElementById('cadDataInicio').value = aluno.dataInicio || "";
+      document.getElementById('cadDataInicio').value = aluno.dataInicio || '';
       document.getElementById('cadId').value = aluno.id;
-      shaEdicaoAtual = aluno.sha;
+      
+      // 🔥 CORREÇÃO: Salvar o SHA e o ID para edição
+      shaEdicaoAtual = aluno.sha || null;
+      editandoId = aluno.id;
 
       document.getElementById('formTitulo').innerHTML = `<i class="fa-solid fa-user-pen"></i> Editando: <strong>${aluno.nome}</strong> (ID: ${aluno.id})`;
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
     // =============================================
-    // ===== SALVAR ALUNO =====
+    // ===== SALVAR ALUNO (CORRIGIDO) =====
     // =============================================
 
     async function salvarAluno(event) {
@@ -688,19 +682,21 @@
       const horario = document.getElementById('cadHorario').value.trim();
       const nivel = document.getElementById('cadNivel').value;
       const dataInicio = document.getElementById('cadDataInicio').value;
-      
-      let id = document.getElementById('cadId').value.trim();
-      if (!id) {
-        id = gerarIdUnico(nome);
-        document.getElementById('cadId').value = id;
+      const id = document.getElementById('cadId').value.trim();
+
+      if (!nome) return alert("Preencha o Nome do Aluno.");
+      if (!instrumento) return alert("Preencha o Instrumento.");
+      if (!id) return alert("Preencha o ID do Aluno.");
+
+      // Validar ID (apenas letras, números, underscore e hífen)
+      if (!/^[a-zA-Z0-9_\-]+$/.test(id)) {
+        return alert('ID inválido! Use apenas letras, números, underscore (_) e hífen (-).');
       }
 
-      if (!nome || !instrumento) return alert("Preencha ao menos o Nome e o Instrumento.");
-      if (!id) return alert("Erro ao gerar ID do aluno.");
-
-      const alunoExistente = listaAlunosCache.find(a => a.id === id && a.nome !== nome);
-      if (alunoExistente && !shaEdicaoAtual) {
-        return alert(`Já existe um aluno com este ID: ${id}. Por favor, verifique.`);
+      // Verificar se o ID já existe (apenas se for um novo cadastro)
+      const alunoExistente = listaAlunosCache.find(a => a.id === id && a.id !== editandoId);
+      if (alunoExistente) {
+        return alert(`O ID "${id}" já está em uso por outro aluno. Escolha outro ID.`);
       }
 
       exibirStatus("Salvando aluno no GitHub...", "blue");
@@ -717,10 +713,17 @@
         atualizadoEm: new Date().toISOString()
       };
 
-      const alunoAntigo = listaAlunosCache.find(a => a.id === id);
-      if (alunoAntigo && alunoAntigo.dadosCompletos) {
-        dadosFinais.historico = alunoAntigo.dadosCompletos.historico || [];
-        dadosFinais.observacoes = alunoAntigo.dadosCompletos.observacoes || "";
+      // Se estiver editando, preservar dados antigos
+      if (editandoId) {
+        const alunoAntigo = listaAlunosCache.find(a => a.id === editandoId);
+        if (alunoAntigo && alunoAntigo.dadosCompletos) {
+          dadosFinais.historico = alunoAntigo.dadosCompletos.historico || [];
+          dadosFinais.observacoes = alunoAntigo.dadosCompletos.observacoes || "";
+          // Se o ID mudou, usar o SHA do arquivo antigo
+          if (editandoId !== id && alunoAntigo.sha) {
+            shaEdicaoAtual = alunoAntigo.sha;
+          }
+        }
       }
 
       const jsonString = JSON.stringify(dadosFinais, null, 2);
@@ -735,7 +738,12 @@
         branch: GH_CONFIG.branch
       };
 
-      const shaParaUsar = shaEdicaoAtual || (alunoAntigo ? alunoAntigo.sha : null);
+      // 🔥 CORREÇÃO: Usar o SHA da edição ou do aluno antigo
+      let shaParaUsar = shaEdicaoAtual;
+      if (!shaParaUsar) {
+        const alunoAntigo = listaAlunosCache.find(a => a.id === id);
+        if (alunoAntigo) shaParaUsar = alunoAntigo.sha;
+      }
       if (shaParaUsar) body.sha = shaParaUsar;
 
       try {
@@ -756,6 +764,7 @@
         }
       } catch (err) {
         exibirStatus("Erro ao salvar aluno: " + err.message, "red");
+        console.error('Erro ao salvar:', err);
       }
     }
 
@@ -980,7 +989,6 @@
       
       if (termo === '') {
         listaAlunosFiltrados = [];
-        // Se houver ordenação, reaplicar
         if (ordemAtual.coluna) {
           ordenarTabela(ordemAtual.coluna);
         } else {
@@ -994,7 +1002,6 @@
         a.id.toLowerCase().includes(termo)
       );
 
-      // Se houver ordenação, reaplicar
       if (ordemAtual.coluna) {
         ordenarTabela(ordemAtual.coluna);
       } else {
