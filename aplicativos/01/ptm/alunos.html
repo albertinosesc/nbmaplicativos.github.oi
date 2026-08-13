@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
-    /* (Mantém o mesmo CSS do seu arquivo original) */
     :root {
       --primary: #2563eb;
       --indigo: #4f46e5;
@@ -88,7 +87,35 @@
     .table-container { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; min-width: 800px; }
     th, td { border: 1px solid var(--border); padding: 10px 12px; text-align: left; }
-    th { background-color: #f1f5f9; font-weight: 600; font-size: 0.85rem; }
+    th { 
+      background-color: #f1f5f9; 
+      font-weight: 600; 
+      font-size: 0.85rem;
+      cursor: pointer;
+      user-select: none;
+      transition: 0.2s;
+      position: relative;
+    }
+    th:hover {
+      background-color: #e5e7eb;
+    }
+    th .sort-icon {
+      margin-left: 6px;
+      font-size: 0.7rem;
+      color: #9ca3af;
+      display: inline-block;
+      transition: 0.2s;
+    }
+    th .sort-icon.active {
+      color: var(--primary);
+    }
+    th .sort-icon.asc {
+      color: var(--primary);
+    }
+    th .sort-icon.desc {
+      color: var(--primary);
+      transform: rotate(180deg);
+    }
     
     .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
     .badge-nivel {
@@ -111,6 +138,37 @@
       font-size: 0.7rem;
       color: #6b7280;
       font-family: monospace;
+    }
+
+    .sort-indicator {
+      display: inline-block;
+      margin-left: 4px;
+      font-size: 0.65rem;
+      color: #9ca3af;
+    }
+    .sort-indicator.ativo {
+      color: var(--primary);
+      font-weight: bold;
+    }
+
+    /* TOOLTIP PARA ORDENAÇÃO */
+    th .sort-tip {
+      position: absolute;
+      bottom: -25px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1f2937;
+      color: white;
+      font-size: 0.6rem;
+      padding: 2px 8px;
+      border-radius: 4px;
+      white-space: nowrap;
+      opacity: 0;
+      transition: 0.2s;
+      pointer-events: none;
+    }
+    th:hover .sort-tip {
+      opacity: 1;
     }
   </style>
 </head>
@@ -141,7 +199,9 @@
       <a href="admin.html" class="btn" style="background-color: #0d9488; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
         <i class="fa-solid fa-user-gear"></i> Painel Admin
       </a>
-        <a href="biblioteca.html" class="btn" style="background-color: #8b5cf6; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-book"></i> Biblioteca  </a>
+      <a href="biblioteca.html" class="btn" style="background-color: #8b5cf6; color: white; padding: 10px 15px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;">
+        <i class="fa-solid fa-book"></i> Biblioteca
+      </a>
     </div>
   </div>
 
@@ -196,7 +256,7 @@
         </div>
       </div>
 
-      <div style="display: flex; gap: 10px; margin-top: 15px;">
+      <div style="display: flex; gap: 10px; margin-top: 15px; flex-wrap: wrap;">
         <button type="submit" class="btn-success"><i class="fa-solid fa-floppy-disk"></i> Salvar Aluno no GitHub</button>
         <button type="button" class="btn-secondary" onclick="limparFormulario()"><i class="fa-solid fa-eraser"></i> Limpar Campos</button>
         <button type="button" class="btn-secondary" onclick="sincronizarTodosOsArquivos()" style="background-color: #8b5cf6;">
@@ -211,22 +271,53 @@
   <div class="card">
     <div class="table-toolbar">
       <h3><i class="fa-solid fa-address-book"></i> Alunos Cadastrados</h3>
-      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; width: 100%; max-width: 400px;">
-        <input type="text" id="filtroNome" placeholder="Filtrar por nome..." oninput="filtrarTabela()" style="flex: 1;">
+      <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center; width: 100%; max-width: 500px;">
+        <input type="text" id="filtroNome" placeholder="Filtrar por nome ou ID..." oninput="filtrarTabela()" style="flex: 1;">
         <button onclick="carregarTodosOsAlunos()"><i class="fa-solid fa-rotate"></i> Atualizar</button>
+        <button class="btn-secondary" onclick="limparOrdenacao()" style="background-color: #6b7280; padding: 6px 12px; font-size: 0.8rem;">
+          <i class="fa-solid fa-undo"></i> Limpar Ordenação
+        </button>
       </div>
+    </div>
+
+    <div style="font-size: 0.75rem; color: #6b7280; margin-bottom: 8px;">
+      <i class="fa-solid fa-info-circle"></i> Clique no cabeçalho da coluna para ordenar A-Z ou Z-A
     </div>
 
     <div class="table-container">
       <table>
         <thead>
           <tr>
-            <th>ID do Aluno</th>
-            <th>Nome do Aluno</th>
-            <th>Instrumento</th>
-            <th>Horário da Aula</th>
-            <th>Nível</th>
-            <th>Data de Início</th>
+            <th onclick="ordenarTabela('id')" data-coluna="id">
+              ID do Aluno
+              <span class="sort-indicator" id="sort-id">⇅</span>
+              <span class="sort-tip">Clique para ordenar</span>
+            </th>
+            <th onclick="ordenarTabela('nome')" data-coluna="nome">
+              Nome do Aluno
+              <span class="sort-indicator" id="sort-nome">⇅</span>
+              <span class="sort-tip">Clique para ordenar</span>
+            </th>
+            <th onclick="ordenarTabela('instrumento')" data-coluna="instrumento">
+              Instrumento
+              <span class="sort-indicator" id="sort-instrumento">⇅</span>
+              <span class="sort-tip">Clique para ordenar</span>
+            </th>
+            <th onclick="ordenarTabela('horario')" data-coluna="horario">
+              Horário da Aula
+              <span class="sort-indicator" id="sort-horario">⇅</span>
+              <span class="sort-tip">Clique para ordenar</span>
+            </th>
+            <th onclick="ordenarTabela('nivel')" data-coluna="nivel">
+              Nível
+              <span class="sort-indicator" id="sort-nivel">⇅</span>
+              <span class="sort-tip">Clique para ordenar</span>
+            </th>
+            <th onclick="ordenarTabela('dataInicio')" data-coluna="dataInicio">
+              Data de Início
+              <span class="sort-indicator" id="sort-dataInicio">⇅</span>
+              <span class="sort-tip">Clique para ordenar</span>
+            </th>
             <th style="text-align: center; width: 180px;">Ações</th>
           </tr>
         </thead>
@@ -239,13 +330,25 @@
         </tbody>
       </table>
     </div>
+
+    <!-- INFO DE ORDENAÇÃO -->
+    <div id="ordenacaoInfo" style="margin-top: 10px; font-size: 0.8rem; color: #6b7280; text-align: right;">
+      <span id="ordenacaoStatus">Nenhuma ordenação aplicada</span>
+    </div>
   </div>
 
   <script>
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     const ALUNOS_INDEX_PATH = "alunos/index.json";
     let listaAlunosCache = [];
+    let listaAlunosFiltrados = [];
     let shaEdicaoAtual = null;
+    
+    // ===== CONTROLE DE ORDENAÇÃO =====
+    let ordemAtual = {
+      coluna: null,
+      direcao: null // 'asc' ou 'desc'
+    };
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -258,9 +361,8 @@
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
       
-      // Gerar ID automaticamente quando o nome mudar
       document.getElementById("cadNome").addEventListener("input", function() {
-        if (!shaEdicaoAtual) { // Só gera se for novo aluno
+        if (!shaEdicaoAtual) {
           const id = gerarIdUnico(this.value);
           document.getElementById("cadId").value = id;
         }
@@ -338,7 +440,109 @@
       document.getElementById('formTitulo').innerHTML = `<i class="fa-solid fa-user-plus"></i> Cadastrar / Editar Aluno`;
     }
 
-    // --- CARREGAR TODOS OS ALUNOS DO GITHUB ---
+    // =============================================
+    // ===== FUNÇÃO DE ORDENAÇÃO =====
+    // =============================================
+
+    function ordenarTabela(coluna) {
+      // Se já está ordenando por esta coluna, inverte a direção
+      if (ordemAtual.coluna === coluna) {
+        ordemAtual.direcao = ordemAtual.direcao === 'asc' ? 'desc' : 'asc';
+      } else {
+        ordemAtual.coluna = coluna;
+        ordemAtual.direcao = 'asc';
+      }
+
+      // Atualizar indicadores visuais
+      atualizarIndicadoresOrdenacao();
+
+      // Aplicar ordenação
+      const alunosParaOrdenar = listaAlunosFiltrados.length > 0 ? listaAlunosFiltrados : listaAlunosCache;
+      const alunosOrdenados = [...alunosParaOrdenar];
+
+      alunosOrdenados.sort((a, b) => {
+        let valorA = a[coluna] || '';
+        let valorB = b[coluna] || '';
+        
+        // Tratamento especial para strings (case insensitive)
+        if (typeof valorA === 'string') valorA = valorA.toLowerCase().trim();
+        if (typeof valorB === 'string') valorB = valorB.toLowerCase().trim();
+        
+        // Tratamento para datas
+        if (coluna === 'dataInicio') {
+          if (!valorA) return 1;
+          if (!valorB) return -1;
+          const dataA = new Date(valorA);
+          const dataB = new Date(valorB);
+          if (isNaN(dataA)) return 1;
+          if (isNaN(dataB)) return -1;
+          return ordemAtual.direcao === 'asc' ? dataA - dataB : dataB - dataA;
+        }
+
+        // Tratamento para números
+        if (typeof valorA === 'number' && typeof valorB === 'number') {
+          return ordemAtual.direcao === 'asc' ? valorA - valorB : valorB - valorA;
+        }
+
+        // Comparação de strings
+        if (valorA < valorB) return ordemAtual.direcao === 'asc' ? -1 : 1;
+        if (valorA > valorB) return ordemAtual.direcao === 'asc' ? 1 : -1;
+        return 0;
+      });
+
+      // Atualizar a exibição
+      renderizarTabela(alunosOrdenados);
+
+      // Atualizar status
+      const nomesColunas = {
+        'id': 'ID',
+        'nome': 'Nome',
+        'instrumento': 'Instrumento',
+        'horario': 'Horário',
+        'nivel': 'Nível',
+        'dataInicio': 'Data de Início'
+      };
+      const direcaoTexto = ordemAtual.direcao === 'asc' ? '↗️ A-Z' : '↘️ Z-A';
+      document.getElementById('ordenacaoStatus').textContent = `Ordenado por: ${nomesColunas[coluna] || coluna} (${direcaoTexto})`;
+    }
+
+    function atualizarIndicadoresOrdenacao() {
+      // Resetar todos os indicadores
+      document.querySelectorAll('.sort-indicator').forEach(el => {
+        el.textContent = '⇅';
+        el.className = 'sort-indicator';
+      });
+
+      // Atualizar o indicador da coluna ativa
+      if (ordemAtual.coluna) {
+        const indicador = document.getElementById(`sort-${ordemAtual.coluna}`);
+        if (indicador) {
+          indicador.textContent = ordemAtual.direcao === 'asc' ? '▲' : '▼';
+          indicador.className = 'sort-indicator ativo';
+        }
+      }
+    }
+
+    function limparOrdenacao() {
+      ordemAtual.coluna = null;
+      ordemAtual.direcao = null;
+      document.getElementById('ordenacaoStatus').textContent = 'Nenhuma ordenação aplicada';
+      
+      // Resetar indicadores
+      document.querySelectorAll('.sort-indicator').forEach(el => {
+        el.textContent = '⇅';
+        el.className = 'sort-indicator';
+      });
+
+      // Re-renderizar sem ordenação
+      const alunosParaMostrar = listaAlunosFiltrados.length > 0 ? listaAlunosFiltrados : listaAlunosCache;
+      renderizarTabela(alunosParaMostrar);
+    }
+
+    // =============================================
+    // ===== CARREGAR TODOS OS ALUNOS =====
+    // =============================================
+
     async function carregarTodosOsAlunos() {
       const token = obterToken();
       if (!token) return alert("Por favor, informe e confirme o Token do GitHub primeiro.");
@@ -348,7 +552,6 @@
       tbody.innerHTML = `<tr><td colspan="7" style="text-align: center;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando...</td></tr>`;
 
       try {
-        // Primeiro, tenta carregar o index.json
         let indexData = null;
         try {
           const indexRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${ALUNOS_INDEX_PATH}?ref=${GH_CONFIG.branch}`, {
@@ -361,11 +564,8 @@
             const jsonStr = new TextDecoder('utf-8').decode(bytes);
             indexData = JSON.parse(jsonStr);
           }
-        } catch (e) {
-          // Index não existe, vamos criar
-        }
+        } catch (e) {}
 
-        // Se não tem index, busca todos os arquivos na pasta alunos
         const resList = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos?ref=${GH_CONFIG.branch}`, {
           headers: { 'Authorization': `token ${token}` }
         });
@@ -389,8 +589,6 @@
           try {
             const resArq = await fetch(arq.download_url);
             const dados = await resArq.json();
-            
-            // Extrair ID do nome do arquivo
             const id = arq.name.replace('aluno_', '').replace('.json', '');
 
             listaAlunosCache.push({
@@ -408,10 +606,11 @@
           }
         }
 
-        // Ordenar por nome
         listaAlunosCache.sort((a, b) => a.nome.localeCompare(b.nome));
+        listaAlunosFiltrados = [];
 
         exibirStatus(`Total de alunos carregados: ${listaAlunosCache.length}`, "green");
+        limparOrdenacao();
         renderizarTabela(listaAlunosCache);
 
       } catch (err) {
@@ -424,7 +623,7 @@
       const tbody = document.getElementById('corpoTabelaAlunos');
       tbody.innerHTML = "";
 
-      if (alunos.length === 0) {
+      if (!alunos || alunos.length === 0) {
         tbody.innerHTML = `<tr><td colspan="7" style="text-align: center;">Nenhum aluno corresponde à busca.</td></tr>`;
         return;
       }
@@ -475,7 +674,10 @@
       window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    // --- SALVAR ALUNO (COM ID ÚNICO) ---
+    // =============================================
+    // ===== SALVAR ALUNO =====
+    // =============================================
+
     async function salvarAluno(event) {
       event.preventDefault();
       const token = obterToken();
@@ -487,7 +689,6 @@
       const nivel = document.getElementById('cadNivel').value;
       const dataInicio = document.getElementById('cadDataInicio').value;
       
-      // Usar ID existente ou gerar novo
       let id = document.getElementById('cadId').value.trim();
       if (!id) {
         id = gerarIdUnico(nome);
@@ -497,7 +698,6 @@
       if (!nome || !instrumento) return alert("Preencha ao menos o Nome e o Instrumento.");
       if (!id) return alert("Erro ao gerar ID do aluno.");
 
-      // Verificar se já existe outro aluno com este ID
       const alunoExistente = listaAlunosCache.find(a => a.id === id && a.nome !== nome);
       if (alunoExistente && !shaEdicaoAtual) {
         return alert(`Já existe um aluno com este ID: ${id}. Por favor, verifique.`);
@@ -506,7 +706,6 @@
       exibirStatus("Salvando aluno no GitHub...", "blue");
       const caminho = obterCaminhoArquivoAluno(id);
 
-      // Montar dados finais
       const dadosFinais = {
         id: id,
         aluno: nome,
@@ -518,15 +717,12 @@
         atualizadoEm: new Date().toISOString()
       };
 
-      // Se existir dados antigos, mesclar
       const alunoAntigo = listaAlunosCache.find(a => a.id === id);
       if (alunoAntigo && alunoAntigo.dadosCompletos) {
-        // Preservar dados que não estão no formulário
         dadosFinais.historico = alunoAntigo.dadosCompletos.historico || [];
         dadosFinais.observacoes = alunoAntigo.dadosCompletos.observacoes || "";
       }
 
-      // Salvar arquivo do aluno
       const jsonString = JSON.stringify(dadosFinais, null, 2);
       const utf8Bytes = new TextEncoder().encode(jsonString);
       let binaryStr = "";
@@ -551,10 +747,7 @@
 
         if (res.ok) {
           exibirStatus(`Aluno '${nome}' (ID: ${id}) salvo com sucesso!`, "green");
-          
-          // Atualizar o index.json
           await atualizarIndexAlunos(id, nome, instrumento, nivel);
-          
           limparFormulario();
           carregarTodosOsAlunos();
         } else {
@@ -566,13 +759,15 @@
       }
     }
 
-    // --- ATUALIZAR INDEX.JSON ---
+    // =============================================
+    // ===== ATUALIZAR INDEX =====
+    // =============================================
+
     async function atualizarIndexAlunos(id, nome, instrumento, nivel) {
       const token = obterToken();
       if (!token) return;
 
       try {
-        // Buscar index atual
         let indexData = { alunos: [] };
         let shaIndex = null;
 
@@ -588,11 +783,8 @@
             const jsonStr = new TextDecoder('utf-8').decode(bytes);
             indexData = JSON.parse(jsonStr);
           }
-        } catch (e) {
-          // Index não existe, criar novo
-        }
+        } catch (e) {}
 
-        // Verificar se aluno já está no index
         const alunoIndex = indexData.alunos.find(a => a.id === id);
         if (alunoIndex) {
           alunoIndex.nome = nome;
@@ -602,7 +794,6 @@
           indexData.alunos.push({ id, nome, instrumento, nivel });
         }
 
-        // Salvar index
         const indexJson = JSON.stringify(indexData, null, 2);
         const utf8Bytes = new TextEncoder().encode(indexJson);
         let binaryStr = "";
@@ -627,7 +818,10 @@
       }
     }
 
-    // --- EXCLUIR ALUNO ---
+    // =============================================
+    // ===== EXCLUIR ALUNO =====
+    // =============================================
+
     async function excluirAluno(id, nome) {
       const token = obterToken();
       if (!token) return alert("Informe e confirme o Token do GitHub antes de excluir.");
@@ -638,7 +832,6 @@
       const caminho = obterCaminhoArquivoAluno(id);
 
       try {
-        // Primeiro, buscar SHA do arquivo
         const getRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
           headers: { 'Authorization': `token ${token}` }
         });
@@ -656,9 +849,7 @@
         });
 
         if (res.ok) {
-          // Remover do index
           await removerAlunoDoIndex(id);
-          
           exibirStatus(`Aluno '${nome}' excluído com sucesso!`, "green");
           carregarTodosOsAlunos();
         } else {
@@ -710,7 +901,10 @@
       }
     }
 
-    // --- SINCRONIZAR TODOS OS DADOS DO ALUNO ---
+    // =============================================
+    // ===== SINCRONIZAR =====
+    // =============================================
+
     async function sincronizarTodosOsArquivos() {
       const id = document.getElementById('cadId').value.trim();
       const nome = document.getElementById('cadNome').value.trim();
@@ -724,7 +918,6 @@
 
       exibirStatus(`Sincronizando dados do aluno ${nome} (${id})...`, "blue");
 
-      // Arquivos que serão sincronizados
       const arquivos = [
         `alunos/aluno_${id}.json`,
         `alunos/teoria_${id}.json`,
@@ -749,7 +942,6 @@
             const jsonStr = new TextDecoder('utf-8').decode(bytes);
             const dados = JSON.parse(jsonStr);
             
-            // Garantir que o ID do aluno está correto
             if (!dados.alunoId || dados.alunoId !== id) {
               dados.alunoId = id;
               dados.aluno = nome;
@@ -773,21 +965,41 @@
               sincronizados++;
             }
           }
-        } catch (e) {
-          // Arquivo não existe, ignorar
-        }
+        } catch (e) {}
       }
 
       exibirStatus(`Sincronização concluída! ${sincronizados} arquivos atualizados.`, "green");
     }
 
+    // =============================================
+    // ===== FILTRAR TABELA =====
+    // =============================================
+
     function filtrarTabela() {
-      const termo = document.getElementById('filtroNome').value.toLowerCase();
-      const alunosFiltrados = listaAlunosCache.filter(a => 
+      const termo = document.getElementById('filtroNome').value.toLowerCase().trim();
+      
+      if (termo === '') {
+        listaAlunosFiltrados = [];
+        // Se houver ordenação, reaplicar
+        if (ordemAtual.coluna) {
+          ordenarTabela(ordemAtual.coluna);
+        } else {
+          renderizarTabela(listaAlunosCache);
+        }
+        return;
+      }
+
+      listaAlunosFiltrados = listaAlunosCache.filter(a => 
         a.nome.toLowerCase().includes(termo) || 
         a.id.toLowerCase().includes(termo)
       );
-      renderizarTabela(alunosFiltrados);
+
+      // Se houver ordenação, reaplicar
+      if (ordemAtual.coluna) {
+        ordenarTabela(ordemAtual.coluna);
+      } else {
+        renderizarTabela(listaAlunosFiltrados);
+      }
     }
   </script>
 </body>
