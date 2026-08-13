@@ -225,6 +225,7 @@
 
     .section-content { transition: all 0.3s ease; }
     .section-content.collapsed { display: none; }
+    .section-hidden { display: none !important; }
 
     table {
       width: 100%;
@@ -508,6 +509,60 @@
     }
     .global-controls .control-group .btn-export:hover { background: #15803d; }
 
+    /* ABAS DE SELEÇÃO DE CAMPOS */
+    .tabs-container {
+      display: flex;
+      gap: 4px;
+      flex-wrap: wrap;
+      padding: 6px 10px;
+      background: #f8fafc;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      margin-bottom: 15px;
+    }
+    .tabs-container .tab-btn {
+      padding: 4px 14px;
+      font-size: 0.75rem;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: white;
+      cursor: pointer;
+      transition: 0.2s;
+      font-weight: 500;
+      color: #4b5563;
+      white-space: nowrap;
+    }
+    .tabs-container .tab-btn:hover {
+      background: #f1f5f9;
+    }
+    .tabs-container .tab-btn.active {
+      background: var(--primary);
+      color: white;
+      border-color: var(--primary);
+    }
+    .tabs-container .tab-btn.active:hover {
+      background: #1d4ed8;
+    }
+    .tabs-container .tab-btn .tab-icon {
+      margin-right: 4px;
+    }
+    .tabs-container .tab-all {
+      background: #e5e7eb;
+      color: #374151;
+      font-weight: 600;
+    }
+    .tabs-container .tab-all:hover {
+      background: #d1d5db;
+    }
+    .tabs-container .tab-all.active {
+      background: #4b5563;
+      color: white;
+      border-color: #4b5563;
+    }
+    .tabs-container .tab-all.active:hover {
+      background: #374151;
+    }
+
     @media (max-width: 768px) {
       .grid-relatorio { grid-template-columns: 1fr; }
       .header-bar { flex-direction: column; align-items: stretch; }
@@ -515,16 +570,18 @@
       .global-controls { flex-direction: column; align-items: stretch; }
       .search-card { flex-direction: column; }
       .search-card input { width: 100%; }
+      .tabs-container { justify-content: center; }
     }
 
     @media print {
       .header-bar, .github-auth-panel, .search-card, .upload-section, .no-print,
       .section-title .btn-print-section, .section-title .btn-toggle-section,
-      .filter-bar, .global-controls, .modal-overlay { display: none !important; }
+      .filter-bar, .global-controls, .modal-overlay, .tabs-container { display: none !important; }
       body { background: white; padding: 10px; }
       .card { box-shadow: none; border: 1px solid #ccc; break-inside: avoid; }
       .section-title { border-bottom: 2px solid #000; }
       .section-content.collapsed { display: block !important; }
+      .section-hidden { display: block !important; }
     }
   </style>
 </head>
@@ -548,14 +605,12 @@
 
   <!-- AUTENTICAÇÃO + BUSCA + UPLOAD -->
   <div class="card">
-    <!-- GitHub Auth -->
     <div class="github-auth-panel">
       <i class="fa-brands fa-github" style="font-size: 1.2rem;"></i>
       <input type="password" id="gh-token" placeholder="Cole aqui seu Token do GitHub (ghp_...)" style="flex: 2;">
       <button style="background-color: #16a34a;" onclick="validarEAutenticarToken()"><i class="fa-solid fa-key"></i> Confirmar Token</button>
     </div>
 
-    <!-- Busca -->
     <div class="search-card" style="margin-top: 10px;">
       <input type="text" id="buscaAluno" placeholder="Digite o ID ou Nome do aluno...">
       <button onclick="carregarRelatorioCompleto()"><i class="fa-solid fa-magnifying-glass"></i> Gerar Relatório</button>
@@ -566,7 +621,6 @@
       <div id="listaAlunosContainer"></div>
     </div>
 
-    <!-- Upload JSON -->
     <div class="upload-section no-print" style="margin-top: 10px;">
       <div id="uploadArea" class="upload-area" onclick="document.getElementById('fileInput').click()">
         <i class="fa-solid fa-cloud-arrow-up"></i>
@@ -584,6 +638,36 @@
     </div>
 
     <div id="statusMsg" class="status-msg"></div>
+  </div>
+
+  <!-- ABAS DE SELEÇÃO DE CAMPOS -->
+  <div class="card no-print" id="tabsContainer" style="display: none;">
+    <div class="tabs-container">
+      <button class="tab-btn tab-all active" data-tab="todos" onclick="selecionarAba('todos', this)">
+        <i class="fa-solid fa-eye"></i> Todos
+      </button>
+      <button class="tab-btn active" data-tab="dados" onclick="selecionarAba('dados', this)">
+        <span class="tab-icon">📋</span> Dados
+      </button>
+      <button class="tab-btn active" data-tab="teoria" onclick="selecionarAba('teoria', this)">
+        <span class="tab-icon">📚</span> Conceitos
+      </button>
+      <button class="tab-btn active" data-tab="tonalidades" onclick="selecionarAba('tonalidades', this)">
+        <span class="tab-icon">🎵</span> Tonalidades
+      </button>
+      <button class="tab-btn active" data-tab="musicas" onclick="selecionarAba('musicas', this)">
+        <span class="tab-icon">🎶</span> Músicas
+      </button>
+      <button class="tab-btn active" data-tab="lotes" onclick="selecionarAba('lotes', this)">
+        <span class="tab-icon">📦</span> Lotes
+      </button>
+      <button class="tab-btn active" data-tab="lotesArquivados" onclick="selecionarAba('lotesArquivados', this)">
+        <span class="tab-icon">📦</span> Lotes Arquivados
+      </button>
+      <button class="tab-btn active" data-tab="notas" onclick="selecionarAba('notas', this)">
+        <span class="tab-icon">📝</span> Notas
+      </button>
+    </div>
   </div>
 
   <!-- CONTROLES GLOBAIS -->
@@ -617,7 +701,7 @@
   <div id="relatorioContainer" style="display: none;">
     <div class="grid-relatorio">
       <!-- DADOS DO ALUNO (FULL WIDTH) -->
-      <div class="card full-width" id="section-dados" data-section="dados" data-status="todos">
+      <div class="card full-width section-tab" id="section-dados" data-section="dados" data-tab="dados" data-status="todos">
         <div class="section-title" onclick="toggleSection('dados')">
           <div class="title-left">
             <i class="fa-solid fa-user" style="color: #4f46e5;"></i>
@@ -646,7 +730,7 @@
       </div>
 
       <!-- CONCEITOS -->
-      <div class="card" id="section-teoria" data-section="teoria" data-status="todos">
+      <div class="card section-tab" id="section-teoria" data-section="teoria" data-tab="teoria" data-status="todos">
         <div class="section-title" onclick="toggleSection('teoria')">
           <div class="title-left">
             <i class="fa-solid fa-brain" style="color: #27ae60;"></i>
@@ -676,7 +760,7 @@
       </div>
 
       <!-- TONALIDADES -->
-      <div class="card" id="section-tonalidades" data-section="tonalidades" data-status="todos">
+      <div class="card section-tab" id="section-tonalidades" data-section="tonalidades" data-tab="tonalidades" data-status="todos">
         <div class="section-title" onclick="toggleSection('tonalidades')">
           <div class="title-left">
             <i class="fa-solid fa-sliders" style="color: #2563eb;"></i>
@@ -706,7 +790,7 @@
       </div>
 
       <!-- MÚSICAS (FULL WIDTH) -->
-      <div class="card full-width" id="section-musicas" data-section="musicas" data-status="todos">
+      <div class="card full-width section-tab" id="section-musicas" data-section="musicas" data-tab="musicas" data-status="todos">
         <div class="section-title" onclick="toggleSection('musicas')">
           <div class="title-left">
             <i class="fa-solid fa-compact-disc" style="color: #8e44ad;"></i>
@@ -738,7 +822,7 @@
       </div>
 
       <!-- LOTES (FULL WIDTH) -->
-      <div class="card full-width" id="section-lotes" data-section="lotes" data-status="todos">
+      <div class="card full-width section-tab" id="section-lotes" data-section="lotes" data-tab="lotes" data-status="todos">
         <div class="section-title" onclick="toggleSection('lotes')">
           <div class="title-left">
             <i class="fa-solid fa-boxes" style="color: #7c3aed;"></i>
@@ -769,7 +853,7 @@
       </div>
 
       <!-- LOTES ARQUIVADOS (FULL WIDTH) -->
-      <div class="card full-width" id="section-lotesArquivados" data-section="lotesArquivados" data-status="todos">
+      <div class="card full-width section-tab" id="section-lotesArquivados" data-section="lotesArquivados" data-tab="lotesArquivados" data-status="todos">
         <div class="section-title" onclick="toggleSection('lotesArquivados')">
           <div class="title-left">
             <i class="fa-solid fa-archive" style="color: #6b21a8;"></i>
@@ -792,7 +876,7 @@
       </div>
 
       <!-- NOTAS (FULL WIDTH) -->
-      <div class="card full-width" id="section-notas" data-section="notas" data-status="todos">
+      <div class="card full-width section-tab" id="section-notas" data-section="notas" data-tab="notas" data-status="todos">
         <div class="section-title" onclick="toggleSection('notas')">
           <div class="title-left">
             <i class="fa-solid fa-note-sticky" style="color: #d97706;"></i>
@@ -857,7 +941,6 @@
         carregarRelatorioCompleto();
       }
 
-      // Drag and Drop
       const uploadArea = document.getElementById('uploadArea');
       uploadArea.addEventListener('dragover', (e) => { e.preventDefault(); uploadArea.classList.add('dragover'); });
       uploadArea.addEventListener('dragleave', () => { uploadArea.classList.remove('dragover'); });
@@ -1022,7 +1105,6 @@
       dadosTeoriaCache = dadosTeoria;
       dadosMusicasCache = dadosMusicas;
 
-      // Carregar notas
       const pasta = `alunos/notas_${slug}`;
       try {
         const arquivos = await listarArquivosNotas(pasta, token);
@@ -1035,7 +1117,6 @@
         notasArquivos = [];
       }
 
-      // Montar dados para renderizar
       dadosAtuais = {
         metadata: {
           exportadoEm: new Date().toISOString(),
@@ -1049,7 +1130,6 @@
         notas: {}
       };
 
-      // Adicionar notas ao dadosAtuais
       notasArquivos.forEach(arquivo => {
         const nome = arquivo.name.replace('.txt', '');
         dadosAtuais.notas[nome] = notasConteudos[arquivo.name] || '';
@@ -1057,6 +1137,7 @@
 
       renderizarRelatorio(dadosAtuais);
       document.getElementById('globalControls').style.display = 'block';
+      document.getElementById('tabsContainer').style.display = 'block';
 
       exibirStatus(`Relatório do aluno "${alunoNome}" (ID: ${slug}) gerado com sucesso!`, "green");
     }
@@ -1094,7 +1175,6 @@
           document.getElementById('fileName').textContent = file.name;
           document.getElementById('fileSize').textContent = (file.size / 1024).toFixed(1) + ' KB';
           
-          // Atualizar campos de busca
           const alunoId = dados.metadata?.alunoId || dados.dadosAluno?.id || 'aluno_importado';
           const alunoNome = dados.metadata?.alunoNome || dados.dadosAluno?.aluno || alunoId;
           document.getElementById('buscaAluno').value = alunoId;
@@ -1103,6 +1183,7 @@
 
           renderizarRelatorio(dados);
           document.getElementById('globalControls').style.display = 'block';
+          document.getElementById('tabsContainer').style.display = 'block';
           exibirStatus(`✅ Relatório carregado com sucesso! (${file.name})`, 'green');
           
         } catch (err) {
@@ -1118,8 +1199,33 @@
       document.getElementById('fileInfo').style.display = 'none';
       document.getElementById('fileInput').value = '';
       document.getElementById('globalControls').style.display = 'none';
+      document.getElementById('tabsContainer').style.display = 'none';
       document.getElementById('relatorioContainer').style.display = 'none';
       exibirStatus('', '');
+    }
+
+    // =============================================
+    // ===== ABAS DE SELEÇÃO DE CAMPOS =====
+    // =============================================
+
+    function selecionarAba(tab, btn) {
+      // Atualizar botões
+      const container = document.getElementById('tabsContainer');
+      const botoes = container.querySelectorAll('.tab-btn');
+      botoes.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      // Mostrar/esconder seções
+      document.querySelectorAll('.section-tab').forEach(section => {
+        const sectionTab = section.dataset.tab;
+        if (tab === 'todos') {
+          section.style.display = '';
+        } else if (sectionTab === tab) {
+          section.style.display = '';
+        } else {
+          section.style.display = 'none';
+        }
+      });
     }
 
     // =============================================
@@ -1136,6 +1242,12 @@
       renderizarLotes(dados);
       renderizarLotesArquivados(dados);
       renderizarNotas(dados);
+
+      // Resetar abas para mostrar todos
+      const botoes = document.querySelectorAll('.tab-btn');
+      botoes.forEach(b => b.classList.remove('active'));
+      document.querySelector('.tab-btn[data-tab="todos"]').classList.add('active');
+      document.querySelectorAll('.section-tab').forEach(s => s.style.display = '');
     }
 
     // =============================================
@@ -1866,7 +1978,7 @@
     }
 
     console.log('✅ Relatório do Aluno unificado carregado!');
-    console.log('📌 Carregue do GitHub ou importe um arquivo JSON.');
+    console.log('📌 Use as abas para selecionar quais campos visualizar.');
   </script>
 </body>
 </html>
