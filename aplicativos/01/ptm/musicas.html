@@ -1178,96 +1178,113 @@ async function carregarListaAlunos() {
   }
 }
 
-    // =============================================
-    // ===== CARREGAR MÚSICAS DO ALUNO =====
-    // =============================================
+   // ===== CARREGAR MÚSICAS DO ALUNO (FUNÇÃO DA PÁGINA musicas.html) =====
+async function carregarMusicasAluno() {
+  const busca = document.getElementById('buscaAluno').value.trim();
+  const token = obterToken();
 
-    async function carregarMusicasAluno() {
-      const busca = document.getElementById('buscaAluno').value.trim();
-      const token = obterToken();
+  if (!busca) return alert("Digite o ID ou nome do aluno.");
+  if (!token) return alert("Informe e confirme o Token do GitHub.");
 
-      if (!busca) return alert("Digite o ID ou nome do aluno.");
-      if (!token) return alert("Informe e confirme o Token do GitHub.");
-
-      const alunoId = await buscarIdAluno(busca);
-      alunoIdAtual = alunoId;
-      alunoNomeAtual = busca;
-      
-      const caminhosParaTestar = [
-        `alunos/musica_${alunoId}.json`,
-        `alunos/aluno_${alunoId}.json`
-      ];
-
-      exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
-
-      let dadosCarregados = null;
-      let shaEncontrado = null;
-
-      for (const caminho of caminhosParaTestar) {
-        try {
-          const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-            headers: { 'Authorization': `token ${token}` }
-          });
-          
-          if (res.ok) {
-            const data = await res.json();
-            shaEncontrado = data.sha;
-            const base64Clean = data.content.replace(/\s/g, '');
-            const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-            const jsonStr = new TextDecoder('utf-8').decode(bytes);
-            dadosCarregados = JSON.parse(jsonStr);
-            break;
-          }
-        } catch (e) {
-          // Continua tentando o próximo caminho
-        }
-      }
-
-      try {
-        let musicasDoAluno = [];
-        let lotesTempo = {};
-
-        if (dadosCarregados) {
-          shaArquivoAtual = shaEncontrado;
-          musicasDoAluno = dadosCarregados.repertorio || [];
-          lotesTempo = dadosCarregados.lotesTempo || {};
-          exibirStatus(`✅ Dados carregados. ${musicasDoAluno.length} músicas.`, "green");
-        } else {
-          shaArquivoAtual = null;
-          exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
-        }
-
-        repertorioAtual = musicasDoAluno.map(m => ({
-          ...m,
-          nome: m.nome || m.title,
-          lote: m.lote || m.book || 'Geral',
-          abcFile: m.abcFile || ''
-        }));
-
-        dadosMusicasCache = { repertorio: repertorioAtual };
-        atualizarOpcoesLote();
-        await renderizarTabela();
-        verificarLoteConcluido();
-
-        const selectLote = document.getElementById('filterMusicaLote');
-        const loteSelecionado = selectLote.value;
-        if (loteSelecionado !== 'todos' && lotesTempo[loteSelecionado]) {
-          segundosTotais = lotesTempo[loteSelecionado].tempoSegundos || 0;
-          cronometroLoteAtual = loteSelecionado;
-          document.getElementById('cronometroBar').style.display = 'flex';
-          document.getElementById('cronometroDisplay').textContent = formatarTempo(segundosTotais);
-          document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado} - ${alunoNomeAtual}`;
-        }
-
-        exibirStatus(`✅ Aluno ${alunoId} carregado com sucesso!`, "green");
-        showToast(`🎶 ${repertorioAtual.length} músicas carregadas!`, 'success');
-
-      } catch (e) {
-        exibirStatus("❌ Erro ao carregar: " + e.message, "red");
-        showToast(`❌ Erro: ${e.message}`, 'error');
-        console.error('Erro ao carregar aluno:', e);
-      }
+  const alunoId = await buscarIdAluno(busca);
+  alunoIdAtual = alunoId;
+  
+  // 🔥 BUSCAR O NOME DO ALUNO NO ARQUIVO aluno_*.json
+  try {
+    const caminhoAluno = `alunos/aluno_${alunoId}.json`;
+    const resAluno = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminhoAluno}?ref=${GH_CONFIG.branch}`, {
+      headers: { 'Authorization': `token ${token}` }
+    });
+    if (resAluno.ok) {
+      const data = await resAluno.json();
+      const base64Clean = data.content.replace(/\s/g, '');
+      const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+      const jsonStr = new TextDecoder('utf-8').decode(bytes);
+      const alunoData = JSON.parse(jsonStr);
+      alunoNomeAtual = alunoData.aluno || alunoData.nome || alunoId;
+    } else {
+      alunoNomeAtual = alunoId;
     }
+  } catch (e) {
+    alunoNomeAtual = alunoId;
+  }
+  
+  // Tentar carregar TANTO musica_ QUANTO aluno_
+  const caminhosParaTestar = [
+    `alunos/musica_${alunoId}.json`,
+    `alunos/aluno_${alunoId}.json`
+  ];
+
+  exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
+
+  let dadosCarregados = null;
+  let shaEncontrado = null;
+
+  for (const caminho of caminhosParaTestar) {
+    try {
+      const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+        headers: { 'Authorization': `token ${token}` }
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        shaEncontrado = data.sha;
+        const base64Clean = data.content.replace(/\s/g, '');
+        const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+        const jsonStr = new TextDecoder('utf-8').decode(bytes);
+        dadosCarregados = JSON.parse(jsonStr);
+        break;
+      }
+    } catch (e) {
+      // Continua tentando o próximo caminho
+    }
+  }
+
+  try {
+    let musicasDoAluno = [];
+    let lotesTempo = {};
+
+    if (dadosCarregados) {
+      shaArquivoAtual = shaEncontrado;
+      musicasDoAluno = dadosCarregados.repertorio || [];
+      lotesTempo = dadosCarregados.lotesTempo || {};
+      exibirStatus(`✅ Dados carregados. ${musicasDoAluno.length} músicas.`, "green");
+    } else {
+      shaArquivoAtual = null;
+      exibirStatus(`Aluno ${alunoId} novo ou sem repertório salvo.`, "orange");
+    }
+
+    repertorioAtual = musicasDoAluno.map(m => ({
+      ...m,
+      nome: m.nome || m.title,
+      lote: m.lote || m.book || 'Geral',
+      abcFile: m.abcFile || ''
+    }));
+
+    dadosMusicasCache = { repertorio: repertorioAtual };
+    atualizarOpcoesLote();
+    await renderizarTabela();
+    verificarLoteConcluido();
+
+    const selectLote = document.getElementById('filterMusicaLote');
+    const loteSelecionado = selectLote.value;
+    if (loteSelecionado !== 'todos' && lotesTempo[loteSelecionado]) {
+      segundosTotais = lotesTempo[loteSelecionado].tempoSegundos || 0;
+      cronometroLoteAtual = loteSelecionado;
+      document.getElementById('cronometroBar').style.display = 'flex';
+      document.getElementById('cronometroDisplay').textContent = formatarTempo(segundosTotais);
+      document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado} - ${alunoNomeAtual || alunoId}`;
+    }
+
+    exibirStatus(`✅ Aluno ${alunoId} carregado com sucesso!`, "green");
+    showToast(`🎶 ${repertorioAtual.length} músicas carregadas!`, 'success');
+
+  } catch (e) {
+    exibirStatus("❌ Erro ao carregar: " + e.message, "red");
+    showToast(`❌ Erro: ${e.message}`, 'error');
+    console.error('Erro ao carregar aluno:', e);
+  }
+}
 
     // =============================================
     // ===== FUNÇÕES DE GESTÃO DE REPERTÓRIO =====
