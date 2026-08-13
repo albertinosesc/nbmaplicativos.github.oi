@@ -84,7 +84,6 @@
       align-items: center;
       gap: 5px;
     }
-    /* ESTATÍSTICAS */
     .stats {
       display: flex;
       gap: 15px;
@@ -108,7 +107,6 @@
       font-size: 0.8rem;
       color: #6b7280;
     }
-    /* LISTA DE LOTES */
     .lotes-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
@@ -244,11 +242,6 @@
     .filters .filter-group select:focus {
       outline: 2px solid var(--primary);
     }
-    @media (max-width: 768px) {
-      .lotes-grid { grid-template-columns: 1fr; }
-      .stats { justify-content: center; }
-    }
-    /* FILTRO POR PERÍODO */
     .period-filter {
       display: flex;
       gap: 8px;
@@ -267,6 +260,10 @@
       font-size: 0.8rem;
       width: 130px;
     }
+    @media (max-width: 768px) {
+      .lotes-grid { grid-template-columns: 1fr; }
+      .stats { justify-content: center; }
+    }
   </style>
 </head>
 <body>
@@ -277,7 +274,7 @@
       <a href="index.html" style="background-color: #2563eb;"><i class="fa-solid fa-music"></i> TPM</a>
       <a href="conceitos.html" style="background-color: #27ae60;"><i class="fa-solid fa-brain"></i> Conceitos</a>
       <a href="tonalidades.html" style="background-color: #8b5cf6;"><i class="fa-solid fa-sliders"></i> Tonalidades</a>
-      <a href="musicas.html" style="background-color: #dc2626;"><i class="fa-solid fa-compact-disc"></i> Músicas</a>
+      <a href="musicas.html" style="background-color: #8e44ad;"><i class="fa-solid fa-compact-disc"></i> Músicas</a>
       <a href="relatorio.html" style="background-color: #e67e22;"><i class="fa-solid fa-file-lines"></i> Relatório</a>
       <a href="alunos.html" style="background-color: #4f46e5;"><i class="fa-solid fa-users"></i> Alunos</a>
       <a href="admin.html" style="background-color: #0d9488;"><i class="fa-solid fa-user-gear"></i> Admin</a>
@@ -470,8 +467,16 @@
 
         const files = await res.json();
         const alunos = files
-          .filter(f => f.name.startsWith('aluno_') && f.name.endsWith('.json'))
-          .map(f => f.name.replace('aluno_', '').replace('.json', ''))
+          .filter(f => (f.name.startsWith('aluno_') || f.name.startsWith('musica_')) && f.name.endsWith('.json'))
+          .map(f => {
+            const nome = f.name;
+            if (nome.startsWith('aluno_')) {
+              return nome.replace('aluno_', '').replace('.json', '');
+            } else if (nome.startsWith('musica_')) {
+              return nome.replace('musica_', '').replace('.json', '');
+            }
+            return nome.replace('.json', '');
+          })
           .sort();
 
         if (alunos.length === 0) {
@@ -493,6 +498,8 @@
 
     // --- CALCULAR TEMPO DE ESTUDO ---
     function calcularTempo(dataInicio, dataFim) {
+      if (!dataInicio || !dataFim) return 'Não informado';
+      
       const inicio = new Date(dataInicio);
       const fim = new Date(dataFim);
       const diffMs = fim - inicio;
@@ -529,11 +536,15 @@
     // --- FORMATAR DATA ---
     function formatarData(dataISO) {
       if (!dataISO) return 'Não informada';
-      const data = new Date(dataISO);
-      return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      try {
+        const data = new Date(dataISO);
+        return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+      } catch (e) {
+        return 'Data inválida';
+      }
     }
 
-    // --- CARREGAR ARQUIVADOS ---
+    // --- CARREGAR ARQUIVADOS (CORRIGIDO) ---
     async function carregarArquivados() {
       const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
@@ -574,7 +585,8 @@
         const jsonStr = new TextDecoder('utf-8').decode(bytes);
         const json = JSON.parse(jsonStr);
 
-        lotesArquivados = json.lotesArquivados || [];
+        // 🔥 CORREÇÃO: A chave correta é 'arquivados', não 'lotesArquivados'
+        lotesArquivados = json.arquivados || [];
         
         if (lotesArquivados.length === 0) {
           document.getElementById('filtrosCard').style.display = 'none';
@@ -599,6 +611,7 @@
 
       } catch (err) {
         exibirStatus("❌ Erro ao carregar: " + err.message, "red");
+        console.error('Erro ao carregar arquivados:', err);
       }
     }
 
@@ -611,13 +624,18 @@
 
       lotesFiltrados.forEach(lote => {
         totalMusicas += lote.totalMusicas || lote.musicas?.length || 0;
-        if (lote.dataInicio && lote.dataConclusao) {
-          const inicio = new Date(lote.dataInicio);
-          const fim = new Date(lote.dataConclusao);
-          const diffDias = Math.floor((fim - inicio) / (1000 * 60 * 60 * 24));
-          if (diffDias > 0) {
-            somaTempos += diffDias;
-            lotesComTempo++;
+        // Tentar calcular tempo usando dataArquivamento
+        if (lote.dataArquivamento) {
+          // Usar a data de arquivamento como referência
+          const dataArq = new Date(lote.dataArquivamento);
+          // Se tiver data de início, calcular diferença
+          if (lote.dataInicio) {
+            const inicio = new Date(lote.dataInicio);
+            const diffDias = Math.floor((dataArq - inicio) / (1000 * 60 * 60 * 24));
+            if (diffDias > 0) {
+              somaTempos += diffDias;
+              lotesComTempo++;
+            }
           }
         }
       });
@@ -648,13 +666,13 @@
         if (buscaLote && !lote.nome.toLowerCase().includes(buscaLote)) return false;
 
         if (dataInicio) {
-          const dataLote = new Date(lote.dataConclusao || lote.dataInicio);
+          const dataLote = new Date(lote.dataArquivamento || lote.dataConclusao || lote.dataInicio);
           const dataInicioFiltro = new Date(dataInicio);
           dataInicioFiltro.setHours(0, 0, 0, 0);
           if (dataLote < dataInicioFiltro) return false;
         }
         if (dataFim) {
-          const dataLote = new Date(lote.dataConclusao || lote.dataInicio);
+          const dataLote = new Date(lote.dataArquivamento || lote.dataConclusao || lote.dataInicio);
           const dataFimFiltro = new Date(dataFim);
           dataFimFiltro.setHours(23, 59, 59, 999);
           if (dataLote > dataFimFiltro) return false;
@@ -675,7 +693,7 @@
       showToast('🧹 Filtros limpos!', 'info');
     }
 
-    // --- RENDERIZAR LOTES (SEM A LISTA DE MÚSICAS) ---
+    // --- RENDERIZAR LOTES ---
     function renderizarLotes() {
       const container = document.getElementById('lotesContainer');
 
@@ -695,33 +713,39 @@
       lotesFiltrados.forEach((lote, idx) => {
         const musicas = lote.musicas || [];
         const total = lote.totalMusicas || musicas.length;
-        const dataInicio = formatarData(lote.dataInicio);
-        const dataConclusao = formatarData(lote.dataConclusao);
-        const tempo = lote.dataInicio && lote.dataConclusao 
-           ? calcularTempo(lote.dataInicio, lote.dataConclusao) 
-           : 'Não informado';
+        const dataArquivamento = formatarData(lote.dataArquivamento);
+        
+        // Tentar extrair informações adicionais
+        const dataInicio = lote.dataInicio ? formatarData(lote.dataInicio) : 'Não informada';
+        const dataConclusao = lote.dataConclusao ? formatarData(lote.dataConclusao) : dataArquivamento;
+        
+        let tempo = 'Não informado';
+        if (lote.dataInicio && lote.dataArquivamento) {
+          tempo = calcularTempo(lote.dataInicio, lote.dataArquivamento);
+        }
 
         html += `
           <div class="lote-card">
             <div class="lote-header">
               <span class="lote-id"><i class="fa-solid fa-hashtag"></i> ${lote.id || `Lote ${idx + 1}`}</span>
-              <span class="badge-concluido"><i class="fa-solid fa-check"></i> Concluído</span>
+              <span class="badge-concluido"><i class="fa-solid fa-check"></i> Arquivado</span>
             </div>
 
             <div class="lote-nome">${lote.nome || 'Lote sem nome'}</div>
 
             <div class="lote-detalhes">
               <span><i class="fa-regular fa-calendar-plus"></i> Início: ${dataInicio}</span>
-              <span><i class="fa-regular fa-calendar-check"></i> Conclusão: ${dataConclusao}</span>
-              <span><i class="fa-regular fa-clock"></i> Tempo: <span class="tempo">${tempo}</span></span>
+              <span><i class="fa-regular fa-calendar-check"></i> Arquivado em: ${dataArquivamento}</span>
+              <span><i class="fa-regular fa-clock"></i> Tempo de estudo: <span class="tempo">${tempo}</span></span>
               <span><i class="fa-regular fa-list"></i> ${total} música${total > 1 ? 's' : ''}</span>
+              <span><i class="fa-regular fa-user"></i> Aluno: ${lote.alunoNome || alunoIdAtual || 'Não informado'}</span>
             </div>
 
             <div class="lote-actions">
-              <button onclick="verLoteNoRelatorio('${lote.id}')" style="background-color: #0284c7;">
+              <button onclick="verLoteNoRelatorio('${lote.nome}')" style="background-color: #0284c7;">
                 <i class="fa-solid fa-file-lines"></i> Ver no Relatório
               </button>
-              <button onclick="desarquivarLote('${lote.id}')" class="btn-warning">
+              <button onclick="desarquivarLote('${lote.nome}')" class="btn-warning">
                 <i class="fa-solid fa-arrow-rotate-left"></i> Desarquivar
               </button>
             </div>
@@ -734,23 +758,23 @@
     }
 
     // --- VER LOTE NO RELATÓRIO ---
-    function verLoteNoRelatorio(loteId) {
+    function verLoteNoRelatorio(loteNome) {
       const alunoId = alunoIdAtual || document.getElementById('buscaAluno').value.trim();
       if (alunoId) {
-        window.open(`relatorio.html?aluno=${encodeURIComponent(alunoId)}`, '_blank');
+        window.open(`relatorio.html?aluno=${encodeURIComponent(alunoId)}&lote=${encodeURIComponent(loteNome)}`, '_blank');
       } else {
         showToast('⚠️ Aluno não identificado.', 'error');
       }
     }
 
     // --- DESARQUIVAR LOTE ---
-    async function desarquivarLote(loteId) {
-      if (!confirm(`Tem certeza que deseja desarquivar este lote? Ele voltará para a lista de músicas do aluno.`)) return;
+    async function desarquivarLote(loteNome) {
+      if (!confirm(`Tem certeza que deseja desarquivar o lote "${loteNome}"? Ele voltará para a lista de músicas do aluno.`)) return;
 
       const token = obterToken();
       if (!token || !alunoIdAtual) return;
 
-      const lote = lotesArquivados.find(l => l.id === loteId);
+      const lote = lotesArquivados.find(l => l.nome === loteNome);
       if (!lote) {
         showToast('❌ Lote não encontrado.', 'error');
         return;
@@ -773,18 +797,24 @@
           const jsonStr = new TextDecoder('utf-8').decode(bytes);
           musicaData = JSON.parse(jsonStr);
         } else {
-          musicaData = { alunoId: alunoIdAtual, aluno: lote.aluno || '', repertorio: [] };
+          musicaData = { 
+            alunoId: alunoIdAtual, 
+            aluno: lote.alunoNome || alunoIdAtual, 
+            repertorio: [],
+            lotesTempo: {}
+          };
         }
 
         const musicasLote = lote.musicas || [];
         let adicionadas = 0;
         musicasLote.forEach(m => {
-          const nome = typeof m === 'string' ? m : m.nome;
+          const nome = typeof m === 'string' ? m : (m.nome || m.title);
           if (nome && !musicaData.repertorio.some(r => r.nome === nome)) {
             musicaData.repertorio.push({
               nome: nome,
               status: 'Em Estudo',
-              obs: ''
+              obs: m.obs || '',
+              lote: lote.nome
             });
             adicionadas++;
           }
@@ -809,12 +839,22 @@
 
         if (!putRes.ok) throw new Error("Erro ao salvar músicas.");
 
+        // Remover o lote dos arquivados
         const caminhoArquivados = `alunos/arquivados_${alunoIdAtual}.json`;
         const arquivadosAtualizados = {
           alunoId: alunoIdAtual,
-          aluno: lote.aluno || '',
-          lotesArquivados: lotesArquivados.filter(l => l.id !== loteId)
+          alunoNome: lote.alunoNome || alunoIdAtual,
+          arquivados: lotesArquivados.filter(l => l.nome !== loteNome),
+          lotes: {}
         };
+        
+        // Reconstruir o objeto lotes
+        arquivadosAtualizados.arquivados.forEach(l => {
+          arquivadosAtualizados.lotes[l.nome] = {
+            dataArquivamento: l.dataArquivamento,
+            totalMusicas: l.totalMusicas || l.musicas?.length || 0
+          };
+        });
 
         const jsonArquivados = JSON.stringify(arquivadosAtualizados, null, 2);
         const utf8BytesArq = new TextEncoder().encode(jsonArquivados);
@@ -849,6 +889,7 @@
 
       } catch (err) {
         showToast("❌ Erro ao desarquivar: " + err.message, 'error');
+        console.error('Erro ao desarquivar:', err);
       }
     }
   </script>
