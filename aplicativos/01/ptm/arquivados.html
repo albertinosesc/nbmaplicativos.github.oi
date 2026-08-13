@@ -446,51 +446,74 @@
     }
 
     // --- CARREGAR LISTA DE ALUNOS (CORRIGIDO) ---
-    async function carregarListaAlunos() {
-      const token = obterToken();
-      if (!token) return alert("Informe o token do GitHub.");
+    // --- CARREGAR LISTA DE ALUNOS (CORRIGIDO) ---
+async function carregarListaAlunos() {
+  const token = obterToken();
+  if (!token) return alert("Informe o token do GitHub.");
 
-      const container = document.getElementById('listaAlunosContainer');
-      const listaDiv = document.getElementById('listaAlunos');
-      
-      listaDiv.style.display = 'block';
-      container.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Carregando...';
+  const container = document.getElementById('listaAlunosContainer');
+  const listaDiv = document.getElementById('listaAlunos');
+  
+  listaDiv.style.display = 'block';
+  container.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Carregando...';
 
-      try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
+  try {
+    const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos?ref=${GH_CONFIG.branch}`, {
+      headers: { 'Authorization': `token ${token}` }
+    });
 
-        if (!res.ok) {
-          container.innerHTML = 'Nenhum aluno encontrado.';
-          return;
-        }
-
-        const files = await res.json();
-        
-        // 🔥 CORREÇÃO: Mostrar APENAS alunos com arquivo musica_*.json
-        // Os arquivos aluno_*.json são apenas para cadastro e NÃO devem aparecer aqui
-        const alunos = files
-          .filter(f => f.name.startsWith('musica_') && f.name.endsWith('.json'))
-          .map(f => f.name.replace('musica_', '').replace('.json', ''))
-          .sort();
-
-        if (alunos.length === 0) {
-          container.innerHTML = 'Nenhum aluno com repertório cadastrado.';
-          return;
-        }
-
-        container.innerHTML = alunos.map(id => 
-          `<span onclick="document.getElementById('buscaAluno').value='${id}'; carregarArquivados();" 
-                  style="display: inline-block; background: #e5e7eb; padding: 4px 10px; border-radius: 12px; margin: 3px; cursor: pointer; font-size: 0.8rem; font-family: monospace;">
-            ${id}
-          </span>`
-        ).join(' ');
-
-      } catch (e) {
-        container.innerHTML = 'Erro ao carregar lista.';
-      }
+    if (!res.ok) {
+      container.innerHTML = 'Nenhum aluno encontrado.';
+      return;
     }
+
+    const files = await res.json();
+    
+    // 🔥 CORREÇÃO: Mostrar APENAS alunos com arquivo musica_*.json
+    const alunos = files
+      .filter(f => f.name.startsWith('musica_') && f.name.endsWith('.json'))
+      .map(f => {
+        const id = f.name.replace('musica_', '').replace('.json', '');
+        return { id, nome: id };
+      })
+      .sort((a, b) => a.id.localeCompare(b.id));
+
+    // Tentar buscar nomes dos alunos a partir dos arquivos aluno_*.json
+    try {
+      const alunoFiles = files.filter(f => f.name.startsWith('aluno_') && f.name.endsWith('.json'));
+      for (const alunoFile of alunoFiles) {
+        const alunoId = alunoFile.name.replace('aluno_', '').replace('.json', '');
+        const alunoRes = await fetch(alunoFile.download_url);
+        if (alunoRes.ok) {
+          const alunoData = await alunoRes.json();
+          const alunoNome = alunoData.aluno || alunoData.nome || alunoId;
+          const alunoIndex = alunos.findIndex(a => a.id === alunoId);
+          if (alunoIndex !== -1) {
+            alunos[alunoIndex].nome = alunoNome;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Não foi possível buscar nomes dos alunos:', e);
+    }
+
+    if (alunos.length === 0) {
+      container.innerHTML = 'Nenhum aluno com repertório cadastrado.';
+      return;
+    }
+
+    container.innerHTML = alunos.map(aluno => 
+      `<span onclick="document.getElementById('buscaAluno').value='${aluno.id}'; carregarArquivados();" 
+             style="display: inline-block; background: #e5e7eb; padding: 4px 10px; border-radius: 12px; margin: 3px; cursor: pointer; font-size: 0.8rem; font-family: monospace;">
+        ${aluno.nome} <span style="color: #9ca3af; font-size: 0.7rem;">(${aluno.id})</span>
+      </span>`
+    ).join(' ');
+
+  } catch (e) {
+    container.innerHTML = 'Erro ao carregar lista.';
+    console.error('Erro ao carregar lista de alunos:', e);
+  }
+}
 
     // --- FORMATAR TEMPO (HH:MM:SS) ---
     function formatarTempo(totalSecs) {
