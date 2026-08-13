@@ -8,6 +8,7 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
   <style>
+    /* (mesmo CSS anterior - mantido igual) */
     :root {
       --primary: #2563eb;
       --accent: #27ae60;
@@ -377,7 +378,6 @@
     .filter-lotes .filter-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
     .filter-lotes .filter-btn.active:hover { background: #1d4ed8; }
 
-    /* Botão de Exportar */
     .export-section {
       display: flex;
       gap: 10px;
@@ -429,7 +429,6 @@
       transform: none;
     }
 
-    /* Botão de Importar */
     .import-section {
       display: flex;
       gap: 10px;
@@ -546,7 +545,6 @@
 
   <!-- SEÇÃO DE EXPORTAR/IMPORTAR -->
   <div class="card no-print" id="exportCard" style="display: none;">
-    <!-- EXPORTAR -->
     <div class="export-section">
       <label><i class="fa-solid fa-file-export"></i> Exportar JSON:</label>
       <input type="text" id="exportFileName" placeholder="Nome do arquivo (ex: relatorio_aluno)" value="">
@@ -556,7 +554,6 @@
       </button>
     </div>
 
-    <!-- IMPORTAR -->
     <div class="import-section">
       <label><i class="fa-solid fa-file-import"></i> Importar JSON:</label>
       <button class="btn-import" onclick="document.getElementById('fileInputImport').click()">
@@ -788,6 +785,41 @@
       el.innerText = msg;
     }
 
+    // --- TOAST ---
+    function showToast(mensagem, tipo = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${tipo}`;
+      toast.innerHTML = mensagem;
+      toast.style.cssText = `
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        background: ${tipo === 'success' ? '#16a34a' : tipo === 'error' ? '#dc2626' : '#2563eb'};
+        color: white;
+        padding: 12px 20px;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        z-index: 9999;
+        animation: slideIn 0.3s ease;
+        max-width: 350px;
+      `;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3000);
+    }
+
+    // Adicionar estilo do toast se não existir
+    if (!document.getElementById('toast-style')) {
+      const style = document.createElement('style');
+      style.id = 'toast-style';
+      style.textContent = `
+        @keyframes slideIn {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+      `;
+      document.head.appendChild(style);
+    }
+
     // --- TOGGLE SEÇÃO ---
     function toggleSection(section) {
       const container = document.getElementById(`section-${section}`);
@@ -936,41 +968,71 @@
       } catch (e) { return []; }
     }
 
-    // --- EXPORTAR DADOS EM JSON ---
-    function exportarDadosJSON() {
+    // --- EXPORTAR DADOS EM JSON (COM LOTES ARQUIVADOS) ---
+    async function exportarDadosJSON() {
       if (!alunoIdAtual) {
         alert('⚠️ Carregue um aluno primeiro antes de exportar.');
         return;
       }
 
-      // Coletar todos os dados do aluno
+      const token = obterToken();
+      if (!token) {
+        alert('⚠️ Token do GitHub não encontrado. Configure o token primeiro.');
+        return;
+      }
+
+      exibirStatus('Coletando todos os dados do aluno...', 'blue');
+
+      const slug = alunoIdAtual;
+      
+      const [dadosAluno, dadosTeoria, dadosMusicas, dadosArquivados] = await Promise.all([
+        buscarArquivoJSON(`alunos/aluno_${slug}.json`, token),
+        buscarArquivoJSON(`alunos/teoria_${slug}.json`, token),
+        buscarArquivoJSON(`alunos/musica_${slug}.json`, token),
+        buscarArquivoJSON(`alunos/arquivados_${slug}.json`, token)
+      ]);
+
+      const pasta = `alunos/notas_${slug}`;
+      const notas = {};
+      try {
+        const arquivosNotas = await listarArquivosNotas(pasta, token);
+        for (const arquivo of arquivosNotas) {
+          const conteudo = await buscarArquivoTXT(`${pasta}/${arquivo.name}`, token);
+          const nome = arquivo.name.replace('.txt', '');
+          notas[nome] = conteudo || '';
+        }
+      } catch (e) {}
+
+      let alunoNome = slug;
+      if (dadosAluno) {
+        alunoNome = dadosAluno.aluno || dadosAluno.nome || slug;
+      }
+
       const dadosExport = {
         metadata: {
           exportadoEm: new Date().toISOString(),
-          versao: '1.0',
-          alunoId: alunoIdAtual,
-          alunoNome: alunoNomeAtual || alunoIdAtual
+          versao: '2.0',
+          alunoId: slug,
+          alunoNome: alunoNome
         },
-        dadosAluno: dadosAlunoCache || {},
-        teoria: dadosTeoriaCache || {},
-        musicas: dadosMusicasCache || {},
-        notas: {}
+        dadosAluno: dadosAluno || {},
+        teoria: dadosTeoria || {},
+        musicas: dadosMusicas || {},
+        lotesArquivados: dadosArquivados || {
+          arquivados: [],
+          lotes: {},
+          alunoId: slug,
+          alunoNome: alunoNome
+        },
+        notas: notas
       };
 
-      // Adicionar notas
-      notasArquivos.forEach(arquivo => {
-        const nome = arquivo.name.replace('.txt', '');
-        dadosExport.notas[nome] = notasConteudos[arquivo.name] || '';
-      });
-
-      // Nome do arquivo
       let nomeArquivo = document.getElementById('exportFileName').value.trim();
       if (!nomeArquivo) {
-        nomeArquivo = `relatorio_${alunoIdAtual}`;
+        nomeArquivo = `relatorio_${slug}`;
       }
-      // Remover caracteres inválidos
       nomeArquivo = nomeArquivo.replace(/[^a-zA-Z0-9_\-]/g, '_');
-      if (!nomeArquivo) nomeArquivo = `relatorio_${alunoIdAtual}`;
+      if (!nomeArquivo) nomeArquivo = `relatorio_${slug}`;
 
       const jsonString = JSON.stringify(dadosExport, null, 2);
       const blob = new Blob([jsonString], { type: 'application/json' });
@@ -984,7 +1046,11 @@
       document.body.removeChild(a);
       URL.revokeObjectURL(url);
 
-      showToast('✅ Dados exportados com sucesso!', 'success');
+      const totalArquivados = dadosArquivados?.arquivados?.length || 0;
+      const totalNotas = Object.keys(notas).length;
+      
+      exibirStatus(`✅ Dados exportados com sucesso! (${dadosMusicas?.repertorio?.length || 0} músicas, ${totalArquivados} lotes arquivados, ${totalNotas} notas)`, "green");
+      showToast(`✅ ${dadosMusicas?.repertorio?.length || 0} músicas, ${totalArquivados} lotes arquivados exportados!`, 'success');
     }
 
     // --- IMPORTAR DADOS JSON ---
@@ -997,7 +1063,6 @@
         try {
           const dados = JSON.parse(e.target.result);
           
-          // Verificar se é um arquivo de relatório válido
           if (!dados.metadata && !dados.musicas && !dados.teoria) {
             alert('⚠️ Este arquivo não parece ser um relatório válido. Verifique o formato.');
             return;
@@ -1010,17 +1075,14 @@
             return;
           }
 
-          // Atualizar campos
           document.getElementById('buscaAluno').value = alunoId;
           alunoIdAtual = alunoId;
           alunoNomeAtual = alunoNome;
 
-          // Atualizar dados
           dadosAlunoCache = dados.dadosAluno || {};
           dadosTeoriaCache = dados.teoria || {};
           dadosMusicasCache = dados.musicas || {};
 
-          // Atualizar notas
           notasConteudos = {};
           notasArquivos = [];
           if (dados.notas) {
@@ -1030,7 +1092,6 @@
             });
           }
 
-          // Renderizar
           renderizarDadosAluno(dadosAlunoCache);
           renderizarTeoria(dadosTeoriaCache);
           renderizarTonalidades(dadosAlunoCache);
@@ -1038,10 +1099,7 @@
           renderizarLotes(dadosMusicasCache);
           renderizarNotasList();
 
-          // Mostrar card de exportação
           document.getElementById('exportCard').style.display = 'block';
-          
-          // Atualizar nome do arquivo
           document.getElementById('exportFileName').value = `relatorio_${alunoId}`;
 
           exibirStatus(`✅ Dados do aluno "${alunoNome}" importados com sucesso!`, "green");
@@ -1052,7 +1110,6 @@
         }
       };
       reader.readAsText(file);
-      // Resetar o input para permitir importar o mesmo arquivo novamente
       event.target.value = '';
     }
 
@@ -1138,7 +1195,6 @@
       alunoIdAtual = slug;
       alunoNomeAtual = alunoNome;
 
-      // Buscar dados
       const [dadosAluno, dadosTeoria, dadosTonalidades, dadosMusicas] = await Promise.all([
         buscarArquivoJSON(`alunos/aluno_${slug}.json`, token),
         buscarArquivoJSON(`alunos/teoria_${slug}.json`, token),
@@ -1150,7 +1206,6 @@
       dadosTeoriaCache = dadosTeoria;
       dadosMusicasCache = dadosMusicas;
 
-      // Carregar notas
       const pasta = `alunos/notas_${slug}`;
       try {
         const arquivos = await listarArquivosNotas(pasta, token);
@@ -1163,7 +1218,6 @@
         notasArquivos = [];
       }
 
-      // Renderizar
       renderizarDadosAluno(dadosAluno);
       renderizarTeoria(dadosTeoria);
       renderizarTonalidades(dadosTonalidades || dadosAluno);
@@ -1171,10 +1225,7 @@
       renderizarLotes(dadosMusicas);
       renderizarNotasList();
 
-      // Mostrar card de exportação
       document.getElementById('exportCard').style.display = 'block';
-      
-      // Definir nome padrão do arquivo
       document.getElementById('exportFileName').value = `relatorio_${slug}`;
 
       exibirStatus(`Relatório do aluno "${alunoNome}" (ID: ${slug}) gerado com sucesso!`, "green");
@@ -1534,41 +1585,6 @@
       } else {
         alert('⚠️ Aluno não carregado.');
       }
-    }
-
-    // --- TOAST ---
-    function showToast(mensagem, tipo = 'info') {
-      const toast = document.createElement('div');
-      toast.className = `toast ${tipo}`;
-      toast.innerHTML = mensagem;
-      toast.style.cssText = `
-        position: fixed;
-        bottom: 20px;
-        right: 20px;
-        background: ${tipo === 'success' ? '#16a34a' : tipo === 'error' ? '#dc2626' : '#2563eb'};
-        color: white;
-        padding: 12px 20px;
-        border-radius: 8px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-        z-index: 9999;
-        animation: slideIn 0.3s ease;
-        max-width: 350px;
-      `;
-      document.body.appendChild(toast);
-      setTimeout(() => toast.remove(), 3000);
-    }
-
-    // Adicionar estilo do toast se não existir
-    if (!document.getElementById('toast-style')) {
-      const style = document.createElement('style');
-      style.id = 'toast-style';
-      style.textContent = `
-        @keyframes slideIn {
-          from { transform: translateX(100%); opacity: 0; }
-          to { transform: translateX(0); opacity: 1; }
-        }
-      `;
-      document.head.appendChild(style);
     }
 
     console.log('✅ Relatório do Aluno carregado!');
