@@ -94,6 +94,10 @@ let alunoIdAtual = null;
 let repertorioAtual = [];
 let shaAtual = null;
 
+// ===== CONTROLE DE CONCORRÊNCIA (MUTEX/FILA) =====
+let isSaving = false;
+let saveQueue = [];
+
 // ===== CRONÔMETRO =====
 let segundos = 0;
 let cronInterval = null;
@@ -153,8 +157,13 @@ function formatar(t) {
 // ===== GITHUB - LER ARQUIVO =====
 async function lerArquivo(caminho, token) {
   try {
-    const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${caminho}?ref=${GH_BRANCH}`;
-    const res = await fetch(url, { headers: { 'Authorization': `token ${token}` } });
+    const url = `https://api.github.com/repos/${GH_USER}/${GH_REPO}/contents/${caminho}?ref=${GH_BRANCH}&_t=${Date.now()}`;
+    const res = await fetch(url, { 
+      headers: { 
+        'Authorization': `token ${token}`,
+        'Cache-Control': 'no-cache'
+      } 
+    });
     if (!res.ok) return { dados: null, sha: null };
     const data = await res.json();
     const json = JSON.parse(atob(data.content.replace(/\s/g, '')));
@@ -165,16 +174,30 @@ async function lerArquivo(caminho, token) {
   }
 }
 
-// ===== GITHUB - SALVAR ARQUIVO (COM RETRY) =====
+// ===== GITHUB - SALVAR ARQUIVO (COM FILA E RETRY) =====
 async function salvarArquivo(caminho, dados, token, tentativa = 1) {
+  // Se já houver um salvamento em andamento, enfileira a requisição para evitar conflito (409)
+  if (isSaving) {
+    return new Promise((resolve) => {
+      saveQueue.push(() => resolve(salvarArquivo(caminho, dados, token, tentativa)));
+    });
+  }
+
+  isSaving = true;
   const maxTentativas = 3;
   
   try {
-    // 1. SEMPRE ler o arquivo atual primeiro (pegar o SHA mais recente)
+    // 1. Ler o arquivo atual para pegar o SHA mais recente
     const { dados: dadosAtuais, sha } = await lerArquivo(caminho, token);
     
-    // 2. Mesclar dados (preservar tudo que já existe)
+    // 2. Mesclar dados preservando estruturas aninhadas (ex: lotesTempo)
     let dadosFinal = { ...dadosAtuais, ...dados };
+    if (dadosAtuais?.lotesTempo && dados.lotesTempo) {
+      dadosFinal.lotesTempo = {
+        ...dadosAtuais.lotesTempo,
+        ...dados.lotesTempo
+      };
+    }
     
     // Garantir campos obrigatórios
     dadosFinal.alunoId = alunoIdAtual;
@@ -212,10 +235,10 @@ async function salvarArquivo(caminho, dados, token, tentativa = 1) {
       return { success: true, sha: shaAtual };
     }
     
-    // Se deu conflito (409), tenta novamente
+    // Se deu conflito (409), tenta novamente após aguardar
     if (res.status === 409 && tentativa < maxTentativas) {
       console.log(`⚠️ Conflito 409, tentativa ${tentativa+1} de ${maxTentativas}`);
-      await new Promise(r => setTimeout(r, 1000 * tentativa)); // espera 1s, 2s, 3s
+      await new Promise(r => setTimeout(r, 1000 * tentativa));
       return salvarArquivo(caminho, dados, token, tentativa + 1);
     }
     
@@ -231,25 +254,27 @@ async function salvarArquivo(caminho, dados, token, tentativa = 1) {
       return salvarArquivo(caminho, dados, token, tentativa + 1);
     }
     return { success: false, error: e.message };
+  } finally {
+    isSaving = false;
+    // Processar o próximo item da fila se houver
+    if (saveQueue.length > 0) {
+      const nextSave = saveQueue.shift();
+      nextSave();
+    }
   }
 }
 
 // ===== SALVAR CRONÔMETRO =====
 async function salvarCronometro() {
   if (!alunoIdAtual || !cronLoteAtual || cronLoteAtual === 'todos') {
-    console.log('⏭️ Nada para salvar (sem aluno ou lote)');
     return false;
   }
   
   const token = obterToken();
-  if (!token) {
-    showToast('⚠️ Token não configurado', 'warning');
-    return false;
-  }
+  if (!token) return false;
   
   const caminho = `alunos/musica_${alunoIdAtual}.json`;
   
-  // Dados a serem salvos (apenas o lote do cronômetro)
   const dados = {
     lotesTempo: {
       [cronLoteAtual]: {
@@ -310,13 +335,11 @@ function iniciarCronometro() {
   cronInterval = setInterval(async () => {
     segundos++;
     document.getElementById('cronometroDisplay').textContent = formatar(segundos);
-    // Salvar a cada 10 segundos
     if (segundos % 10 === 0) {
       await salvarCronometro();
     }
   }, 1000);
   
-  // Salvar imediatamente
   salvarCronometro();
   showToast(`▶️ Cronômetro iniciado para "${lote}"`, 'success');
 }
@@ -328,7 +351,6 @@ async function pausarCronometro() {
   }
   
   if (!cronPausado) {
-    // PAUSAR
     clearInterval(cronInterval);
     cronInterval = null;
     cronRodando = false;
@@ -338,7 +360,6 @@ async function pausarCronometro() {
     await salvarCronometro();
     showToast(`⏸️ Pausado em ${formatar(segundos)}`, 'info');
   } else {
-    // RETOMAR
     cronPausado = false;
     cronRodando = true;
     document.getElementById('cronometroStatus').className = 'cronometro-status rodando';
@@ -432,7 +453,6 @@ async function carregarAluno() {
   atualizarLotes();
   renderizarTabela();
   
-  // Carregar tempo do lote selecionado
   const lote = document.getElementById('filterLote').value;
   if (lote !== 'todos') carregarTempoLote(lote);
 }
@@ -446,7 +466,6 @@ async function salvarAluno() {
   
   const caminho = `alunos/musica_${alunoIdAtual}.json`;
   
-  // Dados completos do aluno
   const dados = {
     alunoId: alunoIdAtual,
     aluno: document.getElementById('buscaAluno').value.trim(),
@@ -454,7 +473,6 @@ async function salvarAluno() {
     atualizadoEm: new Date().toISOString()
   };
   
-  // Incluir tempo do cronômetro se houver
   if (cronLoteAtual && cronLoteAtual !== 'todos') {
     dados.lotesTempo = {
       [cronLoteAtual]: {
@@ -557,18 +575,15 @@ function adicionarMusica(nome, lote = 'Geral') {
 
 // ===== INICIALIZAÇÃO =====
 window.onload = function() {
-  // Carregar token salvo
   const token = localStorage.getItem('gh_token');
   if (token) {
     document.getElementById('gh-token').value = token;
   }
   
-  // Adicionar tecla Enter nos campos
   document.getElementById('buscaAluno').addEventListener('keyup', e => {
     if (e.key === 'Enter') carregarAluno();
   });
   
-  // Adicionar função global para testes no console
   window.adicionarMusica = adicionarMusica;
   
   console.log('✅ App carregado! Use adicionarMusica("Nome", "Lote") para adicionar.');
