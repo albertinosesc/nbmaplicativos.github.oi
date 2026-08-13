@@ -45,7 +45,7 @@
 
     .table-toolbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin-bottom: 15px; }
     .table-container { overflow-x: auto; }
-    table { width: 100%; border-collapse: collapse; min-width: 800px; }
+    table { width: 100%; border-collapse: collapse; min-width: 900px; }
     th, td { border: 1px solid var(--border); padding: 8px 10px; text-align: left; vertical-align: middle; }
     th { background-color: #f1f5f9; font-weight: 600; font-size: 0.85rem; text-align: center; cursor: pointer; user-select: none; }
     th:hover { background-color: #e5e7eb; }
@@ -83,10 +83,11 @@
     .filter-item select:focus { outline: 2px solid var(--primary); }
     .filter-info { font-size: 0.75rem; color: #6b7280; margin-left: auto; }
 
-    .col-titulo { width: 35%; min-width: 180px; }
-    .col-status { width: 25%; min-width: 180px; }
-    .col-observacao { width: 25%; min-width: 150px; }
-    .col-acoes { width: 15%; min-width: 160px; text-align: center; }
+    .col-titulo { width: 30%; min-width: 180px; }
+    .col-lote { width: 18%; min-width: 130px; text-align: center; }
+    .col-status { width: 20%; min-width: 150px; text-align: center; }
+    .col-observacao { width: 20%; min-width: 150px; }
+    .col-acoes { width: 12%; min-width: 140px; text-align: center; }
     .col-acoes .acao-group { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; }
     .col-acoes .acao-group button { padding: 4px 8px; font-size: 0.8rem; min-width: 32px; justify-content: center; }
 
@@ -265,6 +266,10 @@
             <th class="col-titulo" onclick="ordenarTabela('titulo')">
               Título do Conceito
               <span class="sort-indicator" id="sort-titulo">⇅</span>
+            </th>
+            <th class="col-lote" onclick="ordenarTabela('lote')">
+              Lote
+              <span class="sort-indicator" id="sort-lote">⇅</span>
             </th>
             <th class="col-status" onclick="ordenarTabela('status')">
               Status
@@ -453,10 +458,10 @@
 
       tr.innerHTML = `
         <td class="col-titulo"><input type="text" value="${tituloConceito}" placeholder="Ex: 1.1.1 - Pentagrama" style="width:100%;" onchange="atualizarNumeroTopico(this)"></td>
+        <td class="col-lote" style="text-align:center;">
+          <span class="badge-lote"><i class="fa-solid fa-box"></i> ${nomeLote}</span>
+        </td>
         <td class="col-status" style="text-align:center;">
-          <div style="margin-bottom: 6px;">
-            <span class="badge-lote"><i class="fa-solid fa-box"></i> ${nomeLote}</span>
-          </div>
           <select class="status-select" onchange="atualizarBadgeStatus(this)" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);font-size:0.8rem;width:100%;max-width:130px;">
             <option value="concluido" ${status === 'concluido' ? 'selected' : ''}>✅ Concluído</option>
             <option value="pendente" ${status === 'pendente' ? 'selected' : ''}>📝 Pendente</option>
@@ -620,7 +625,7 @@
       
       conceitosParaRemover.forEach(tr => tr.remove());
       
-      // Remove da lista de lotes importados e do cache
+      // Remove da lista de lotes importados
       const index = lotesImportados.indexOf(loteSelecionado);
       if (index > -1) {
         lotesImportados.splice(index, 1);
@@ -640,6 +645,20 @@
       }
       
       showToast(`🗑️ Lote "${loteSelecionado}" removido com ${qtdConceitos} conceitos!`, 'success');
+    }
+
+    function removerLoteImportado(nomeLote) {
+      const index = lotesImportados.indexOf(nomeLote);
+      if (index > -1) {
+        lotesImportados.splice(index, 1);
+        if (alunoIdAtual) {
+          const cacheKey = `lotes_aluno_${alunoIdAtual}`;
+          localStorage.removeItem(cacheKey);
+          localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
+        }
+        atualizarListaLotes();
+        atualizarOpcoesLote();
+      }
     }
 
     function aplicarFiltro() {
@@ -711,8 +730,7 @@
         const nomeLote = cb.dataset.lote;
         if (nomeLote && lotesImportados.includes(nomeLote)) {
           nomesRemovidos.push(nomeLote);
-          const index = lotesImportados.indexOf(nomeLote);
-          if (index > -1) lotesImportados.splice(index, 1);
+          removerLoteImportado(nomeLote);
         }
       });
       
@@ -725,13 +743,6 @@
         }
       });
       linhasParaRemover.forEach(tr => tr.remove());
-      
-      // Limpa e salva o cache
-      if (alunoIdAtual) {
-        const cacheKey = `lotes_aluno_${alunoIdAtual}`;
-        localStorage.removeItem(cacheKey);
-        localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
-      }
       
       atualizarListaLotes();
       atualizarOpcoesLote();
@@ -769,9 +780,8 @@
       });
       linhasParaRemover.forEach(tr => tr.remove());
       
+      // Limpa a lista de lotes importados
       lotesImportados = [];
-      
-      // Limpa e salva o cache
       if (alunoIdAtual) {
         const cacheKey = `lotes_aluno_${alunoIdAtual}`;
         localStorage.removeItem(cacheKey);
@@ -852,6 +862,9 @@
         if (coluna === 'titulo') {
           valorA = a.querySelector('input[type="text"]')?.value.trim().toLowerCase() || '';
           valorB = b.querySelector('input[type="text"]')?.value.trim().toLowerCase() || '';
+        } else if (coluna === 'lote') {
+          valorA = a.dataset.lote || 'Geral';
+          valorB = b.dataset.lote || 'Geral';
         } else if (coluna === 'status') {
           valorA = a.querySelector('select.status-select')?.value || '';
           valorB = b.querySelector('select.status-select')?.value || '';
@@ -870,7 +883,7 @@
     }
 
     // ============================================================
-    // FUNÇÕES DE ABERTURA (PDF, TXT, MD) - SIMPLIFICADAS
+    // FUNÇÕES DE ABERTURA (PDF, TXT, MD)
     // ============================================================
     function abrirPdfPorLinha(btn) {
       const tr = btn.closest('tr');
@@ -1416,7 +1429,6 @@
         if (response.status === 404) {
           exibirStatus(`Aluno ${alunoId} não tem registros teóricos.`, "orange");
           shaArquivoAtual = null;
-          // Limpa lotes do cache se não houver dados
           const cacheKey = `lotes_aluno_${alunoId}`;
           localStorage.removeItem(cacheKey);
           lotesImportados = [];
@@ -1435,7 +1447,6 @@
             conceitosDoAluno = conteudoJson.conceitos;
           }
           
-          // Carrega os lotes salvos
           if (conteudoJson.lotesImportados && Array.isArray(conteudoJson.lotesImportados)) {
             lotesImportados = conteudoJson.lotesImportados;
             const cacheKey = `lotes_aluno_${alunoId}`;
@@ -1456,7 +1467,6 @@
           }
         }
 
-        // Adiciona os conceitos à tabela
         if (conceitosDoAluno.length > 0) {
           conceitosDoAluno.forEach(c => {
             const lote = c.lote || 'Geral';
