@@ -901,17 +901,106 @@
         const res = await fetch(url, {
           headers: { 'Authorization': `token ${token}` }
         });
-        if (res.ok) {
-          const data = await res.json();
-          const base64Clean = data.content.replace(/\s/g, '');
-          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-          const jsonStr = new TextDecoder('utf-8').decode(bytes);
-          return { dados: JSON.parse(jsonStr), sha: data.sha };
+        
+        if (!res.ok) {
+          if (res.status === 404) {
+            log(`📄 Arquivo não encontrado (novo)`, LOG_LEVELS.INFO);
+            return { dados: null, sha: null };
+          }
+          log(`❌ Erro ${res.status} ao ler`, LOG_LEVELS.ERROR);
+          return { dados: null, sha: null };
         }
-        return { dados: null, sha: null };
+        
+        const data = await res.json();
+        
+        // Verificar se o conteúdo existe
+        if (!data.content) {
+          log(`⚠️ Arquivo vazio ou sem conteúdo`, LOG_LEVELS.WARNING);
+          return { dados: null, sha: data.sha };
+        }
+        
+        // Limpar e decodificar
+        const base64Clean = data.content.replace(/\s/g, '');
+        const binaryString = atob(base64Clean);
+        
+        // Verificar se o conteúdo é válido
+        if (!binaryString || binaryString.trim() === '') {
+          log(`⚠️ Conteúdo base64 vazio`, LOG_LEVELS.WARNING);
+          return { dados: null, sha: data.sha };
+        }
+        
+        // Tentar parse do JSON
+        let jsonStr;
+        try {
+          const bytes = Uint8Array.from(binaryString, c => c.charCodeAt(0));
+          jsonStr = new TextDecoder('utf-8').decode(bytes);
+        } catch (e) {
+          jsonStr = binaryString;
+        }
+        
+        // Verificar se o JSON é válido
+        if (!jsonStr || jsonStr.trim() === '') {
+          log(`⚠️ String JSON vazia`, LOG_LEVELS.WARNING);
+          return { dados: null, sha: data.sha };
+        }
+        
+        // Tentar parse
+        try {
+          const dados = JSON.parse(jsonStr);
+          log(`✅ JSON válido! ${Object.keys(dados).length} propriedades`, LOG_LEVELS.SUCCESS);
+          return { dados, sha: data.sha };
+        } catch (parseError) {
+          log(`❌ JSON inválido: ${parseError.message}`, LOG_LEVELS.ERROR);
+          
+          // Tentar recuperar o JSON corrompido
+          const jsonRecuperado = recuperarJSON(jsonStr);
+          if (jsonRecuperado) {
+            log(`🔄 JSON recuperado com sucesso!`, LOG_LEVELS.SUCCESS);
+            return { dados: jsonRecuperado, sha: data.sha };
+          }
+          
+          // Se não conseguir recuperar, retornar dados mínimos
+          log(`⚠️ Usando dados mínimos (vazio)`, LOG_LEVELS.WARNING);
+          const alunoId = caminho.split('_')[1]?.replace('.json', '') || '';
+          return { dados: { repertorio: [], alunoId: alunoId, lotesTempo: {} }, sha: data.sha };
+        }
+        
       } catch (e) {
         log(`❌ Erro ao obter conteúdo: ${e.message}`, LOG_LEVELS.ERROR);
         return { dados: null, sha: null };
+      }
+    }
+
+    // ===== FUNÇÃO PARA RECUPERAR JSON CORROMPIDO =====
+    function recuperarJSON(jsonStr) {
+      try {
+        let inicio = jsonStr.indexOf('{');
+        let fim = jsonStr.lastIndexOf('}');
+        
+        if (inicio === -1 || fim === -1) {
+          inicio = jsonStr.indexOf('[');
+          fim = jsonStr.lastIndexOf(']');
+          if (inicio === -1 || fim === -1) {
+            return null;
+          }
+        }
+        
+        let parteValida = jsonStr.substring(inicio, fim + 1);
+        parteValida = parteValida.replace(/[\x00-\x1F\x7F-\x9F]/g, '');
+        
+        try {
+          return JSON.parse(parteValida);
+        } catch (e) {
+          parteValida = parteValida.replace(/,\s*}/g, '}');
+          parteValida = parteValida.replace(/,\s*]/g, ']');
+          try {
+            return JSON.parse(parteValida);
+          } catch (e2) {
+            return null;
+          }
+        }
+      } catch (e) {
+        return null;
       }
     }
 
@@ -949,6 +1038,14 @@
         // Garantir campos obrigatórios
         dadosFinal.alunoId = alunoIdAtual;
         dadosFinal.atualizadoEm = new Date().toISOString();
+        
+        // Validar dados antes de salvar
+        try {
+          JSON.stringify(dadosFinal);
+        } catch (e) {
+          log(`❌ Dados inválidos, não salvando: ${e.message}`, LOG_LEVELS.ERROR);
+          return { success: false, error: 'Dados inválidos' };
+        }
         
         // Converter para Base64
         const jsonStr = JSON.stringify(dadosFinal, null, 2);
@@ -992,7 +1089,7 @@
         // Se for 409 (conflito) e ainda temos tentativas
         if (res.status === 409 && tentativa < maxTentativas) {
           log(`⚠️ Conflito 409, tentativa ${tentativa+1} de ${maxTentativas}`, LOG_LEVELS.WARNING);
-          await new Promise(r => setTimeout(r, 1000 * tentativa));
+          await new Promise(r => setTimeout(r, 2000 * tentativa));
           return salvarArquivoComLock(caminho, dados, token, tentativa + 1);
         }
         
@@ -1003,7 +1100,7 @@
       } catch (e) {
         log(`❌ Exceção: ${e.message}`, LOG_LEVELS.ERROR);
         if (tentativa < maxTentativas) {
-          await new Promise(r => setTimeout(r, 1000 * tentativa));
+          await new Promise(r => setTimeout(r, 2000 * tentativa));
           return salvarArquivoComLock(caminho, dados, token, tentativa + 1);
         }
         return { success: false, error: e.message };
@@ -1015,54 +1112,6 @@
           log(`📦 Processando próximo da fila...`, LOG_LEVELS.DEBUG);
           nextSave();
         }
-      }
-    }
-
-    // =============================================
-    // ===== SALVAR TEMPO DO CRONÔMETRO =====
-    // =============================================
-
-    async function salvarTempoCronometro() {
-      if (!alunoIdAtual || !cronometroLoteAtual || cronometroLoteAtual === 'todos') {
-        return false;
-      }
-      
-      const token = obterToken();
-      if (!token) {
-        log(`❌ Token não encontrado para salvar cronômetro`, LOG_LEVELS.ERROR);
-        return false;
-      }
-      
-      const caminho = `alunos/musica_${alunoIdAtual}.json`;
-      
-      const dados = {
-        lotesTempo: {
-          [cronometroLoteAtual]: {
-            tempoSegundos: segundosTotais,
-            ultimaAtualizacao: new Date().toISOString(),
-            status: cronometroRodando ? 'em_andamento' : 'pausado'
-          }
-        }
-      };
-      
-      mostrarSalvando(true, `Salvando cronômetro (${formatarTempo(segundosTotais)})`);
-      
-      try {
-        const resultado = await salvarArquivoComLock(caminho, dados, token);
-        mostrarSalvando(false);
-        
-        if (resultado.success) {
-          log(`✅ Cronômetro salvo: ${formatarTempo(segundosTotais)}`, LOG_LEVELS.SUCCESS);
-          return true;
-        } else {
-          log(`❌ Falha ao salvar cronômetro: ${resultado.error}`, LOG_LEVELS.ERROR);
-          showToast(`❌ ${resultado.error}`, 'error');
-          return false;
-        }
-      } catch (e) {
-        mostrarSalvando(false);
-        log(`❌ Erro: ${e.message}`, LOG_LEVELS.ERROR);
-        return false;
       }
     }
 
@@ -1120,22 +1169,16 @@
 
       if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
 
-      cronometroInterval = setInterval(async () => {
+      // ⬇️ APENAS ATUALIZA O DISPLAY - NÃO SALVA AUTOMATICAMENTE
+      cronometroInterval = setInterval(() => {
         segundosTotais++;
         atualizarDisplayCronometro();
-        // Salvar a cada 10 segundos
-        if (segundosTotais % 10 === 0) {
-          log(`💾 Salvando automaticamente... (${segundosTotais}s)`, LOG_LEVELS.DEBUG);
-          await salvarTempoCronometro();
-        }
       }, 1000);
 
-      // Salvar imediatamente ao iniciar
-      salvarTempoCronometro();
       showToast(`⏱️ Cronômetro iniciado para "${loteSelecionado}"!`, 'success');
     }
 
-    async function pausarCronometro() {
+    function pausarCronometro() {
       const btnPausar = document.getElementById('btnCronometroPausar');
       const statusEl = document.getElementById('cronometroStatus');
 
@@ -1158,7 +1201,6 @@
         }
         if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-play"></i> Retomar'; }
         
-        await salvarTempoCronometro();
         showToast(`⏸️ Cronômetro pausado. Tempo: ${formatarTempo(segundosTotais)}`, 'info');
       } else {
         log(`▶️ Retomando cronômetro.`, LOG_LEVELS.INFO);
@@ -1172,21 +1214,17 @@
         }
         if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
 
-        cronometroInterval = setInterval(async () => {
+        // ⬇️ APENAS ATUALIZA O DISPLAY - NÃO SALVA AUTOMATICAMENTE
+        cronometroInterval = setInterval(() => {
           segundosTotais++;
           atualizarDisplayCronometro();
-          if (segundosTotais % 10 === 0) {
-            log(`💾 Salvando automaticamente... (${segundosTotais}s)`, LOG_LEVELS.DEBUG);
-            await salvarTempoCronometro();
-          }
         }, 1000);
         
-        await salvarTempoCronometro();
         showToast(`▶️ Cronômetro retomado!`, 'success');
       }
     }
 
-    async function resetarCronometro() {
+    function resetarCronometro() {
       if (!cronometroLoteAtual && segundosTotais === 0) {
         showToast('⚠️ Nenhum cronômetro ativo para resetar.', 'warning');
         return;
@@ -1214,7 +1252,6 @@
       const btnPausar = document.getElementById('btnCronometroPausar');
       if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
       
-      await salvarTempoCronometro();
       showToast(`🔄 Cronômetro resetado!`, 'info');
     }
 
@@ -1321,7 +1358,7 @@
     }
 
     // =============================================
-    // ===== SALVAR ALUNO =====
+    // ===== SALVAR ALUNO (APENAS MANUAL) =====
     // =============================================
 
     async function salvarMusicasAluno() {
