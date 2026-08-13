@@ -787,6 +787,7 @@
     let cronometroRodando = false;
     let cronometroPausado = false;
     let cronometroLoteAtual = null;
+    let salvandoCronometro = false; // Flag para evitar salvamentos concorrentes
 
     // ===== ABC GLOBALS =====
     let abcVisualObj = null;
@@ -802,30 +803,33 @@
     const fileCache = new Map();
 
     // =============================================
-    // ===== FUNÇÃO PARA OBTER SHA ATUALIZADO =====
+    // ===== FUNÇÃO PARA OBTER CONTEÚDO E SHA ATUAL =====
     // =============================================
     
-    async function obterShaAtual(caminho, token) {
+    async function obterConteudoAtual(caminho, token) {
       try {
         const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
           headers: { 'Authorization': `token ${token}` }
         });
         if (res.ok) {
           const data = await res.json();
-          return data.sha;
+          const base64Clean = data.content.replace(/\s/g, '');
+          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
+          const jsonStr = new TextDecoder('utf-8').decode(bytes);
+          return { dados: JSON.parse(jsonStr), sha: data.sha };
         }
-        return null;
+        return { dados: null, sha: null };
       } catch (e) {
-        log(`❌ Erro ao obter SHA: ${e.message}`, LOG_LEVELS.ERROR);
-        return null;
+        log(`❌ Erro ao obter conteúdo: ${e.message}`, LOG_LEVELS.ERROR);
+        return { dados: null, sha: null };
       }
     }
 
     // =============================================
-    // ===== FUNÇÃO DE SALVAR COM RETRY =====
+    // ===== FUNÇÃO DE SALVAR COM RETRY MELHORADA =====
     // =============================================
 
-    async function salvarArquivoComRetry(caminho, conteudoBase64, token, mensagem, maxRetries = 3) {
+    async function salvarArquivoComRetry(caminho, novosDados, token, mensagem, maxRetries = 5) {
       let tentativa = 0;
       let ultimoErro = null;
 
@@ -834,9 +838,33 @@
         log(`🔄 Tentativa ${tentativa}/${maxRetries} para salvar ${caminho}`, LOG_LEVELS.DEBUG);
 
         try {
-          // Buscar SHA atualizado antes de cada tentativa
-          const shaAtual = await obterShaAtual(caminho, token);
+          // SEMPRE buscar os dados mais recentes antes de salvar
+          const { dados: dadosAtuais, sha: shaAtual } = await obterConteudoAtual(caminho, token);
           
+          // Se existem dados atuais, mesclar com os novos (preservar lotesTempo)
+          let dadosParaSalvar = { ...novosDados };
+          
+          if (dadosAtuais) {
+            // Preservar lotesTempo existentes que não estão nos novos dados
+            if (dadosAtuais.lotesTempo && !dadosParaSalvar.lotesTempo) {
+              dadosParaSalvar.lotesTempo = dadosAtuais.lotesTempo;
+            } else if (dadosAtuais.lotesTempo && dadosParaSalvar.lotesTempo) {
+              // Mesclar lotesTempo
+              for (const [key, value] of Object.entries(dadosAtuais.lotesTempo)) {
+                if (!dadosParaSalvar.lotesTempo[key]) {
+                  dadosParaSalvar.lotesTempo[key] = value;
+                }
+              }
+            }
+            log(`📊 Mesclado com dados existentes. ${Object.keys(dadosParaSalvar.lotesTempo || {}).length} lotes com tempo.`, LOG_LEVELS.DEBUG);
+          }
+
+          const jsonString = JSON.stringify(dadosParaSalvar, null, 2);
+          const utf8Bytes = new TextEncoder().encode(jsonString);
+          let binaryStr = "";
+          utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+          const conteudoBase64 = btoa(binaryStr);
+
           const body = {
             message: mensagem,
             content: conteudoBase64,
@@ -853,14 +881,16 @@
           if (res.ok) {
             const data = await res.json();
             log(`✅ Arquivo salvo com sucesso na tentativa ${tentativa}! SHA: ${data.content.sha}`, LOG_LEVELS.SUCCESS);
-            return { success: true, sha: data.content.sha };
+            return { success: true, sha: data.content.sha, dados: dadosParaSalvar };
           }
 
           if (res.status === 409) {
             log(`⚠️ Conflito (409) na tentativa ${tentativa}. O arquivo foi modificado remotamente.`, LOG_LEVELS.WARNING);
             ultimoErro = 'Conflict - arquivo modificado remotamente';
-            // Aguarda um pouco antes de tentar novamente
-            await new Promise(resolve => setTimeout(resolve, 1000 * tentativa));
+            // Aguarda um tempo antes de tentar novamente (backoff exponencial)
+            const tempoEspera = Math.min(1000 * Math.pow(2, tentativa - 1), 8000);
+            log(`⏳ Aguardando ${tempoEspera}ms antes de tentar novamente...`, LOG_LEVELS.DEBUG);
+            await new Promise(resolve => setTimeout(resolve, tempoEspera));
             continue;
           }
 
@@ -868,7 +898,6 @@
           ultimoErro = errData.message || `Erro HTTP ${res.status}`;
           log(`❌ Erro na tentativa ${tentativa}: ${ultimoErro}`, LOG_LEVELS.ERROR);
           
-          // Se não for conflito, não tenta novamente
           if (res.status !== 409) break;
           
           await new Promise(resolve => setTimeout(resolve, 1000 * tentativa));
@@ -889,89 +918,82 @@
     // =============================================
 
     async function salvarTempoCronometro() {
+      // Evitar salvamentos concorrentes
+      if (salvandoCronometro) {
+        log(`⏳ Salvamento já em andamento, ignorando...`, LOG_LEVELS.DEBUG);
+        return false;
+      }
+
       const token = obterToken();
       
       log(`🔄 Iniciando salvamento do cronômetro...`, LOG_LEVELS.DEBUG);
 
       if (!token) {
         log('❌ Token não encontrado!', LOG_LEVELS.ERROR);
-        showToast('❌ Token do GitHub não configurado!', 'error');
         return false;
       }
 
       if (!alunoIdAtual) {
         log('❌ Nenhum aluno carregado!', LOG_LEVELS.ERROR);
-        showToast('❌ Carregue um aluno primeiro!', 'error');
         return false;
       }
 
       if (!cronometroLoteAtual || cronometroLoteAtual === 'todos') {
         log('⚠️ Nenhum lote específico selecionado para salvar o tempo.', LOG_LEVELS.WARNING);
-        showToast('⚠️ Selecione um lote específico para salvar o tempo.', 'warning');
         return false;
       }
 
+      salvandoCronometro = true;
+
       try {
         const caminho = `alunos/musica_${alunoIdAtual}.json`;
-        log(`📁 Arquivo: ${caminho}`, LOG_LEVELS.DEBUG);
         
-        // Buscar dados atuais do aluno
-        const getRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
-
-        let dados = { alunoId: alunoIdAtual, aluno: '', repertorio: [], lotesTempo: {} };
-        let sha = null;
-
-        if (getRes.ok) {
-          const data = await getRes.json();
-          sha = data.sha;
-          const base64Clean = data.content.replace(/\s/g, '');
-          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-          const jsonStr = new TextDecoder('utf-8').decode(bytes);
-          dados = JSON.parse(jsonStr);
-          log(`✅ Dados carregados. SHA: ${sha}`, LOG_LEVELS.SUCCESS);
-        } else {
-          log(`ℹ️ Arquivo não encontrado, será criado novo.`, LOG_LEVELS.INFO);
-        }
+        // Buscar dados atuais
+        const { dados: dadosAtuais, sha: shaAtual } = await obterConteudoAtual(caminho, token);
+        
+        // Construir dados para salvar
+        let dadosParaSalvar = {
+          alunoId: alunoIdAtual,
+          aluno: document.getElementById('buscaAluno').value.trim() || alunoIdAtual,
+          repertorio: repertorioAtual,
+          lotesTempo: dadosAtuais?.lotesTempo || {},
+          atualizadoEm: new Date().toISOString()
+        };
 
         // Atualizar o tempo do lote atual
-        if (!dados.lotesTempo) dados.lotesTempo = {};
-        dados.lotesTempo[cronometroLoteAtual] = {
+        dadosParaSalvar.lotesTempo[cronometroLoteAtual] = {
           tempoSegundos: segundosTotais,
           ultimaAtualizacao: new Date().toISOString(),
           status: cronometroRodando ? 'em_andamento' : 'pausado'
         };
 
-        const jsonString = JSON.stringify(dados, null, 2);
-        const utf8Bytes = new TextEncoder().encode(jsonString);
-        let binaryStr = "";
-        utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
-        const conteudoBase64 = btoa(binaryStr);
+        log(`📝 Salvando tempo do lote "${cronometroLoteAtual}": ${segundosTotais}s`, LOG_LEVELS.INFO);
 
-        // Usar a função com retry
         const resultado = await salvarArquivoComRetry(
           caminho,
-          conteudoBase64,
+          dadosParaSalvar,
           token,
           `Atualizando tempo do cronômetro para lote: ${cronometroLoteAtual}`
         );
 
         if (resultado.success) {
           shaArquivoAtual = resultado.sha;
+          // Atualizar o cache local com os dados salvos
+          if (resultado.dados) {
+            dadosMusicasCache = { repertorio: resultado.dados.repertorio || repertorioAtual };
+          }
           log(`✅ Tempo do cronômetro salvo com sucesso!`, LOG_LEVELS.SUCCESS);
-          showToast(`💾 Tempo salvo: ${formatarTempo(segundosTotais)}`, 'success');
           return true;
         } else {
           log(`❌ Falha ao salvar tempo: ${resultado.error}`, LOG_LEVELS.ERROR);
-          showToast(`❌ Erro ao salvar: ${resultado.error}`, 'error');
           return false;
         }
 
       } catch (e) {
         log(`❌ Exceção ao salvar: ${e.message}`, LOG_LEVELS.ERROR);
-        showToast(`❌ Erro: ${e.message}`, 'error');
         return false;
+      } finally {
+        salvandoCronometro = false;
       }
     }
 
@@ -1002,44 +1024,32 @@
 
       try {
         const caminho = `alunos/musica_${alunoIdAtual}.json`;
-        const getRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
+        const { dados, sha } = await obterConteudoAtual(caminho, token);
 
-        if (getRes.ok) {
-          const data = await getRes.json();
-          const base64Clean = data.content.replace(/\s/g, '');
-          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-          const jsonStr = new TextDecoder('utf-8').decode(bytes);
-          const json = JSON.parse(jsonStr);
-
-          const lotesTempo = json.lotesTempo || {};
+        if (dados && dados.lotesTempo && dados.lotesTempo[loteNome]) {
+          segundosTotais = dados.lotesTempo[loteNome].tempoSegundos || 0;
+          cronometroRodando = false;
+          cronometroPausado = false;
+          cronometroLoteAtual = loteNome;
           
-          if (lotesTempo[loteNome]) {
-            segundosTotais = lotesTempo[loteNome].tempoSegundos || 0;
-            cronometroRodando = false;
-            cronometroPausado = false;
-            cronometroLoteAtual = loteNome;
-            
-            document.getElementById('cronometroBar').style.display = 'flex';
-            document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
-            
-            if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
-            
-            const statusEl = document.getElementById('cronometroStatus');
-            if (statusEl) {
-              statusEl.className = 'cronometro-status pausado';
-              statusEl.innerHTML = '⏸️ Pausado';
-            }
-            
-            const btnPausar = document.getElementById('btnCronometroPausar');
-            if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
-            
-            atualizarDisplayCronometro();
-            log(`✅ Tempo carregado: ${segundosTotais}s (${formatarTempo(segundosTotais)})`, LOG_LEVELS.SUCCESS);
-            showToast(`⏱️ Tempo carregado: ${formatarTempo(segundosTotais)}`, 'info');
-            return;
+          document.getElementById('cronometroBar').style.display = 'flex';
+          document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+          
+          if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
+          
+          const statusEl = document.getElementById('cronometroStatus');
+          if (statusEl) {
+            statusEl.className = 'cronometro-status pausado';
+            statusEl.innerHTML = '⏸️ Pausado';
           }
+          
+          const btnPausar = document.getElementById('btnCronometroPausar');
+          if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
+          
+          atualizarDisplayCronometro();
+          log(`✅ Tempo carregado: ${segundosTotais}s (${formatarTempo(segundosTotais)})`, LOG_LEVELS.SUCCESS);
+          showToast(`⏱️ Tempo carregado: ${formatarTempo(segundosTotais)}`, 'info');
+          return;
         }
 
         // Se não encontrou, inicia do zero
@@ -1131,15 +1141,17 @@
 
       if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
 
-      cronometroInterval = setInterval(() => {
+      cronometroInterval = setInterval(async () => {
         segundosTotais++;
         atualizarDisplayCronometro();
-        if (segundosTotais % 10 === 0) {
+        // Salvar a cada 15 segundos (menos frequente para evitar conflitos)
+        if (segundosTotais % 15 === 0) {
           log(`💾 Salvando automaticamente... (${segundosTotais}s)`, LOG_LEVELS.DEBUG);
-          salvarTempoCronometro();
+          await salvarTempoCronometro();
         }
       }, 1000);
 
+      // Salvar imediatamente ao iniciar
       salvarTempoCronometro();
       showToast(`⏱️ Cronômetro iniciado para "${loteSelecionado}"!`, 'success');
     }
@@ -1181,12 +1193,12 @@
         }
         if (btnPausar) { btnPausar.innerHTML = '<i class="fa-solid fa-pause"></i> Pausar'; }
 
-        cronometroInterval = setInterval(() => {
+        cronometroInterval = setInterval(async () => {
           segundosTotais++;
           atualizarDisplayCronometro();
-          if (segundosTotais % 10 === 0) {
+          if (segundosTotais % 15 === 0) {
             log(`💾 Salvando automaticamente... (${segundosTotais}s)`, LOG_LEVELS.DEBUG);
-            salvarTempoCronometro();
+            await salvarTempoCronometro();
           }
         }, 1000);
         
@@ -1286,7 +1298,7 @@
     }
 
     // =============================================
-    // ===== SALVAR ALUNO (COM RETRY) =====
+    // ===== SALVAR ALUNO =====
     // =============================================
 
     async function salvarMusicasAluno() {
@@ -1305,22 +1317,12 @@
 
       const caminho = `alunos/musica_${alunoId}.json`;
       
-      let lotesTempo = {};
+      // Buscar dados existentes para preservar lotesTempo
+      const { dados: dadosExistentes } = await obterConteudoAtual(caminho, token);
       
-      try {
-        const getRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
-        if (getRes.ok) {
-          const data = await getRes.json();
-          const base64Clean = data.content.replace(/\s/g, '');
-          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-          const jsonStr = new TextDecoder('utf-8').decode(bytes);
-          const json = JSON.parse(jsonStr);
-          if (json.lotesTempo) lotesTempo = json.lotesTempo;
-        }
-      } catch (e) {}
+      let lotesTempo = dadosExistentes?.lotesTempo || {};
 
+      // Atualizar o tempo do lote atual
       if (cronometroLoteAtual && cronometroLoteAtual !== 'todos') {
         lotesTempo[cronometroLoteAtual] = {
           tempoSegundos: segundosTotais,
@@ -1329,7 +1331,7 @@
         };
       }
 
-      const conteudoJson = { 
+      const dadosParaSalvar = { 
         alunoId: alunoId,
         aluno: busca, 
         repertorio: repertorio,
@@ -1337,23 +1339,20 @@
         atualizadoEm: new Date().toISOString()
       };
 
-      const jsonString = JSON.stringify(conteudoJson, null, 2);
-      const utf8Bytes = new TextEncoder().encode(jsonString);
-      let binaryStr = "";
-      utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
-      const conteudoBase64 = btoa(binaryStr);
-
       exibirStatus("Enviando dados para o GitHub...", "blue");
 
       const resultado = await salvarArquivoComRetry(
         caminho,
-        conteudoBase64,
+        dadosParaSalvar,
         token,
         `Atualizando músicas e tempos do aluno: ${alunoId}`
       );
 
       if (resultado.success) {
         shaArquivoAtual = resultado.sha;
+        if (resultado.dados) {
+          dadosMusicasCache = { repertorio: resultado.dados.repertorio || repertorio };
+        }
         log(`✅ Dados salvos com sucesso! SHA: ${shaArquivoAtual}`, LOG_LEVELS.SUCCESS);
         exibirStatus(`✅ Músicas e tempos salvos com sucesso!`, "green");
         showToast(`💾 ${repertorio.length} músicas e tempos salvos!`, 'success');
@@ -1383,22 +1382,15 @@
       exibirStatus(`Buscando dados do aluno ${alunoId}...`, "blue");
 
       try {
-        const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-          headers: { 'Authorization': `token ${token}` }
-        });
+        const { dados, sha } = await obterConteudoAtual(caminho, token);
 
         let musicasDoAluno = [];
         let lotesTempo = {};
 
-        if (res.ok) {
-          const data = await res.json();
-          shaArquivoAtual = data.sha;
-          const base64Clean = data.content.replace(/\s/g, '');
-          const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
-          const jsonStr = new TextDecoder('utf-8').decode(bytes);
-          const json = JSON.parse(jsonStr);
-          musicasDoAluno = json.repertorio || [];
-          lotesTempo = json.lotesTempo || {};
+        if (dados) {
+          shaArquivoAtual = sha;
+          musicasDoAluno = dados.repertorio || [];
+          lotesTempo = dados.lotesTempo || {};
           log(`✅ Dados carregados. ${musicasDoAluno.length} músicas, ${Object.keys(lotesTempo).length} lotes com tempo.`, LOG_LEVELS.SUCCESS);
         } else {
           shaArquivoAtual = null;
@@ -1727,13 +1719,8 @@
     // ===== FUNÇÕES DE PDF E ABC (stubs) =====
     // =============================================
 
-    function getPdfUrl(m) {
-      return m.pdfUrl || '';
-    }
-
-    function getAbcUrl(m) {
-      return m.abcFile || '';
-    }
+    function getPdfUrl(m) { return m.pdfUrl || ''; }
+    function getAbcUrl(m) { return m.abcFile || ''; }
 
     async function abrirPDFMusica(index) {
       const m = repertorioAtual[index];
@@ -1770,9 +1757,7 @@
       const token = obterToken();
       if (!token) return exibirStatus("Configure o token do GitHub primeiro.", "red");
       if (!nomeLote || nomeLote.trim() === "") return exibirStatus("Nome do lote não informado.", "red");
-
       showToast(`📦 Importando lote: ${nomeLote}`, 'info');
-      // Implementação simplificada
       exibirStatus(`✅ Lote "${nomeLote}" importado com sucesso!`, "green");
     }
 
