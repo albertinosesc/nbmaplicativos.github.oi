@@ -1632,31 +1632,31 @@ async function carregarLotesDoGitHub(alunoId) {
     // ============================================================
     // FUNÇÕES DE IMPORTAÇÃO E SALVAMENTO
     // ============================================================
-    async function importarLoteTeoriaDireto(nomeLote) {
-      const token = obterToken();
-      if (!token) { exibirStatus("Configure o token do GitHub primeiro.", "red"); return; }
-      if (!nomeLote || nomeLote.trim() === "") { exibirStatus("Nome do lote não informado.", "red"); return; }
+   async function importarLoteTeoriaDireto(nomeLote) {
+    const token = obterToken();
+    if (!token) { exibirStatus("Configure o token do GitHub primeiro.", "red"); return; }
+    if (!nomeLote || nomeLote.trim() === "") { exibirStatus("Nome do lote não informado.", "red"); return; }
 
-      const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
-      const caminhosParaTestar = [
+    const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+    const caminhosParaTestar = [
         `lotes/lote_teoria_${idFormatado}.json`,
         `lotes/teoria_${idFormatado}.json`,
         `lotes/${idFormatado}.json`
-      ];
+    ];
 
-      exibirStatus(`Buscando lote "${nomeLote}"...`, "blue");
-      let dadosArquivo = null;
-      for (const caminho of caminhosParaTestar) {
+    exibirStatus(`Buscando lote "${nomeLote}"...`, "blue");
+    let dadosArquivo = null;
+    for (const caminho of caminhosParaTestar) {
         try {
-          const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
-            headers: { 'Authorization': `token ${token}` }
-          });
-          if (res.ok) { dadosArquivo = await res.json(); break; }
+            const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}?ref=${GH_CONFIG.branch}`, {
+                headers: { 'Authorization': `token ${token}` }
+            });
+            if (res.ok) { dadosArquivo = await res.json(); break; }
         } catch (e) {}
-      }
-      if (!dadosArquivo) { exibirStatus(`❌ Lote "${nomeLote}" não encontrado.`, "red"); return; }
+    }
+    if (!dadosArquivo) { exibirStatus(`❌ Lote "${nomeLote}" não encontrado.`, "red"); return; }
 
-      try {
+    try {
         const base64Clean = dadosArquivo.content.replace(/\s/g, '');
         const bytes = Uint8Array.from(atob(base64Clean), c => c.charCodeAt(0));
         const jsonStr = new TextDecoder('utf-8').decode(bytes);
@@ -1671,44 +1671,47 @@ async function carregarLotesDoGitHub(alunoId) {
 
         loteImportado = [];
         listaConceitos.forEach(c => {
-          const nomeStr = typeof c === 'string' ? c : (c.titulo || c.nome || "");
-          if (nomeStr) {
-            loteImportado.push({
-              titulo: nomeStr,
-              status: c.status || 'pendente',
-              observacao: c.observacao || '',
-              numeroTopico: c.numeroTopico || ''
-            });
-          }
+            const nomeStr = typeof c === 'string' ? c : (c.titulo || c.nome || "");
+            if (nomeStr) {
+                loteImportado.push({
+                    titulo: nomeStr,
+                    status: c.status || 'pendente',
+                    observacao: c.observacao || '',
+                    numeroTopico: c.numeroTopico || ''
+                });
+            }
         });
 
         if (alunoIdAtual) {
-          const conceitosAtuais = getConceitosDaTabela();
-          const titulosExistentes = new Set(conceitosAtuais.map(c => c.titulo));
-          document.getElementById('corpoTabela').innerHTML = "";
-          conceitosAtuais.forEach(c => adicionarLinhaConceito(c.titulo, c.status, c.observacao, c.numeroTopico));
-          let adicionados = 0;
-          loteImportado.forEach(c => {
-            if (!titulosExistentes.has(c.titulo)) {
-              adicionarLinhaConceito(c.titulo, c.status, c.observacao, c.numeroTopico);
-              adicionados++;
-            }
-          });
-          exibirStatus(`✅ Lote "${nomeLote}" mesclado! ${adicionados} novos conceitos adicionados.`, "green");
-          showToast(`📚 ${adicionados} novos conceitos adicionados!`, 'success');
+            const conceitosAtuais = getConceitosDaTabela();
+            const titulosExistentes = new Set(conceitosAtuais.map(c => c.titulo));
+            document.getElementById('corpoTabela').innerHTML = "";
+            conceitosAtuais.forEach(c => adicionarLinhaConceito(c.titulo, c.status, c.observacao, c.numeroTopico));
+            let adicionados = 0;
+            loteImportado.forEach(c => {
+                if (!titulosExistentes.has(c.titulo)) {
+                    adicionarLinhaConceito(c.titulo, c.status, c.observacao, c.numeroTopico);
+                    adicionados++;
+                }
+            });
+            exibirStatus(`✅ Lote "${nomeLote}" mesclado! ${adicionados} novos conceitos adicionados.`, "green");
+            showToast(`📚 ${adicionados} novos conceitos adicionados!`, 'success');
         } else {
-          document.getElementById('corpoTabela').innerHTML = "";
-          loteImportado.forEach(c => adicionarLinhaConceito(c.titulo, c.status, c.observacao, c.numeroTopico));
-          exibirStatus(`✅ ${loteImportado.length} conceitos importados do lote "${nomeLote}"!`, "green");
-          showToast(`📚 ${loteImportado.length} conceitos importados!`, 'success');
+            document.getElementById('corpoTabela').innerHTML = "";
+            loteImportado.forEach(c => adicionarLinhaConceito(c.titulo, c.status, c.observacao, c.numeroTopico));
+            exibirStatus(`✅ ${loteImportado.length} conceitos importados do lote "${nomeLote}"!`, "green");
+            showToast(`📚 ${loteImportado.length} conceitos importados!`, 'success');
         }
 
+        // ===== CORREÇÃO: Adiciona o lote UMA VEZ, NÃO por cada conceito =====
         adicionarLoteImportado(nomeLote);
+        
+        atualizarOpcoesLote();
         aplicarFiltro();
-      } catch (err) {
+    } catch (err) {
         exibirStatus("❌ Erro ao importar: " + err.message, "red");
-      }
     }
+}
 
     async function solicitarEImportarLoteTeoriaGitHub() {
       const token = obterToken();
