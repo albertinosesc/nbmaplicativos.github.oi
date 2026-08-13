@@ -976,18 +976,27 @@
 
     async function salvarDados(novosDados, tipo = 'dados') {
       const token = obterToken();
+      if (!token) {
+        return { success: false, error: 'Token não configurado' };
+      }
+      
       const caminho = `alunos/musica_${alunoIdAtual}.json`;
       
       let tentativa = 0;
-      const maxTentativas = 3;
+      const maxTentativas = 5; // Aumentado para 5 tentativas
+      let ultimoErro = null;
 
       while (tentativa < maxTentativas) {
         tentativa++;
         try {
-          // Buscar dados atuais
+          // Buscar dados atuais com o SHA mais recente
           const { dados: dadosAtuais, sha: shaAtual } = await obterConteudoAtual(caminho, token);
           
-          // Mesclar dados
+          if (!shaAtual) {
+            log(`⚠️ Arquivo não encontrado, criando novo.`, LOG_LEVELS.WARNING);
+          }
+          
+          // Mesclar dados preservando tudo
           let dadosParaSalvar = { ...novosDados };
           
           if (dadosAtuais) {
@@ -996,13 +1005,20 @@
               dadosParaSalvar.repertorio = dadosAtuais.repertorio;
             }
             
-            // Mesclar lotesTempo
+            // Mesclar lotesTempo preservando todos os lotes
             if (dadosAtuais.lotesTempo) {
               if (!dadosParaSalvar.lotesTempo) dadosParaSalvar.lotesTempo = {};
               for (const [key, value] of Object.entries(dadosAtuais.lotesTempo)) {
                 if (!dadosParaSalvar.lotesTempo[key]) {
                   dadosParaSalvar.lotesTempo[key] = value;
                 }
+              }
+            }
+            
+            // Preservar outras propriedades que podem existir
+            for (const key of ['aluno', 'alunoId', 'historico', 'metadata']) {
+              if (dadosAtuais[key] && !dadosParaSalvar[key]) {
+                dadosParaSalvar[key] = dadosAtuais[key];
               }
             }
             
@@ -1048,25 +1064,31 @@
 
           if (res.status === 409) {
             log(`⚠️ Conflito (409) na tentativa ${tentativa}. Recarregando dados...`, LOG_LEVELS.WARNING);
-            // Aguardar antes de tentar novamente
-            await new Promise(resolve => setTimeout(resolve, 1500 * tentativa));
+            // Aguardar com backoff exponencial
+            const tempoEspera = 1000 * Math.pow(1.5, tentativa);
+            await new Promise(resolve => setTimeout(resolve, tempoEspera));
             continue;
           }
 
           const errData = await res.json().catch(() => ({}));
-          log(`❌ Erro HTTP ${res.status}: ${errData.message || 'Erro desconhecido'}`, LOG_LEVELS.ERROR);
+          ultimoErro = `Erro HTTP ${res.status}: ${errData.message || 'Erro desconhecido'}`;
+          log(`❌ ${ultimoErro}`, LOG_LEVELS.ERROR);
           
-          if (res.status !== 409) break;
+          if (res.status === 401 || res.status === 403) {
+            // Erro de autenticação, não tentar novamente
+            break;
+          }
           
           await new Promise(resolve => setTimeout(resolve, 1000 * tentativa));
 
         } catch (e) {
+          ultimoErro = e.message;
           log(`❌ Exceção na tentativa ${tentativa}: ${e.message}`, LOG_LEVELS.ERROR);
           await new Promise(resolve => setTimeout(resolve, 1000 * tentativa));
         }
       }
 
-      return { success: false, error: `Falha após ${maxTentativas} tentativas` };
+      return { success: false, error: `Falha após ${maxTentativas} tentativas: ${ultimoErro || 'Erro desconhecido'}` };
     }
 
     // =============================================
@@ -1078,18 +1100,41 @@
         return false;
       }
 
-      const dados = {
-        lotesTempo: {
-          [cronometroLoteAtual]: {
-            tempoSegundos: segundosTotais,
-            ultimaAtualizacao: new Date().toISOString(),
-            status: cronometroRodando ? 'em_andamento' : 'pausado'
-          }
-        }
-      };
+      // Buscar dados atuais primeiro para preservar tudo
+      const token = obterToken();
+      if (!token) {
+        log(`❌ Token não encontrado para salvar cronômetro`, LOG_LEVELS.ERROR);
+        return false;
+      }
 
       try {
-        const resultado = await adicionarSalvamentoFila(dados, 'cronômetro');
+        const caminho = `alunos/musica_${alunoIdAtual}.json`;
+        const { dados: dadosAtuais } = await obterConteudoAtual(caminho, token);
+        
+        // Construir dados completos preservando tudo
+        const dadosCompletos = {
+          repertorio: dadosAtuais?.repertorio || repertorioAtual || [],
+          lotesTempo: dadosAtuais?.lotesTempo || {},
+          aluno: dadosAtuais?.aluno || '',
+          alunoId: alunoIdAtual
+        };
+        
+        // Atualizar apenas o lote específico
+        dadosCompletos.lotesTempo[cronometroLoteAtual] = {
+          tempoSegundos: segundosTotais,
+          ultimaAtualizacao: new Date().toISOString(),
+          status: cronometroRodando ? 'em_andamento' : 'pausado'
+        };
+        
+        // Remover propriedades que não devem ser enviadas
+        const dadosParaSalvar = {
+          repertorio: dadosCompletos.repertorio,
+          lotesTempo: dadosCompletos.lotesTempo,
+          aluno: dadosCompletos.aluno,
+          alunoId: dadosCompletos.alunoId
+        };
+
+        const resultado = await adicionarSalvamentoFila(dadosParaSalvar, 'cronômetro');
         return resultado.success;
       } catch (error) {
         log(`❌ Erro ao salvar cronômetro: ${error.message}`, LOG_LEVELS.ERROR);
