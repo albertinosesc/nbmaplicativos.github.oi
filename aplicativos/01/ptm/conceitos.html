@@ -454,8 +454,9 @@
       tr.innerHTML = `
         <td class="col-titulo"><input type="text" value="${tituloConceito}" placeholder="Ex: 1.1.1 - Pentagrama" style="width:100%;" onchange="atualizarNumeroTopico(this)"></td>
         <td class="col-status" style="text-align:center;">
-          <span class="badge-lote"><i class="fa-solid fa-box"></i> ${nomeLote}</span>
-          <br><br>
+          <div style="margin-bottom: 6px;">
+            <span class="badge-lote"><i class="fa-solid fa-box"></i> ${nomeLote}</span>
+          </div>
           <select class="status-select" onchange="atualizarBadgeStatus(this)" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border);font-size:0.8rem;width:100%;max-width:130px;">
             <option value="concluido" ${status === 'concluido' ? 'selected' : ''}>✅ Concluído</option>
             <option value="pendente" ${status === 'pendente' ? 'selected' : ''}>📝 Pendente</option>
@@ -518,9 +519,17 @@
       if (confirm("Tem certeza que deseja APAGAR TODOS os conceitos da lista?")) {
         document.getElementById('corpoTabela').innerHTML = "";
         lotesImportados = [];
+        if (alunoIdAtual) {
+          const cacheKey = `lotes_aluno_${alunoIdAtual}`;
+          localStorage.removeItem(cacheKey);
+        }
         atualizarOpcoesLote();
         atualizarListaLotes();
         aplicarFiltro();
+        if (alunoIdAtual) {
+          salvarDadosAluno();
+        }
+        showToast('🗑️ Todos os conceitos removidos!', 'success');
       }
     }
 
@@ -611,12 +620,14 @@
       
       conceitosParaRemover.forEach(tr => tr.remove());
       
-      // Remove da lista de lotes importados
+      // Remove da lista de lotes importados e do cache
       const index = lotesImportados.indexOf(loteSelecionado);
       if (index > -1) {
         lotesImportados.splice(index, 1);
         if (alunoIdAtual) {
-          localStorage.setItem(`lotes_aluno_${alunoIdAtual}`, JSON.stringify(lotesImportados));
+          const cacheKey = `lotes_aluno_${alunoIdAtual}`;
+          localStorage.removeItem(cacheKey);
+          localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
         }
       }
       
@@ -675,7 +686,8 @@
         lotesImportados.push(nomeLote);
         atualizarListaLotes();
         if (alunoIdAtual) {
-          localStorage.setItem(`lotes_aluno_${alunoIdAtual}`, JSON.stringify(lotesImportados));
+          const cacheKey = `lotes_aluno_${alunoIdAtual}`;
+          localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
         }
         atualizarOpcoesLote();
       }
@@ -693,6 +705,8 @@
       }
       
       const nomesRemovidos = [];
+      const linhasParaRemover = [];
+      
       checkboxes.forEach(cb => {
         const nomeLote = cb.dataset.lote;
         if (nomeLote && lotesImportados.includes(nomeLote)) {
@@ -702,12 +716,30 @@
         }
       });
       
+      // Remove as linhas da tabela
+      const linhas = document.querySelectorAll('#corpoTabela tr');
+      linhas.forEach(tr => {
+        const lote = tr.dataset.lote || 'Geral';
+        if (nomesRemovidos.includes(lote)) {
+          linhasParaRemover.push(tr);
+        }
+      });
+      linhasParaRemover.forEach(tr => tr.remove());
+      
+      // Limpa e salva o cache
       if (alunoIdAtual) {
-        localStorage.setItem(`lotes_aluno_${alunoIdAtual}`, JSON.stringify(lotesImportados));
+        const cacheKey = `lotes_aluno_${alunoIdAtual}`;
+        localStorage.removeItem(cacheKey);
+        localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
       }
       
       atualizarListaLotes();
       atualizarOpcoesLote();
+      aplicarFiltro();
+      
+      if (alunoIdAtual) {
+        salvarDadosAluno();
+      }
       
       if (nomesRemovidos.length > 0) {
         showToast(`🗑️ ${nomesRemovidos.length} lote(s) removido(s): ${nomesRemovidos.join(', ')}`, 'success');
@@ -724,13 +756,37 @@
         return;
       }
       
+      const nomesRemovidos = [...lotesImportados];
+      
+      // Remove todas as linhas da tabela
+      const linhas = document.querySelectorAll('#corpoTabela tr');
+      const linhasParaRemover = [];
+      linhas.forEach(tr => {
+        const lote = tr.dataset.lote || 'Geral';
+        if (nomesRemovidos.includes(lote)) {
+          linhasParaRemover.push(tr);
+        }
+      });
+      linhasParaRemover.forEach(tr => tr.remove());
+      
       lotesImportados = [];
+      
+      // Limpa e salva o cache
       if (alunoIdAtual) {
-        localStorage.setItem(`lotes_aluno_${alunoIdAtual}`, JSON.stringify(lotesImportados));
+        const cacheKey = `lotes_aluno_${alunoIdAtual}`;
+        localStorage.removeItem(cacheKey);
+        localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
       }
+      
       atualizarListaLotes();
       atualizarOpcoesLote();
-      showToast(`🗑️ Todos os lotes removidos!`, 'success');
+      aplicarFiltro();
+      
+      if (alunoIdAtual) {
+        salvarDadosAluno();
+      }
+      
+      showToast(`🗑️ Todos os ${nomesRemovidos.length} lotes removidos!`, 'success');
     }
 
     function atualizarListaLotes() {
@@ -1360,6 +1416,11 @@
         if (response.status === 404) {
           exibirStatus(`Aluno ${alunoId} não tem registros teóricos.`, "orange");
           shaArquivoAtual = null;
+          // Limpa lotes do cache se não houver dados
+          const cacheKey = `lotes_aluno_${alunoId}`;
+          localStorage.removeItem(cacheKey);
+          lotesImportados = [];
+          atualizarListaLotes();
         } else if (!response.ok) {
           throw new Error("Erro ao acessar o GitHub.");
         } else {
@@ -1396,17 +1457,16 @@
         }
 
         // Adiciona os conceitos à tabela
-        conceitosDoAluno.forEach(c => {
-          const lote = c.lote || 'Geral';
-          adicionarLinhaConceito(c.titulo, c.status || 'pendente', c.observacao || '', c.numeroTopico || '', lote);
-        });
-
-        if (conceitosDoAluno.length === 0) {
-          adicionarLinhaConceito();
-          exibirStatus(`Aluno ${alunoId} - Nenhum conceito encontrado. Adicione novos.`, "orange");
-        } else {
+        if (conceitosDoAluno.length > 0) {
+          conceitosDoAluno.forEach(c => {
+            const lote = c.lote || 'Geral';
+            adicionarLinhaConceito(c.titulo, c.status || 'pendente', c.observacao || '', c.numeroTopico || '', lote);
+          });
           exibirStatus(`✅ Aluno ${alunoId} carregado! ${conceitosDoAluno.length} conceitos.`, "green");
           showToast(`📚 ${conceitosDoAluno.length} conceitos carregados!`, 'success');
+        } else {
+          adicionarLinhaConceito();
+          exibirStatus(`Aluno ${alunoId} - Nenhum conceito encontrado. Adicione novos.`, "orange");
         }
         
         atualizarOpcoesLote();
