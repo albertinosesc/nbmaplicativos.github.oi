@@ -6,6 +6,7 @@
   <title>Lotes Arquivados - Sistema ABC</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   <style>
+    /* (mesmo CSS anterior) */
     :root {
       --primary: #2563eb;
       --accent: #27ae60;
@@ -109,7 +110,7 @@
     }
     .lotes-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
       gap: 20px;
     }
     .lote-card {
@@ -496,41 +497,54 @@
       }
     }
 
+    // --- FORMATAR TEMPO (HH:MM:SS) ---
+    function formatarTempo(totalSecs) {
+      if (!totalSecs || totalSecs === 0) return '00:00:00';
+      const h = Math.floor(totalSecs / 3600);
+      const m = Math.floor((totalSecs % 3600) / 60);
+      const s = totalSecs % 60;
+      return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    }
+
     // --- CALCULAR TEMPO DE ESTUDO ---
     function calcularTempo(dataInicio, dataFim) {
       if (!dataInicio || !dataFim) return 'Não informado';
       
-      const inicio = new Date(dataInicio);
-      const fim = new Date(dataFim);
-      const diffMs = fim - inicio;
-      
-      if (diffMs < 0) return 'Data inválida';
-      
-      const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-      
-      if (diffDias < 1) {
-        const horas = Math.floor(diffMs / (1000 * 60 * 60));
-        return `${horas} hora${horas > 1 ? 's' : ''}`;
+      try {
+        const inicio = new Date(dataInicio);
+        const fim = new Date(dataFim);
+        const diffMs = fim - inicio;
+        
+        if (diffMs < 0) return 'Data inválida';
+        
+        const diffDias = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+        
+        if (diffDias < 1) {
+          const horas = Math.floor(diffMs / (1000 * 60 * 60));
+          return `${horas} hora${horas > 1 ? 's' : ''}`;
+        }
+        
+        if (diffDias < 30) {
+          return `${diffDias} dia${diffDias > 1 ? 's' : ''}`;
+        }
+        
+        const meses = Math.floor(diffDias / 30);
+        const diasRestantes = diffDias % 30;
+        
+        if (meses < 12) {
+          return `${meses} mês${meses > 1 ? 'es' : ''}${diasRestantes > 0 ? ` e ${diasRestantes} dia${diasRestantes > 1 ? 's' : ''}` : ''}`;
+        }
+        
+        const anos = Math.floor(meses / 12);
+        const mesesRestantes = meses % 12;
+        let resultado = `${anos} ano${anos > 1 ? 's' : ''}`;
+        if (mesesRestantes > 0) {
+          resultado += ` e ${mesesRestantes} mês${mesesRestantes > 1 ? 'es' : ''}`;
+        }
+        return resultado;
+      } catch (e) {
+        return 'Data inválida';
       }
-      
-      if (diffDias < 30) {
-        return `${diffDias} dia${diffDias > 1 ? 's' : ''}`;
-      }
-      
-      const meses = Math.floor(diffDias / 30);
-      const diasRestantes = diffDias % 30;
-      
-      if (meses < 12) {
-        return `${meses} mês${meses > 1 ? 'es' : ''}${diasRestantes > 0 ? ` e ${diasRestantes} dia${diasRestantes > 1 ? 's' : ''}` : ''}`;
-      }
-      
-      const anos = Math.floor(meses / 12);
-      const mesesRestantes = meses % 12;
-      let resultado = `${anos} ano${anos > 1 ? 's' : ''}`;
-      if (mesesRestantes > 0) {
-        resultado += ` e ${mesesRestantes} mês${mesesRestantes > 1 ? 'es' : ''}`;
-      }
-      return resultado;
     }
 
     // --- FORMATAR DATA ---
@@ -538,7 +552,7 @@
       if (!dataISO) return 'Não informada';
       try {
         const data = new Date(dataISO);
-        return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
       } catch (e) {
         return 'Data inválida';
       }
@@ -585,7 +599,7 @@
         const jsonStr = new TextDecoder('utf-8').decode(bytes);
         const json = JSON.parse(jsonStr);
 
-        // 🔥 CORREÇÃO: A chave correta é 'arquivados', não 'lotesArquivados'
+        // 🔥 CORREÇÃO: A chave correta é 'arquivados'
         lotesArquivados = json.arquivados || [];
         
         if (lotesArquivados.length === 0) {
@@ -624,19 +638,18 @@
 
       lotesFiltrados.forEach(lote => {
         totalMusicas += lote.totalMusicas || lote.musicas?.length || 0;
-        // Tentar calcular tempo usando dataArquivamento
-        if (lote.dataArquivamento) {
-          // Usar a data de arquivamento como referência
-          const dataArq = new Date(lote.dataArquivamento);
-          // Se tiver data de início, calcular diferença
-          if (lote.dataInicio) {
+        
+        // Calcular tempo de estudo
+        if (lote.dataInicio && lote.dataArquivamento) {
+          try {
             const inicio = new Date(lote.dataInicio);
-            const diffDias = Math.floor((dataArq - inicio) / (1000 * 60 * 60 * 24));
+            const fim = new Date(lote.dataArquivamento);
+            const diffDias = Math.floor((fim - inicio) / (1000 * 60 * 60 * 24));
             if (diffDias > 0) {
               somaTempos += diffDias;
               lotesComTempo++;
             }
-          }
+          } catch (e) {}
         }
       });
 
@@ -693,7 +706,7 @@
       showToast('🧹 Filtros limpos!', 'info');
     }
 
-    // --- RENDERIZAR LOTES ---
+    // --- RENDERIZAR LOTES (CORRIGIDO) ---
     function renderizarLotes() {
       const container = document.getElementById('lotesContainer');
 
@@ -713,16 +726,21 @@
       lotesFiltrados.forEach((lote, idx) => {
         const musicas = lote.musicas || [];
         const total = lote.totalMusicas || musicas.length;
+        const dataInicio = lote.dataInicio ? formatarData(lote.dataInicio) : 'Não informada';
         const dataArquivamento = formatarData(lote.dataArquivamento);
         
-        // Tentar extrair informações adicionais
-        const dataInicio = lote.dataInicio ? formatarData(lote.dataInicio) : 'Não informada';
-        const dataConclusao = lote.dataConclusao ? formatarData(lote.dataConclusao) : dataArquivamento;
+        // 🔥 CORREÇÃO: Usar o tempo do cronômetro salvo
+        const tempoCronometro = lote.tempoCronometro || 0;
+        const tempoFormatado = lote.tempoFormatado || formatarTempo(tempoCronometro);
         
-        let tempo = 'Não informado';
+        // Calcular tempo de estudo
+        let tempoEstudo = 'Não informado';
         if (lote.dataInicio && lote.dataArquivamento) {
-          tempo = calcularTempo(lote.dataInicio, lote.dataArquivamento);
+          tempoEstudo = calcularTempo(lote.dataInicio, lote.dataArquivamento);
         }
+
+        // 🔥 CORREÇÃO: Remover duplicação do nome do aluno
+        const nomeAluno = lote.alunoNome || alunoIdAtual || 'Não informado';
 
         html += `
           <div class="lote-card">
@@ -736,9 +754,10 @@
             <div class="lote-detalhes">
               <span><i class="fa-regular fa-calendar-plus"></i> Início: ${dataInicio}</span>
               <span><i class="fa-regular fa-calendar-check"></i> Arquivado em: ${dataArquivamento}</span>
-              <span><i class="fa-regular fa-clock"></i> Tempo de estudo: <span class="tempo">${tempo}</span></span>
+              <span><i class="fa-regular fa-clock"></i> Tempo de estudo: <span class="tempo">${tempoEstudo}</span></span>
+              <span><i class="fa-regular fa-hourglass"></i> Tempo cronometrado: <span class="tempo">${tempoFormatado}</span></span>
               <span><i class="fa-regular fa-list"></i> ${total} música${total > 1 ? 's' : ''}</span>
-              <span><i class="fa-regular fa-user"></i> Aluno: ${lote.alunoNome || alunoIdAtual || 'Não informado'}</span>
+              <span><i class="fa-regular fa-user"></i> Aluno: ${nomeAluno}</span>
             </div>
 
             <div class="lote-actions">
@@ -848,11 +867,12 @@
           lotes: {}
         };
         
-        // Reconstruir o objeto lotes
         arquivadosAtualizados.arquivados.forEach(l => {
           arquivadosAtualizados.lotes[l.nome] = {
+            dataInicio: l.dataInicio,
             dataArquivamento: l.dataArquivamento,
-            totalMusicas: l.totalMusicas || l.musicas?.length || 0
+            totalMusicas: l.totalMusicas || l.musicas?.length || 0,
+            tempoCronometro: l.tempoCronometro || 0
           };
         });
 
