@@ -394,6 +394,32 @@
       color: var(--primary);
       font-weight: bold;
     }
+    .filter-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.filter-item label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #4b5563;
+    white-space: nowrap;
+}
+
+.filter-item select {
+    padding: 5px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 0.8rem;
+    background: white;
+    cursor: pointer;
+    min-width: 140px;
+}
+
+.filter-item select:focus {
+    outline: 2px solid var(--primary);
+}
 
     @media (max-width: 768px) {
       .md-modal-body { flex-direction: column; }
@@ -489,18 +515,32 @@
       </div>
     </div>
 
-    <!-- FILTRO -->
-    <div class="filter-bar">
-      <label><i class="fa-solid fa-filter"></i> Status:</label>
-      <select id="filterStatus" onchange="aplicarFiltro()">
-        <option value="todos">📋 Todos</option>
-        <option value="concluido">✅ Concluído</option>
-        <option value="pendente">📝 Pendente</option>
-        <option value="revisar">🔴 Revisar</option>
-        <option value="andamento">🔄 Em Andamento</option>
-      </select>
-      <span class="filter-info" id="filterInfo">Mostrando todos</span>
+<!-- FILTRO DE STATUS E LOTE -->
+<div class="filter-bar">
+    <div class="filter-item">
+        <label><i class="fa-solid fa-filter"></i> Status:</label>
+        <select id="filterStatus" onchange="aplicarFiltro()">
+            <option value="todos">📋 Todos</option>
+            <option value="concluido">✅ Concluído</option>
+            <option value="pendente">📝 Pendente</option>
+            <option value="revisar">🔴 Revisar</option>
+            <option value="andamento">🔄 Em Andamento</option>
+        </select>
     </div>
+
+    <div class="filter-item">
+        <label><i class="fa-solid fa-layer-group"></i> Lote:</label>
+        <select id="filterLote" onchange="aplicarFiltro()">
+            <option value="todos">📦 Todos os Lotes</option>
+        </select>
+    </div>
+
+    <button style="background-color: #dc2626; padding: 5px 12px; font-size: 0.8rem;" onclick="removerLoteSelecionado()" title="Remove todos os conceitos do lote selecionado">
+        <i class="fa-solid fa-trash-can"></i> Excluir Lote
+    </button>
+
+    <span class="filter-info" id="filterInfo">Mostrando todos</span>
+</div>
 
     <div class="table-container">
       <table>
@@ -721,8 +761,11 @@
         tr.dataset.numeroTopico = numTopico;
       }
 
-      tbody.appendChild(tr);
-      aplicarFiltro();
+    tbody.appendChild(tr);
+    
+    // ===== ATUALIZA AS OPÇÕES DE LOTE =====
+    atualizarOpcoesLote();
+    aplicarFiltro();
     }
 
     function atualizarBadgeStatus(select) {
@@ -748,18 +791,22 @@
     }
 
     function removerLinha(btn) {
-      if (confirm("Tem certeza que deseja excluir este item teórico?")) {
+    if (confirm("Tem certeza que deseja excluir este item teórico?")) {
         btn.closest('tr').remove();
+        // ===== ATUALIZA AS OPÇÕES DE LOTE =====
+        atualizarOpcoesLote();
         aplicarFiltro();
-      }
     }
+}
 
     function limparTodaTabela() {
-      if (confirm("Tem certeza que deseja APAGAR TODOS os conceitos da lista?")) {
+    if (confirm("Tem certeza que deseja APAGAR TODOS os conceitos da lista?")) {
         document.getElementById('corpoTabela').innerHTML = "";
+        // ===== ATUALIZA AS OPÇÕES DE LOTE =====
+        atualizarOpcoesLote();
         aplicarFiltro();
-      }
     }
+}
 
     function getConceitosDaTabela() {
       const linhas = document.querySelectorAll('#corpoTabela tr');
@@ -779,6 +826,229 @@
       });
       return conceitos;
     }
+
+    // ============================================================
+// FUNÇÕES DE FILTRO POR LOTE
+// ============================================================
+
+function atualizarOpcoesLote() {
+    const selectLote = document.getElementById('filterLote');
+    if (!selectLote) return;
+    
+    const valorSelecionado = selectLote.value;
+    
+    // Coleta todos os lotes únicos dos conceitos
+    const lotesUnicos = new Set();
+    const linhas = document.querySelectorAll('#corpoTabela tr');
+    
+    linhas.forEach(tr => {
+        const tituloInput = tr.querySelector('input[type="text"]');
+        if (tituloInput) {
+            const titulo = tituloInput.value.trim();
+            const numTopico = tr.dataset.numeroTopico || '';
+            // Extrai o lote do título ou usa o número do tópico
+            let lote = 'Geral';
+            if (numTopico) {
+                // Pega a primeira parte do número (ex: 6.5.1 -> 6.5)
+                const parts = numTopico.split('_');
+                if (parts.length >= 2) {
+                    lote = `${parts[0]}.${parts[1]}`;
+                } else {
+                    lote = parts[0] || 'Geral';
+                }
+            } else {
+                const match = titulo.match(/^([\d_\-\.]+)/);
+                if (match) {
+                    const num = match[1].replace(/[^0-9.]/g, '.');
+                    const parts = num.split('.');
+                    if (parts.length >= 2) {
+                        lote = `${parts[0]}.${parts[1]}`;
+                    } else {
+                        lote = parts[0] || 'Geral';
+                    }
+                }
+            }
+            lotesUnicos.add(lote);
+        }
+    });
+    
+    // Também adiciona os lotes importados manualmente
+    lotesImportados.forEach(lote => lotesUnicos.add(lote));
+    
+    // Ordena os lotes
+    const lotesOrdenados = Array.from(lotesUnicos).sort((a, b) => {
+        // Tenta ordenar numericamente se forem números
+        const numA = parseFloat(a);
+        const numB = parseFloat(b);
+        if (!isNaN(numA) && !isNaN(numB)) return numA - numB;
+        return a.localeCompare(b);
+    });
+    
+    // Reconstrói o select
+    selectLote.innerHTML = '<option value="todos">📦 Todos os Lotes</option>';
+    
+    lotesOrdenados.forEach(lote => {
+        const option = document.createElement('option');
+        option.value = lote;
+        option.textContent = `📦 ${lote}`;
+        if (lote === valorSelecionado) option.selected = true;
+        selectLote.appendChild(option);
+    });
+    
+    // Atualiza o contador
+    const contadorLotes = document.getElementById('contadorLotes');
+    if (contadorLote) {
+        contadorLote.textContent = lotesOrdenados.length;
+    }
+}
+
+function removerLoteSelecionado() {
+    const selectLote = document.getElementById('filterLote');
+    const loteSelecionado = selectLote.value;
+    
+    if (loteSelecionado === 'todos') {
+        showToast('⚠️ Escolha um lote específico para excluir.', 'warning');
+        return;
+    }
+    
+    // Conta quantos conceitos estão no lote
+    const linhas = document.querySelectorAll('#corpoTabela tr');
+    let qtdConceitos = 0;
+    let conceitosParaRemover = [];
+    
+    linhas.forEach(tr => {
+        const tituloInput = tr.querySelector('input[type="text"]');
+        if (tituloInput) {
+            const titulo = tituloInput.value.trim();
+            const numTopico = tr.dataset.numeroTopico || '';
+            let loteDoConceito = 'Geral';
+            
+            if (numTopico) {
+                const parts = numTopico.split('_');
+                if (parts.length >= 2) {
+                    loteDoConceito = `${parts[0]}.${parts[1]}`;
+                } else {
+                    loteDoConceito = parts[0] || 'Geral';
+                }
+            } else {
+                const match = titulo.match(/^([\d_\-\.]+)/);
+                if (match) {
+                    const num = match[1].replace(/[^0-9.]/g, '.');
+                    const parts = num.split('.');
+                    if (parts.length >= 2) {
+                        loteDoConceito = `${parts[0]}.${parts[1]}`;
+                    } else {
+                        loteDoConceito = parts[0] || 'Geral';
+                    }
+                }
+            }
+            
+            if (loteDoConceito === loteSelecionado) {
+                qtdConceitos++;
+                conceitosParaRemover.push(tr);
+            }
+        }
+    });
+    
+    if (qtdConceitos === 0) {
+        showToast(`⚠️ Nenhum conceito encontrado para o lote "${loteSelecionado}".`, 'warning');
+        return;
+    }
+    
+    if (!confirm(`Remover os ${qtdConceitos} conceito(s) do lote "${loteSelecionado}"?`)) {
+        return;
+    }
+    
+    // Remove os conceitos
+    conceitosParaRemover.forEach(tr => tr.remove());
+    
+    // Remove o lote da lista de lotes importados
+    const index = lotesImportados.indexOf(loteSelecionado);
+    if (index > -1) {
+        lotesImportados.splice(index, 1);
+        // Salva no cache
+        if (alunoIdAtual) {
+            const cacheKey = `lotes_aluno_${alunoIdAtual}`;
+            localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
+        }
+    }
+    
+    // Atualiza a lista de lotes
+    atualizarOpcoesLote();
+    atualizarListaLotes();
+    aplicarFiltro();
+    
+    showToast(`🗑️ Lote "${loteSelecionado}" removido com ${qtdConceitos} conceitos!`, 'success');
+}
+
+// ============================================================
+// FUNÇÃO DE FILTRO MODIFICADA (aplicarFiltro)
+// ============================================================
+
+function aplicarFiltro() {
+    const filtroStatus = document.getElementById('filterStatus').value;
+    const filtroLote = document.getElementById('filterLote').value;
+    const linhas = document.querySelectorAll('#corpoTabela tr');
+    let visiveis = 0;
+    
+    linhas.forEach(tr => {
+        const select = tr.querySelector('select.status-select');
+        const tituloInput = tr.querySelector('input[type="text"]');
+        let mostrar = true;
+        
+        // Filtro por status
+        if (select && filtroStatus !== 'todos') {
+            const status = select.value;
+            if (status !== filtroStatus) {
+                mostrar = false;
+            }
+        }
+        
+        // Filtro por lote
+        if (mostrar && tituloInput && filtroLote !== 'todos') {
+            const titulo = tituloInput.value.trim();
+            const numTopico = tr.dataset.numeroTopico || '';
+            let loteDoConceito = 'Geral';
+            
+            if (numTopico) {
+                const parts = numTopico.split('_');
+                if (parts.length >= 2) {
+                    loteDoConceito = `${parts[0]}.${parts[1]}`;
+                } else {
+                    loteDoConceito = parts[0] || 'Geral';
+                }
+            } else {
+                const match = titulo.match(/^([\d_\-\.]+)/);
+                if (match) {
+                    const num = match[1].replace(/[^0-9.]/g, '.');
+                    const parts = num.split('.');
+                    if (parts.length >= 2) {
+                        loteDoConceito = `${parts[0]}.${parts[1]}`;
+                    } else {
+                        loteDoConceito = parts[0] || 'Geral';
+                    }
+                }
+            }
+            
+            if (loteDoConceito !== filtroLote) {
+                mostrar = false;
+            }
+        }
+        
+        if (mostrar) {
+            tr.style.display = '';
+            visiveis++;
+        } else {
+            tr.style.display = 'none';
+        }
+    });
+    
+    const total = linhas.length;
+    const filterInfo = document.getElementById('filterInfo');
+    if (filterInfo) {
+        filterInfo.textContent = `Mostrando ${visiveis} de ${total}`;
+    }
+}
 // ============================================================
 // FUNÇÃO PARA CARREGAR LOTES SALVOS DO ALUNO
 // ============================================================
@@ -1577,7 +1847,8 @@ async function carregarLotesDoGitHub(alunoId) {
             exibirStatus(`✅ ${msg}`, "green");
             showToast(`📚 ${conceitosDoAluno.length + adicionadosDoLote} conceitos carregados!`, 'success');
         }
-        aplicarFiltro();
+            atualizarOpcoesLote();
+    aplicarFiltro();
     } catch (err) {
         exibirStatus("❌ Falha ao buscar dados: " + err.message, "red");
     }
