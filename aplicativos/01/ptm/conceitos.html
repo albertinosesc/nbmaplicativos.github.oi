@@ -923,6 +923,7 @@ function removerLoteSelecionado() {
             const numTopico = tr.dataset.numeroTopico || '';
             let loteDoConceito = 'Geral';
             
+            // Extrai o lote do número do tópico
             if (numTopico) {
                 const parts = numTopico.split('_');
                 if (parts.length >= 2) {
@@ -977,6 +978,11 @@ function removerLoteSelecionado() {
     atualizarOpcoesLote();
     atualizarListaLotes();
     aplicarFiltro();
+    
+    // ===== SALVA AUTOMATICAMENTE APÓS REMOVER =====
+    if (alunoIdAtual) {
+        salvarDadosAluno();
+    }
     
     showToast(`🗑️ Lote "${loteSelecionado}" removido com ${qtdConceitos} conceitos!`, 'success');
 }
@@ -1475,15 +1481,19 @@ async function carregarLotesDoGitHub(alunoId) {
     // ============================================================
     function adicionarLoteImportado(nomeLote) {
     if (!nomeLote) return;
+    // Verifica se já existe
     if (!lotesImportados.includes(nomeLote)) {
         lotesImportados.push(nomeLote);
         atualizarListaLotes();
         
-        // ===== SALVA AUTOMATICAMENTE NO CACHE =====
+        // ===== SALVA NO CACHE =====
         if (alunoIdAtual) {
             const cacheKey = `lotes_aluno_${alunoIdAtual}`;
             localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
         }
+        
+        // ===== ATUALIZA O FILTRO DE LOTE =====
+        atualizarOpcoesLote();
     }
 }
 
@@ -1639,9 +1649,9 @@ async function carregarLotesDoGitHub(alunoId) {
 
     const idFormatado = nomeLote.toLowerCase().trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
     const caminhosParaTestar = [
+        `lotes/${idFormatado}.json`,
         `lotes/lote_teoria_${idFormatado}.json`,
-        `lotes/teoria_${idFormatado}.json`,
-        `lotes/${idFormatado}.json`
+        `lotes/teoria_${idFormatado}.json`
     ];
 
     exibirStatus(`Buscando lote "${nomeLote}"...`, "blue");
@@ -1663,34 +1673,45 @@ async function carregarLotesDoGitHub(alunoId) {
         const json = JSON.parse(jsonStr);
 
         let listaConceitos = [];
-        if (Array.isArray(json)) listaConceitos = json;
-        else if (Array.isArray(json.conceitos)) listaConceitos = json.conceitos;
-        else if (Array.isArray(json.lista)) listaConceitos = json.lista;
+        // Verifica diferentes estruturas possíveis
+        if (json.conceitos && Array.isArray(json.conceitos)) {
+            listaConceitos = json.conceitos;
+        } else if (Array.isArray(json)) {
+            listaConceitos = json;
+        } else if (json.lista && Array.isArray(json.lista)) {
+            listaConceitos = json.lista;
+        }
 
-        if (listaConceitos.length === 0) { exibirStatus(`⚠️ Lote "${nomeLote}" está vazio.`, "orange"); return; }
+        if (listaConceitos.length === 0) { 
+            exibirStatus(`⚠️ Lote "${nomeLote}" está vazio.`, "orange"); 
+            return; 
+        }
 
+        // ===== LIMPA O LOTE IMPORTADO =====
         loteImportado = [];
+        
+        // ===== ADICIONA OS CONCEITOS =====
         listaConceitos.forEach(c => {
             const nomeStr = typeof c === 'string' ? c : (c.titulo || c.nome || "");
             if (nomeStr) {
                 loteImportado.push({
                     titulo: nomeStr,
-                    status: c.status || 'pendente',
+                    status: c.status || c.concluido === true ? 'concluido' : 'pendente',
                     observacao: c.observacao || '',
-                    numeroTopico: c.numeroTopico || ''
+                    numeroTopico: c.numeroTopico || extrairNumeroTopicoCompleto(nomeStr)
                 });
             }
         });
 
+        // ===== ADICIONA OS CONCEITOS À TABELA =====
         if (alunoIdAtual) {
             const conceitosAtuais = getConceitosDaTabela();
             const titulosExistentes = new Set(conceitosAtuais.map(c => c.titulo));
-            document.getElementById('corpoTabela').innerHTML = "";
-            conceitosAtuais.forEach(c => adicionarLinhaConceito(c.titulo, c.status, c.observacao, c.numeroTopico));
+            
             let adicionados = 0;
             loteImportado.forEach(c => {
                 if (!titulosExistentes.has(c.titulo)) {
-                    adicionarLinhaConceito(c.titulo, c.status, c.observacao, c.numeroTopico);
+                    adicionarLinhaConceito(c.titulo, c.status || 'pendente', c.observacao || '', c.numeroTopico || '');
                     adicionados++;
                 }
             });
@@ -1698,18 +1719,28 @@ async function carregarLotesDoGitHub(alunoId) {
             showToast(`📚 ${adicionados} novos conceitos adicionados!`, 'success');
         } else {
             document.getElementById('corpoTabela').innerHTML = "";
-            loteImportado.forEach(c => adicionarLinhaConceito(c.titulo, c.status, c.observacao, c.numeroTopico));
+            loteImportado.forEach(c => {
+                adicionarLinhaConceito(c.titulo, c.status || 'pendente', c.observacao || '', c.numeroTopico || '');
+            });
             exibirStatus(`✅ ${loteImportado.length} conceitos importados do lote "${nomeLote}"!`, "green");
             showToast(`📚 ${loteImportado.length} conceitos importados!`, 'success');
         }
 
-        // ===== CORREÇÃO: Adiciona o lote UMA VEZ, NÃO por cada conceito =====
+        // ===== CORREÇÃO: ADICIONA O LOTE UMA VEZ =====
         adicionarLoteImportado(nomeLote);
         
+        // ===== ATUALIZA AS OPÇÕES DE LOTE =====
         atualizarOpcoesLote();
         aplicarFiltro();
+        
+        // ===== SALVA AUTOMATICAMENTE APÓS IMPORTAR =====
+        if (alunoIdAtual) {
+            await salvarDadosAluno();
+        }
+
     } catch (err) {
         exibirStatus("❌ Erro ao importar: " + err.message, "red");
+        console.error('Erro ao importar lote:', err);
     }
 }
 
@@ -1953,31 +1984,33 @@ window.onload = function() {
     }
 
     // 5. CARREGA LOTES SALVOS DO CACHE LOCAL
-    if (savedToken) {
-        const buscaAluno = document.getElementById('buscaAluno').value.trim();
-        if (buscaAluno) {
-            const alunoId = buscaAluno.toLowerCase()
-                .normalize("NFD")
-                .replace(/[\u0300-\u036f]/g, "")
-                .replace(/[^a-z0-9]/g, "_");
-            const cacheKey = `lotes_aluno_${alunoId}`;
-            const cached = localStorage.getItem(cacheKey);
-            if (cached) {
-                try {
-                    const lotes = JSON.parse(cached);
-                    if (Array.isArray(lotes) && lotes.length > 0) {
-                        lotesImportados = lotes;
-                        atualizarListaLotes();
-                    }
-                } catch (e) {
-                    console.warn('Erro ao carregar lotes do cache:', e);
+    const buscaAluno = document.getElementById('buscaAluno').value.trim();
+    if (buscaAluno) {
+        const alunoId = buscaAluno.toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9]/g, "_");
+        const cacheKey = `lotes_aluno_${alunoId}`;
+        const cached = localStorage.getItem(cacheKey);
+        if (cached) {
+            try {
+                const lotes = JSON.parse(cached);
+                if (Array.isArray(lotes) && lotes.length > 0) {
+                    lotesImportados = lotes;
+                    atualizarListaLotes();
+                    atualizarOpcoesLote();
                 }
+            } catch (e) {
+                console.warn('Erro ao carregar lotes do cache:', e);
             }
         }
     }
 
     // 6. ATUALIZA A LISTA DE LOTES
-    setTimeout(atualizarListaLotes, 500);
+    setTimeout(() => {
+        atualizarListaLotes();
+        atualizarOpcoesLote();
+    }, 500);
 };
 
     // Fechar modais com ESC
