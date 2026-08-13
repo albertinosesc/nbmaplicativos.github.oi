@@ -835,7 +835,6 @@
         }, 1000);
       }
 
-      // Carregar lotes disponíveis para o modal
       carregarListaLotes();
     };
 
@@ -1136,7 +1135,7 @@
     }
 
     // =============================================
-    // ===== CARREGAR LISTA DE ALUNOS =====
+    // ===== CARREGAR LISTA DE ALUNOS (CORRIGIDO) =====
     // =============================================
 
     async function carregarListaAlunos() {
@@ -1161,25 +1160,14 @@
 
         const files = await res.json();
         
+        // 🔥 CORREÇÃO: Mostrar APENAS alunos com arquivo musica_*.json
         const alunos = files
-          .filter(f => {
-            const nome = f.name;
-            return (nome.startsWith('musica_') || nome.startsWith('aluno_')) && nome.endsWith('.json');
-          })
-          .map(f => {
-            const nome = f.name;
-            if (nome.startsWith('musica_')) {
-              return nome.replace('musica_', '').replace('.json', '');
-            } else if (nome.startsWith('aluno_')) {
-              return nome.replace('aluno_', '').replace('.json', '');
-            }
-            return nome.replace('.json', '');
-          })
-          .filter(id => id && id.length > 0)
+          .filter(f => f.name.startsWith('musica_') && f.name.endsWith('.json'))
+          .map(f => f.name.replace('musica_', '').replace('.json', ''))
           .sort();
 
         if (alunos.length === 0) {
-          container.innerHTML = 'Nenhum aluno cadastrado.';
+          container.innerHTML = 'Nenhum aluno com repertório cadastrado.';
           return;
         }
 
@@ -1267,7 +1255,6 @@
         await renderizarTabela();
         verificarLoteConcluido();
 
-        // Carregar tempo do cronômetro se houver lote
         const selectLote = document.getElementById('filterMusicaLote');
         const loteSelecionado = selectLote.value;
         if (loteSelecionado !== 'todos' && lotesTempo[loteSelecionado]) {
@@ -1449,144 +1436,135 @@
     }
 
     // =============================================
-    // ===== ARQUIVAR LOTE (CORRIGIDO) =====
+    // ===== ARQUIVAR LOTE =====
     // =============================================
 
-   // ===== ARQUIVAR LOTE (CORRIGIDO) =====
-async function arquivarLote() {
-  const selectLote = document.getElementById('filterMusicaLote');
-  const loteSelecionado = selectLote.value;
-  
-  if (loteSelecionado === 'todos') {
-    showToast('⚠️ Selecione um lote específico para arquivar.', 'warning');
-    return;
-  }
+    async function arquivarLote() {
+      const selectLote = document.getElementById('filterMusicaLote');
+      const loteSelecionado = selectLote.value;
+      
+      if (loteSelecionado === 'todos') {
+        showToast('⚠️ Selecione um lote específico para arquivar.', 'warning');
+        return;
+      }
 
-  const musicasDoLote = repertorioAtual.filter(m => (m.lote || 'Geral') === loteSelecionado);
-  const todosConcluidos = musicasDoLote.every(m => 
-    m.status === 'Concluída' || m.status === 'Concluído'
-  );
+      const musicasDoLote = repertorioAtual.filter(m => (m.lote || 'Geral') === loteSelecionado);
+      const todosConcluidos = musicasDoLote.every(m => 
+        m.status === 'Concluída' || m.status === 'Concluído'
+      );
 
-  if (!todosConcluidos) {
-    showToast('⚠️ Todas as músicas do lote devem estar concluídas para arquivar.', 'warning');
-    return;
-  }
+      if (!todosConcluidos) {
+        showToast('⚠️ Todas as músicas do lote devem estar concluídas para arquivar.', 'warning');
+        return;
+      }
 
-  if (!confirm(`Arquivar lote "${loteSelecionado}" (${musicasDoLote.length} músicas concluídas)?`)) {
-    return;
-  }
+      if (!confirm(`Arquivar lote "${loteSelecionado}" (${musicasDoLote.length} músicas concluídas)?`)) {
+        return;
+      }
 
-  const token = obterToken();
-  if (!token) {
-    showToast('⚠️ Configure o token do GitHub.', 'warning');
-    return;
-  }
+      const token = obterToken();
+      if (!token) {
+        showToast('⚠️ Configure o token do GitHub.', 'warning');
+        return;
+      }
 
-  // 🔥 CORREÇÃO: Buscar dados do cronômetro para este lote
-  const caminhoMusica = `alunos/musica_${alunoIdAtual}.json`;
-  const { dados: dadosMusica, sha: shaMusica } = await obterConteudoAtual(caminhoMusica, token);
-  
-  // 🔥 CORREÇÃO: Obter o tempo do cronômetro do lote
-  let tempoCronometro = 0;
-  let dataInicioLote = null;
-  
-  if (dadosMusica?.lotesTempo?.[loteSelecionado]) {
-    tempoCronometro = dadosMusica.lotesTempo[loteSelecionado].tempoSegundos || 0;
-    dataInicioLote = dadosMusica.lotesTempo[loteSelecionado].dataInicio || 
-                     dadosMusica.lotesTempo[loteSelecionado].ultimaAtualizacao || 
-                     new Date().toISOString();
-  }
+      const caminhoMusica = `alunos/musica_${alunoIdAtual}.json`;
+      const { dados: dadosMusica, sha: shaMusica } = await obterConteudoAtual(caminhoMusica, token);
+      
+      let tempoCronometro = 0;
+      let dataInicioLote = null;
+      
+      if (dadosMusica?.lotesTempo?.[loteSelecionado]) {
+        tempoCronometro = dadosMusica.lotesTempo[loteSelecionado].tempoSegundos || 0;
+        dataInicioLote = dadosMusica.lotesTempo[loteSelecionado].dataInicio || 
+                         dadosMusica.lotesTempo[loteSelecionado].ultimaAtualizacao || 
+                         new Date().toISOString();
+      }
 
-  // 🔥 CORREÇÃO: Salvar no arquivo de arquivados
-  const caminhoArquivado = `alunos/arquivados_${alunoIdAtual}.json`;
-  
-  const { dados: dadosArquivados, sha: shaArquivado } = await obterConteudoAtual(caminhoArquivado, token);
-  
-  let listaArquivados = dadosArquivados?.arquivados || [];
-  let lotesArquivados = dadosArquivados?.lotes || {};
-  
-  // 🔥 CORREÇÃO: Criar objeto do lote com TODOS os dados
-  const dataArquivamento = new Date().toISOString();
-  const loteArquivado = {
-    id: loteSelecionado,
-    nome: loteSelecionado,
-    musicas: musicasDoLote.map(m => ({
-      nome: m.nome || m.title,
-      status: m.status,
-      obs: m.obs || '',
-      pdfUrl: m.pdfUrl || '',
-      abcFile: m.abcFile || ''
-    })),
-    alunoId: alunoIdAtual,
-    alunoNome: alunoNomeAtual || alunoIdAtual,
-    dataInicio: dataInicioLote || dataArquivamento,
-    dataConclusao: dataArquivamento,
-    dataArquivamento: dataArquivamento,
-    totalMusicas: musicasDoLote.length,
-    tempoCronometro: tempoCronometro, // 🔥 CORREÇÃO: Salvar o tempo do cronômetro
-    tempoFormatado: formatarTempo(tempoCronometro) // 🔥 CORREÇÃO: Salvar o tempo formatado
-  };
-  
-  listaArquivados.push(loteArquivado);
-  lotesArquivados[loteSelecionado] = {
-    dataInicio: dataInicioLote || dataArquivamento,
-    dataArquivamento: dataArquivamento,
-    totalMusicas: musicasDoLote.length,
-    tempoCronometro: tempoCronometro
-  };
-  
-  // Salvar arquivo de arquivados
-  const dadosParaSalvar = {
-    alunoId: alunoIdAtual,
-    alunoNome: alunoNomeAtual || alunoIdAtual,
-    arquivados: listaArquivados,
-    lotes: lotesArquivados,
-    atualizadoEm: dataArquivamento
-  };
-  
-  const jsonString = JSON.stringify(dadosParaSalvar, null, 2);
-  const utf8Bytes = new TextEncoder().encode(jsonString);
-  let binaryStr = "";
-  utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
-  const conteudoBase64 = btoa(binaryStr);
-  
-  const body = {
-    message: `Arquivando lote "${loteSelecionado}" do aluno ${alunoIdAtual}`,
-    content: conteudoBase64,
-    branch: GH_CONFIG.branch
-  };
-  if (shaArquivado) body.sha = shaArquivado;
-  
-  const putRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminhoArquivado}`, {
-    method: 'PUT',
-    headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body)
-  });
-  
-  if (!putRes.ok) {
-    const errData = await putRes.json().catch(() => ({}));
-    throw new Error(errData.message || "Erro ao arquivar lote");
-  }
+      const caminhoArquivado = `alunos/arquivados_${alunoIdAtual}.json`;
+      
+      const { dados: dadosArquivados, sha: shaArquivado } = await obterConteudoAtual(caminhoArquivado, token);
+      
+      let listaArquivados = dadosArquivados?.arquivados || [];
+      let lotesArquivados = dadosArquivados?.lotes || {};
+      
+      const dataArquivamento = new Date().toISOString();
+      const loteArquivado = {
+        id: loteSelecionado,
+        nome: loteSelecionado,
+        musicas: musicasDoLote.map(m => ({
+          nome: m.nome || m.title,
+          status: m.status,
+          obs: m.obs || '',
+          pdfUrl: m.pdfUrl || '',
+          abcFile: m.abcFile || ''
+        })),
+        alunoId: alunoIdAtual,
+        alunoNome: alunoNomeAtual || alunoIdAtual,
+        dataInicio: dataInicioLote || dataArquivamento,
+        dataConclusao: dataArquivamento,
+        dataArquivamento: dataArquivamento,
+        totalMusicas: musicasDoLote.length,
+        tempoCronometro: tempoCronometro,
+        tempoFormatado: formatarTempo(tempoCronometro)
+      };
+      
+      listaArquivados.push(loteArquivado);
+      lotesArquivados[loteSelecionado] = {
+        dataInicio: dataInicioLote || dataArquivamento,
+        dataArquivamento: dataArquivamento,
+        totalMusicas: musicasDoLote.length,
+        tempoCronometro: tempoCronometro
+      };
+      
+      const dadosParaSalvar = {
+        alunoId: alunoIdAtual,
+        alunoNome: alunoNomeAtual || alunoIdAtual,
+        arquivados: listaArquivados,
+        lotes: lotesArquivados,
+        atualizadoEm: dataArquivamento
+      };
+      
+      const jsonString = JSON.stringify(dadosParaSalvar, null, 2);
+      const utf8Bytes = new TextEncoder().encode(jsonString);
+      let binaryStr = "";
+      utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+      const conteudoBase64 = btoa(binaryStr);
+      
+      const body = {
+        message: `Arquivando lote "${loteSelecionado}" do aluno ${alunoIdAtual}`,
+        content: conteudoBase64,
+        branch: GH_CONFIG.branch
+      };
+      if (shaArquivado) body.sha = shaArquivado;
+      
+      const putRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminhoArquivado}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      
+      if (!putRes.ok) {
+        const errData = await putRes.json().catch(() => ({}));
+        throw new Error(errData.message || "Erro ao arquivar lote");
+      }
 
-  // 🔥 CORREÇÃO: Remover o tempo do cronômetro do lote arquivado
-  if (dadosMusica?.lotesTempo) {
-    delete dadosMusica.lotesTempo[loteSelecionado];
-  }
-  
-  // Remover as músicas do lote do repertório atual
-  repertorioAtual = repertorioAtual.filter(m => (m.lote || 'Geral') !== loteSelecionado);
-  dadosMusicasCache = { repertorio: repertorioAtual };
+      if (dadosMusica?.lotesTempo) {
+        delete dadosMusica.lotesTempo[loteSelecionado];
+      }
+      
+      repertorioAtual = repertorioAtual.filter(m => (m.lote || 'Geral') !== loteSelecionado);
+      dadosMusicasCache = { repertorio: repertorioAtual };
 
-  // Salvar o repertório atualizado
-  await salvarMusicasAluno();
+      await salvarMusicasAluno();
 
-  selectLote.value = 'todos';
-  atualizarOpcoesLote();
-  renderizarTabela();
+      selectLote.value = 'todos';
+      atualizarOpcoesLote();
+      renderizarTabela();
 
-  showToast(`📦 Lote "${loteSelecionado}" arquivado com sucesso!`, 'success');
-  exibirStatus(`📦 Lote "${loteSelecionado}" arquivado!`, "green");
-}
+      showToast(`📦 Lote "${loteSelecionado}" arquivado com sucesso!`, 'success');
+      exibirStatus(`📦 Lote "${loteSelecionado}" arquivado!`, "green");
+    }
 
     // =============================================
     // ===== FUNÇÕES DE CARREGAR LOTE =====
@@ -1737,7 +1715,7 @@ async function arquivarLote() {
     }
 
     // =============================================
-    // ===== FUNÇÕES DO CRONÔMETRO (CORRIGIDO) =====
+    // ===== FUNÇÕES DO CRONÔMETRO =====
     // =============================================
 
     function iniciarCronometro() {
@@ -1788,7 +1766,6 @@ async function arquivarLote() {
 
       if (cronometroInterval) { clearInterval(cronometroInterval); cronometroInterval = null; }
 
-      // APENAS ATUALIZA O DISPLAY - NÃO SALVA AUTOMATICAMENTE
       cronometroInterval = setInterval(() => {
         segundosTotais++;
         atualizarDisplayCronometro();
@@ -1909,7 +1886,6 @@ async function arquivarLote() {
         }
       }
       
-      // Se não encontrou, inicia do zero
       segundosTotais = 0;
       cronometroLoteAtual = loteNome;
       document.getElementById('cronometroBar').style.display = 'flex';
@@ -2443,7 +2419,6 @@ async function arquivarLote() {
         atualizadoEm: new Date().toISOString()
       };
 
-      // Adicionar tempo do cronômetro se houver lote ativo
       if (cronometroLoteAtual && cronometroLoteAtual !== 'todos') {
         conteudoJson.lotesTempo = {
           [cronometroLoteAtual]: {
