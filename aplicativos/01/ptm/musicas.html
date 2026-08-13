@@ -533,6 +533,7 @@
       <a href="admin.html" class="btn" style="background-color: #0d9488; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-user-gear"></i> Admin</a>
       <a href="biblioteca.html" class="btn" style="background-color: #8b5cf6; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-book"></i> Biblioteca</a>
       <a href="notas.html" class="btn" style="background-color: #d97706; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-note-sticky"></i> Notas</a>
+      <a href="arquivados.html" class="btn" style="background-color: #6b21a8; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold; display: inline-flex; align-items: center; gap: 6px;"><i class="fa-solid fa-archive"></i> Arquivados</a>
     </div>
   </div>
 
@@ -761,6 +762,7 @@
     let shaArquivoAtual = null;
     let alunoIdAtual = null;
     let dadosMusicasCache = null;
+    let alunoNomeAtual = null;
     
     let currentPdfUrl = '';
     let currentViewMode = 1;
@@ -1134,7 +1136,7 @@
     }
 
     // =============================================
-    // ===== CARREGAR LISTA DE ALUNOS (CORRIGIDO) =====
+    // ===== CARREGAR LISTA DE ALUNOS =====
     // =============================================
 
     async function carregarListaAlunos() {
@@ -1159,7 +1161,6 @@
 
         const files = await res.json();
         
-        // 🔥 CORREÇÃO: Buscar TANTO musica_*.json QUANTO aluno_*.json
         const alunos = files
           .filter(f => {
             const nome = f.name;
@@ -1196,7 +1197,7 @@
     }
 
     // =============================================
-    // ===== CARREGAR MÚSICAS DO ALUNO (CORRIGIDO) =====
+    // ===== CARREGAR MÚSICAS DO ALUNO =====
     // =============================================
 
     async function carregarMusicasAluno() {
@@ -1208,8 +1209,8 @@
 
       const alunoId = await buscarIdAluno(busca);
       alunoIdAtual = alunoId;
+      alunoNomeAtual = busca;
       
-      // 🔥 CORREÇÃO: Tentar carregar TANTO musica_ QUANTO aluno_
       const caminhosParaTestar = [
         `alunos/musica_${alunoId}.json`,
         `alunos/aluno_${alunoId}.json`
@@ -1274,7 +1275,7 @@
           cronometroLoteAtual = loteSelecionado;
           document.getElementById('cronometroBar').style.display = 'flex';
           document.getElementById('cronometroDisplay').textContent = formatarTempo(segundosTotais);
-          document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
+          document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado} - ${alunoNomeAtual}`;
         }
 
         exibirStatus(`✅ Aluno ${alunoId} carregado com sucesso!`, "green");
@@ -1448,7 +1449,7 @@
     }
 
     // =============================================
-    // ===== ARQUIVAR LOTE =====
+    // ===== ARQUIVAR LOTE (CORRIGIDO) =====
     // =============================================
 
     async function arquivarLote() {
@@ -1474,9 +1475,77 @@
         return;
       }
 
-      // Remover as músicas do lote do repertório
+      const token = obterToken();
+      if (!token) {
+        showToast('⚠️ Configure o token do GitHub.', 'warning');
+        return;
+      }
+
+      // 🔥 CORREÇÃO: Salvar no arquivo de arquivados
+      const caminhoArquivado = `alunos/arquivados_${alunoIdAtual}.json`;
+      
+      // Buscar dados atuais do arquivo de arquivados
+      const { dados: dadosArquivados, sha: shaArquivado } = await obterConteudoAtual(caminhoArquivado, token);
+      
+      let listaArquivados = dadosArquivados?.arquivados || [];
+      let lotesArquivados = dadosArquivados?.lotes || {};
+      
+      // Adicionar o lote arquivado
+      const dataArquivamento = new Date().toISOString();
+      const loteArquivado = {
+        nome: loteSelecionado,
+        musicas: musicasDoLote,
+        alunoId: alunoIdAtual,
+        alunoNome: alunoNomeAtual || alunoIdAtual,
+        dataArquivamento: dataArquivamento,
+        totalMusicas: musicasDoLote.length
+      };
+      
+      listaArquivados.push(loteArquivado);
+      lotesArquivados[loteSelecionado] = {
+        dataArquivamento: dataArquivamento,
+        totalMusicas: musicasDoLote.length
+      };
+      
+      // Salvar arquivo de arquivados
+      const dadosParaSalvar = {
+        alunoId: alunoIdAtual,
+        alunoNome: alunoNomeAtual || alunoIdAtual,
+        arquivados: listaArquivados,
+        lotes: lotesArquivados,
+        atualizadoEm: dataArquivamento
+      };
+      
+      const jsonString = JSON.stringify(dadosParaSalvar, null, 2);
+      const utf8Bytes = new TextEncoder().encode(jsonString);
+      let binaryStr = "";
+      utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+      const conteudoBase64 = btoa(binaryStr);
+      
+      const body = {
+        message: `Arquivando lote "${loteSelecionado}" do aluno ${alunoIdAtual}`,
+        content: conteudoBase64,
+        branch: GH_CONFIG.branch
+      };
+      if (shaArquivado) body.sha = shaArquivado;
+      
+      const putRes = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminhoArquivado}`, {
+        method: 'PUT',
+        headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      
+      if (!putRes.ok) {
+        const errData = await putRes.json().catch(() => ({}));
+        throw new Error(errData.message || "Erro ao arquivar lote");
+      }
+
+      // Remover as músicas do lote do repertório atual
       repertorioAtual = repertorioAtual.filter(m => (m.lote || 'Geral') !== loteSelecionado);
       dadosMusicasCache = { repertorio: repertorioAtual };
+
+      // Salvar o repertório atualizado
+      await salvarMusicasAluno();
 
       selectLote.value = 'todos';
       atualizarOpcoesLote();
@@ -1635,7 +1704,7 @@
     }
 
     // =============================================
-    // ===== FUNÇÕES DO CRONÔMETRO =====
+    // ===== FUNÇÕES DO CRONÔMETRO (CORRIGIDO) =====
     // =============================================
 
     function iniciarCronometro() {
@@ -1673,7 +1742,7 @@
       cronometroLoteAtual = loteSelecionado;
       
       document.getElementById('cronometroBar').style.display = 'flex';
-      document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado}`;
+      document.getElementById('cronometroInfo').textContent = `📦 ${loteSelecionado} - ${alunoNomeAtual || alunoIdAtual}`;
       
       const statusEl = document.getElementById('cronometroStatus');
       if (statusEl) {
@@ -1778,7 +1847,7 @@
       const token = obterToken();
       if (!token) {
         document.getElementById('cronometroBar').style.display = 'flex';
-        document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+        document.getElementById('cronometroInfo').textContent = `📦 ${loteNome} - ${alunoNomeAtual || alunoIdAtual}`;
         cronometroLoteAtual = loteNome;
         segundosTotais = 0;
         cronometroRodando = false;
@@ -1800,7 +1869,7 @@
           cronometroLoteAtual = loteNome;
           document.getElementById('cronometroBar').style.display = 'flex';
           document.getElementById('cronometroDisplay').textContent = formatarTempo(segundosTotais);
-          document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+          document.getElementById('cronometroInfo').textContent = `📦 ${loteNome} - ${alunoNomeAtual || alunoIdAtual}`;
           document.getElementById('cronometroStatus').className = 'cronometro-status pausado';
           document.getElementById('cronometroStatus').textContent = '⏸️ Pausado';
           return;
@@ -1812,7 +1881,7 @@
       cronometroLoteAtual = loteNome;
       document.getElementById('cronometroBar').style.display = 'flex';
       document.getElementById('cronometroDisplay').textContent = formatarTempo(0);
-      document.getElementById('cronometroInfo').textContent = `📦 ${loteNome}`;
+      document.getElementById('cronometroInfo').textContent = `📦 ${loteNome} - ${alunoNomeAtual || alunoIdAtual}`;
     }
 
     // =============================================
