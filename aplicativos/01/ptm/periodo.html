@@ -857,7 +857,7 @@
   // ============================================================
   // FUNÇÃO PRINCIPAL - CARREGAR DADOS DO ALUNO
   // ============================================================
-  async function carregarDadosAluno() {
+ async function carregarDadosAluno() {
     const busca = document.getElementById('buscaAluno').value.trim();
     const token = obterToken();
     if (!busca) return alert("Digite o ID ou nome do aluno.");
@@ -875,66 +875,95 @@
     shaArquivoTeoria = shaConceitos;
 
     dadosAlunoCache = dadosAluno || { 
-      alunoId: alunoId, 
-      aluno: busca,
-      adicional: [],
-      musicas: []
+        alunoId: alunoId, 
+        aluno: busca,
+        adicional: [],
+        musicas: []
     };
     
     dadosConceitosCache = dadosConceitos || { 
-      alunoId: alunoId, 
-      conceitos: [] 
+        alunoId: alunoId, 
+        conceitos: [] 
     };
 
-    if (!dadosAlunoCache.adicional) dadosAlunoCache.adicional = [];
-    if (!dadosAlunoCache.musicas) dadosAlunoCache.musicas = [];
-
-    if (dadosAluno && dadosAluno.periodo) {
-      dadosPeriodo = JSON.parse(JSON.stringify(dadosAluno.periodo));
-    } else {
-      dadosPeriodo = {
-        periodos: [
-          {
-            id: 'periodo1',
-            nome: 'Período 1',
-            livro: dadosAluno?.livro || 'Método H. Lemoine / Hinário',
-            fases: [
-              {
-                id: 'fase1',
-                nome: '1ª Fase',
-                geral: [],
-                adicional: [],
-                musicas: []
-              }
-            ]
-          }
-        ]
-      };
+    // ===== GARANTE QUE AS PROPRIEDADES EXISTAM =====
+    if (!dadosAlunoCache.adicional || !Array.isArray(dadosAlunoCache.adicional)) {
+        dadosAlunoCache.adicional = [];
+    }
+    if (!dadosAlunoCache.musicas || !Array.isArray(dadosAlunoCache.musicas)) {
+        dadosAlunoCache.musicas = [];
     }
 
+    // ===== CARREGA O PERÍODO =====
+    if (dadosAluno && dadosAluno.periodo) {
+        dadosPeriodo = JSON.parse(JSON.stringify(dadosAluno.periodo));
+        
+        // ===== GARANTE QUE O ADICIONAL DO PERÍODO ESTEJA SINCRONIZADO =====
+        dadosPeriodo.periodos.forEach(periodo => {
+            periodo.fases.forEach(fase => {
+                // Se o período tem adicional, mantém
+                if (!fase.adicional) fase.adicional = [];
+                // Adiciona os itens adicionais do cache que não existem no período
+                dadosAlunoCache.adicional.forEach(item => {
+                    const existe = fase.adicional.some(a => a.nome === item.nome);
+                    if (!existe) {
+                        fase.adicional.push({
+                            id: 'add_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                            nome: item.nome,
+                            concluido: item.concluido || false
+                        });
+                    }
+                });
+            });
+        });
+    } else {
+        dadosPeriodo = {
+            periodos: [
+                {
+                    id: 'periodo1',
+                    nome: 'Período 1',
+                    livro: dadosAluno?.livro || 'Método H. Lemoine / Hinário',
+                    fases: [
+                        {
+                            id: 'fase1',
+                            nome: '1ª Fase',
+                            geral: [],
+                            adicional: dadosAlunoCache.adicional || [],
+                            musicas: dadosAlunoCache.musicas || []
+                        }
+                    ]
+                }
+            ]
+        };
+    }
+
+    // ===== GARANTE QUE AS FASES TENHAM AS PROPRIEDADES =====
     dadosPeriodo.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        if (!fase.geral) fase.geral = [];
-        if (!fase.adicional) fase.adicional = [];
-        if (!fase.musicas) fase.musicas = [];
-      });
+        periodo.fases.forEach(fase => {
+            if (!fase.geral) fase.geral = [];
+            if (!fase.adicional) fase.adicional = [];
+            if (!fase.musicas) fase.musicas = [];
+        });
     });
 
+    console.log('📥 Dados carregados:');
+    console.log('  - Adicional:', dadosAlunoCache.adicional.length);
+    console.log('  - Músicas:', dadosAlunoCache.musicas.length);
+    console.log('  - Conceitos:', dadosConceitosCache.conceitos.length);
+
+    // Sincroniza dados
     sincronizarDados();
 
     exibirStatus(`✅ Aluno "${busca}" carregado com sucesso!`, "green");
     showToast(`📚 Dados do aluno carregados!`, 'success');
 
     renderizarApp();
-  }
+}
 
   // ============================================================
   // SINCRONIZAÇÃO DOS DADOS - APENAS ATUALIZA STATUS
   // ============================================================
-  // ============================================================
-// SINCRONIZAÇÃO DOS DADOS - CORRIGIDA PARA ADICIONAL
-// ============================================================
-function sincronizarDados() {
+ function sincronizarDados() {
     if (!dadosPeriodo || !dadosPeriodo.periodos) return;
 
     // ===== VERIFICA SE OS CACHES EXISTEM =====
@@ -983,7 +1012,7 @@ function sincronizarDados() {
             if (!fase.adicional || !Array.isArray(fase.adicional)) fase.adicional = [];
             if (!fase.musicas || !Array.isArray(fase.musicas)) fase.musicas = [];
 
-            // ===== ADICIONA ITENS DO ADICIONAL QUE NÃO EXISTEM =====
+            // ===== ADICIONAL: ADICIONA ITENS QUE NÃO EXISTEM =====
             adicional.forEach(item => {
                 const existe = fase.adicional.some(a => a.nome === item.nome);
                 if (!existe) {
@@ -991,31 +1020,6 @@ function sincronizarDados() {
                         id: 'add_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
                         nome: item.nome,
                         concluido: item.concluido || false
-                    });
-                }
-            });
-
-            // ===== ADICIONA ITENS DOS CONCEITOS QUE NÃO EXISTEM =====
-            conceitos.forEach(c => {
-                const existe = fase.geral.some(g => g.nome === c.titulo);
-                if (!existe) {
-                    fase.geral.push({
-                        id: 'con_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                        nome: c.titulo,
-                        concluido: c.status === 'concluido' || c.status === 'Concluído'
-                    });
-                }
-            });
-
-            // ===== ADICIONA ITENS DAS MÚSICAS QUE NÃO EXISTEM =====
-            musicas.forEach(m => {
-                const existe = fase.musicas.some(mus => mus.nome === m.nome);
-                if (!existe) {
-                    fase.musicas.push({
-                        id: 'mus_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
-                        nome: m.nome,
-                        concluido: m.concluido || false,
-                        conceitos: []
                     });
                 }
             });
@@ -1064,101 +1068,130 @@ function sincronizarDados() {
 
     const periodoParaSalvar = JSON.parse(JSON.stringify(dadosPeriodo));
 
+    // ===== EXTRAI OS STATUS DE TODAS AS CATEGORIAS =====
     const statusMapConceitos = new Map();
     const statusMapAdicional = new Map();
     const statusMapMusicas = new Map();
 
     periodoParaSalvar.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        if (fase.geral && Array.isArray(fase.geral)) {
-          fase.geral.forEach(item => {
-            statusMapConceitos.set(item.nome, item.concluido ? 'concluido' : 'pendente');
-          });
-        }
-        if (fase.adicional && Array.isArray(fase.adicional)) {
-          fase.adicional.forEach(item => {
-            statusMapAdicional.set(item.nome, item.concluido);
-          });
-        }
-        if (fase.musicas && Array.isArray(fase.musicas)) {
-          fase.musicas.forEach(musica => {
-            statusMapMusicas.set(musica.nome, musica.concluido);
-            if (musica.conceitos && Array.isArray(musica.conceitos)) {
-              musica.conceitos.forEach(c => {
-                statusMapConceitos.set(c.nome, c.concluido ? 'concluido' : 'pendente');
-              });
+        periodo.fases.forEach(fase => {
+            // Geral - Conceitos
+            if (fase.geral && Array.isArray(fase.geral)) {
+                fase.geral.forEach(item => {
+                    statusMapConceitos.set(item.nome, item.concluido ? 'concluido' : 'pendente');
+                });
             }
-          });
-        }
-      });
+            // ===== ADICIONAL =====
+            if (fase.adicional && Array.isArray(fase.adicional)) {
+                fase.adicional.forEach(item => {
+                    statusMapAdicional.set(item.nome, item.concluido);
+                });
+            }
+            // Músicas
+            if (fase.musicas && Array.isArray(fase.musicas)) {
+                fase.musicas.forEach(musica => {
+                    statusMapMusicas.set(musica.nome, musica.concluido);
+                    if (musica.conceitos && Array.isArray(musica.conceitos)) {
+                        musica.conceitos.forEach(c => {
+                            statusMapConceitos.set(c.nome, c.concluido ? 'concluido' : 'pendente');
+                        });
+                    }
+                });
+            }
+        });
     });
 
+    // ===== ATUALIZA DADOS DO ALUNO =====
     dadosAlunoCache.periodo = periodoParaSalvar;
     dadosAlunoCache.aluno = alunoNomeAtual || alunoIdAtual;
     dadosAlunoCache.atualizadoEm = new Date().toISOString();
 
-    // Adicional
-    if (!dadosAlunoCache.adicional) dadosAlunoCache.adicional = [];
+    // ===== ATUALIZA ADICIONAL NO CACHE =====
+    if (!dadosAlunoCache.adicional || !Array.isArray(dadosAlunoCache.adicional)) {
+        dadosAlunoCache.adicional = [];
+    }
+    
+    // Atualiza os itens existentes
     dadosAlunoCache.adicional.forEach(item => {
-      if (statusMapAdicional.has(item.nome)) {
-        item.concluido = statusMapAdicional.get(item.nome);
-      }
+        if (statusMapAdicional.has(item.nome)) {
+            item.concluido = statusMapAdicional.get(item.nome);
+        }
     });
+    
+    // Adiciona novos itens que não existem no cache
     statusMapAdicional.forEach((concluido, nome) => {
-      if (!dadosAlunoCache.adicional.some(a => a.nome === nome)) {
-        dadosAlunoCache.adicional.push({ nome, concluido });
-      }
+        const existe = dadosAlunoCache.adicional.some(a => a.nome === nome);
+        if (!existe) {
+            dadosAlunoCache.adicional.push({ nome, concluido });
+        }
     });
 
-    // Músicas
-    if (!dadosAlunoCache.musicas) dadosAlunoCache.musicas = [];
+    // ===== ATUALIZA MÚSICAS =====
+    if (!dadosAlunoCache.musicas || !Array.isArray(dadosAlunoCache.musicas)) {
+        dadosAlunoCache.musicas = [];
+    }
+    
     dadosAlunoCache.musicas.forEach(m => {
-      if (statusMapMusicas.has(m.nome)) {
-        m.concluido = statusMapMusicas.get(m.nome);
-      }
+        if (statusMapMusicas.has(m.nome)) {
+            m.concluido = statusMapMusicas.get(m.nome);
+        }
     });
+    
     statusMapMusicas.forEach((concluido, nome) => {
-      if (!dadosAlunoCache.musicas.some(m => m.nome === nome)) {
-        dadosAlunoCache.musicas.push({ nome, concluido });
-      }
+        const existe = dadosAlunoCache.musicas.some(m => m.nome === nome);
+        if (!existe) {
+            dadosAlunoCache.musicas.push({ nome, concluido });
+        }
     });
 
-    // Conceitos
-    if (!dadosConceitosCache.conceitos) dadosConceitosCache.conceitos = [];
+    // ===== ATUALIZA CONCEITOS =====
+    if (!dadosConceitosCache.conceitos || !Array.isArray(dadosConceitosCache.conceitos)) {
+        dadosConceitosCache.conceitos = [];
+    }
+    
     dadosConceitosCache.conceitos.forEach(c => {
-      if (statusMapConceitos.has(c.titulo)) {
-        c.status = statusMapConceitos.get(c.titulo);
-      }
+        if (statusMapConceitos.has(c.titulo)) {
+            c.status = statusMapConceitos.get(c.titulo);
+        }
     });
+    
     statusMapConceitos.forEach((status, titulo) => {
-      if (!dadosConceitosCache.conceitos.some(c => c.titulo === titulo)) {
-        dadosConceitosCache.conceitos.push({
-          titulo: titulo,
-          status: status,
-          lote: 'Período 1'
-        });
-      }
+        const existe = dadosConceitosCache.conceitos.some(c => c.titulo === titulo);
+        if (!existe) {
+            dadosConceitosCache.conceitos.push({
+                titulo: titulo,
+                status: status,
+                lote: 'Período 1'
+            });
+        }
     });
+
+    // ===== LOGS DE DEPURAÇÃO =====
+    console.log('📤 Salvando dados:');
+    console.log('  - Adicional:', dadosAlunoCache.adicional.length);
+    console.log('  - Músicas:', dadosAlunoCache.musicas.length);
+    console.log('  - Conceitos:', dadosConceitosCache.conceitos.length);
+    console.log('  - Períodos:', dadosAlunoCache.periodo?.periodos?.length || 0);
 
     exibirStatus("Salvando dados no GitHub...", "blue");
 
     const resultados = await Promise.all([
-      salvarArquivoComRetry(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, token, shaArquivoAluno),
-      salvarArquivoComRetry(`alunos/teoria_${alunoIdAtual}.json`, dadosConceitosCache, token, shaArquivoTeoria)
+        salvarArquivoComRetry(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, token, shaArquivoAluno),
+        salvarArquivoComRetry(`alunos/teoria_${alunoIdAtual}.json`, dadosConceitosCache, token, shaArquivoTeoria)
     ]);
 
     if (resultados[0].success) shaArquivoAluno = resultados[0].sha;
     if (resultados[1].success) shaArquivoTeoria = resultados[1].sha;
 
     if (resultados.every(r => r.success)) {
-      exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
-      showToast(`💾 Dados salvos!`, 'success');
+        exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
+        showToast(`💾 Dados salvos!`, 'success');
     } else {
-      const erros = resultados.filter(r => !r.success).map(r => r.error);
-      exibirStatus(`❌ Erro ao salvar: ${erros.join(', ')}`, "red");
-      showToast(`❌ Erro ao salvar dados`, 'error');
+        const erros = resultados.filter(r => !r.success).map(r => r.error);
+        exibirStatus(`❌ Erro ao salvar: ${erros.join(', ')}`, "red");
+        showToast(`❌ Erro ao salvar dados`, 'error');
     }
-  }
+}
 
   // ============================================================
   // RENDERIZAÇÃO
