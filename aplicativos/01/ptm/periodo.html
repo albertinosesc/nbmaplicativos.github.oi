@@ -858,7 +858,7 @@
   // ============================================================
   // FUNÇÃO PRINCIPAL - CARREGAR DADOS DO ALUNO
   // ============================================================
- async function carregarDadosAluno() {
+async function carregarDadosAluno() {
     const busca = document.getElementById('buscaAluno').value.trim();
     const token = obterToken();
     if (!busca) return alert("Digite o ID ou nome do aluno.");
@@ -873,9 +873,9 @@
     const { dados: dadosAluno, sha: shaAluno } = await obterConteudoAtual(`alunos/aluno_${alunoId}.json`, token);
     shaArquivoAluno = shaAluno;
 
-    // Carrega o arquivo de conceitos - GUARDA O SHA
+    // Carrega o arquivo de conceitos
     const { dados: dadosConceitos, sha: shaConceitos } = await obterConteudoAtual(`alunos/teoria_${alunoId}.json`, token);
-    shaArquivoTeoria = shaConceitos; // <--- GUARDA O SHA DA TEORIA
+    shaArquivoTeoria = shaConceitos;
 
     // INICIALIZA OS CACHES
     dadosAlunoCache = dadosAluno || { 
@@ -890,14 +890,19 @@
         conceitos: [] 
     };
 
-    // Garante que as propriedades existam
-    if (!dadosAlunoCache.adicional) dadosAlunoCache.adicional = [];
-    if (!dadosAlunoCache.musicas) dadosAlunoCache.musicas = [];
+    // ===== GARANTE QUE ADICIONAL E MÚSICAS EXISTAM =====
+    if (!dadosAlunoCache.adicional || !Array.isArray(dadosAlunoCache.adicional)) {
+        dadosAlunoCache.adicional = [];
+    }
+    if (!dadosAlunoCache.musicas || !Array.isArray(dadosAlunoCache.musicas)) {
+        dadosAlunoCache.musicas = [];
+    }
 
-    // Carrega o período
+    // ===== CARREGA O PERÍODO =====
     if (dadosAluno && dadosAluno.periodo) {
         dadosPeriodo = JSON.parse(JSON.stringify(dadosAluno.periodo));
     } else {
+        // ===== CRIA PERÍODO COM OS DADOS EXISTENTES =====
         dadosPeriodo = {
             periodos: [
                 {
@@ -909,14 +914,28 @@
                             id: 'fase1',
                             nome: '1ª Fase',
                             geral: [],
-                            adicional: [],
-                            musicas: []
+                            adicional: dadosAlunoCache.adicional || [],
+                            musicas: dadosAlunoCache.musicas || []
                         }
                     ]
                 }
             ]
         };
     }
+
+    // ===== GARANTE QUE AS FASES TENHAM AS PROPRIEDADES =====
+    dadosPeriodo.periodos.forEach(periodo => {
+        periodo.fases.forEach(fase => {
+            if (!fase.geral) fase.geral = [];
+            if (!fase.adicional) fase.adicional = [];
+            if (!fase.musicas) fase.musicas = [];
+        });
+    });
+
+    console.log('📥 Dados carregados:');
+    console.log('  - Adicional:', dadosAlunoCache.adicional.length);
+    console.log('  - Músicas:', dadosAlunoCache.musicas.length);
+    console.log('  - Conceitos:', dadosConceitosCache.conceitos.length);
 
     // Sincroniza dados
     sincronizarDados();
@@ -926,10 +945,6 @@
 
     renderizarApp();
 }
-
-  // ============================================================
-  // SINCRONIZAÇÃO DOS DADOS
-  // ============================================================
  // ============================================================
 // SINCRONIZAÇÃO DOS DADOS - CORRIGIDA
 // ============================================================
@@ -940,6 +955,11 @@ function sincronizarDados() {
     const conceitos = dadosConceitosCache?.conceitos || [];
     const adicional = dadosAlunoCache?.adicional || [];
     const musicas = dadosAlunoCache?.musicas || [];
+
+    console.log('📊 Sincronizando dados:');
+    console.log('  - Conceitos:', conceitos.length);
+    console.log('  - Adicional:', adicional.length);
+    console.log('  - Músicas:', musicas.length);
 
     // Mapeia conceitos concluídos
     const conceitosConcluidos = new Set();
@@ -977,6 +997,44 @@ function sincronizarDados() {
             if (!fase.adicional || !Array.isArray(fase.adicional)) fase.adicional = [];
             if (!fase.musicas || !Array.isArray(fase.musicas)) fase.musicas = [];
 
+            // ===== ADICIONA ITENS FALTANTES DO ADICIONAL =====
+            adicional.forEach(item => {
+                const existe = fase.adicional.some(a => a.nome === item.nome);
+                if (!existe) {
+                    fase.adicional.push({
+                        id: 'add_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        nome: item.nome,
+                        concluido: item.concluido || false
+                    });
+                }
+            });
+
+            // ===== ADICIONA ITENS FALTANTES DO GERAL (CONCEITOS) =====
+            conceitos.forEach(c => {
+                const existe = fase.geral.some(g => g.nome === c.titulo);
+                if (!existe) {
+                    fase.geral.push({
+                        id: 'con_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        nome: c.titulo,
+                        concluido: c.status === 'concluido' || c.status === 'Concluído'
+                    });
+                }
+            });
+
+            // ===== ADICIONA ITENS FALTANTES DAS MÚSICAS =====
+            musicas.forEach(m => {
+                const existe = fase.musicas.some(mus => mus.nome === m.nome);
+                if (!existe) {
+                    fase.musicas.push({
+                        id: 'mus_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        nome: m.nome,
+                        concluido: m.concluido || false,
+                        conceitos: []
+                    });
+                }
+            });
+
+            // ===== ATUALIZA STATUS DOS ITENS EXISTENTES =====
             // Geral (Conceitos)
             fase.geral.forEach(item => {
                 if (conceitosConcluidos.has(item.nome)) {
@@ -991,12 +1049,11 @@ function sincronizarDados() {
                 }
             });
             
-            // Músicas (Estudos)
+            // Músicas
             fase.musicas.forEach(musica => {
                 if (musicasConcluidas.has(musica.nome)) {
                     musica.concluido = true;
                 }
-                // Conceitos da música
                 if (musica.conceitos && Array.isArray(musica.conceitos)) {
                     musica.conceitos.forEach(c => {
                         if (conceitosConcluidos.has(c.nome)) {
@@ -1008,10 +1065,6 @@ function sincronizarDados() {
         });
     });
 }
-
-  // ============================================================
-  // SALVAR DADOS
-  // ============================================================
   // ============================================================
 // SALVAR DADOS - CORRIGIDO
 // ============================================================
@@ -1120,12 +1173,15 @@ async function salvarDadosAluno() {
         }
     });
 
+    // ===== LOGS DE DEPURAÇÃO =====
+    console.log('📤 Salvando dados:');
+    console.log('  - Adicional:', dadosAlunoCache.adicional.length);
+    console.log('  - Músicas:', dadosAlunoCache.musicas.length);
+    console.log('  - Conceitos:', dadosConceitosCache.conceitos.length);
+    console.log('  - Períodos:', dadosAlunoCache.periodo?.periodos?.length || 0);
+
     exibirStatus("Salvando dados no GitHub...", "blue");
 
-    // ============================================================
-    // ===== AQUI É ONDE VOCÊ COLOCA O CÓDIGO =====
-    // ============================================================
-    
     // ===== SALVA COM RETRY E ATUALIZAÇÃO DE SHA =====
     const resultados = await Promise.all([
         salvarArquivoComRetry(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, token, shaArquivoAluno),
@@ -1562,15 +1618,31 @@ async function salvarDadosAluno() {
     if (!nome) return;
     const livro = prompt("Digite o nome do livro:", "Método Geral");
     const id = 'periodo_' + Date.now();
-    dadosPeriodo.periodos.push({
-      id,
-      nome,
-      livro: livro || 'Método Geral',
-      fases: [{ id: 'fase_' + Date.now(), nome: '1ª Fase', geral: [], adicional: [], musicas: [] }]
-    });
+    
+    // ===== CRIA O NOVO PERÍODO =====
+    const novoPeriodo = {
+        id: id,
+        nome: nome,
+        livro: livro || 'Método Geral',
+        fases: [
+            {
+                id: 'fase_' + Date.now(),
+                nome: '1ª Fase',
+                geral: [],
+                adicional: [],
+                musicas: []
+            }
+        ]
+    };
+    
+    dadosPeriodo.periodos.push(novoPeriodo);
     periodoAtivoId = id;
+    
+    // ===== SINCRONIZA COM OS DADOS EXISTENTES =====
+    sincronizarDados();
+    
     renderizarApp();
-  }
+}
 
   function renomearPeriodo(periodoId) {
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
