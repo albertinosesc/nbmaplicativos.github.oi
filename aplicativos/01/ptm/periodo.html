@@ -645,27 +645,12 @@
   let shaArquivoTeoria = null;
   
   let dadosPeriodo = {
-    periodos: [
-      {
-        id: 'periodo1',
-        nome: 'Período 1',
-        livro: 'Método H. Lemoine / Hinário',
-        fases: [
-          {
-            id: 'fase1',
-            nome: '1ª Fase',
-            geral: [],
-            adicional: [],
-            musicas: []
-          }
-        ]
-      }
-    ]
+    periodos: []
   };
 
   let dadosAlunoCache = null;
   let dadosConceitosCache = null;
-  let periodoAtivoId = 'periodo1';
+  let periodoAtivoId = null;
 
   // ============================================================
   // CATEGORIAS PADRÃO PARA NOVOS PERÍODOS
@@ -703,6 +688,45 @@
             }
         ]
     };
+  }
+
+  // ============================================================
+  // FUNÇÃO PARA CRIAR PERÍODO PADRÃO
+  // ============================================================
+  function criarPeriodoPadrao() {
+    const categorias = getCategoriasPadrao();
+    const periodo = {
+        id: 'periodo1',
+        nome: 'Período 1',
+        livro: 'Método H. Lemoine / Hinário',
+        fases: [
+            {
+                id: 'fase1',
+                nome: '1ª Fase',
+                geral: categorias.geral,
+                adicional: categorias.adicional,
+                musicas: categorias.musicas
+            }
+        ]
+    };
+    dadosPeriodo.periodos = [periodo];
+    periodoAtivoId = periodo.id;
+    return periodo;
+  }
+
+  // ============================================================
+  // FUNÇÃO PARA GARANTIR QUE EXISTA PELO MENOS UM PERÍODO
+  // ============================================================
+  function garantirPeriodoPadrao() {
+    if (!dadosPeriodo || !dadosPeriodo.periodos || dadosPeriodo.periodos.length === 0) {
+        criarPeriodoPadrao();
+        return true;
+    }
+    // Verifica se o período ativo existe
+    if (!periodoAtivoId || !dadosPeriodo.periodos.some(p => p.id === periodoAtivoId)) {
+        periodoAtivoId = dadosPeriodo.periodos[0].id;
+    }
+    return false;
   }
 
   // ============================================================
@@ -893,32 +917,6 @@
   }
 
   // ============================================================
-  // FUNÇÃO PARA GARANTIR QUE EXISTA PELO MENOS UM PERÍODO
-  // ============================================================
-  function garantirPeriodoPadrao() {
-    if (!dadosPeriodo || !dadosPeriodo.periodos || dadosPeriodo.periodos.length === 0) {
-      const categorias = getCategoriasPadrao();
-      dadosPeriodo.periodos = [
-        {
-          id: 'periodo1',
-          nome: 'Período 1',
-          livro: 'Método H. Lemoine / Hinário',
-          fases: [
-            {
-              id: 'fase1',
-              nome: '1ª Fase',
-              geral: categorias.geral,
-              adicional: categorias.adicional,
-              musicas: categorias.musicas
-            }
-          ]
-        }
-      ];
-      periodoAtivoId = dadosPeriodo.periodos[0].id;
-    }
-  }
-
-  // ============================================================
   // FUNÇÃO PRINCIPAL - CARREGAR DADOS DO ALUNO
   // ============================================================
   async function carregarDadosAluno() {
@@ -954,28 +952,11 @@
     if (!dadosAlunoCache.musicas) dadosAlunoCache.musicas = [];
 
     // ===== CARREGA O PERÍODO =====
-    if (dadosAluno && dadosAluno.periodo) {
+    if (dadosAluno && dadosAluno.periodo && dadosAluno.periodo.periodos && dadosAluno.periodo.periodos.length > 0) {
       dadosPeriodo = JSON.parse(JSON.stringify(dadosAluno.periodo));
     } else {
-      const categorias = getCategoriasPadrao();
-      dadosPeriodo = {
-        periodos: [
-          {
-            id: 'periodo1',
-            nome: 'Período 1',
-            livro: dadosAluno?.livro || 'Método H. Lemoine / Hinário',
-            fases: [
-              {
-                id: 'fase1',
-                nome: '1ª Fase',
-                geral: categorias.geral,
-                adicional: categorias.adicional,
-                musicas: categorias.musicas
-              }
-            ]
-          }
-        ]
-      };
+      // ===== CRIA PERÍODO PADRÃO =====
+      criarPeriodoPadrao();
     }
 
     // ===== GARANTE QUE AS FASES TENHAM AS PROPRIEDADES =====
@@ -987,7 +968,13 @@
       });
     });
 
+    // ===== GARANTE QUE O PERÍODO ATIVO EXISTA =====
+    if (!periodoAtivoId || !dadosPeriodo.periodos.some(p => p.id === periodoAtivoId)) {
+      periodoAtivoId = dadosPeriodo.periodos[0].id;
+    }
+
     console.log('📥 Dados carregados:');
+    console.log('  - Períodos:', dadosPeriodo.periodos.length);
     console.log('  - Adicional:', dadosAlunoCache.adicional.length);
     console.log('  - Músicas:', dadosAlunoCache.musicas.length);
     console.log('  - Conceitos:', dadosConceitosCache.conceitos.length);
@@ -1186,7 +1173,7 @@
     const container = document.getElementById('conteudoPrincipal');
 
     // ===== GARANTE QUE EXISTA PELO MENOS UM PERÍODO =====
-    garantirPeriodoPadrao();
+    const criou = garantirPeriodoPadrao();
 
     let navHtml = '';
     dadosPeriodo.periodos.forEach(per => {
@@ -1206,7 +1193,9 @@
 
     const periodoObj = dadosPeriodo.periodos.find(p => p.id === periodoAtivoId);
     if (!periodoObj) {
-      container.innerHTML = `<div class="inicio-msg"><i class="fa-solid fa-circle-exclamation"></i><h3>Período não encontrado</h3></div>`;
+      // Isso não deve acontecer, mas por segurança...
+      criarPeriodoPadrao();
+      renderizarApp();
       return;
     }
 
@@ -1630,29 +1619,12 @@
     
     if (dadosPeriodo.periodos.length > 0) {
       periodoAtivoId = dadosPeriodo.periodos[0].id;
+      renderizarApp();
     } else {
       // ===== CRIA UM PERÍODO PADRÃO SE NÃO HOUVER NENHUM =====
-      const categorias = getCategoriasPadrao();
-      dadosPeriodo.periodos = [
-        {
-          id: 'periodo1',
-          nome: 'Período 1',
-          livro: 'Método H. Lemoine / Hinário',
-          fases: [
-            {
-              id: 'fase1',
-              nome: '1ª Fase',
-              geral: categorias.geral,
-              adicional: categorias.adicional,
-              musicas: categorias.musicas
-            }
-          ]
-        }
-      ];
-      periodoAtivoId = dadosPeriodo.periodos[0].id;
+      criarPeriodoPadrao();
+      renderizarApp();
     }
-    
-    renderizarApp();
     
     // ===== SALVA AUTOMATICAMENTE APÓS EXCLUIR =====
     if (alunoIdAtual) {
@@ -1694,19 +1666,14 @@
       if (e.key === 'Escape') fecharModal();
     });
 
-    // ===== GARANTE QUE EXISTA PELO MENOS UM PERÍODO =====
+    // ===== GARANTE QUE EXISTA PELO MENOS UM PERÍODO AO CARREGAR =====
     garantirPeriodoPadrao();
 
-    document.getElementById('conteudoPrincipal').innerHTML = `
-      <div class="inicio-msg">
-        <i class="fa-solid fa-user-graduate"></i>
-        <h3>Carregue um aluno para começar</h3>
-        <p>Digite o ID ou nome do aluno e clique em "Carregar Aluno"</p>
-      </div>
-    `;
-  };
+    // ===== MOSTRA A PÁGINA COM O PERÍODO PADRÃO =====
+    renderizarApp();
 
-  console.log('✅ Período - Acompanhamento carregado!');
+    console.log('✅ Período - Acompanhamento carregado!');
+  };
 </script>
 </body>
 </html>
