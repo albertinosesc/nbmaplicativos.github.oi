@@ -936,7 +936,7 @@
   }
 
   // ============================================================
-  // SINCRONIZAÇÃO DOS DADOS - APENAS ATUALIZA STATUS (SEM DUPLICAR)
+  // SINCRONIZAÇÃO DOS DADOS - APENAS ATUALIZA STATUS
   // ============================================================
   function sincronizarDados() {
     if (!dadosPeriodo || !dadosPeriodo.periodos) return;
@@ -1115,15 +1115,38 @@
   }
 
   // ============================================================
+  // FUNÇÃO PARA GARANTIR QUE EXISTA PELO MENOS UM PERÍODO
+  // ============================================================
+  function garantirPeriodoPadrao() {
+    if (!dadosPeriodo || !dadosPeriodo.periodos || dadosPeriodo.periodos.length === 0) {
+      dadosPeriodo.periodos = [
+        {
+          id: 'periodo1',
+          nome: 'Período 1',
+          livro: 'Método H. Lemoine / Hinário',
+          fases: [
+            {
+              id: 'fase1',
+              nome: '1ª Fase',
+              geral: [],
+              adicional: [],
+              musicas: []
+            }
+          ]
+        }
+      ];
+      periodoAtivoId = dadosPeriodo.periodos[0].id;
+    }
+  }
+
+  // ============================================================
   // RENDERIZAÇÃO
   // ============================================================
   function renderizarApp() {
     const container = document.getElementById('conteudoPrincipal');
 
-    if (!dadosPeriodo?.periodos?.length) {
-      container.innerHTML = `<div class="inicio-msg"><i class="fa-solid fa-circle-exclamation"></i><h3>Nenhum período encontrado</h3></div>`;
-      return;
-    }
+    // ===== GARANTE QUE EXISTA PELO MENOS UM PERÍODO =====
+    garantirPeriodoPadrao();
 
     let navHtml = '';
     dadosPeriodo.periodos.forEach(per => {
@@ -1519,7 +1542,7 @@
   }
 
   // ============================================================
-  // FUNÇÕES DE PERÍODO
+  // FUNÇÕES DE PERÍODO - CORRIGIDAS COM SALVAMENTO AUTOMÁTICO
   // ============================================================
   function adicionarNovoPeriodo() {
     const nome = prompt("Digite o nome do novo período:");
@@ -1560,11 +1583,40 @@
 
   function excluirPeriodo(periodoId) {
     if (!confirm("Excluir este período?")) return;
+    
     dadosPeriodo.periodos = dadosPeriodo.periodos.filter(p => p.id !== periodoId);
+    
     if (dadosPeriodo.periodos.length > 0) {
       periodoAtivoId = dadosPeriodo.periodos[0].id;
+    } else {
+      // ===== CRIA UM PERÍODO PADRÃO SE NÃO HOUVER NENHUM =====
+      dadosPeriodo.periodos = [
+        {
+          id: 'periodo1',
+          nome: 'Período 1',
+          livro: 'Método H. Lemoine / Hinário',
+          fases: [
+            {
+              id: 'fase1',
+              nome: '1ª Fase',
+              geral: [],
+              adicional: [],
+              musicas: []
+            }
+          ]
+        }
+      ];
+      periodoAtivoId = dadosPeriodo.periodos[0].id;
     }
+    
     renderizarApp();
+    
+    // ===== SALVA AUTOMATICAMENTE APÓS EXCLUIR =====
+    if (alunoIdAtual) {
+      setTimeout(() => {
+        salvarDadosAluno();
+      }, 300);
+    }
   }
 
   function editarLivro(periodoId) {
@@ -1598,6 +1650,9 @@
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') fecharModal();
     });
+
+    // ===== GARANTE QUE EXISTA PELO MENOS UM PERÍODO =====
+    garantirPeriodoPadrao();
 
     document.getElementById('conteudoPrincipal').innerHTML = `
       <div class="inicio-msg">
