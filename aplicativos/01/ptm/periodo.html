@@ -946,7 +946,10 @@
   // ============================================================
   // SALVAR DADOS
   // ============================================================
-  async function salvarDadosAluno() {
+  // ============================================================
+// SALVAR DADOS - COM RETRY E ATUALIZAÇÃO DE SHA
+// ============================================================
+async function salvarDadosAluno() {
     if (!alunoIdAtual) return alert("Carregue um aluno primeiro.");
     const token = obterToken();
     if (!token) return alert("Informe o token do GitHub.");
@@ -959,64 +962,105 @@
     // Atualiza teoria com base nos checkboxes
     const conceitosAtualizados = [];
     dadosPeriodo.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        fase.geral.forEach(item => {
-          conceitosAtualizados.push({
-            titulo: item.nome,
-            status: item.concluido ? 'concluido' : 'pendente',
-            lote: periodo.nome
-          });
+        periodo.fases.forEach(fase => {
+            fase.geral.forEach(item => {
+                conceitosAtualizados.push({
+                    titulo: item.nome,
+                    status: item.concluido ? 'concluido' : 'pendente',
+                    lote: periodo.nome
+                });
+            });
+            fase.adicional.forEach(item => {
+                conceitosAtualizados.push({
+                    titulo: item.nome,
+                    status: item.concluido ? 'concluido' : 'pendente',
+                    lote: periodo.nome
+                });
+            });
         });
-        fase.adicional.forEach(item => {
-          conceitosAtualizados.push({
-            titulo: item.nome,
-            status: item.concluido ? 'concluido' : 'pendente',
-            lote: periodo.nome
-          });
-        });
-      });
     });
     dadosTeoriaCache.conceitos = conceitosAtualizados;
 
     // Atualiza músicas com base nos checkboxes
     const musicasAtualizadas = [];
     dadosPeriodo.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        fase.estudos.forEach(estudo => {
-          estudo.itens.forEach(item => {
-            musicasAtualizadas.push({
-              nome: item.nome,
-              status: item.concluido ? 'concluida' : 'pendente',
-              lote: `Estudo ${estudo.num}`
+        periodo.fases.forEach(fase => {
+            fase.estudos.forEach(estudo => {
+                estudo.itens.forEach(item => {
+                    musicasAtualizadas.push({
+                        nome: item.nome,
+                        status: item.concluido ? 'concluida' : 'pendente',
+                        lote: `Estudo ${estudo.num}`
+                    });
+                });
             });
-          });
         });
-      });
     });
     dadosMusicaCache.musicas = musicasAtualizadas;
 
     exibirStatus("Salvando dados no GitHub...", "blue");
 
-    // Salva os 3 arquivos
+    // Salva os 3 arquivos com retry automático
     const salvos = await Promise.all([
-      salvarArquivo(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, shaArquivoAluno, token),
-      salvarArquivo(`alunos/teoria_${alunoIdAtual}.json`, dadosTeoriaCache, shaArquivoTeoria, token),
-      salvarArquivo(`alunos/musica_${alunoIdAtual}.json`, dadosMusicaCache, shaArquivoMusica, token)
+        salvarArquivoComRetry(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, token, shaArquivoAluno),
+        salvarArquivoComRetry(`alunos/teoria_${alunoIdAtual}.json`, dadosTeoriaCache, token, shaArquivoTeoria),
+        salvarArquivoComRetry(`alunos/musica_${alunoIdAtual}.json`, dadosMusicaCache, token, shaArquivoMusica)
     ]);
+
+    // Atualiza os SHAs
+    if (salvos[0].success) shaArquivoAluno = salvos[0].sha;
+    if (salvos[1].success) shaArquivoTeoria = salvos[1].sha;
+    if (salvos[2].success) shaArquivoMusica = salvos[2].sha;
 
     const todosSucesso = salvos.every(s => s.success);
     if (todosSucesso) {
-      shaArquivoAluno = salvos[0].sha;
-      shaArquivoTeoria = salvos[1].sha;
-      shaArquivoMusica = salvos[2].sha;
-      exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
-      showToast(`💾 Dados salvos!`, 'success');
+        exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
+        showToast(`💾 Dados salvos!`, 'success');
     } else {
-      const erros = salvos.filter(s => !s.success).map(s => s.error);
-      exibirStatus(`❌ Erro ao salvar: ${erros.join(', ')}`, "red");
-      showToast(`❌ Erro ao salvar dados`, 'error');
+        const erros = salvos.filter(s => !s.success).map(s => s.error);
+        exibirStatus(`❌ Erro ao salvar: ${erros.join(', ')}`, "red");
+        showToast(`❌ Erro ao salvar dados`, 'error');
     }
-  }
+}
+
+// ============================================================
+// FUNÇÃO SALVAR COM RETRY E ATUALIZAÇÃO DE SHA
+// ============================================================
+async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas = 3) {
+    for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
+        try {
+            // Primeiro, busca o SHA mais recente do arquivo
+            const { sha: shaRecente } = await obterConteudoAtual(caminho, token);
+            
+            // Usa o SHA mais recente se disponível, senão usa o que temos
+            const shaParaSalvar = shaRecente || shaAtual;
+            
+            const resultado = await salvarArquivo(caminho, dados, shaParaSalvar, token);
+            
+            if (resultado.success) {
+                return { success: true, sha: resultado.sha };
+            }
+            
+            // Se falhou e é um erro de conflito (409), tenta novamente
+            if (resultado.error && resultado.error.includes('409')) {
+                console.log(`⚠️ Conflito detectado, tentativa ${tentativa} de ${tentativas}...`);
+                await new Promise(r => setTimeout(r, 1000 * tentativa));
+                continue;
+            }
+            
+            return { success: false, error: resultado.error };
+            
+        } catch (error) {
+            if (tentativa < tentativas) {
+                console.log(`⚠️ Erro na tentativa ${tentativa}, tentando novamente...`);
+                await new Promise(r => setTimeout(r, 1000 * tentativa));
+                continue;
+            }
+            return { success: false, error: error.message };
+        }
+    }
+    return { success: false, error: 'Todas as tentativas falharam' };
+}
 
   // ============================================================
   // RENDERIZAÇÃO DA APLICAÇÃO
