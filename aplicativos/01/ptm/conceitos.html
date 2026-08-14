@@ -1533,68 +1533,76 @@ window.sincronizarConceitos = function(itens) {
     }
 
     async function salvarDadosAluno() {
-      const busca = document.getElementById('buscaAluno').value.trim();
-      const token = obterToken();
-      if (!busca) return alert("Informe o nome ou ID do aluno antes de salvar.");
-      if (!token) return alert("Informe e confirme o Token antes de salvar.");
+    const busca = document.getElementById('buscaAluno').value.trim();
+    const token = obterToken();
+    if (!busca) return alert("Informe o nome ou ID do aluno antes de salvar.");
+    if (!token) return alert("Informe e confirme o Token antes de salvar.");
 
-      const alunoId = await buscarIdAluno(busca);
-      alunoIdAtual = alunoId;
-      const conceitos = getConceitosDaTabela();
+    const alunoId = await buscarIdAluno(busca);
+    alunoIdAtual = alunoId;
+    const conceitos = getConceitosDaTabela();
 
-      if (conceitos.length === 0) {
+    if (conceitos.length === 0) {
         return alert("Adicione pelo menos um conceito antes de salvar.");
-      }
+    }
 
-      const dadosParaSalvar = {
+    const dadosParaSalvar = {
         alunoId: alunoId,
         aluno: busca,
         tipo: "teoria",
         atualizadoEm: new Date().toISOString(),
         conceitos: conceitos,
         lotesImportados: lotesImportados
-      };
+    };
 
-      const caminho = `alunos/teoria_${alunoId}.json`;
-      const jsonString = JSON.stringify(dadosParaSalvar, null, 2);
-      const utf8Bytes = new TextEncoder().encode(jsonString);
-      let binaryStr = "";
-      utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
-      const conteudoBase64 = btoa(binaryStr);
+    const caminho = `alunos/teoria_${alunoId}.json`;
+    const jsonString = JSON.stringify(dadosParaSalvar, null, 2);
+    const utf8Bytes = new TextEncoder().encode(jsonString);
+    let binaryStr = "";
+    utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
+    const conteudoBase64 = btoa(binaryStr);
 
-      const body = {
+    const body = {
         message: `Atualizando registro teórico do aluno: ${alunoId}`,
         content: conteudoBase64,
         branch: GH_CONFIG.branch
-      };
-      if (shaArquivoAtual) body.sha = shaArquivoAtual;
+    };
+    if (shaArquivoAtual) body.sha = shaArquivoAtual;
 
-      exibirStatus("Enviando dados teóricos para o GitHub...", "blue");
+    exibirStatus("Enviando dados teóricos para o GitHub...", "blue");
 
-      try {
+    try {
         const response = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/${caminho}`, {
-          method: 'PUT',
-          headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify(body)
+            method: 'PUT',
+            headers: { 'Authorization': `token ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
         });
 
         if (response.ok) {
-          const resData = await response.json();
-          shaArquivoAtual = resData.content.sha;
-          
-          const cacheKey = `lotes_aluno_${alunoId}`;
-          localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
-          
-          exibirStatus(`✅ Progresso teórico salvo com sucesso para ${alunoId}!`, "green");
-          showToast(`💾 ${conceitos.length} conceitos salvos!`, 'success');
+            const resData = await response.json();
+            shaArquivoAtual = resData.content.sha;
+            
+            const cacheKey = `lotes_aluno_${alunoId}`;
+            localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
+            
+            // ===== AVISA O PERÍODO QUE OS DADOS FORAM ATUALIZADOS =====
+            if (typeof avisarPeriodo === 'function') {
+                avisarPeriodo();
+            } else {
+                localStorage.setItem('periodo_atualizado', Date.now().toString());
+                console.log('📤 Aviso enviado para o Período: dados atualizados!');
+            }
+            
+            exibirStatus(`✅ Progresso teórico salvo com sucesso para ${alunoId}!`, "green");
+            showToast(`💾 ${conceitos.length} conceitos salvos!`, 'success');
         } else {
-          const errData = await response.json();
-          throw new Error(errData.message || "Erro ao salvar.");
+            const errData = await response.json();
+            throw new Error(errData.message || "Erro ao salvar.");
         }
-      } catch (err) {
+    } catch (err) {
         exibirStatus("❌ Erro ao salvar: " + err.message, "red");
-      }
     }
+}
 
     // ============================================================
     // INICIALIZAÇÃO
@@ -1733,6 +1741,15 @@ window.enviarDadosParaPeriodo = function() {
     };
 };
 
+    // ============================================================
+// FUNÇÃO PARA AVISAR O PERÍODO QUE OS DADOS FORAM SALVOS
+// ============================================================
+function avisarPeriodo() {
+    // Guarda o timestamp da última atualização
+    localStorage.setItem('periodo_atualizado', Date.now().toString());
+    console.log('📤 Aviso enviado para o Período: dados atualizados!');
+}
+    
     console.log('✅ Conceitos Teóricos - Versão completa com gerenciamento de lotes e layout otimizado!');
   </script>
 </body>
