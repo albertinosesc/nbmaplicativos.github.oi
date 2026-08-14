@@ -245,7 +245,7 @@
     }
 
     .fase-header h3 {
-      font-size: 1.2rem;
+      font-size: 1.3rem;
       color: var(--primary);
       display: flex;
       align-items: center;
@@ -292,14 +292,17 @@
       transition: width 0.3s ease;
     }
 
-    .grid-2 {
+    .grid-3 {
       display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 20px;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 15px;
     }
 
-    @media (max-width: 768px) {
-      .grid-2 { grid-template-columns: 1fr; }
+    @media (max-width: 992px) {
+      .grid-3 { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 600px) {
+      .grid-3 { grid-template-columns: 1fr; }
     }
 
     .sub-section {
@@ -307,9 +310,9 @@
       border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 15px;
-      margin-bottom: 15px;
+      margin-bottom: 0;
+      height: 100%;
     }
-    .sub-section:last-child { margin-bottom: 0; }
 
     .sub-section h4 {
       font-size: 0.95rem;
@@ -318,7 +321,20 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
+      border-bottom: 2px solid var(--border-color);
+      padding-bottom: 8px;
     }
+    .sub-section h4 .icon-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .sub-section h4 .icon-title i {
+      font-size: 1.1rem;
+    }
+    .sub-section h4 .icon-title .cor-conceitos { color: #27ae60; }
+    .sub-section h4 .icon-title .cor-tonalidades { color: #2563eb; }
+    .sub-section h4 .icon-title .cor-musicas { color: #8e44ad; }
 
     .checklist-item {
       display: flex;
@@ -358,6 +374,7 @@
       cursor: pointer;
       flex: 1;
       padding: 2px 0;
+      font-size: 0.82rem;
     }
 
     .item-concluido {
@@ -430,28 +447,29 @@
     }
 
     .estudo-block {
-      margin-bottom: 12px;
+      margin-bottom: 10px;
       border-bottom: 1px dashed var(--border-color);
-      padding-bottom: 8px;
+      padding-bottom: 6px;
     }
     .estudo-block:last-child {
       border-bottom: none;
       margin-bottom: 0;
+      padding-bottom: 0;
     }
 
     .estudo-header {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 4px;
+      margin-bottom: 2px;
     }
     .estudo-header strong {
-      font-size: 0.9rem;
+      font-size: 0.85rem;
       color: var(--primary);
     }
 
     .checklist-item-sub {
-      margin-left: 20px;
+      margin-left: 15px;
     }
 
     .lista-alunos-container {
@@ -532,21 +550,6 @@
     }
     .modal-close:hover { color: var(--danger); }
 
-    .loading {
-      text-align: center;
-      padding: 40px;
-      color: var(--text-muted);
-    }
-    .loading i {
-      font-size: 2rem;
-      animation: spin 1s linear infinite;
-    }
-    @keyframes spin {
-      from { transform: rotate(0deg); }
-      to { transform: rotate(360deg); }
-    }
-
-    /* MENSAGEM INICIAL SEM ANIMAÇÃO */
     .inicio-msg {
       text-align: center;
       padding: 60px 20px;
@@ -662,9 +665,9 @@
           {
             id: 'fase1',
             nome: '1ª Fase',
-            geral: [],
-            adicional: [],
-            estudos: []
+            conceitos: [],
+            tonalidades: [],
+            musicas: []
           }
         ]
       }
@@ -787,7 +790,6 @@
   async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas = 3) {
     for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
       try {
-        // Busca o SHA mais recente do arquivo
         const { sha: shaRecente } = await obterConteudoAtual(caminho, token);
         const shaParaSalvar = shaRecente || shaAtual;
         
@@ -797,7 +799,6 @@
           return { success: true, sha: resultado.sha };
         }
         
-        // Se for conflito (409), tenta novamente
         if (resultado.status === 409) {
           console.log(`⚠️ Conflito (409) em ${caminho}, tentativa ${tentativa} de ${tentativas}...`);
           await new Promise(r => setTimeout(r, 1500 * tentativa));
@@ -919,9 +920,9 @@
               {
                 id: 'fase1',
                 nome: '1ª Fase',
-                geral: [],
-                adicional: [],
-                estudos: []
+                conceitos: [],
+                tonalidades: [],
+                musicas: []
               }
             ]
           }
@@ -945,6 +946,7 @@
   // SINCRONIZAÇÃO DOS DADOS
   // ============================================================
   function sincronizarDados() {
+    // Mapeia conceitos concluídos
     const conceitosConcluidos = new Set();
     if (dadosTeoriaCache && dadosTeoriaCache.conceitos) {
       dadosTeoriaCache.conceitos.forEach(c => {
@@ -954,6 +956,7 @@
       });
     }
 
+    // Mapeia músicas concluídas
     const musicasConcluidas = new Set();
     if (dadosMusicaCache && dadosMusicaCache.musicas) {
       dadosMusicaCache.musicas.forEach(m => {
@@ -963,19 +966,32 @@
       });
     }
 
+    // Mapeia tonalidades concluídas
+    const tonalidadesConcluidas = new Set();
+    if (dadosAlunoCache && dadosAlunoCache.tonalidades) {
+      dadosAlunoCache.tonalidades.forEach(t => {
+        if (t.concluido) {
+          tonalidadesConcluidas.add(t.nome);
+        }
+      });
+    }
+
     dadosPeriodo.periodos.forEach(periodo => {
       periodo.fases.forEach(fase => {
-        fase.geral.forEach(item => {
+        // Conceitos
+        fase.conceitos.forEach(item => {
           if (conceitosConcluidos.has(item.nome)) {
             item.concluido = true;
           }
         });
-        fase.adicional.forEach(item => {
-          if (conceitosConcluidos.has(item.nome)) {
+        // Tonalidades
+        fase.tonalidades.forEach(item => {
+          if (tonalidadesConcluidas.has(item.nome)) {
             item.concluido = true;
           }
         });
-        fase.estudos.forEach(estudo => {
+        // Músicas
+        fase.musicas.forEach(estudo => {
           estudo.itens.forEach(item => {
             if (musicasConcluidas.has(item.nome)) {
               item.concluido = true;
@@ -987,7 +1003,7 @@
   }
 
   // ============================================================
-  // SALVAR DADOS - VERSÃO CORRIGIDA
+  // SALVAR DADOS - CORRIGIDO (ATUALIZA APENAS O STATUS)
   // ============================================================
   async function salvarDadosAluno() {
     if (!alunoIdAtual) return alert("Carregue um aluno primeiro.");
@@ -996,48 +1012,72 @@
 
     exibirStatus("Preparando dados para salvar...", "blue");
 
+    // Atualiza os dados do período
     dadosAlunoCache.periodo = dadosPeriodo;
     dadosAlunoCache.aluno = alunoNomeAtual || alunoIdAtual;
     dadosAlunoCache.atualizadoEm = new Date().toISOString();
 
-    // Atualiza teoria
-    const conceitosAtualizados = [];
+    // ===== MAPEIA OS STATUS ATUAIS DO PERÍODO =====
+    const statusMap = new Map();
     dadosPeriodo.periodos.forEach(periodo => {
       periodo.fases.forEach(fase => {
-        fase.geral.forEach(item => {
-          conceitosAtualizados.push({
-            titulo: item.nome,
-            status: item.concluido ? 'concluido' : 'pendente',
-            lote: periodo.nome
-          });
+        // Conceitos
+        fase.conceitos.forEach(item => {
+          statusMap.set(item.nome, item.concluido ? 'concluido' : 'pendente');
         });
-        fase.adicional.forEach(item => {
-          conceitosAtualizados.push({
-            titulo: item.nome,
-            status: item.concluido ? 'concluido' : 'pendente',
-            lote: periodo.nome
-          });
+        // Tonalidades
+        fase.tonalidades.forEach(item => {
+          statusMap.set(item.nome, item.concluido ? 'concluido' : 'pendente');
         });
-      });
-    });
-    dadosTeoriaCache.conceitos = conceitosAtualizados;
-
-    // Atualiza músicas
-    const musicasAtualizadas = [];
-    dadosPeriodo.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        fase.estudos.forEach(estudo => {
+        // Músicas
+        fase.musicas.forEach(estudo => {
           estudo.itens.forEach(item => {
-            musicasAtualizadas.push({
-              nome: item.nome,
-              status: item.concluido ? 'concluida' : 'pendente',
-              lote: `Estudo ${estudo.num}`
-            });
+            statusMap.set(item.nome, item.concluido ? 'concluida' : 'pendente');
           });
         });
       });
     });
-    dadosMusicaCache.musicas = musicasAtualizadas;
+
+    // ===== ATUALIZA CONCEITOS (teoria_XXX.json) - APENAS STATUS =====
+    if (dadosTeoriaCache && dadosTeoriaCache.conceitos) {
+      dadosTeoriaCache.conceitos.forEach(c => {
+        if (statusMap.has(c.titulo)) {
+          const novoStatus = statusMap.get(c.titulo);
+          c.status = novoStatus === 'concluida' ? 'concluido' : novoStatus;
+        }
+      });
+    }
+
+    // ===== ATUALIZA MÚSICAS (musica_XXX.json) - APENAS STATUS =====
+    if (dadosMusicaCache && dadosMusicaCache.musicas) {
+      dadosMusicaCache.musicas.forEach(m => {
+        if (statusMap.has(m.nome)) {
+          const novoStatus = statusMap.get(m.nome);
+          m.status = novoStatus === 'concluido' ? 'concluida' : novoStatus;
+        }
+      });
+    }
+
+    // ===== ATUALIZA TONALIDADES (aluno_XXX.json) - APENAS STATUS =====
+    const tonalidadesMap = new Map();
+    dadosPeriodo.periodos.forEach(periodo => {
+      periodo.fases.forEach(fase => {
+        fase.tonalidades.forEach(item => {
+          tonalidadesMap.set(item.nome, item.concluido);
+        });
+      });
+    });
+
+    if (dadosAlunoCache) {
+      if (!dadosAlunoCache.tonalidades) {
+        dadosAlunoCache.tonalidades = [];
+      }
+      dadosAlunoCache.tonalidades.forEach(t => {
+        if (tonalidadesMap.has(t.nome)) {
+          t.concluido = tonalidadesMap.get(t.nome);
+        }
+      });
+    }
 
     exibirStatus("Salvando dados no GitHub...", "blue");
 
@@ -1096,50 +1136,53 @@
       let totalItens = 0;
       let concluidos = 0;
 
-      fase.geral.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
-      fase.adicional.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
-      fase.estudos.forEach(est => {
+      fase.conceitos.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
+      fase.tonalidades.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
+      fase.musicas.forEach(est => {
         est.itens.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
       });
 
       const porcentagem = totalItens > 0 ? Math.round((concluidos / totalItens) * 100) : 0;
 
-      let geralHtml = '';
-      fase.geral.forEach(item => {
+      // Conceitos
+      let conceitosHtml = '';
+      fase.conceitos.forEach(item => {
         const checked = item.concluido ? 'checked' : '';
         const cls = item.concluido ? 'item-concluido' : '';
-        geralHtml += `
+        conceitosHtml += `
           <div class="checklist-item">
-            <div class="checklist-left" onclick="alternarCheck('${periodoObj.id}', '${fase.id}', 'geral', '${item.id}')">
-              <input type="checkbox" ${checked} onclick="event.stopPropagation(); alternarCheck('${periodoObj.id}', '${fase.id}', 'geral', '${item.id}')">
+            <div class="checklist-left" onclick="alternarCheck('${periodoObj.id}', '${fase.id}', 'conceitos', '${item.id}')">
+              <input type="checkbox" ${checked} onclick="event.stopPropagation(); alternarCheck('${periodoObj.id}', '${fase.id}', 'conceitos', '${item.id}')">
               <label class="${cls}">${item.nome}</label>
             </div>
             <div class="item-actions">
-              <button class="btn-edit-item" onclick="event.stopPropagation(); editarItem('${periodoObj.id}', '${fase.id}', 'geral', '${item.id}')"><i class="fa-solid fa-pen"></i></button>
-              <button class="btn-del-item" onclick="event.stopPropagation(); excluirItem('${periodoObj.id}', '${fase.id}', 'geral', '${item.id}')"><i class="fa-solid fa-trash"></i></button>
+              <button class="btn-edit-item" onclick="event.stopPropagation(); editarItem('${periodoObj.id}', '${fase.id}', 'conceitos', '${item.id}')"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn-del-item" onclick="event.stopPropagation(); excluirItem('${periodoObj.id}', '${fase.id}', 'conceitos', '${item.id}')"><i class="fa-solid fa-trash"></i></button>
             </div>
           </div>`;
       });
 
-      let adicionalHtml = '';
-      fase.adicional.forEach(item => {
+      // Tonalidades
+      let tonalidadesHtml = '';
+      fase.tonalidades.forEach(item => {
         const checked = item.concluido ? 'checked' : '';
         const cls = item.concluido ? 'item-concluido' : '';
-        adicionalHtml += `
+        tonalidadesHtml += `
           <div class="checklist-item">
-            <div class="checklist-left" onclick="alternarCheck('${periodoObj.id}', '${fase.id}', 'adicional', '${item.id}')">
-              <input type="checkbox" ${checked} onclick="event.stopPropagation(); alternarCheck('${periodoObj.id}', '${fase.id}', 'adicional', '${item.id}')">
+            <div class="checklist-left" onclick="alternarCheck('${periodoObj.id}', '${fase.id}', 'tonalidades', '${item.id}')">
+              <input type="checkbox" ${checked} onclick="event.stopPropagation(); alternarCheck('${periodoObj.id}', '${fase.id}', 'tonalidades', '${item.id}')">
               <label class="${cls}">${item.nome}</label>
             </div>
             <div class="item-actions">
-              <button class="btn-edit-item" onclick="event.stopPropagation(); editarItem('${periodoObj.id}', '${fase.id}', 'adicional', '${item.id}')"><i class="fa-solid fa-pen"></i></button>
-              <button class="btn-del-item" onclick="event.stopPropagation(); excluirItem('${periodoObj.id}', '${fase.id}', 'adicional', '${item.id}')"><i class="fa-solid fa-trash"></i></button>
+              <button class="btn-edit-item" onclick="event.stopPropagation(); editarItem('${periodoObj.id}', '${fase.id}', 'tonalidades', '${item.id}')"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn-del-item" onclick="event.stopPropagation(); excluirItem('${periodoObj.id}', '${fase.id}', 'tonalidades', '${item.id}')"><i class="fa-solid fa-trash"></i></button>
             </div>
           </div>`;
       });
 
-      let estudosHtml = '';
-      fase.estudos.forEach((estudo, estIndex) => {
+      // Músicas (Estudos)
+      let musicasHtml = '';
+      fase.musicas.forEach((estudo, estIndex) => {
         let itensEstudoHtml = '';
         estudo.itens.forEach(item => {
           const checked = item.concluido ? 'checked' : '';
@@ -1157,7 +1200,7 @@
             </div>`;
         });
 
-        estudosHtml += `
+        musicasHtml += `
           <div class="estudo-block">
             <div class="estudo-header">
               <strong><i class="fa-solid fa-book-open"></i> Estudo ${estudo.num}</strong>
@@ -1173,7 +1216,7 @@
       fasesHtml += `
         <div class="fase-card">
           <div class="fase-header">
-            <h3><i class="fa-solid fa-graduation-cap"></i> ${periodoObj.nome} - ${fase.nome}</h3>
+            <h3><i class="fa-solid fa-graduation-cap"></i> ${periodoObj.nome}</h3>
             <span class="book-badge" onclick="editarLivro('${periodoObj.id}')">
               <i class="fa-solid fa-book-open"></i> ${periodoObj.livro || 'Definir Livro'}
             </span>
@@ -1187,39 +1230,44 @@
             <div class="progress-bar-fill" style="width: ${porcentagem}%;"></div>
           </div>
 
-          <div class="grid-2">
-            <div>
-              <div class="sub-section">
-                <h4>
-                  <span><i class="fa-solid fa-book"></i> Geral (Teoria)</span>
-                  <div class="btn-small-group">
-                    <button class="btn-small" onclick="abrirModalItem('${periodoObj.id}', '${fase.id}', 'geral')"><i class="fa-solid fa-plus"></i> 1 por 1</button>
-                    <button class="btn-small" onclick="abrirModalLote('${periodoObj.id}', '${fase.id}', 'geral')"><i class="fa-solid fa-list"></i> Vários</button>
-                  </div>
-                </h4>
-                ${geralHtml}
-              </div>
-
-              <div class="sub-section" style="margin-bottom: 0;">
-                <h4>
-                  <span><i class="fa-solid fa-star"></i> Adicional</span>
-                  <div class="btn-small-group">
-                    <button class="btn-small" onclick="abrirModalItem('${periodoObj.id}', '${fase.id}', 'adicional')"><i class="fa-solid fa-plus"></i> 1 por 1</button>
-                    <button class="btn-small" onclick="abrirModalLote('${periodoObj.id}', '${fase.id}', 'adicional')"><i class="fa-solid fa-list"></i> Vários</button>
-                  </div>
-                </h4>
-                ${adicionalHtml}
-              </div>
+          <div class="grid-3">
+            <!-- CONCEITOS -->
+            <div class="sub-section">
+              <h4>
+                <span class="icon-title">
+                  <i class="fa-solid fa-brain cor-conceitos"></i> Conceitos
+                </span>
+                <div class="btn-small-group">
+                  <button class="btn-small" onclick="abrirModalItem('${periodoObj.id}', '${fase.id}', 'conceitos')"><i class="fa-solid fa-plus"></i> 1</button>
+                  <button class="btn-small" onclick="abrirModalLote('${periodoObj.id}', '${fase.id}', 'conceitos')"><i class="fa-solid fa-list"></i> Vários</button>
+                </div>
+              </h4>
+              ${conceitosHtml}
             </div>
 
-            <div>
-              <div class="sub-section" style="margin-bottom: 0;">
-                <h4>
-                  <span><i class="fa-solid fa-list-check"></i> Estudos</span>
-                  <button class="btn-small" onclick="adicionarNovoEstudo('${periodoObj.id}', '${fase.id}')"><i class="fa-solid fa-plus"></i> Novo</button>
-                </h4>
-                ${estudosHtml}
-              </div>
+            <!-- TONALIDADES -->
+            <div class="sub-section">
+              <h4>
+                <span class="icon-title">
+                  <i class="fa-solid fa-sliders cor-tonalidades"></i> Tonalidades
+                </span>
+                <div class="btn-small-group">
+                  <button class="btn-small" onclick="abrirModalItem('${periodoObj.id}', '${fase.id}', 'tonalidades')"><i class="fa-solid fa-plus"></i> 1</button>
+                  <button class="btn-small" onclick="abrirModalLote('${periodoObj.id}', '${fase.id}', 'tonalidades')"><i class="fa-solid fa-list"></i> Vários</button>
+                </div>
+              </h4>
+              ${tonalidadesHtml}
+            </div>
+
+            <!-- MÚSICAS -->
+            <div class="sub-section">
+              <h4>
+                <span class="icon-title">
+                  <i class="fa-solid fa-compact-disc cor-musicas"></i> Músicas
+                </span>
+                <button class="btn-small" onclick="adicionarNovoEstudo('${periodoObj.id}', '${fase.id}')"><i class="fa-solid fa-plus"></i> Novo Estudo</button>
+              </h4>
+              ${musicasHtml}
             </div>
           </div>
         </div>`;
@@ -1251,7 +1299,7 @@
   function alternarCheckEstudo(periodoId, faseId, estIndex, itemId) {
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
     const fase = periodo.fases.find(f => f.id === faseId);
-    const item = fase.estudos[estIndex].itens.find(i => i.id === itemId);
+    const item = fase.musicas[estIndex].itens.find(i => i.id === itemId);
     if (!item) return;
     item.concluido = !item.concluido;
     renderizarApp();
@@ -1263,7 +1311,8 @@
   let modalCallback = null;
 
   function abrirModalItem(periodoId, faseId, categoria) {
-    document.getElementById('modalTitle').textContent = `Adicionar Item em ${categoria.toUpperCase()}`;
+    const nomesCategorias = { conceitos: 'Conceitos', tonalidades: 'Tonalidades', musicas: 'Músicas' };
+    document.getElementById('modalTitle').textContent = `Adicionar Item em ${nomesCategorias[categoria] || categoria}`;
     document.getElementById('modalTextarea').value = '';
     document.getElementById('modalTextarea').placeholder = 'Digite o nome do item...';
     modalCallback = () => {
@@ -1271,7 +1320,16 @@
       if (nome) {
         const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
         const fase = periodo.fases.find(f => f.id === faseId);
-        fase[categoria].push({ id: 'item_' + Date.now(), nome: nome, concluido: false });
+        if (categoria === 'musicas') {
+          // Para músicas, cria um novo estudo com o item
+          const novoNum = fase.musicas.length + 1;
+          fase.musicas.push({
+            num: novoNum,
+            itens: [{ id: 'sub_' + Date.now(), nome: nome, concluido: false }]
+          });
+        } else {
+          fase[categoria].push({ id: 'item_' + Date.now(), nome: nome, concluido: false });
+        }
         renderizarApp();
         fecharModal();
       }
@@ -1281,7 +1339,8 @@
   }
 
   function abrirModalLote(periodoId, faseId, categoria) {
-    document.getElementById('modalTitle').textContent = `Adicionar Vários Itens em ${categoria.toUpperCase()}`;
+    const nomesCategorias = { conceitos: 'Conceitos', tonalidades: 'Tonalidades', musicas: 'Músicas' };
+    document.getElementById('modalTitle').textContent = `Adicionar Vários Itens em ${nomesCategorias[categoria] || categoria}`;
     document.getElementById('modalTextarea').value = '';
     document.getElementById('modalTextarea').placeholder = 'Digite um item por linha...';
     modalCallback = () => {
@@ -1312,7 +1371,7 @@
         const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
         const fase = periodo.fases.find(f => f.id === faseId);
         linhas.forEach((linha, idx) => {
-          fase.estudos[estIndex].itens.push({ id: 'sub_' + Date.now() + '_' + idx, nome: linha, concluido: false });
+          fase.musicas[estIndex].itens.push({ id: 'sub_' + Date.now() + '_' + idx, nome: linha, concluido: false });
         });
         renderizarApp();
         fecharModal();
@@ -1332,7 +1391,7 @@
   }
 
   // ============================================================
-  // FUNÇÕES DE EDIÇÃO E EXCLUSÃO - GERAL/ADICIONAL
+  // FUNÇÕES DE EDIÇÃO E EXCLUSÃO
   // ============================================================
   function editarItem(periodoId, faseId, categoria, itemId) {
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
@@ -1355,13 +1414,13 @@
   }
 
   // ============================================================
-  // FUNÇÕES DE ESTUDOS
+  // FUNÇÕES DE ESTUDOS/MÚSICAS
   // ============================================================
   function adicionarNovoEstudo(periodoId, faseId) {
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
     const fase = periodo.fases.find(f => f.id === faseId);
-    const novoNum = fase.estudos.length + 1;
-    fase.estudos.push({
+    const novoNum = fase.musicas.length + 1;
+    fase.musicas.push({
       num: novoNum,
       itens: [{ id: 'sub_' + Date.now(), nome: `Estudo ${novoNum} - Tópico Inicial`, concluido: false }]
     });
@@ -1372,15 +1431,15 @@
     if (!confirm("Excluir este estudo e todos os seus itens?")) return;
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
     const fase = periodo.fases.find(f => f.id === faseId);
-    fase.estudos.splice(estIndex, 1);
-    fase.estudos.forEach((est, idx) => { est.num = idx + 1; });
+    fase.musicas.splice(estIndex, 1);
+    fase.musicas.forEach((est, idx) => { est.num = idx + 1; });
     renderizarApp();
   }
 
   function editarItemEstudo(periodoId, faseId, estIndex, itemId) {
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
     const fase = periodo.fases.find(f => f.id === faseId);
-    const item = fase.estudos[estIndex].itens.find(i => i.id === itemId);
+    const item = fase.musicas[estIndex].itens.find(i => i.id === itemId);
     if (!item) return;
     const novoNome = prompt("Editar item do estudo:", item.nome);
     if (novoNome) {
@@ -1393,7 +1452,7 @@
     if (!confirm("Excluir este item do estudo?")) return;
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
     const fase = periodo.fases.find(f => f.id === faseId);
-    fase.estudos[estIndex].itens = fase.estudos[estIndex].itens.filter(i => i.id !== itemId);
+    fase.musicas[estIndex].itens = fase.musicas[estIndex].itens.filter(i => i.id !== itemId);
     renderizarApp();
   }
 
@@ -1413,9 +1472,9 @@
         {
           id: 'fase_' + Date.now(),
           nome: '1ª Fase',
-          geral: [],
-          adicional: [],
-          estudos: []
+          conceitos: [],
+          tonalidades: [],
+          musicas: []
         }
       ]
     });
@@ -1474,7 +1533,6 @@
       if (e.key === 'Escape') fecharModal();
     });
 
-    // Mensagem inicial sem animação
     document.getElementById('conteudoPrincipal').innerHTML = `
       <div class="inicio-msg">
         <i class="fa-solid fa-user-graduate"></i>
