@@ -642,7 +642,8 @@
   let alunoIdAtual = null;
   let alunoNomeAtual = null;
   let shaArquivoAluno = null;
-
+  let shaArquivoTeoria = null;
+  
   // Dados do período
   let dadosPeriodo = {
     periodos: [
@@ -872,10 +873,11 @@
     const { dados: dadosAluno, sha: shaAluno } = await obterConteudoAtual(`alunos/aluno_${alunoId}.json`, token);
     shaArquivoAluno = shaAluno;
 
-    // Carrega o arquivo de conceitos
-    const { dados: dadosConceitos } = await obterConteudoAtual(`alunos/teoria_${alunoId}.json`, token);
-    
-    // ===== INICIALIZA OS CACHES =====
+    // Carrega o arquivo de conceitos - GUARDA O SHA
+    const { dados: dadosConceitos, sha: shaConceitos } = await obterConteudoAtual(`alunos/teoria_${alunoId}.json`, token);
+    shaArquivoTeoria = shaConceitos; // <--- GUARDA O SHA DA TEORIA
+
+    // INICIALIZA OS CACHES
     dadosAlunoCache = dadosAluno || { 
         alunoId: alunoId, 
         aluno: busca,
@@ -950,7 +952,7 @@ function sincronizarDados() {
     // Mapeia adicional (itens extras)
     const adicionalConcluidos = new Set();
     adicional.forEach(item => {
-        if (item.concluido) {
+        if (item.concluido === true) {
             adicionalConcluidos.add(item.nome);
         }
     });
@@ -958,7 +960,7 @@ function sincronizarDados() {
     // Mapeia músicas concluídas
     const musicasConcluidas = new Set();
     musicas.forEach(m => {
-        if (m.concluido) {
+        if (m.concluido === true) {
             musicasConcluidas.add(m.nome);
         }
     });
@@ -1010,7 +1012,10 @@ function sincronizarDados() {
   // ============================================================
   // SALVAR DADOS
   // ============================================================
-  async function salvarDadosAluno() {
+  // ============================================================
+// SALVAR DADOS - CORRIGIDO
+// ============================================================
+async function salvarDadosAluno() {
     if (!alunoIdAtual) return alert("Carregue um aluno primeiro.");
     const token = obterToken();
     if (!token) return alert("Informe o token do GitHub.");
@@ -1025,94 +1030,120 @@ function sincronizarDados() {
     const statusMapMusicas = new Map();
 
     periodoParaSalvar.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        // Geral
-        fase.geral?.forEach(item => {
-          statusMapConceitos.set(item.nome, item.concluido ? 'concluido' : 'pendente');
+        periodo.fases.forEach(fase => {
+            // Geral - Conceitos
+            if (fase.geral && Array.isArray(fase.geral)) {
+                fase.geral.forEach(item => {
+                    statusMapConceitos.set(item.nome, item.concluido ? 'concluido' : 'pendente');
+                });
+            }
+            // Adicional
+            if (fase.adicional && Array.isArray(fase.adicional)) {
+                fase.adicional.forEach(item => {
+                    statusMapAdicional.set(item.nome, item.concluido);
+                });
+            }
+            // Músicas
+            if (fase.musicas && Array.isArray(fase.musicas)) {
+                fase.musicas.forEach(musica => {
+                    statusMapMusicas.set(musica.nome, musica.concluido);
+                    if (musica.conceitos && Array.isArray(musica.conceitos)) {
+                        musica.conceitos.forEach(c => {
+                            statusMapConceitos.set(c.nome, c.concluido ? 'concluido' : 'pendente');
+                        });
+                    }
+                });
+            }
         });
-        // Adicional
-        fase.adicional?.forEach(item => {
-          statusMapAdicional.set(item.nome, item.concluido);
-        });
-        // Músicas
-        fase.musicas?.forEach(musica => {
-          statusMapMusicas.set(musica.nome, musica.concluido);
-          if (musica.conceitos) {
-            musica.conceitos.forEach(c => {
-              statusMapConceitos.set(c.nome, c.concluido ? 'concluido' : 'pendente');
-            });
-          }
-        });
-      });
     });
 
-    // Atualiza dados do aluno
+    // ===== ATUALIZA DADOS DO ALUNO =====
     dadosAlunoCache.periodo = periodoParaSalvar;
     dadosAlunoCache.aluno = alunoNomeAtual || alunoIdAtual;
     dadosAlunoCache.atualizadoEm = new Date().toISOString();
 
-    // Atualiza conceitos
-    if (!dadosConceitosCache.conceitos) dadosConceitosCache.conceitos = [];
-    dadosConceitosCache.conceitos.forEach(c => {
-      if (statusMapConceitos.has(c.titulo)) {
-        c.status = statusMapConceitos.get(c.titulo);
-      }
-    });
-    statusMapConceitos.forEach((status, titulo) => {
-      if (!dadosConceitosCache.conceitos.some(c => c.titulo === titulo)) {
-        dadosConceitosCache.conceitos.push({
-          titulo,
-          status: status,
-          lote: 'Período 1'
-        });
-      }
-    });
-
-    // Atualiza adicional
-    if (!dadosAlunoCache.adicional) dadosAlunoCache.adicional = [];
+    // ===== ATUALIZA ADICIONAL =====
+    if (!dadosAlunoCache.adicional || !Array.isArray(dadosAlunoCache.adicional)) {
+        dadosAlunoCache.adicional = [];
+    }
+    
     dadosAlunoCache.adicional.forEach(item => {
-      if (statusMapAdicional.has(item.nome)) {
-        item.concluido = statusMapAdicional.get(item.nome);
-      }
+        if (statusMapAdicional.has(item.nome)) {
+            item.concluido = statusMapAdicional.get(item.nome);
+        }
     });
+    
     statusMapAdicional.forEach((concluido, nome) => {
-      if (!dadosAlunoCache.adicional.some(a => a.nome === nome)) {
-        dadosAlunoCache.adicional.push({ nome, concluido });
-      }
+        const existe = dadosAlunoCache.adicional.some(a => a.nome === nome);
+        if (!existe) {
+            dadosAlunoCache.adicional.push({ nome, concluido });
+        }
     });
 
-    // Atualiza músicas
-    if (!dadosAlunoCache.musicas) dadosAlunoCache.musicas = [];
+    // ===== ATUALIZA MÚSICAS =====
+    if (!dadosAlunoCache.musicas || !Array.isArray(dadosAlunoCache.musicas)) {
+        dadosAlunoCache.musicas = [];
+    }
+    
     dadosAlunoCache.musicas.forEach(m => {
-      if (statusMapMusicas.has(m.nome)) {
-        m.concluido = statusMapMusicas.get(m.nome);
-      }
+        if (statusMapMusicas.has(m.nome)) {
+            m.concluido = statusMapMusicas.get(m.nome);
+        }
     });
+    
     statusMapMusicas.forEach((concluido, nome) => {
-      if (!dadosAlunoCache.musicas.some(m => m.nome === nome)) {
-        dadosAlunoCache.musicas.push({ nome, concluido });
-      }
+        const existe = dadosAlunoCache.musicas.some(m => m.nome === nome);
+        if (!existe) {
+            dadosAlunoCache.musicas.push({ nome, concluido });
+        }
+    });
+
+    // ===== ATUALIZA CONCEITOS =====
+    if (!dadosConceitosCache.conceitos || !Array.isArray(dadosConceitosCache.conceitos)) {
+        dadosConceitosCache.conceitos = [];
+    }
+    
+    dadosConceitosCache.conceitos.forEach(c => {
+        if (statusMapConceitos.has(c.titulo)) {
+            c.status = statusMapConceitos.get(c.titulo);
+        }
+    });
+    
+    statusMapConceitos.forEach((status, titulo) => {
+        const existe = dadosConceitosCache.conceitos.some(c => c.titulo === titulo);
+        if (!existe) {
+            dadosConceitosCache.conceitos.push({
+                titulo: titulo,
+                status: status,
+                lote: 'Período 1'
+            });
+        }
     });
 
     exibirStatus("Salvando dados no GitHub...", "blue");
 
-    // Salva arquivos
+    // ============================================================
+    // ===== AQUI É ONDE VOCÊ COLOCA O CÓDIGO =====
+    // ============================================================
+    
+    // ===== SALVA COM RETRY E ATUALIZAÇÃO DE SHA =====
     const resultados = await Promise.all([
-      salvarArquivoComRetry(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, token, shaArquivoAluno),
-      salvarArquivoComRetry(`alunos/teoria_${alunoIdAtual}.json`, dadosConceitosCache, token, null)
+        salvarArquivoComRetry(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, token, shaArquivoAluno),
+        salvarArquivoComRetry(`alunos/teoria_${alunoIdAtual}.json`, dadosConceitosCache, token, shaArquivoTeoria)
     ]);
 
     if (resultados[0].success) shaArquivoAluno = resultados[0].sha;
+    if (resultados[1].success) shaArquivoTeoria = resultados[1].sha;
 
     if (resultados.every(r => r.success)) {
-      exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
-      showToast(`💾 Dados salvos!`, 'success');
+        exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
+        showToast(`💾 Dados salvos!`, 'success');
     } else {
-      const erros = resultados.filter(r => !r.success).map(r => r.error);
-      exibirStatus(`❌ Erro ao salvar: ${erros.join(', ')}`, "red");
-      showToast(`❌ Erro ao salvar dados`, 'error');
+        const erros = resultados.filter(r => !r.success).map(r => r.error);
+        exibirStatus(`❌ Erro ao salvar: ${erros.join(', ')}`, "red");
+        showToast(`❌ Erro ao salvar dados`, 'error');
     }
-  }
+}
 
   // ============================================================
   // RENDERIZAÇÃO
