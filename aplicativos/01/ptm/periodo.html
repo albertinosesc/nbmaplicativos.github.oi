@@ -127,6 +127,8 @@
     .btn-danger:hover { background-color: var(--danger-hover); }
     .btn-secondary { background-color: #6b7280; color: white; }
     .btn-secondary:hover { background-color: #4b5563; }
+    .btn-warning { background-color: var(--warning); color: white; }
+    .btn-warning:hover { background-color: #d97706; }
     .btn-sm { padding: 5px 10px; font-size: 0.75rem; }
 
     .status-msg {
@@ -243,7 +245,7 @@
     }
 
     .fase-header h3 {
-      font-size: 1.3rem;
+      font-size: 1.2rem;
       color: var(--primary);
       display: flex;
       align-items: center;
@@ -290,17 +292,14 @@
       transition: width 0.3s ease;
     }
 
-    .grid-3 {
+    .grid-2 {
       display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 15px;
+      grid-template-columns: 1fr 1fr;
+      gap: 20px;
     }
 
-    @media (max-width: 992px) {
-      .grid-3 { grid-template-columns: 1fr 1fr; }
-    }
-    @media (max-width: 600px) {
-      .grid-3 { grid-template-columns: 1fr; }
+    @media (max-width: 768px) {
+      .grid-2 { grid-template-columns: 1fr; }
     }
 
     .sub-section {
@@ -308,9 +307,9 @@
       border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 15px;
-      margin-bottom: 0;
-      height: 100%;
+      margin-bottom: 15px;
     }
+    .sub-section:last-child { margin-bottom: 0; }
 
     .sub-section h4 {
       font-size: 0.95rem;
@@ -319,20 +318,7 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 10px;
-      border-bottom: 2px solid var(--border-color);
-      padding-bottom: 8px;
     }
-    .sub-section h4 .icon-title {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    .sub-section h4 .icon-title i {
-      font-size: 1.1rem;
-    }
-    .sub-section h4 .icon-title .cor-conceitos { color: #27ae60; }
-    .sub-section h4 .icon-title .cor-tonalidades { color: #2563eb; }
-    .sub-section h4 .icon-title .cor-musicas { color: #8e44ad; }
 
     .checklist-item {
       display: flex;
@@ -372,7 +358,6 @@
       cursor: pointer;
       flex: 1;
       padding: 2px 0;
-      font-size: 0.82rem;
     }
 
     .item-concluido {
@@ -442,6 +427,31 @@
     }
     .btn-small-danger:hover {
       background: #fef2f2;
+    }
+
+    .estudo-block {
+      margin-bottom: 12px;
+      border-bottom: 1px dashed var(--border-color);
+      padding-bottom: 8px;
+    }
+    .estudo-block:last-child {
+      border-bottom: none;
+      margin-bottom: 0;
+    }
+
+    .estudo-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 4px;
+    }
+    .estudo-header strong {
+      font-size: 0.9rem;
+      color: var(--primary);
+    }
+
+    .checklist-item-sub {
+      margin-left: 20px;
     }
 
     .lista-alunos-container {
@@ -522,6 +532,21 @@
     }
     .modal-close:hover { color: var(--danger); }
 
+    .loading {
+      text-align: center;
+      padding: 40px;
+      color: var(--text-muted);
+    }
+    .loading i {
+      font-size: 2rem;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      from { transform: rotate(0deg); }
+      to { transform: rotate(360deg); }
+    }
+
+    /* MENSAGEM INICIAL SEM ANIMAÇÃO */
     .inicio-msg {
       text-align: center;
       padding: 60px 20px;
@@ -637,9 +662,9 @@
           {
             id: 'fase1',
             nome: '1ª Fase',
-            conceitos: [],
-            tonalidades: [],
-            musicas: []
+            geral: [],
+            adicional: [],
+            estudos: []
           }
         ]
       }
@@ -762,6 +787,7 @@
   async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas = 3) {
     for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
       try {
+        // Busca o SHA mais recente do arquivo
         const { sha: shaRecente } = await obterConteudoAtual(caminho, token);
         const shaParaSalvar = shaRecente || shaAtual;
         
@@ -771,6 +797,7 @@
           return { success: true, sha: resultado.sha };
         }
         
+        // Se for conflito (409), tenta novamente
         if (resultado.status === 409) {
           console.log(`⚠️ Conflito (409) em ${caminho}, tentativa ${tentativa} de ${tentativas}...`);
           await new Promise(r => setTimeout(r, 1500 * tentativa));
@@ -879,27 +906,22 @@
       }
     }
 
-    dadosAlunoCache = dadosAluno || { alunoId: alunoId, aluno: busca };
-    dadosTeoriaCache = dadosTeoria || { alunoId: alunoId, conceitos: [] };
-    dadosMusicaCache = dadosMusica || { alunoId: alunoId, musicas: [] };
-
-    // ===== CARREGA/CRIA O PERÍODO =====
     if (dadosAluno && dadosAluno.periodo) {
-      dadosPeriodo = JSON.parse(JSON.stringify(dadosAluno.periodo));
+      dadosPeriodo = dadosAluno.periodo;
     } else {
       dadosPeriodo = {
         periodos: [
           {
             id: 'periodo1',
             nome: 'Período 1',
-            livro: dadosAluno?.livro || 'Método H. Lemoine / Hinário',
+            livro: 'Método H. Lemoine / Hinário',
             fases: [
               {
                 id: 'fase1',
                 nome: '1ª Fase',
-                conceitos: [],
-                tonalidades: dadosAluno?.tonalidades || [],
-                musicas: []
+                geral: [],
+                adicional: [],
+                estudos: []
               }
             ]
           }
@@ -907,82 +929,9 @@
       };
     }
 
-    // ===== GARANTE QUE A ESTRUTURA ESTEJA CORRETA =====
-    if (dadosPeriodo && dadosPeriodo.periodos) {
-      dadosPeriodo.periodos.forEach(periodo => {
-        if (!periodo.fases || !Array.isArray(periodo.fases) || periodo.fases.length === 0) {
-          periodo.fases = [
-            {
-              id: 'fase_' + Date.now(),
-              nome: '1ª Fase',
-              conceitos: [],
-              tonalidades: dadosAluno?.tonalidades || [],
-              musicas: []
-            }
-          ];
-        }
-        periodo.fases.forEach(fase => {
-          if (!fase.conceitos || !Array.isArray(fase.conceitos)) fase.conceitos = [];
-          if (!fase.tonalidades || !Array.isArray(fase.tonalidades)) fase.tonalidades = [];
-          if (!fase.musicas || !Array.isArray(fase.musicas)) fase.musicas = [];
-        });
-      });
-    }
-
-    // ===== ADICIONA ITENS EXISTENTES =====
-    // Tonalidades
-    if (dadosAluno && dadosAluno.tonalidades && Array.isArray(dadosAluno.tonalidades)) {
-      dadosPeriodo.periodos.forEach(periodo => {
-        periodo.fases.forEach(fase => {
-          dadosAluno.tonalidades.forEach(t => {
-            const existe = fase.tonalidades.some(item => item.nome === t.nome);
-            if (!existe) {
-              fase.tonalidades.push({
-                id: 'ton_' + Date.now(),
-                nome: t.nome,
-                concluido: t.concluido || false
-              });
-            }
-          });
-        });
-      });
-    }
-
-    // Conceitos
-    if (dadosTeoria && dadosTeoria.conceitos && Array.isArray(dadosTeoria.conceitos)) {
-      dadosPeriodo.periodos.forEach(periodo => {
-        periodo.fases.forEach(fase => {
-          dadosTeoria.conceitos.forEach(c => {
-            const existe = fase.conceitos.some(item => item.nome === c.titulo);
-            if (!existe) {
-              fase.conceitos.push({
-                id: 'con_' + Date.now(),
-                nome: c.titulo,
-                concluido: c.status === 'concluido' || c.status === 'Concluído'
-              });
-            }
-          });
-        });
-      });
-    }
-
-    // Músicas
-    if (dadosMusica && dadosMusica.musicas && Array.isArray(dadosMusica.musicas)) {
-      dadosPeriodo.periodos.forEach(periodo => {
-        periodo.fases.forEach(fase => {
-          dadosMusica.musicas.forEach(m => {
-            const existe = fase.musicas.some(item => item.nome === m.nome);
-            if (!existe) {
-              fase.musicas.push({
-                id: 'mus_' + Date.now(),
-                nome: m.nome,
-                concluido: m.status === 'concluida' || m.status === 'Concluída'
-              });
-            }
-          });
-        });
-      });
-    }
+    dadosAlunoCache = dadosAluno || { alunoId: alunoId, aluno: busca };
+    dadosTeoriaCache = dadosTeoria || { alunoId: alunoId, conceitos: [] };
+    dadosMusicaCache = dadosMusica || { alunoId: alunoId, musicas: [] };
 
     sincronizarDados();
 
@@ -996,11 +945,8 @@
   // SINCRONIZAÇÃO DOS DADOS
   // ============================================================
   function sincronizarDados() {
-    if (!dadosPeriodo || !dadosPeriodo.periodos) return;
-
-    // Mapeia status dos arquivos
     const conceitosConcluidos = new Set();
-    if (dadosTeoriaCache?.conceitos) {
+    if (dadosTeoriaCache && dadosTeoriaCache.conceitos) {
       dadosTeoriaCache.conceitos.forEach(c => {
         if (c.status === 'concluido' || c.status === 'Concluído') {
           conceitosConcluidos.add(c.titulo);
@@ -1009,7 +955,7 @@
     }
 
     const musicasConcluidas = new Set();
-    if (dadosMusicaCache?.musicas) {
+    if (dadosMusicaCache && dadosMusicaCache.musicas) {
       dadosMusicaCache.musicas.forEach(m => {
         if (m.status === 'concluida' || m.status === 'Concluída') {
           musicasConcluidas.add(m.nome);
@@ -1017,35 +963,31 @@
       });
     }
 
-    const tonalidadesConcluidas = new Set();
-    if (dadosAlunoCache?.tonalidades) {
-      dadosAlunoCache.tonalidades.forEach(t => {
-        if (t.concluido === true) {
-          tonalidadesConcluidas.add(t.nome);
-        }
-      });
-    }
-
     dadosPeriodo.periodos.forEach(periodo => {
       periodo.fases.forEach(fase => {
-        // Conceitos
-        fase.conceitos.forEach(item => {
-          if (conceitosConcluidos.has(item.nome)) item.concluido = true;
+        fase.geral.forEach(item => {
+          if (conceitosConcluidos.has(item.nome)) {
+            item.concluido = true;
+          }
         });
-        // Tonalidades
-        fase.tonalidades.forEach(item => {
-          if (tonalidadesConcluidas.has(item.nome)) item.concluido = true;
+        fase.adicional.forEach(item => {
+          if (conceitosConcluidos.has(item.nome)) {
+            item.concluido = true;
+          }
         });
-        // Músicas
-        fase.musicas.forEach(item => {
-          if (musicasConcluidas.has(item.nome)) item.concluido = true;
+        fase.estudos.forEach(estudo => {
+          estudo.itens.forEach(item => {
+            if (musicasConcluidas.has(item.nome)) {
+              item.concluido = true;
+            }
+          });
         });
       });
     });
   }
 
   // ============================================================
-  // SALVAR DADOS
+  // SALVAR DADOS - VERSÃO CORRIGIDA
   // ============================================================
   async function salvarDadosAluno() {
     if (!alunoIdAtual) return alert("Carregue um aluno primeiro.");
@@ -1054,83 +996,52 @@
 
     exibirStatus("Preparando dados para salvar...", "blue");
 
-    const periodoParaSalvar = JSON.parse(JSON.stringify(dadosPeriodo));
-
-    // Extrai status
-    const statusMapConceitos = new Map();
-    const statusMapMusicas = new Map();
-    const statusMapTonalidades = new Map();
-
-    periodoParaSalvar.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        fase.conceitos?.forEach(item => {
-          statusMapConceitos.set(item.nome, item.concluido ? 'concluido' : 'pendente');
-        });
-        fase.tonalidades?.forEach(item => {
-          statusMapTonalidades.set(item.nome, item.concluido);
-        });
-        fase.musicas?.forEach(item => {
-          statusMapMusicas.set(item.nome, item.concluido ? 'concluida' : 'pendente');
-        });
-      });
-    });
-
-    // Atualiza dados do aluno
-    dadosAlunoCache.periodo = periodoParaSalvar;
+    dadosAlunoCache.periodo = dadosPeriodo;
     dadosAlunoCache.aluno = alunoNomeAtual || alunoIdAtual;
     dadosAlunoCache.atualizadoEm = new Date().toISOString();
 
-    // Tonalidades
-    if (!dadosAlunoCache.tonalidades) dadosAlunoCache.tonalidades = [];
-    dadosAlunoCache.tonalidades.forEach(t => {
-      if (statusMapTonalidades.has(t.nome)) {
-        t.concluido = statusMapTonalidades.get(t.nome);
-      }
-    });
-    statusMapTonalidades.forEach((concluido, nome) => {
-      if (!dadosAlunoCache.tonalidades.some(t => t.nome === nome)) {
-        dadosAlunoCache.tonalidades.push({ nome, concluido });
-      }
-    });
-
-    // Conceitos
-    if (!dadosTeoriaCache.conceitos) dadosTeoriaCache.conceitos = [];
-    dadosTeoriaCache.conceitos.forEach(c => {
-      if (statusMapConceitos.has(c.titulo)) {
-        const status = statusMapConceitos.get(c.titulo);
-        c.status = status === 'concluida' ? 'concluido' : status;
-      }
-    });
-    statusMapConceitos.forEach((status, titulo) => {
-      if (!dadosTeoriaCache.conceitos.some(c => c.titulo === titulo)) {
-        dadosTeoriaCache.conceitos.push({
-          titulo,
-          status: status === 'concluida' ? 'concluido' : status,
-          lote: 'Período 1'
+    // Atualiza teoria
+    const conceitosAtualizados = [];
+    dadosPeriodo.periodos.forEach(periodo => {
+      periodo.fases.forEach(fase => {
+        fase.geral.forEach(item => {
+          conceitosAtualizados.push({
+            titulo: item.nome,
+            status: item.concluido ? 'concluido' : 'pendente',
+            lote: periodo.nome
+          });
         });
-      }
-    });
-
-    // Músicas
-    if (!dadosMusicaCache.musicas) dadosMusicaCache.musicas = [];
-    dadosMusicaCache.musicas.forEach(m => {
-      if (statusMapMusicas.has(m.nome)) {
-        const status = statusMapMusicas.get(m.nome);
-        m.status = status === 'concluido' ? 'concluida' : status;
-      }
-    });
-    statusMapMusicas.forEach((status, nome) => {
-      if (!dadosMusicaCache.musicas.some(m => m.nome === nome)) {
-        dadosMusicaCache.musicas.push({
-          nome,
-          status: status === 'concluido' ? 'concluida' : status,
-          lote: 'Período 1'
+        fase.adicional.forEach(item => {
+          conceitosAtualizados.push({
+            titulo: item.nome,
+            status: item.concluido ? 'concluido' : 'pendente',
+            lote: periodo.nome
+          });
         });
-      }
+      });
     });
+    dadosTeoriaCache.conceitos = conceitosAtualizados;
+
+    // Atualiza músicas
+    const musicasAtualizadas = [];
+    dadosPeriodo.periodos.forEach(periodo => {
+      periodo.fases.forEach(fase => {
+        fase.estudos.forEach(estudo => {
+          estudo.itens.forEach(item => {
+            musicasAtualizadas.push({
+              nome: item.nome,
+              status: item.concluido ? 'concluida' : 'pendente',
+              lote: `Estudo ${estudo.num}`
+            });
+          });
+        });
+      });
+    });
+    dadosMusicaCache.musicas = musicasAtualizadas;
 
     exibirStatus("Salvando dados no GitHub...", "blue");
 
+    // Salva os 3 arquivos com retry
     const resultados = await Promise.all([
       salvarArquivoComRetry(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, token, shaArquivoAluno),
       salvarArquivoComRetry(`alunos/teoria_${alunoIdAtual}.json`, dadosTeoriaCache, token, shaArquivoTeoria),
@@ -1141,7 +1052,8 @@
     if (resultados[1].success) shaArquivoTeoria = resultados[1].sha;
     if (resultados[2].success) shaArquivoMusica = resultados[2].sha;
 
-    if (resultados.every(r => r.success)) {
+    const todosSucesso = resultados.every(r => r.success);
+    if (todosSucesso) {
       exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
       showToast(`💾 Dados salvos!`, 'success');
     } else {
@@ -1152,15 +1064,10 @@
   }
 
   // ============================================================
-  // RENDERIZAÇÃO
+  // RENDERIZAÇÃO DA APLICAÇÃO
   // ============================================================
   function renderizarApp() {
     const container = document.getElementById('conteudoPrincipal');
-
-    if (!dadosPeriodo?.periodos?.length) {
-      container.innerHTML = `<div class="inicio-msg"><i class="fa-solid fa-circle-exclamation"></i><h3>Nenhum período encontrado</h3></div>`;
-      return;
-    }
 
     let navHtml = '';
     dadosPeriodo.periodos.forEach(per => {
@@ -1171,58 +1078,102 @@
             <i class="fa-solid fa-calendar-days"></i> ${per.nome}
           </button>
           <div class="tab-actions-mini">
-            <button onclick="renomearPeriodo('${per.id}')"><i class="fa-solid fa-pen"></i></button>
-            ${dadosPeriodo.periodos.length > 1 ? `<button onclick="excluirPeriodo('${per.id}')"><i class="fa-solid fa-trash"></i></button>` : ''}
+            <button onclick="renomearPeriodo('${per.id}')" title="Renomear"><i class="fa-solid fa-pen"></i></button>
+            ${dadosPeriodo.periodos.length > 1 ? `<button onclick="excluirPeriodo('${per.id}')" title="Excluir"><i class="fa-solid fa-trash"></i></button>` : ''}
           </div>
         </div>`;
     });
     navHtml += `<button class="btn btn-success btn-sm" onclick="adicionarNovoPeriodo()"><i class="fa-solid fa-plus"></i> Novo Período</button>`;
 
-    const periodoObj = dadosPeriodo.periodos.find(p => p.id === periodoAtivoId);
+    const periodoObj = dadosPeriodo.periodos.find(p => p.id === periodoAtivoId) || dadosPeriodo.periodos[0];
     if (!periodoObj) {
-      container.innerHTML = `<div class="inicio-msg"><i class="fa-solid fa-circle-exclamation"></i><h3>Período não encontrado</h3></div>`;
+      container.innerHTML = `<div class="inicio-msg"><i class="fa-solid fa-circle-exclamation"></i><h3>Nenhum período encontrado</h3></div>`;
       return;
     }
 
     let fasesHtml = '';
     periodoObj.fases.forEach(fase => {
-      // Garante arrays
-      fase.conceitos = fase.conceitos || [];
-      fase.tonalidades = fase.tonalidades || [];
-      fase.musicas = fase.musicas || [];
+      let totalItens = 0;
+      let concluidos = 0;
 
-      let totalItens = 0, concluidos = 0;
-      fase.conceitos.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
-      fase.tonalidades.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
-      fase.musicas.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
+      fase.geral.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
+      fase.adicional.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
+      fase.estudos.forEach(est => {
+        est.itens.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
+      });
+
       const porcentagem = totalItens > 0 ? Math.round((concluidos / totalItens) * 100) : 0;
 
-      // Renderiza cada seção
-      const renderLista = (categoria, icone, cor, label) => {
-        const items = fase[categoria] || [];
-        let html = '';
-        items.forEach(item => {
+      let geralHtml = '';
+      fase.geral.forEach(item => {
+        const checked = item.concluido ? 'checked' : '';
+        const cls = item.concluido ? 'item-concluido' : '';
+        geralHtml += `
+          <div class="checklist-item">
+            <div class="checklist-left" onclick="alternarCheck('${periodoObj.id}', '${fase.id}', 'geral', '${item.id}')">
+              <input type="checkbox" ${checked} onclick="event.stopPropagation(); alternarCheck('${periodoObj.id}', '${fase.id}', 'geral', '${item.id}')">
+              <label class="${cls}">${item.nome}</label>
+            </div>
+            <div class="item-actions">
+              <button class="btn-edit-item" onclick="event.stopPropagation(); editarItem('${periodoObj.id}', '${fase.id}', 'geral', '${item.id}')"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn-del-item" onclick="event.stopPropagation(); excluirItem('${periodoObj.id}', '${fase.id}', 'geral', '${item.id}')"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>`;
+      });
+
+      let adicionalHtml = '';
+      fase.adicional.forEach(item => {
+        const checked = item.concluido ? 'checked' : '';
+        const cls = item.concluido ? 'item-concluido' : '';
+        adicionalHtml += `
+          <div class="checklist-item">
+            <div class="checklist-left" onclick="alternarCheck('${periodoObj.id}', '${fase.id}', 'adicional', '${item.id}')">
+              <input type="checkbox" ${checked} onclick="event.stopPropagation(); alternarCheck('${periodoObj.id}', '${fase.id}', 'adicional', '${item.id}')">
+              <label class="${cls}">${item.nome}</label>
+            </div>
+            <div class="item-actions">
+              <button class="btn-edit-item" onclick="event.stopPropagation(); editarItem('${periodoObj.id}', '${fase.id}', 'adicional', '${item.id}')"><i class="fa-solid fa-pen"></i></button>
+              <button class="btn-del-item" onclick="event.stopPropagation(); excluirItem('${periodoObj.id}', '${fase.id}', 'adicional', '${item.id}')"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          </div>`;
+      });
+
+      let estudosHtml = '';
+      fase.estudos.forEach((estudo, estIndex) => {
+        let itensEstudoHtml = '';
+        estudo.itens.forEach(item => {
           const checked = item.concluido ? 'checked' : '';
           const cls = item.concluido ? 'item-concluido' : '';
-          html += `
-            <div class="checklist-item">
-              <div class="checklist-left" onclick="alternarCheck('${periodoObj.id}', '${fase.id}', '${categoria}', '${item.id}')">
-                <input type="checkbox" ${checked} onclick="event.stopPropagation(); alternarCheck('${periodoObj.id}', '${fase.id}', '${categoria}', '${item.id}')">
+          itensEstudoHtml += `
+            <div class="checklist-item checklist-item-sub">
+              <div class="checklist-left" onclick="alternarCheckEstudo('${periodoObj.id}', '${fase.id}', ${estIndex}, '${item.id}')">
+                <input type="checkbox" ${checked} onclick="event.stopPropagation(); alternarCheckEstudo('${periodoObj.id}', '${fase.id}', ${estIndex}, '${item.id}')">
                 <label class="${cls}">${item.nome}</label>
               </div>
               <div class="item-actions">
-                <button class="btn-edit-item" onclick="event.stopPropagation(); editarItem('${periodoObj.id}', '${fase.id}', '${categoria}', '${item.id}')"><i class="fa-solid fa-pen"></i></button>
-                <button class="btn-del-item" onclick="event.stopPropagation(); excluirItem('${periodoObj.id}', '${fase.id}', '${categoria}', '${item.id}')"><i class="fa-solid fa-trash"></i></button>
+                <button class="btn-edit-item" onclick="event.stopPropagation(); editarItemEstudo('${periodoObj.id}', '${fase.id}', ${estIndex}, '${item.id}')"><i class="fa-solid fa-pen"></i></button>
+                <button class="btn-del-item" onclick="event.stopPropagation(); excluirItemEstudo('${periodoObj.id}', '${fase.id}', ${estIndex}, '${item.id}')"><i class="fa-solid fa-trash"></i></button>
               </div>
             </div>`;
         });
-        return html;
-      };
+
+        estudosHtml += `
+          <div class="estudo-block">
+            <div class="estudo-header">
+              <strong><i class="fa-solid fa-book-open"></i> Estudo ${estudo.num}</strong>
+              <div class="btn-small-group">
+                <button class="btn-small" onclick="adicionarItemEstudoLote('${periodoObj.id}', '${fase.id}', ${estIndex})"><i class="fa-solid fa-plus"></i> Itens</button>
+                <button class="btn-small btn-small-danger" onclick="excluirEstudo('${periodoObj.id}', '${fase.id}', ${estIndex})"><i class="fa-solid fa-trash"></i></button>
+              </div>
+            </div>
+            ${itensEstudoHtml}
+          </div>`;
+      });
 
       fasesHtml += `
         <div class="fase-card">
           <div class="fase-header">
-            <h3><i class="fa-solid fa-graduation-cap"></i> ${periodoObj.nome}</h3>
+            <h3><i class="fa-solid fa-graduation-cap"></i> ${periodoObj.nome} - ${fase.nome}</h3>
             <span class="book-badge" onclick="editarLivro('${periodoObj.id}')">
               <i class="fa-solid fa-book-open"></i> ${periodoObj.livro || 'Definir Livro'}
             </span>
@@ -1236,44 +1187,48 @@
             <div class="progress-bar-fill" style="width: ${porcentagem}%;"></div>
           </div>
 
-          <div class="grid-3">
-            <div class="sub-section">
-              <h4>
-                <span class="icon-title"><i class="fa-solid fa-brain cor-conceitos"></i> Conceitos</span>
-                <div class="btn-small-group">
-                  <button class="btn-small" onclick="abrirModalItem('${periodoObj.id}', '${fase.id}', 'conceitos')"><i class="fa-solid fa-plus"></i> 1</button>
-                  <button class="btn-small" onclick="abrirModalLote('${periodoObj.id}', '${fase.id}', 'conceitos')"><i class="fa-solid fa-list"></i> Vários</button>
-                </div>
-              </h4>
-              ${renderLista('conceitos', 'brain', '#27ae60', 'Conceitos')}
+          <div class="grid-2">
+            <div>
+              <div class="sub-section">
+                <h4>
+                  <span><i class="fa-solid fa-book"></i> Geral (Teoria)</span>
+                  <div class="btn-small-group">
+                    <button class="btn-small" onclick="abrirModalItem('${periodoObj.id}', '${fase.id}', 'geral')"><i class="fa-solid fa-plus"></i> 1 por 1</button>
+                    <button class="btn-small" onclick="abrirModalLote('${periodoObj.id}', '${fase.id}', 'geral')"><i class="fa-solid fa-list"></i> Vários</button>
+                  </div>
+                </h4>
+                ${geralHtml}
+              </div>
+
+              <div class="sub-section" style="margin-bottom: 0;">
+                <h4>
+                  <span><i class="fa-solid fa-star"></i> Adicional</span>
+                  <div class="btn-small-group">
+                    <button class="btn-small" onclick="abrirModalItem('${periodoObj.id}', '${fase.id}', 'adicional')"><i class="fa-solid fa-plus"></i> 1 por 1</button>
+                    <button class="btn-small" onclick="abrirModalLote('${periodoObj.id}', '${fase.id}', 'adicional')"><i class="fa-solid fa-list"></i> Vários</button>
+                  </div>
+                </h4>
+                ${adicionalHtml}
+              </div>
             </div>
 
-            <div class="sub-section">
-              <h4>
-                <span class="icon-title"><i class="fa-solid fa-sliders cor-tonalidades"></i> Tonalidades</span>
-                <div class="btn-small-group">
-                  <button class="btn-small" onclick="abrirModalItem('${periodoObj.id}', '${fase.id}', 'tonalidades')"><i class="fa-solid fa-plus"></i> 1</button>
-                  <button class="btn-small" onclick="abrirModalLote('${periodoObj.id}', '${fase.id}', 'tonalidades')"><i class="fa-solid fa-list"></i> Vários</button>
-                </div>
-              </h4>
-              ${renderLista('tonalidades', 'sliders', '#2563eb', 'Tonalidades')}
-            </div>
-
-            <div class="sub-section">
-              <h4>
-                <span class="icon-title"><i class="fa-solid fa-compact-disc cor-musicas"></i> Músicas</span>
-                <div class="btn-small-group">
-                  <button class="btn-small" onclick="abrirModalItem('${periodoObj.id}', '${fase.id}', 'musicas')"><i class="fa-solid fa-plus"></i> 1</button>
-                  <button class="btn-small" onclick="abrirModalLote('${periodoObj.id}', '${fase.id}', 'musicas')"><i class="fa-solid fa-list"></i> Vários</button>
-                </div>
-              </h4>
-              ${renderLista('musicas', 'compact-disc', '#8e44ad', 'Músicas')}
+            <div>
+              <div class="sub-section" style="margin-bottom: 0;">
+                <h4>
+                  <span><i class="fa-solid fa-list-check"></i> Estudos</span>
+                  <button class="btn-small" onclick="adicionarNovoEstudo('${periodoObj.id}', '${fase.id}')"><i class="fa-solid fa-plus"></i> Novo</button>
+                </h4>
+                ${estudosHtml}
+              </div>
             </div>
           </div>
         </div>`;
     });
 
-    container.innerHTML = `<div class="tabs-nav">${navHtml}</div>${fasesHtml}`;
+    container.innerHTML = `
+      <div class="tabs-nav">${navHtml}</div>
+      ${fasesHtml}
+    `;
   }
 
   // ============================================================
@@ -1286,10 +1241,17 @@
 
   function alternarCheck(periodoId, faseId, categoria, itemId) {
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
-    if (!periodo) return;
     const fase = periodo.fases.find(f => f.id === faseId);
-    if (!fase) return;
     const item = fase[categoria].find(i => i.id === itemId);
+    if (!item) return;
+    item.concluido = !item.concluido;
+    renderizarApp();
+  }
+
+  function alternarCheckEstudo(periodoId, faseId, estIndex, itemId) {
+    const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
+    const fase = periodo.fases.find(f => f.id === faseId);
+    const item = fase.estudos[estIndex].itens.find(i => i.id === itemId);
     if (!item) return;
     item.concluido = !item.concluido;
     renderizarApp();
@@ -1301,19 +1263,15 @@
   let modalCallback = null;
 
   function abrirModalItem(periodoId, faseId, categoria) {
-    const nomes = { conceitos: 'Conceitos', tonalidades: 'Tonalidades', musicas: 'Músicas' };
-    document.getElementById('modalTitle').textContent = `Adicionar Item em ${nomes[categoria]}`;
+    document.getElementById('modalTitle').textContent = `Adicionar Item em ${categoria.toUpperCase()}`;
     document.getElementById('modalTextarea').value = '';
     document.getElementById('modalTextarea').placeholder = 'Digite o nome do item...';
     modalCallback = () => {
       const nome = document.getElementById('modalTextarea').value.trim();
       if (nome) {
         const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
-        if (!periodo) return;
         const fase = periodo.fases.find(f => f.id === faseId);
-        if (!fase) return;
-        if (!fase[categoria]) fase[categoria] = [];
-        fase[categoria].push({ id: 'item_' + Date.now(), nome, concluido: false });
+        fase[categoria].push({ id: 'item_' + Date.now(), nome: nome, concluido: false });
         renderizarApp();
         fecharModal();
       }
@@ -1323,8 +1281,7 @@
   }
 
   function abrirModalLote(periodoId, faseId, categoria) {
-    const nomes = { conceitos: 'Conceitos', tonalidades: 'Tonalidades', musicas: 'Músicas' };
-    document.getElementById('modalTitle').textContent = `Adicionar Vários Itens em ${nomes[categoria]}`;
+    document.getElementById('modalTitle').textContent = `Adicionar Vários Itens em ${categoria.toUpperCase()}`;
     document.getElementById('modalTextarea').value = '';
     document.getElementById('modalTextarea').placeholder = 'Digite um item por linha...';
     modalCallback = () => {
@@ -1332,12 +1289,30 @@
       const linhas = texto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       if (linhas.length > 0) {
         const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
-        if (!periodo) return;
         const fase = periodo.fases.find(f => f.id === faseId);
-        if (!fase) return;
-        if (!fase[categoria]) fase[categoria] = [];
         linhas.forEach((linha, idx) => {
           fase[categoria].push({ id: 'item_' + Date.now() + '_' + idx, nome: linha, concluido: false });
+        });
+        renderizarApp();
+        fecharModal();
+      }
+    };
+    document.getElementById('modalOverlay').classList.add('active');
+    document.getElementById('modalTextarea').focus();
+  }
+
+  function adicionarItemEstudoLote(periodoId, faseId, estIndex) {
+    document.getElementById('modalTitle').textContent = `Adicionar Itens ao Estudo ${estIndex + 1}`;
+    document.getElementById('modalTextarea').value = '';
+    document.getElementById('modalTextarea').placeholder = 'Digite um item por linha...';
+    modalCallback = () => {
+      const texto = document.getElementById('modalTextarea').value;
+      const linhas = texto.split('\n').map(l => l.trim()).filter(l => l.length > 0);
+      if (linhas.length > 0) {
+        const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
+        const fase = periodo.fases.find(f => f.id === faseId);
+        linhas.forEach((linha, idx) => {
+          fase.estudos[estIndex].itens.push({ id: 'sub_' + Date.now() + '_' + idx, nome: linha, concluido: false });
         });
         renderizarApp();
         fecharModal();
@@ -1357,13 +1332,11 @@
   }
 
   // ============================================================
-  // FUNÇÕES DE EDIÇÃO E EXCLUSÃO
+  // FUNÇÕES DE EDIÇÃO E EXCLUSÃO - GERAL/ADICIONAL
   // ============================================================
   function editarItem(periodoId, faseId, categoria, itemId) {
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
-    if (!periodo) return;
     const fase = periodo.fases.find(f => f.id === faseId);
-    if (!fase) return;
     const item = fase[categoria].find(i => i.id === itemId);
     if (!item) return;
     const novoNome = prompt("Editar item:", item.nome);
@@ -1376,11 +1349,51 @@
   function excluirItem(periodoId, faseId, categoria, itemId) {
     if (!confirm("Excluir este item?")) return;
     const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
-    if (!periodo) return;
     const fase = periodo.fases.find(f => f.id === faseId);
-    if (!fase) return;
-    if (!fase[categoria]) return;
     fase[categoria] = fase[categoria].filter(i => i.id !== itemId);
+    renderizarApp();
+  }
+
+  // ============================================================
+  // FUNÇÕES DE ESTUDOS
+  // ============================================================
+  function adicionarNovoEstudo(periodoId, faseId) {
+    const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
+    const fase = periodo.fases.find(f => f.id === faseId);
+    const novoNum = fase.estudos.length + 1;
+    fase.estudos.push({
+      num: novoNum,
+      itens: [{ id: 'sub_' + Date.now(), nome: `Estudo ${novoNum} - Tópico Inicial`, concluido: false }]
+    });
+    renderizarApp();
+  }
+
+  function excluirEstudo(periodoId, faseId, estIndex) {
+    if (!confirm("Excluir este estudo e todos os seus itens?")) return;
+    const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
+    const fase = periodo.fases.find(f => f.id === faseId);
+    fase.estudos.splice(estIndex, 1);
+    fase.estudos.forEach((est, idx) => { est.num = idx + 1; });
+    renderizarApp();
+  }
+
+  function editarItemEstudo(periodoId, faseId, estIndex, itemId) {
+    const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
+    const fase = periodo.fases.find(f => f.id === faseId);
+    const item = fase.estudos[estIndex].itens.find(i => i.id === itemId);
+    if (!item) return;
+    const novoNome = prompt("Editar item do estudo:", item.nome);
+    if (novoNome) {
+      item.nome = novoNome;
+      renderizarApp();
+    }
+  }
+
+  function excluirItemEstudo(periodoId, faseId, estIndex, itemId) {
+    if (!confirm("Excluir este item do estudo?")) return;
+    const periodo = dadosPeriodo.periodos.find(p => p.id === periodoId);
+    const fase = periodo.fases.find(f => f.id === faseId);
+    fase.estudos[estIndex].itens = fase.estudos[estIndex].itens.filter(i => i.id !== itemId);
     renderizarApp();
   }
 
@@ -1388,15 +1401,23 @@
   // FUNÇÕES DE PERÍODO
   // ============================================================
   function adicionarNovoPeriodo() {
-    const nome = prompt("Digite o nome do novo período:");
+    const nome = prompt("Digite o nome do novo período (ex: Período 2):");
     if (!nome) return;
     const livro = prompt("Digite o nome do livro:", "Método Geral");
     const id = 'periodo_' + Date.now();
     dadosPeriodo.periodos.push({
-      id,
-      nome,
+      id: id,
+      nome: nome,
       livro: livro || 'Método Geral',
-      fases: [{ id: 'fase_' + Date.now(), nome: '1ª Fase', conceitos: [], tonalidades: [], musicas: [] }]
+      fases: [
+        {
+          id: 'fase_' + Date.now(),
+          nome: '1ª Fase',
+          geral: [],
+          adicional: [],
+          estudos: []
+        }
+      ]
     });
     periodoAtivoId = id;
     renderizarApp();
@@ -1413,7 +1434,7 @@
   }
 
   function excluirPeriodo(periodoId) {
-    if (!confirm("Excluir este período?")) return;
+    if (!confirm("Excluir este período e todo o seu conteúdo?")) return;
     dadosPeriodo.periodos = dadosPeriodo.periodos.filter(p => p.id !== periodoId);
     if (dadosPeriodo.periodos.length > 0) {
       periodoAtivoId = dadosPeriodo.periodos[0].id;
@@ -1453,6 +1474,7 @@
       if (e.key === 'Escape') fecharModal();
     });
 
+    // Mensagem inicial sem animação
     document.getElementById('conteudoPrincipal').innerHTML = `
       <div class="inicio-msg">
         <i class="fa-solid fa-user-graduate"></i>
