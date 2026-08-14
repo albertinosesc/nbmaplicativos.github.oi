@@ -2763,7 +2763,49 @@ window.sincronizarMusicas = function(itens) {
         abcIsFullscreen = false;
       }
     }
+// No início do script, adicione:
+const fileCache = new Map();
+const fileCacheNotFound = new Set(); // <--- NOVO: cache para arquivos que não existem
 
+// Modifique a função verificarArquivoExiste:
+async function verificarArquivoExiste(url) {
+    if (!url) return false;
+    
+    // Verifica se já sabemos que o arquivo não existe
+    if (fileCacheNotFound.has(url)) {
+        return false;
+    }
+    
+    if (fileCache.has(url)) {
+        return fileCache.get(url);
+    }
+    
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3000);
+        
+        const response = await fetch(url, { 
+            method: 'HEAD',
+            signal: controller.signal
+        });
+        
+        clearTimeout(timeoutId);
+        
+        const existe = response.ok;
+        fileCache.set(url, existe);
+        
+        // Se não existir, guarda no cache de não encontrados
+        if (!existe) {
+            fileCacheNotFound.add(url);
+        }
+        
+        return existe;
+    } catch (e) {
+        fileCache.set(url, false);
+        fileCacheNotFound.add(url);
+        return false;
+    }
+}
     function copiarABC() {
       const codeEditor = document.getElementById('abcCodeEditor');
       navigator.clipboard.writeText(codeEditor.value).then(() => {
