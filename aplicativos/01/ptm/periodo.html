@@ -729,6 +729,26 @@
   }
 
   // ============================================================
+  // VERIFICAR SE O CONCEITOS FOI ATUALIZADO
+  // ============================================================
+  function verificarAtualizacaoConceitos() {
+      const ultimaAtualizacao = localStorage.getItem('periodo_atualizado');
+      if (!ultimaAtualizacao) return;
+      
+      const ultimaAtualizacaoPeriodo = localStorage.getItem('periodo_ultimo_carregamento') || '0';
+      
+      if (parseInt(ultimaAtualizacion) > parseInt(ultimaAtualizacaoPeriodo)) {
+          console.log('🔄 Detectada atualização nos Conceitos! Recarregando...');
+          localStorage.setItem('periodo_ultimo_carregamento', ultimaAtualizacao);
+          
+          if (alunoIdAtual) {
+              showToast('🔄 Recarregando dados dos Conceitos...', 'info');
+              carregarDadosAluno();
+          }
+      }
+  }
+
+  // ============================================================
   // FUNÇÕES DE AUTENTICAÇÃO
   // ============================================================
   function obterToken() {
@@ -979,6 +999,9 @@
       periodoAtivoId = dadosPeriodo.periodos[0].id;
     }
 
+    // ===== MARCA O CARREGAMENTO =====
+    localStorage.setItem('periodo_ultimo_carregamento', Date.now().toString());
+
     console.log('📥 Dados carregados:');
     console.log('  - Períodos:', dadosPeriodo.periodos.length);
     console.log('  - Conceitos (teoria):', dadosTeoriaCache.conceitos.length);
@@ -1129,6 +1152,10 @@
     if (resultados[1].success) shaArquivoTeoria = resultados[1].sha;
 
     if (resultados.every(r => r.success)) {
+      // ===== AVISA O PERÍODO QUE OS DADOS FORAM ATUALIZADOS =====
+      localStorage.setItem('periodo_atualizado', Date.now().toString());
+      console.log('📤 Aviso enviado para o Período: dados atualizados!');
+      
       exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
       showToast(`💾 Dados salvos!`, 'success');
     } else {
@@ -1636,6 +1663,14 @@
 
     garantirPeriodoPadrao();
     renderizarApp();
+
+    // ===== INICIA A VERIFICAÇÃO AUTOMÁTICA =====
+    setInterval(() => {
+        verificarAtualizacaoConceitos();
+    }, 3000);
+    
+    // Marca o carregamento inicial
+    localStorage.setItem('periodo_ultimo_carregamento', Date.now().toString());
 
     console.log('✅ Período - Acompanhamento carregado!');
   };
