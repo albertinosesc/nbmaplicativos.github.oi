@@ -945,62 +945,109 @@
   // ============================================================
   // SINCRONIZAÇÃO DOS DADOS
   // ============================================================
-  function sincronizarDados() {
+  // ============================================================
+// SINCRONIZAÇÃO DOS DADOS - CORRIGIDA
+// ============================================================
+function sincronizarDados() {
+    // Verifica se dadosPeriodo e seus periodos existem
+    if (!dadosPeriodo || !dadosPeriodo.periodos) {
+        dadosPeriodo = {
+            periodos: [
+                {
+                    id: 'periodo1',
+                    nome: 'Período 1',
+                    livro: 'Método H. Lemoine / Hinário',
+                    fases: [
+                        {
+                            id: 'fase1',
+                            nome: '1ª Fase',
+                            conceitos: [],
+                            tonalidades: [],
+                            musicas: []
+                        }
+                    ]
+                }
+            ]
+        };
+        return;
+    }
+
     // Mapeia conceitos concluídos
     const conceitosConcluidos = new Set();
-    if (dadosTeoriaCache && dadosTeoriaCache.conceitos) {
-      dadosTeoriaCache.conceitos.forEach(c => {
-        if (c.status === 'concluido' || c.status === 'Concluído') {
-          conceitosConcluidos.add(c.titulo);
-        }
-      });
+    if (dadosTeoriaCache && dadosTeoriaCache.conceitos && Array.isArray(dadosTeoriaCache.conceitos)) {
+        dadosTeoriaCache.conceitos.forEach(c => {
+            if (c.status === 'concluido' || c.status === 'Concluído') {
+                conceitosConcluidos.add(c.titulo);
+            }
+        });
     }
 
     // Mapeia músicas concluídas
     const musicasConcluidas = new Set();
-    if (dadosMusicaCache && dadosMusicaCache.musicas) {
-      dadosMusicaCache.musicas.forEach(m => {
-        if (m.status === 'concluida' || m.status === 'Concluída') {
-          musicasConcluidas.add(m.nome);
-        }
-      });
+    if (dadosMusicaCache && dadosMusicaCache.musicas && Array.isArray(dadosMusicaCache.musicas)) {
+        dadosMusicaCache.musicas.forEach(m => {
+            if (m.status === 'concluida' || m.status === 'Concluída') {
+                musicasConcluidas.add(m.nome);
+            }
+        });
     }
 
     // Mapeia tonalidades concluídas
     const tonalidadesConcluidas = new Set();
-    if (dadosAlunoCache && dadosAlunoCache.tonalidades) {
-      dadosAlunoCache.tonalidades.forEach(t => {
-        if (t.concluido) {
-          tonalidadesConcluidas.add(t.nome);
-        }
-      });
+    if (dadosAlunoCache && dadosAlunoCache.tonalidades && Array.isArray(dadosAlunoCache.tonalidades)) {
+        dadosAlunoCache.tonalidades.forEach(t => {
+            if (t.concluido) {
+                tonalidadesConcluidas.add(t.nome);
+            }
+        });
     }
 
+    // Percorre os períodos e fases
     dadosPeriodo.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        // Conceitos
-        fase.conceitos.forEach(item => {
-          if (conceitosConcluidos.has(item.nome)) {
-            item.concluido = true;
-          }
-        });
-        // Tonalidades
-        fase.tonalidades.forEach(item => {
-          if (tonalidadesConcluidas.has(item.nome)) {
-            item.concluido = true;
-          }
-        });
-        // Músicas
-        fase.musicas.forEach(estudo => {
-          estudo.itens.forEach(item => {
-            if (musicasConcluidas.has(item.nome)) {
-              item.concluido = true;
+        if (!periodo.fases || !Array.isArray(periodo.fases)) {
+            periodo.fases = [];
+            return;
+        }
+        
+        periodo.fases.forEach(fase => {
+            // Garante que as propriedades existam
+            if (!fase.conceitos || !Array.isArray(fase.conceitos)) {
+                fase.conceitos = [];
             }
-          });
+            if (!fase.tonalidades || !Array.isArray(fase.tonalidades)) {
+                fase.tonalidades = [];
+            }
+            if (!fase.musicas || !Array.isArray(fase.musicas)) {
+                fase.musicas = [];
+            }
+
+            // Conceitos
+            fase.conceitos.forEach(item => {
+                if (conceitosConcluidos.has(item.nome)) {
+                    item.concluido = true;
+                }
+            });
+            // Tonalidades
+            fase.tonalidades.forEach(item => {
+                if (tonalidadesConcluidas.has(item.nome)) {
+                    item.concluido = true;
+                }
+            });
+            // Músicas
+            fase.musicas.forEach(estudo => {
+                if (!estudo.itens || !Array.isArray(estudo.itens)) {
+                    estudo.itens = [];
+                    return;
+                }
+                estudo.itens.forEach(item => {
+                    if (musicasConcluidas.has(item.nome)) {
+                        item.concluido = true;
+                    }
+                });
+            });
         });
-      });
     });
-  }
+}
 
   // ============================================================
   // SALVAR DADOS - CORRIGIDO (ATUALIZA APENAS O STATUS)
@@ -1109,40 +1156,84 @@
   function renderizarApp() {
     const container = document.getElementById('conteudoPrincipal');
 
+    // Verifica se dadosPeriodo existe
+    if (!dadosPeriodo || !dadosPeriodo.periodos || dadosPeriodo.periodos.length === 0) {
+        dadosPeriodo = {
+            periodos: [
+                {
+                    id: 'periodo1',
+                    nome: 'Período 1',
+                    livro: 'Método H. Lemoine / Hinário',
+                    fases: [
+                        {
+                            id: 'fase1',
+                            nome: '1ª Fase',
+                            conceitos: [],
+                            tonalidades: [],
+                            musicas: []
+                        }
+                    ]
+                }
+            ]
+        };
+    }
+
     let navHtml = '';
     dadosPeriodo.periodos.forEach(per => {
-      const isActive = (per.id === periodoAtivoId);
-      navHtml += `
-        <div class="tab-btn-group ${isActive ? 'active' : ''}">
-          <button class="tab-btn" onclick="mudarPeriodo('${per.id}')">
-            <i class="fa-solid fa-calendar-days"></i> ${per.nome}
-          </button>
-          <div class="tab-actions-mini">
-            <button onclick="renomearPeriodo('${per.id}')" title="Renomear"><i class="fa-solid fa-pen"></i></button>
-            ${dadosPeriodo.periodos.length > 1 ? `<button onclick="excluirPeriodo('${per.id}')" title="Excluir"><i class="fa-solid fa-trash"></i></button>` : ''}
-          </div>
-        </div>`;
+        const isActive = (per.id === periodoAtivoId);
+        navHtml += `
+            <div class="tab-btn-group ${isActive ? 'active' : ''}">
+                <button class="tab-btn" onclick="mudarPeriodo('${per.id}')">
+                    <i class="fa-solid fa-calendar-days"></i> ${per.nome}
+                </button>
+                <div class="tab-actions-mini">
+                    <button onclick="renomearPeriodo('${per.id}')" title="Renomear"><i class="fa-solid fa-pen"></i></button>
+                    ${dadosPeriodo.periodos.length > 1 ? `<button onclick="excluirPeriodo('${per.id}')" title="Excluir"><i class="fa-solid fa-trash"></i></button>` : ''}
+                </div>
+            </div>`;
     });
     navHtml += `<button class="btn btn-success btn-sm" onclick="adicionarNovoPeriodo()"><i class="fa-solid fa-plus"></i> Novo Período</button>`;
 
     const periodoObj = dadosPeriodo.periodos.find(p => p.id === periodoAtivoId) || dadosPeriodo.periodos[0];
     if (!periodoObj) {
-      container.innerHTML = `<div class="inicio-msg"><i class="fa-solid fa-circle-exclamation"></i><h3>Nenhum período encontrado</h3></div>`;
-      return;
+        container.innerHTML = `<div class="inicio-msg"><i class="fa-solid fa-circle-exclamation"></i><h3>Nenhum período encontrado</h3></div>`;
+        return;
+    }
+
+    // Garante que as fases existam
+    if (!periodoObj.fases || !Array.isArray(periodoObj.fases) || periodoObj.fases.length === 0) {
+        periodoObj.fases = [
+            {
+                id: 'fase_' + Date.now(),
+                nome: '1ª Fase',
+                conceitos: [],
+                tonalidades: [],
+                musicas: []
+            }
+        ];
     }
 
     let fasesHtml = '';
     periodoObj.fases.forEach(fase => {
-      let totalItens = 0;
-      let concluidos = 0;
+        // Garante que as propriedades existam
+        if (!fase.conceitos || !Array.isArray(fase.conceitos)) fase.conceitos = [];
+        if (!fase.tonalidades || !Array.isArray(fase.tonalidades)) fase.tonalidades = [];
+        if (!fase.musicas || !Array.isArray(fase.musicas)) fase.musicas = [];
 
-      fase.conceitos.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
-      fase.tonalidades.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
-      fase.musicas.forEach(est => {
-        est.itens.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
-      });
+        let totalItens = 0;
+        let concluidos = 0;
 
-      const porcentagem = totalItens > 0 ? Math.round((concluidos / totalItens) * 100) : 0;
+        fase.conceitos.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
+        fase.tonalidades.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
+        fase.musicas.forEach(est => {
+            if (est.itens && Array.isArray(est.itens)) {
+                est.itens.forEach(i => { totalItens++; if (i.concluido) concluidos++; });
+            }
+        });
+
+        const porcentagem = totalItens > 0 ? Math.round((concluidos / totalItens) * 100) : 0;
+
+        // ... resto do código de renderização ...
 
       // Conceitos
       let conceitosHtml = '';
