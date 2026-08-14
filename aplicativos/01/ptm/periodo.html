@@ -990,69 +990,102 @@
   // ============================================================
   // SINCRONIZAÇÃO DOS DADOS - APENAS ATUALIZA STATUS
   // ============================================================
-  function sincronizarDados() {
+  // ============================================================
+// SINCRONIZAÇÃO DOS DADOS - APENAS ATUALIZA STATUS
+// ============================================================
+function sincronizarDados() {
     if (!dadosPeriodo || !dadosPeriodo.periodos) return;
 
     const conceitos = dadosConceitosCache?.conceitos || [];
     const adicional = dadosAlunoCache?.adicional || [];
     const musicas = dadosAlunoCache?.musicas || [];
 
+    // ===== LOGS DE DEPURAÇÃO =====
+    console.log('📊 Verificando sincronização:');
+    console.log('  - Conceitos no cache:', conceitos.length);
+    console.log('  - Primeiros 5 conceitos:', conceitos.slice(0, 5).map(c => ({ titulo: c.titulo, status: c.status })));
+    
+    // Verifica os itens do Geral
+    const primeiroPeriodo = dadosPeriodo.periodos[0];
+    if (primeiroPeriodo && primeiroPeriodo.fases && primeiroPeriodo.fases[0]) {
+        const itensGeral = primeiroPeriodo.fases[0].geral || [];
+        console.log('  - Itens no Geral:', itensGeral.length);
+        console.log('  - Primeiros 5 itens do Geral:', itensGeral.slice(0, 5).map(i => ({ nome: i.nome, concluido: i.concluido })));
+    }
+
+    // Mapeia conceitos concluídos
     const conceitosConcluidos = new Set();
     conceitos.forEach(c => {
-      if (c.status === 'concluido' || c.status === 'Concluído') {
-        conceitosConcluidos.add(c.titulo);
-      }
+        if (c.status === 'concluido' || c.status === 'Concluído') {
+            conceitosConcluidos.add(c.titulo);
+        }
     });
+    console.log('  - Conceitos concluídos:', conceitosConcluidos.size);
+    console.log('  - Exemplo de conceitos concluídos:', Array.from(conceitosConcluidos).slice(0, 5));
 
+    // Mapeia adicional (itens extras)
     const adicionalConcluidos = new Set();
     adicional.forEach(item => {
-      if (item.concluido === true) {
-        adicionalConcluidos.add(item.nome);
-      }
+        if (item.concluido === true) {
+            adicionalConcluidos.add(item.nome);
+        }
     });
 
+    // Mapeia músicas concluídas
     const musicasConcluidas = new Set();
     musicas.forEach(m => {
-      if (m.concluido === true) {
-        musicasConcluidas.add(m.nome);
-      }
+        if (m.concluido === true) {
+            musicasConcluidas.add(m.nome);
+        }
     });
 
     dadosPeriodo.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        if (!fase.geral) fase.geral = [];
-        if (!fase.adicional) fase.adicional = [];
-        if (!fase.musicas) fase.musicas = [];
+        periodo.fases.forEach(fase => {
+            if (!fase.geral) fase.geral = [];
+            if (!fase.adicional) fase.adicional = [];
+            if (!fase.musicas) fase.musicas = [];
 
-        // ===== APENAS ATUALIZA O STATUS, NÃO ADICIONA ITENS NOVOS =====
-        fase.geral.forEach(item => {
-          if (conceitosConcluidos.has(item.nome)) {
-            item.concluido = true;
-          }
-        });
-        
-        fase.adicional.forEach(item => {
-          if (adicionalConcluidos.has(item.nome)) {
-            item.concluido = true;
-          }
-        });
-        
-        fase.musicas.forEach(musica => {
-          if (musicasConcluidas.has(musica.nome)) {
-            musica.concluido = true;
-          }
-          if (musica.conceitos && Array.isArray(musica.conceitos)) {
-            musica.conceitos.forEach(c => {
-              if (conceitosConcluidos.has(c.nome)) {
-                c.concluido = true;
-              }
+            // ===== APENAS ATUALIZA O STATUS, NÃO ADICIONA ITENS NOVOS =====
+            // Geral (Conceitos)
+            let geralAtualizados = 0;
+            fase.geral.forEach(item => {
+                if (conceitosConcluidos.has(item.nome)) {
+                    item.concluido = true;
+                    geralAtualizados++;
+                }
             });
-          }
+            console.log(`  - Geral atualizados: ${geralAtualizados} itens marcados como concluídos`);
+            
+            // Adicional
+            let adicionalAtualizados = 0;
+            fase.adicional.forEach(item => {
+                if (adicionalConcluidos.has(item.nome)) {
+                    item.concluido = true;
+                    adicionalAtualizados++;
+                }
+            });
+            
+            // Músicas
+            let musicasAtualizadas = 0;
+            fase.musicas.forEach(musica => {
+                if (musicasConcluidas.has(musica.nome)) {
+                    musica.concluido = true;
+                    musicasAtualizadas++;
+                }
+                if (musica.conceitos && Array.isArray(musica.conceitos)) {
+                    musica.conceitos.forEach(c => {
+                        if (conceitosConcluidos.has(c.nome)) {
+                            c.concluido = true;
+                        }
+                    });
+                }
+            });
+            
+            console.log(`  - Adicional atualizados: ${adicionalAtualizados}`);
+            console.log(`  - Músicas atualizadas: ${musicasAtualizadas}`);
         });
-      });
     });
-  }
-
+}
   // ============================================================
   // SALVAR DADOS
   // ============================================================
