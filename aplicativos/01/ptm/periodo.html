@@ -931,68 +931,126 @@
   // ============================================================
   // SINCRONIZAÇÃO DOS DADOS - APENAS ATUALIZA STATUS
   // ============================================================
-  function sincronizarDados() {
+  // ============================================================
+// SINCRONIZAÇÃO DOS DADOS - CORRIGIDA PARA ADICIONAL
+// ============================================================
+function sincronizarDados() {
     if (!dadosPeriodo || !dadosPeriodo.periodos) return;
 
+    // ===== VERIFICA SE OS CACHES EXISTEM =====
     const conceitos = dadosConceitosCache?.conceitos || [];
     const adicional = dadosAlunoCache?.adicional || [];
     const musicas = dadosAlunoCache?.musicas || [];
 
+    console.log('📊 Sincronizando dados:');
+    console.log('  - Conceitos:', conceitos.length);
+    console.log('  - Adicional:', adicional.length);
+    console.log('  - Músicas:', musicas.length);
+
+    // Mapeia conceitos concluídos
     const conceitosConcluidos = new Set();
     conceitos.forEach(c => {
-      if (c.status === 'concluido' || c.status === 'Concluído') {
-        conceitosConcluidos.add(c.titulo);
-      }
+        if (c.status === 'concluido' || c.status === 'Concluído') {
+            conceitosConcluidos.add(c.titulo);
+        }
     });
 
+    // Mapeia adicional (itens extras)
     const adicionalConcluidos = new Set();
     adicional.forEach(item => {
-      if (item.concluido === true) {
-        adicionalConcluidos.add(item.nome);
-      }
+        if (item.concluido === true) {
+            adicionalConcluidos.add(item.nome);
+        }
     });
 
+    // Mapeia músicas concluídas
     const musicasConcluidas = new Set();
     musicas.forEach(m => {
-      if (m.concluido === true) {
-        musicasConcluidas.add(m.nome);
-      }
+        if (m.concluido === true) {
+            musicasConcluidas.add(m.nome);
+        }
     });
 
     dadosPeriodo.periodos.forEach(periodo => {
-      periodo.fases.forEach(fase => {
-        if (!fase.geral) fase.geral = [];
-        if (!fase.adicional) fase.adicional = [];
-        if (!fase.musicas) fase.musicas = [];
+        if (!periodo.fases || !Array.isArray(periodo.fases)) {
+            periodo.fases = [];
+            return;
+        }
+        
+        periodo.fases.forEach(fase => {
+            // Garante que as propriedades existam
+            if (!fase.geral || !Array.isArray(fase.geral)) fase.geral = [];
+            if (!fase.adicional || !Array.isArray(fase.adicional)) fase.adicional = [];
+            if (!fase.musicas || !Array.isArray(fase.musicas)) fase.musicas = [];
 
-        // APENAS ATUALIZA O STATUS
-        fase.geral.forEach(item => {
-          if (conceitosConcluidos.has(item.nome)) {
-            item.concluido = true;
-          }
-        });
-        
-        fase.adicional.forEach(item => {
-          if (adicionalConcluidos.has(item.nome)) {
-            item.concluido = true;
-          }
-        });
-        
-        fase.musicas.forEach(musica => {
-          if (musicasConcluidas.has(musica.nome)) {
-            musica.concluido = true;
-          }
-          if (musica.conceitos && Array.isArray(musica.conceitos)) {
-            musica.conceitos.forEach(c => {
-              if (conceitosConcluidos.has(c.nome)) {
-                c.concluido = true;
-              }
+            // ===== ADICIONA ITENS DO ADICIONAL QUE NÃO EXISTEM =====
+            adicional.forEach(item => {
+                const existe = fase.adicional.some(a => a.nome === item.nome);
+                if (!existe) {
+                    fase.adicional.push({
+                        id: 'add_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        nome: item.nome,
+                        concluido: item.concluido || false
+                    });
+                }
             });
-          }
+
+            // ===== ADICIONA ITENS DOS CONCEITOS QUE NÃO EXISTEM =====
+            conceitos.forEach(c => {
+                const existe = fase.geral.some(g => g.nome === c.titulo);
+                if (!existe) {
+                    fase.geral.push({
+                        id: 'con_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        nome: c.titulo,
+                        concluido: c.status === 'concluido' || c.status === 'Concluído'
+                    });
+                }
+            });
+
+            // ===== ADICIONA ITENS DAS MÚSICAS QUE NÃO EXISTEM =====
+            musicas.forEach(m => {
+                const existe = fase.musicas.some(mus => mus.nome === m.nome);
+                if (!existe) {
+                    fase.musicas.push({
+                        id: 'mus_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                        nome: m.nome,
+                        concluido: m.concluido || false,
+                        conceitos: []
+                    });
+                }
+            });
+
+            // ===== ATUALIZA STATUS DOS ITENS EXISTENTES =====
+            // Geral (Conceitos)
+            fase.geral.forEach(item => {
+                if (conceitosConcluidos.has(item.nome)) {
+                    item.concluido = true;
+                }
+            });
+            
+            // Adicional
+            fase.adicional.forEach(item => {
+                if (adicionalConcluidos.has(item.nome)) {
+                    item.concluido = true;
+                }
+            });
+            
+            // Músicas
+            fase.musicas.forEach(musica => {
+                if (musicasConcluidas.has(musica.nome)) {
+                    musica.concluido = true;
+                }
+                if (musica.conceitos && Array.isArray(musica.conceitos)) {
+                    musica.conceitos.forEach(c => {
+                        if (conceitosConcluidos.has(c.nome)) {
+                            c.concluido = true;
+                        }
+                    });
+                }
+            });
         });
-      });
     });
-  }
+}
 
   // ============================================================
   // SALVAR DADOS
