@@ -40,7 +40,6 @@
       margin: 0 auto;
     }
 
-    /* HEADER */
     .header-bar {
       display: flex;
       justify-content: space-between;
@@ -92,7 +91,6 @@
       margin-bottom: 20px;
     }
 
-    /* PAINEL DO ALUNO */
     .aluno-panel {
       display: flex;
       gap: 10px;
@@ -162,7 +160,6 @@
       to { transform: translateX(0); opacity: 1; }
     }
 
-    /* SISTEMA DE ABAS */
     .tabs-nav {
       display: flex;
       gap: 10px;
@@ -230,7 +227,6 @@
       background: rgba(255,255,255,0.2);
     }
 
-    /* FASES */
     .fase-card {
       background: var(--card-bg);
       border-radius: 12px;
@@ -483,7 +479,6 @@
       color: white;
     }
 
-    /* MODAL */
     .modal-overlay {
       display: none;
       position: fixed;
@@ -550,6 +545,27 @@
       from { transform: rotate(0deg); }
       to { transform: rotate(360deg); }
     }
+
+    /* MENSAGEM INICIAL SEM ANIMAÇÃO */
+    .inicio-msg {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .inicio-msg i {
+      font-size: 3rem;
+      color: var(--primary);
+      opacity: 0.5;
+      margin-bottom: 15px;
+    }
+    .inicio-msg h3 {
+      font-size: 1.3rem;
+      color: var(--text-main);
+      margin-bottom: 10px;
+    }
+    .inicio-msg p {
+      font-size: 0.95rem;
+    }
   </style>
 </head>
 <body>
@@ -601,9 +617,10 @@
 
   <!-- CONTEÚDO PRINCIPAL -->
   <div id="conteudoPrincipal">
-    <div class="loading">
-      <i class="fa-solid fa-spinner"></i>
-      <p>Carregue um aluno para começar</p>
+    <div class="inicio-msg">
+      <i class="fa-solid fa-user-graduate"></i>
+      <h3>Carregue um aluno para começar</h3>
+      <p>Digite o ID ou nome do aluno e clique em "Carregar Aluno"</p>
     </div>
   </div>
 
@@ -654,7 +671,6 @@
     ]
   };
 
-  // Cache dos dados do aluno
   let dadosAlunoCache = null;
   let dadosTeoriaCache = null;
   let dadosMusicaCache = null;
@@ -731,6 +747,9 @@
     }
   }
 
+  // ============================================================
+  // FUNÇÃO SALVAR COM RETRY E ATUALIZAÇÃO DE SHA
+  // ============================================================
   async function salvarArquivo(caminho, dados, sha, token) {
     const jsonString = JSON.stringify(dados, null, 2);
     const utf8Bytes = new TextEncoder().encode(jsonString);
@@ -761,8 +780,42 @@
       return { success: true, sha: data.content.sha };
     } else {
       const err = await response.json().catch(() => ({}));
-      return { success: false, error: err.message || 'Erro ao salvar' };
+      return { success: false, error: err.message || 'Erro ao salvar', status: response.status };
     }
+  }
+
+  async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas = 3) {
+    for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
+      try {
+        // Busca o SHA mais recente do arquivo
+        const { sha: shaRecente } = await obterConteudoAtual(caminho, token);
+        const shaParaSalvar = shaRecente || shaAtual;
+        
+        const resultado = await salvarArquivo(caminho, dados, shaParaSalvar, token);
+        
+        if (resultado.success) {
+          return { success: true, sha: resultado.sha };
+        }
+        
+        // Se for conflito (409), tenta novamente
+        if (resultado.status === 409) {
+          console.log(`⚠️ Conflito (409) em ${caminho}, tentativa ${tentativa} de ${tentativas}...`);
+          await new Promise(r => setTimeout(r, 1500 * tentativa));
+          continue;
+        }
+        
+        return { success: false, error: resultado.error };
+        
+      } catch (error) {
+        if (tentativa < tentativas) {
+          console.log(`⚠️ Erro em ${caminho}, tentativa ${tentativa}...`);
+          await new Promise(r => setTimeout(r, 1500 * tentativa));
+          continue;
+        }
+        return { success: false, error: error.message };
+      }
+    }
+    return { success: false, error: 'Todas as tentativas falharam' };
   }
 
   // ============================================================
@@ -829,7 +882,6 @@
     alunoIdAtual = alunoId;
     alunoNomeAtual = busca;
 
-    // Carrega os 3 arquivos
     const caminhos = [
       { path: `alunos/aluno_${alunoId}.json`, cache: 'aluno' },
       { path: `alunos/teoria_${alunoId}.json`, cache: 'teoria' },
@@ -854,11 +906,9 @@
       }
     }
 
-    // Processa os dados
     if (dadosAluno && dadosAluno.periodo) {
       dadosPeriodo = dadosAluno.periodo;
     } else {
-      // Estrutura padrão se não houver dados
       dadosPeriodo = {
         periodos: [
           {
@@ -883,7 +933,6 @@
     dadosTeoriaCache = dadosTeoria || { alunoId: alunoId, conceitos: [] };
     dadosMusicaCache = dadosMusica || { alunoId: alunoId, musicas: [] };
 
-    // Sincroniza os dados - marca os itens já concluídos
     sincronizarDados();
 
     exibirStatus(`✅ Aluno "${busca}" carregado com sucesso!`, "green");
@@ -896,7 +945,6 @@
   // SINCRONIZAÇÃO DOS DADOS
   // ============================================================
   function sincronizarDados() {
-    // Mapeia conceitos concluídos
     const conceitosConcluidos = new Set();
     if (dadosTeoriaCache && dadosTeoriaCache.conceitos) {
       dadosTeoriaCache.conceitos.forEach(c => {
@@ -906,7 +954,6 @@
       });
     }
 
-    // Mapeia músicas concluídas
     const musicasConcluidas = new Set();
     if (dadosMusicaCache && dadosMusicaCache.musicas) {
       dadosMusicaCache.musicas.forEach(m => {
@@ -916,22 +963,18 @@
       });
     }
 
-    // Atualiza os itens nos períodos/fases
     dadosPeriodo.periodos.forEach(periodo => {
       periodo.fases.forEach(fase => {
-        // Geral
         fase.geral.forEach(item => {
           if (conceitosConcluidos.has(item.nome)) {
             item.concluido = true;
           }
         });
-        // Adicional
         fase.adicional.forEach(item => {
           if (conceitosConcluidos.has(item.nome)) {
             item.concluido = true;
           }
         });
-        // Estudos
         fase.estudos.forEach(estudo => {
           estudo.itens.forEach(item => {
             if (musicasConcluidas.has(item.nome)) {
@@ -944,123 +987,81 @@
   }
 
   // ============================================================
-  // SALVAR DADOS
+  // SALVAR DADOS - VERSÃO CORRIGIDA
   // ============================================================
-  // ============================================================
-// SALVAR DADOS - COM RETRY E ATUALIZAÇÃO DE SHA
-// ============================================================
-async function salvarDadosAluno() {
+  async function salvarDadosAluno() {
     if (!alunoIdAtual) return alert("Carregue um aluno primeiro.");
     const token = obterToken();
     if (!token) return alert("Informe o token do GitHub.");
 
-    // Atualiza os dados do aluno com o período
+    exibirStatus("Preparando dados para salvar...", "blue");
+
     dadosAlunoCache.periodo = dadosPeriodo;
     dadosAlunoCache.aluno = alunoNomeAtual || alunoIdAtual;
     dadosAlunoCache.atualizadoEm = new Date().toISOString();
 
-    // Atualiza teoria com base nos checkboxes
+    // Atualiza teoria
     const conceitosAtualizados = [];
     dadosPeriodo.periodos.forEach(periodo => {
-        periodo.fases.forEach(fase => {
-            fase.geral.forEach(item => {
-                conceitosAtualizados.push({
-                    titulo: item.nome,
-                    status: item.concluido ? 'concluido' : 'pendente',
-                    lote: periodo.nome
-                });
-            });
-            fase.adicional.forEach(item => {
-                conceitosAtualizados.push({
-                    titulo: item.nome,
-                    status: item.concluido ? 'concluido' : 'pendente',
-                    lote: periodo.nome
-                });
-            });
+      periodo.fases.forEach(fase => {
+        fase.geral.forEach(item => {
+          conceitosAtualizados.push({
+            titulo: item.nome,
+            status: item.concluido ? 'concluido' : 'pendente',
+            lote: periodo.nome
+          });
         });
+        fase.adicional.forEach(item => {
+          conceitosAtualizados.push({
+            titulo: item.nome,
+            status: item.concluido ? 'concluido' : 'pendente',
+            lote: periodo.nome
+          });
+        });
+      });
     });
     dadosTeoriaCache.conceitos = conceitosAtualizados;
 
-    // Atualiza músicas com base nos checkboxes
+    // Atualiza músicas
     const musicasAtualizadas = [];
     dadosPeriodo.periodos.forEach(periodo => {
-        periodo.fases.forEach(fase => {
-            fase.estudos.forEach(estudo => {
-                estudo.itens.forEach(item => {
-                    musicasAtualizadas.push({
-                        nome: item.nome,
-                        status: item.concluido ? 'concluida' : 'pendente',
-                        lote: `Estudo ${estudo.num}`
-                    });
-                });
+      periodo.fases.forEach(fase => {
+        fase.estudos.forEach(estudo => {
+          estudo.itens.forEach(item => {
+            musicasAtualizadas.push({
+              nome: item.nome,
+              status: item.concluido ? 'concluida' : 'pendente',
+              lote: `Estudo ${estudo.num}`
             });
+          });
         });
+      });
     });
     dadosMusicaCache.musicas = musicasAtualizadas;
 
     exibirStatus("Salvando dados no GitHub...", "blue");
 
-    // Salva os 3 arquivos com retry automático
-    const salvos = await Promise.all([
-        salvarArquivoComRetry(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, token, shaArquivoAluno),
-        salvarArquivoComRetry(`alunos/teoria_${alunoIdAtual}.json`, dadosTeoriaCache, token, shaArquivoTeoria),
-        salvarArquivoComRetry(`alunos/musica_${alunoIdAtual}.json`, dadosMusicaCache, token, shaArquivoMusica)
+    // Salva os 3 arquivos com retry
+    const resultados = await Promise.all([
+      salvarArquivoComRetry(`alunos/aluno_${alunoIdAtual}.json`, dadosAlunoCache, token, shaArquivoAluno),
+      salvarArquivoComRetry(`alunos/teoria_${alunoIdAtual}.json`, dadosTeoriaCache, token, shaArquivoTeoria),
+      salvarArquivoComRetry(`alunos/musica_${alunoIdAtual}.json`, dadosMusicaCache, token, shaArquivoMusica)
     ]);
 
-    // Atualiza os SHAs
-    if (salvos[0].success) shaArquivoAluno = salvos[0].sha;
-    if (salvos[1].success) shaArquivoTeoria = salvos[1].sha;
-    if (salvos[2].success) shaArquivoMusica = salvos[2].sha;
+    if (resultados[0].success) shaArquivoAluno = resultados[0].sha;
+    if (resultados[1].success) shaArquivoTeoria = resultados[1].sha;
+    if (resultados[2].success) shaArquivoMusica = resultados[2].sha;
 
-    const todosSucesso = salvos.every(s => s.success);
+    const todosSucesso = resultados.every(r => r.success);
     if (todosSucesso) {
-        exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
-        showToast(`💾 Dados salvos!`, 'success');
+      exibirStatus(`✅ Dados salvos com sucesso para ${alunoIdAtual}!`, "green");
+      showToast(`💾 Dados salvos!`, 'success');
     } else {
-        const erros = salvos.filter(s => !s.success).map(s => s.error);
-        exibirStatus(`❌ Erro ao salvar: ${erros.join(', ')}`, "red");
-        showToast(`❌ Erro ao salvar dados`, 'error');
+      const erros = resultados.filter(r => !r.success).map(r => r.error);
+      exibirStatus(`❌ Erro ao salvar: ${erros.join(', ')}`, "red");
+      showToast(`❌ Erro ao salvar dados`, 'error');
     }
-}
-
-// ============================================================
-// FUNÇÃO SALVAR COM RETRY E ATUALIZAÇÃO DE SHA
-// ============================================================
-async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas = 3) {
-    for (let tentativa = 1; tentativa <= tentativas; tentativa++) {
-        try {
-            // Primeiro, busca o SHA mais recente do arquivo
-            const { sha: shaRecente } = await obterConteudoAtual(caminho, token);
-            
-            // Usa o SHA mais recente se disponível, senão usa o que temos
-            const shaParaSalvar = shaRecente || shaAtual;
-            
-            const resultado = await salvarArquivo(caminho, dados, shaParaSalvar, token);
-            
-            if (resultado.success) {
-                return { success: true, sha: resultado.sha };
-            }
-            
-            // Se falhou e é um erro de conflito (409), tenta novamente
-            if (resultado.error && resultado.error.includes('409')) {
-                console.log(`⚠️ Conflito detectado, tentativa ${tentativa} de ${tentativas}...`);
-                await new Promise(r => setTimeout(r, 1000 * tentativa));
-                continue;
-            }
-            
-            return { success: false, error: resultado.error };
-            
-        } catch (error) {
-            if (tentativa < tentativas) {
-                console.log(`⚠️ Erro na tentativa ${tentativa}, tentando novamente...`);
-                await new Promise(r => setTimeout(r, 1000 * tentativa));
-                continue;
-            }
-            return { success: false, error: error.message };
-        }
-    }
-    return { success: false, error: 'Todas as tentativas falharam' };
-}
+  }
 
   // ============================================================
   // RENDERIZAÇÃO DA APLICAÇÃO
@@ -1068,7 +1069,6 @@ async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas
   function renderizarApp() {
     const container = document.getElementById('conteudoPrincipal');
 
-    // Navegação de Períodos
     let navHtml = '';
     dadosPeriodo.periodos.forEach(per => {
       const isActive = (per.id === periodoAtivoId);
@@ -1085,16 +1085,14 @@ async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas
     });
     navHtml += `<button class="btn btn-success btn-sm" onclick="adicionarNovoPeriodo()"><i class="fa-solid fa-plus"></i> Novo Período</button>`;
 
-    // Conteúdo do Período Ativo
     const periodoObj = dadosPeriodo.periodos.find(p => p.id === periodoAtivoId) || dadosPeriodo.periodos[0];
     if (!periodoObj) {
-      container.innerHTML = `<div class="loading"><p>Nenhum período encontrado</p></div>`;
+      container.innerHTML = `<div class="inicio-msg"><i class="fa-solid fa-circle-exclamation"></i><h3>Nenhum período encontrado</h3></div>`;
       return;
     }
 
     let fasesHtml = '';
     periodoObj.fases.forEach(fase => {
-      // Calcula progresso
       let totalItens = 0;
       let concluidos = 0;
 
@@ -1106,7 +1104,6 @@ async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas
 
       const porcentagem = totalItens > 0 ? Math.round((concluidos / totalItens) * 100) : 0;
 
-      // Geral
       let geralHtml = '';
       fase.geral.forEach(item => {
         const checked = item.concluido ? 'checked' : '';
@@ -1124,7 +1121,6 @@ async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas
           </div>`;
       });
 
-      // Adicional
       let adicionalHtml = '';
       fase.adicional.forEach(item => {
         const checked = item.concluido ? 'checked' : '';
@@ -1142,7 +1138,6 @@ async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas
           </div>`;
       });
 
-      // Estudos
       let estudosHtml = '';
       fase.estudos.forEach((estudo, estIndex) => {
         let itensEstudoHtml = '';
@@ -1475,16 +1470,16 @@ async function salvarArquivoComRetry(caminho, dados, token, shaAtual, tentativas
       if (e.key === "Enter") carregarDadosAluno();
     });
 
-    // Fechar modal com ESC
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape') fecharModal();
     });
 
-    // Renderiza mensagem inicial
+    // Mensagem inicial sem animação
     document.getElementById('conteudoPrincipal').innerHTML = `
-      <div class="loading">
-        <i class="fa-solid fa-spinner"></i>
-        <p>Carregue um aluno para começar</p>
+      <div class="inicio-msg">
+        <i class="fa-solid fa-user-graduate"></i>
+        <h3>Carregue um aluno para começar</h3>
+        <p>Digite o ID ou nome do aluno e clique em "Carregar Aluno"</p>
       </div>
     `;
   };
