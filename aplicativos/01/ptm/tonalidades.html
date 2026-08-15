@@ -172,24 +172,24 @@
     <div class="instrumento-selector-bar">
       <div style="display: flex; align-items: center; gap: 8px;">
         <i class="fa-solid fa-sliders" style="color: var(--primary);"></i>
-        <label for="selectInstrumento" style="font-weight: 600;">Instrumento / Configuração:</label>
+        <label for="selectInstrumento" style="font-weight: 600;">Tabela / Instrumento:</label>
       </div>
-      <select id="selectInstrumento" onchange="mudarConfiguracaoInstrumento()" style="flex: 1; min-width: 220px;">
-        <option value="piano">Piano (12 Tonalidades: C - B)</option>
-        <option value="gaita">Gaita (32 Notas: C até G - 2 oitavas e 1 quinta)</option>
-        <option value="trombone">Trombone (28 Notas: E até G)</option>
-        <option value="violao">Violão 1ª Posição (29 Notas: E até G#)</option>
-        <option value="custom">⚙️ Configuração Personalizada...</option>
+      <select id="selectInstrumento" onchange="mudarConfiguracaoInstrumento()" style="flex: 1; min-width: 240px;">
+        <!-- Preenchido via JS (Padrões + Customizados salvos) -->
       </select>
+      <button class="btn-danger" id="btnExcluirCustom" style="display: none; padding: 7px 12px;" onclick="excluirTabelaCustomizada()"><i class="fa-solid fa-trash"></i> Excluir Tabela</button>
 
-      <div id="customConfigPanel" style="display: none; gap: 8px; align-items: center; flex-wrap: wrap; width: 100%; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--border);">
-        <span>Nota Inicial:</span>
-        <select id="customStartNote" style="width: 90px;">
-          <!-- Opções preenchidas via JS -->
-        </select>
-        <span>Qtd de Notas/Colunas:</span>
-        <input type="number" id="customTotalCols" value="12" min="1" max="60" style="width: 80px;">
-        <button class="btn-secondary" style="padding: 6px 12px;" onclick="aplicarConfigCustomizada()"><i class="fa-solid fa-check"></i> Aplicar</button>
+      <div id="customConfigPanel" style="display: none; gap: 10px; align-items: center; flex-wrap: wrap; width: 100%; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border);">
+        <input type="text" id="customTableName" placeholder="Nome da Tabela Customizada..." style="flex: 1; min-width: 180px;">
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <span>Início:</span>
+          <select id="customStartNote" style="width: 95px;"></select>
+        </div>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <span>Fim:</span>
+          <select id="customEndNote" style="width: 95px;"></select>
+        </div>
+        <button class="btn-success" style="padding: 8px 14px;" onclick="salvarTabelaCustomizada()"><i class="fa-solid fa-floppy-disk"></i> Salvar Nova Tabela</button>
       </div>
     </div>
   </div>
@@ -197,7 +197,7 @@
   <!-- TABELA E BARRA DE FERRAMENTAS DE EXERCÍCIOS -->
   <div class="card">
     <div class="table-toolbar">
-      <h3 id="tituloTabelaSecao">Lista de Exercícios & Tonalidades (Piano)</h3>
+      <h3 id="tituloTabelaSecao">Lista de Exercícios & Tonalidades</h3>
       
       <div style="display: flex; gap: 8px; flex-wrap: wrap;">
         <button class="btn-secondary" onclick="solicitarEImportarLoteGitHub()"><i class="fa-solid fa-cloud-arrow-down"></i> Importar Lote (GitHub)</button>
@@ -227,18 +227,18 @@
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     const ESCALA_CROMATICA_BASE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     
-    // Mapeamento de configurações pré-definidas de instrumentos
-    const CONFIGS_INSTRUMENTOS = {
-      piano: { nome: "Piano", start: "C", count: 12 },
-      gaita: { nome: "Gaita", start: "C", count: 32 },
-      trombone: { nome: "Trombone", start: "E", count: 28 },
-      violao: { nome: "Violão 1ª Posição", start: "E", count: 29 }
+    // Configurações padrão atualizadas com as oitavas corretas
+    const CONFIGS_PADRAO = {
+      piano: { nome: "Piano", start: "C3", end: "B3" },
+      gaita: { nome: "Gaita", start: "C3", end: "G5" },
+      trombone: { nome: "Trombone", start: "E1", end: "G3" },
+      violao: { nome: "Violão 1ª Posição", start: "E2", end: "G#4" }
     };
 
-    let instrumentoAtualConfig = { nome: "Piano", start: "C", count: 12, colunasNotas: [] };
+    let instrumentoAtualConfig = { nome: "Piano", start: "C3", end: "B3", colunasNotas: [] };
     let shaArquivoAtual = null;
     let alunoIdAtual = null;
-    let loteImportado = []; // GUARDA OS EXERCÍCIOS DO LOTE IMPORTADO
+    let loteImportado = []; 
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -251,7 +251,8 @@
         localStorage.setItem("gh_pat_token", e.target.value.trim());
       });
 
-      popularSelectNotaInicial();
+      popularSelectsNotas();
+      atualizarSelectInstrumentos();
       construirColunasInstrumento("piano");
 
       // DETECTAR LOTE DA URL E IMPORTAR AUTOMATICAMENTE
@@ -266,59 +267,144 @@
       }
     };
 
-    function popularSelectNotaInicial() {
-      const select = document.getElementById("customStartNote");
-      select.innerHTML = "";
-      // Gerar notas base + extensões caso necessário
+    function popularSelectsNotas() {
+      const selectStart = document.getElementById("customStartNote");
+      const selectEnd = document.getElementById("customEndNote");
+      selectStart.innerHTML = "";
+      selectEnd.innerHTML = "";
+
       const notas = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
       for (let oitava = 1; oitava <= 6; oitava++) {
         notas.forEach(n => {
-          const opt = document.createElement("option");
-          opt.value = `${n}${oitava}`;
-          opt.text = `${n}${oitava}`;
-          if (n === "C" && oitava === 4) opt.selected = true; // C4 padrão
-          select.appendChild(opt);
+          const val = `${n}${oitava}`;
+          
+          const opt1 = document.createElement("option");
+          opt1.value = val;
+          opt1.text = val;
+          if (n === "C" && oitava === 3) opt1.selected = true;
+          selectStart.appendChild(opt1);
+
+          const opt2 = document.createElement("option");
+          opt2.value = val;
+          opt2.text = val;
+          if (n === "B" && oitava === 3) opt2.selected = true;
+          selectEnd.appendChild(opt2);
         });
       }
     }
 
-    // --- GERADOR DE ESCALA CROMÁTICA ESTENDIDA ---
-    function gerarNotasExtensao(notaInicioStr, quantidade) {
-      // Ex: notaInicioStr = "C4" ou apenas "C"
-      const match = notaInicioStr.match(/^([A-G]#?)([0-9]?)$/);
-      let nomeNota = "C";
-      let oitava = 4;
-      
-      if (match) {
-        nomeNota = match[1];
-        oitava = match[2] ? parseInt(match[2]) : 4;
+    function obterTabelasCustomizadas() {
+      try {
+        const salvos = localStorage.getItem("saved_custom_tables");
+        return salvos ? JSON.parse(salvos) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function atualizarSelectInstrumentoSelecionado(chaveAtual) {
+      const select = document.getElementById("selectInstrumento");
+      select.value = chaveAtual;
+      mudarConfiguracaoInstrumento();
+    }
+
+    function atualizarSelectInstrumentos(selecionarChave = "piano") {
+      const select = document.getElementById("selectInstrumento");
+      select.innerHTML = "";
+
+      // Padrões
+      let optGroupPadrao = document.createElement("optgroup");
+      optGroupPadrao.label = "Padrões";
+      for (let key in CONFIGS_PADRAO) {
+        const opt = document.createElement("option");
+        opt.value = key;
+        opt.text = `${CONFIGS_PADRAO[key].nome} (${CONFIGS_PADRAO[key].start} até ${CONFIGS_PADRAO[key].end})`;
+        optGroupPadrao.appendChild(opt);
+      }
+      select.appendChild(optGroupPadrao);
+
+      // Customizados salvos
+      const customTables = obterTabelasCustomizadas();
+      const customKeys = Object.keys(customTables);
+      if (customKeys.length > 0) {
+        let optGroupCustom = document.createElement("optgroup");
+        optGroupCustom.label = "Minhas Tabelas Salvas";
+        customKeys.forEach(key => {
+          const opt = document.createElement("option");
+          opt.value = `custom_${key}`;
+          opt.text = `${customTables[key].nome} (${customTables[key].start} até ${customTables[key].end})`;
+          optGroupCustom.appendChild(opt);
+        });
+        select.appendChild(optGroupCustom);
       }
 
-      let idxBase = ESCALA_CROMATICA_BASE.indexOf(nomeNota);
-      if (idxBase === -1) idxBase = 0;
+      // Opção Nova Tabela Customizada
+      const optNovo = document.createElement("option");
+      optNovo.value = "new_custom";
+      optNovo.text = "➕ Criar Nova Tabela Customizada...";
+      select.appendChild(optNovo);
 
-      let notasGeradas = [];
-      for (let i = 0; i < quantidade; i++) {
-        let notaAtual = ESCALA_CROMATICA_BASE[idxBase % 12];
-        let oitavaAtual = oitava + Math.floor((idxBase / 12));
-        notasGeradas.push(`${notaAtual}${oitavaAtual}`);
-        idxBase++;
+      select.value = selecionarChave;
+    }
+
+    function parseNota(notaStr) {
+      const match = notaStr.match(/^([A-G]#?)([0-9]?)$/);
+      if (!match) return { idx: 0, nome: "C", oitava: 3 };
+      const nome = match[1];
+      const oitava = match[2] ? parseInt(match[2]) : 3;
+      const baseIdx = ESCALA_CROMATICA_BASE.indexOf(nome);
+      return { idx: oitava * 12 + baseIdx, nome, oitava };
+    }
+
+    function gerarNotasEntre(inicioStr, fimStr) {
+      let start = parseNota(inicioStr);
+      let end = parseNota(fimStr);
+      if (start.idx > end.idx) {
+        let temp = start; start = end; end = temp;
       }
-      return notasGeradas;
+      let notas = [];
+      for (let i = start.idx; i <= end.idx; i++) {
+        let oitava = Math.floor(i / 12);
+        let nome = ESCALA_CROMATICA_BASE[i % 12];
+        notas.push(`${nome}${oitava}`);
+      }
+      return notas;
     }
 
     function construirColunasInstrumento(tipoOuConfig, dadosAtuaisExercicios = []) {
-      if (typeof tipoOuConfig === 'string' && CONFIGS_INSTRUMENTOS[tipoOuConfig]) {
-        const cfg = CONFIGS_INSTRUMENTOS[tipoOuConfig];
-        const notas = gerarNotasExtensao(cfg.start, cfg.count);
-        instrumentoAtualConfig = { nome: cfg.nome, start: cfg.start, count: cfg.count, colunasNotas: notas };
+      const customPanel = document.getElementById("customConfigPanel");
+      const btnExcluir = document.getElementById("btnExcluirCustom");
+      
+      if (typeof tipoOuConfig === 'string') {
+        if (CONFIGS_PADRAO[tipoOuConfig]) {
+          customPanel.style.display = "none";
+          btnExcluir.style.display = "none";
+          const cfg = CONFIGS_PADRAO[tipoOuConfig];
+          const notas = gerarNotasEntre(cfg.start, cfg.end);
+          instrumentoAtualConfig = { key: tipoOuConfig, nome: cfg.nome, start: cfg.start, end: cfg.end, colunasNotas: notas };
+        } else if (tipoOuConfig.startsWith("custom_")) {
+          customPanel.style.display = "none";
+          btnExcluir.style.display = "inline-flex";
+          const customKey = tipoOuConfig.replace("custom_", "");
+          const customTables = obterTabelasCustomizadas();
+          if (customTables[customKey]) {
+            const cfg = customTables[customKey];
+            const notas = gerarNotasEntre(cfg.start, cfg.end);
+            instrumentoAtualConfig = { key: tipoOuConfig, nome: cfg.nome, start: cfg.start, end: cfg.end, colunasNotas: notas };
+          }
+        } else if (tipoOuConfig === "new_custom") {
+          customPanel.style.display = "flex";
+          btnExcluir.style.display = "none";
+          return; // Não altera tabela até preencher e salvar
+        }
       } else if (typeof tipoOuConfig === 'object') {
+        customPanel.style.display = "none";
+        btnExcluir.style.display = tipoOuConfig.key && tipoOuConfig.key.startsWith("custom_") ? "inline-flex" : "none";
         instrumentoAtualConfig = tipoOuConfig;
       }
 
-      document.getElementById("tituloTabelaSecao").innerText = `Lista de Exercícios & Tonalidades (${instrumentoAtualConfig.nome} - ${instrumentoAtualConfig.colunasNotas.length} colunas)`;
+      document.getElementById("tituloTabelaSecao").innerText = `Lista de Exercícios & Tonalidades (${instrumentoAtualConfig.nome} - ${instrumentoAtualConfig.colunasNotas.length} notas: ${instrumentoAtualConfig.start} a ${instrumentoAtualConfig.end})`;
 
-      // Desenhar cabeçalho da tabela
       const trHead = document.getElementById("cabecalhoTabelaTr");
       let htmlHead = `<th style="width: 260px;">Exercício</th>`;
       instrumentoAtualConfig.colunasNotas.forEach(nota => {
@@ -327,16 +413,13 @@
       htmlHead += `<th>Progresso</th><th style="width: 50px;">Ação</th>`;
       trHead.innerHTML = htmlHead;
 
-      // Recriar linhas mantendo o estado anterior se houver
       const exerciciosAtuais = dadosAtuaisExercicios.length > 0 ? dadosAtuaisExercicios : getExerciciosDaTabela();
       document.getElementById('corpoTabela').innerHTML = "";
       
       if (exerciciosAtuais.length === 0) {
-        // Adicionar uma linha vazia por padrão se estiver limpo
         adicionarLinhaMusica();
       } else {
         exerciciosAtuais.forEach(ex => {
-          // Mapear os dados antigos para as novas colunas se necessário
           const tonsMap = {};
           if (ex.tons) {
             ex.tons.forEach(t => { tonsMap[t.tom] = t.concluido; });
@@ -352,35 +435,55 @@
 
     function mudarConfiguracaoInstrumento() {
       const val = document.getElementById("selectInstrumento").value;
-      const customPanel = document.getElementById("customConfigPanel");
-      if (val === "custom") {
-        customPanel.style.display = "flex";
-      } else {
-        customPanel.style.display = "none";
-        construirColunasInstrumento(val);
-      }
+      construirColunasInstrumento(val);
     }
 
-    function aplicarConfigCustomizada() {
-      const notaInicio = document.getElementById("customStartNote").value;
-      const qtd = parseInt(document.getElementById("customTotalCols").value) || 12;
-      const notas = gerarNotasExtensao(notaInicio, qtd);
-      
-      const configCustom = {
-        nome: `Custom (${notaInicio})`,
-        start: notaInicio,
-        count: qtd,
-        colunasNotas: notas
+    function salvarTabelaCustomizada() {
+      const nomeTabela = document.getElementById("customTableName").value.trim();
+      const startNote = document.getElementById("customStartNote").value;
+      const endNote = document.getElementById("customEndNote").value;
+
+      if (!nomeTabela) {
+        return alert("Por favor, digite um nome para a tabela customizada.");
+      }
+
+      const customTables = obterTabelasCustomizadas();
+      const keyId = nomeTabela.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+
+      customTables[keyId] = {
+        nome: nomeTabela,
+        start: startNote,
+        end: endNote
       };
-      construirColunasInstrumento(configCustom);
-      showToast(`⚙️ Configuração customizada aplicada com ${qtd} notas!`, 'info');
+
+      localStorage.setItem("saved_custom_tables", JSON.stringify(customTables));
+      atualizarSelectInstrumentos(`custom_${keyId}`);
+      construirColunasInstrumento(`custom_${keyId}`);
+      showToast(`💾 Tabela "${nomeTabela}" salva com sucesso!`, 'success');
+    }
+
+    function excluirTabelaCustomizada() {
+      const selectVal = document.getElementById("selectInstrumento").value;
+      if (!selectVal.startsWith("custom_")) return;
+
+      const customKey = selectVal.replace("custom_", "");
+      const customTables = obterTabelasCustomizadas();
+
+      if (customTables[customKey]) {
+        if (confirm(`Tem certeza que deseja excluir a tabela "${customTables[customKey].nome}"?`)) {
+          delete customTables[customKey];
+          localStorage.setItem("saved_custom_tables", JSON.stringify(customTables));
+          atualizarSelectInstrumentos("piano");
+          construirColunasInstrumento("piano");
+          showToast("🗑️ Tabela excluída com sucesso!", 'info');
+        }
+      }
     }
 
     function obterToken() {
       return document.getElementById("gh-token").value.trim() || localStorage.getItem('gh_pat_token') || '';
     }
 
-    // --- TOAST ---
     function showToast(mensagem, tipo = 'info') {
       const toast = document.createElement('div');
       toast.className = `toast ${tipo}`;
@@ -414,7 +517,6 @@
       el.innerText = mensagem;
     }
 
-    // --- FUNÇÃO PARA BUSCAR ID DO ALUNO ---
     async function buscarIdAluno(busca) {
       const token = obterToken();
       if (!token) return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
@@ -441,7 +543,6 @@
       }
     }
 
-    // --- CARREGAR LISTA DE ALUNOS ---
     async function carregarListaAlunos() {
       const token = obterToken();
       if (!token) return alert("Informe o token do GitHub.");
@@ -485,7 +586,6 @@
       }
     }
 
-    // --- FUNÇÕES DA TABELA ---
     function adicionarLinhaMusica(nomeExercício = "", tonsConcluidosArrayOrMap = []) {
       const tbody = document.getElementById('corpoTabela');
       const tr = document.createElement('tr');
@@ -564,7 +664,6 @@
       }
     }
 
-    // --- FUNÇÃO PARA PEGAR OS EXERCÍCIOS DA TABELA ---
     function getExerciciosDaTabela() {
       const linhas = document.querySelectorAll('#corpoTabela tr');
       const exercicios = [];
@@ -590,7 +689,6 @@
       return exercicios;
     }
 
-    // --- IMPORTAR LOTE DIRETO (SEM PROMPT) ---
     async function importarLoteTonalidadeDireto(nomeLote) {
       const token = obterToken();
       if (!token) {
@@ -699,7 +797,6 @@
       }
     }
 
-    // --- SOLICITAR IMPORTAR LOTE (VIA BOTÃO) ---
     async function solicitarEImportarLoteGitHub() {
       const token = obterToken();
       if (!token) return alert("Por favor, informe e confirme o Token do GitHub primeiro.");
@@ -715,7 +812,6 @@
       await importarLoteTonalidadeDireto(entradaUsuario.trim());
     }
 
-    // --- IMPORTAR/EXPORTAR JSON LOCAL ---
     function exportarArquivoJSONLocal() {
       const busca = document.getElementById('buscaAluno').value.trim() || "Aluno_Anonimo";
       const exercicios = getExerciciosDaTabela();
@@ -751,7 +847,10 @@
 
           if (json.instrumento) {
             instrumentoAtualConfig = json.instrumento;
-            construirColunasInstrumento(instrumentoAtualConfig, json.exercicios || []);
+            if (json.instrumento.key) {
+              atualizarSelectInstrumentos(json.instrumento.key);
+            }
+            construirColunasInstrumento(json.instrumento, json.exercicios || []);
           } else if (json.exercicios && Array.isArray(json.exercicios)) {
             if (confirm("Deseja substituir a lista atual pela importada?")) {
               document.getElementById('corpoTabela').innerHTML = "";
@@ -769,7 +868,6 @@
       reader.readAsText(file);
     }
 
-    // --- CARREGAR DADOS DO ALUNO ---
     async function carregarDadosAluno() {
       const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
@@ -807,6 +905,9 @@
 
           if (conteudoJson.instrumento) {
             instrumentoAtualConfig = conteudoJson.instrumento;
+            if (conteudoJson.instrumento.key) {
+              atualizarSelectInstrumentos(conteudoJson.instrumento.key);
+            }
           }
           if (conteudoJson.exercicios) {
             exerciciosDoAluno = conteudoJson.exercicios;
@@ -848,7 +949,6 @@
       console.log('🔄 Sincronizando tonalidades:', itens);
     };
 
-    // --- SALVAR DADOS DO ALUNO ---
     async function salvarDadosAluno() {
       const busca = document.getElementById('buscaAluno').value.trim();
       const token = obterToken();
