@@ -1206,19 +1206,67 @@
       }
     }
 
-    function mdRenderizar() {
-      const editor = document.getElementById('mdEditor');
-      const preview = document.getElementById('mdPreview');
-      const wordCount = document.getElementById('mdWordCount');
-      const conteudo = editor.value || '';
-      try {
-        preview.innerHTML = marked.parse(conteudo);
+function mdRenderizar() {
+    const editor = document.getElementById('mdEditor');
+    const preview = document.getElementById('mdPreview');
+    const wordCount = document.getElementById('mdWordCount');
+    const conteudo = editor.value || '';
+    
+    try {
+        // ===== EXTRAI OS BLOCOS ABC ANTES DO PARSE =====
+        const blocosABC = [];
+        let textoParaParse = conteudo;
+        
+        // Extrai todos os blocos [ABC] e substitui por placeholders
+        textoParaParse = textoParaParse.replace(/\[ABC\]([\s\S]*?)\[\/ABC\]/g, function(match, codigo) {
+            const id = 'ABC_BLOCK_' + blocosABC.length;
+            blocosABC.push({ id, codigo: codigo.trim() });
+            return `{{${id}}}`;
+        });
+        
+        // Faz o parse do Markdown
+        let html = marked.parse(textoParaParse);
+        
+        // Restaura os blocos ABC
+        blocosABC.forEach(block => {
+            const placeholder = `{{${block.id}}}`;
+            const abcDiv = `<div class="abcjs-container" data-abc="${encodeURIComponent(block.codigo)}" style="min-height:80px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin:10px 0;"></div>`;
+            html = html.replace(placeholder, abcDiv);
+        });
+        
+        preview.innerHTML = html;
+        
+        // Renderiza os blocos ABC
+        setTimeout(() => {
+            const containers = preview.querySelectorAll('.abcjs-container');
+            containers.forEach(container => {
+                const codigoEncoded = container.dataset.abc;
+                if (codigoEncoded) {
+                    const codigo = decodeURIComponent(codigoEncoded);
+                    if (typeof ABCJS !== 'undefined') {
+                        try {
+                            ABCJS.renderAbc(container, codigo, {
+                                responsive: 'resize',
+                                staffwidth: 700,
+                                paddingtop: 10,
+                                paddingbottom: 10
+                            });
+                        } catch (e) {
+                            container.innerHTML = `<div style="color:red;padding:10px;">❌ Erro ao renderizar: ${e.message}</div>`;
+                        }
+                    } else {
+                        container.innerHTML = `<pre style="background:#1e293b;color:#e2e8f0;padding:10px;border-radius:4px;overflow-x:auto;">${codigo}</pre>`;
+                    }
+                }
+            });
+        }, 300);
+        
         const palavras = conteudo.trim().split(/\s+/).filter(p => p.length > 0);
         if (wordCount) wordCount.textContent = `${palavras.length} palavras`;
-      } catch (e) {
+    } catch (e) {
         preview.innerHTML = `<div style="color:red;">❌ Erro ao renderizar: ${e.message}</div>`;
-      }
     }
+}
 
     function mdAddFormat(antes, depois) {
       const editor = document.getElementById('mdEditor');
