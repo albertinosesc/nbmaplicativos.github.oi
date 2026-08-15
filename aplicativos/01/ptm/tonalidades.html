@@ -55,6 +55,7 @@
     button.btn-success { background-color: var(--accent); }
     button.btn-danger { background-color: var(--danger); }
     button.btn-secondary { background-color: #4b5563; }
+    button.btn-dark { background-color: #111827; }
 
     .table-toolbar {
       display: flex;
@@ -77,11 +78,28 @@
       flex-wrap: wrap;
     }
 
+    .null-cells-panel {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #f1f5f9;
+      padding: 12px 15px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      margin-top: 12px;
+      flex-wrap: wrap;
+    }
+
     .table-container { overflow-x: auto; }
     table { width: 100%; border-collapse: collapse; min-width: 750px; }
     th, td { border: 1px solid var(--border); padding: 8px 6px; text-align: center; white-space: nowrap; }
     th { background-color: #f1f5f9; font-weight: 600; font-size: 0.8rem; }
     
+    td.celula-nula {
+      background-color: #000000 !important;
+      color: #ffffff !important;
+    }
+
     .status-msg { margin-top: 10px; font-weight: bold; font-size: 0.9rem; }
     .badge-progresso { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.85rem; }
     .progresso-incompleto { background: #fef3c7; color: #d97706; }
@@ -147,7 +165,7 @@
   <div class="card github-auth-panel">
     <i class="fa-brands fa-github" style="font-size: 1.2rem;"></i>
     <input type="password" id="gh-token" placeholder="Cole aqui seu Token do GitHub (ghp_...)" style="flex: 2;">
-    <button class="btn-success" onclick="validarEAutenticarToken()"><i class="fa-solid fa-key"></i> Confirmar Token</button>
+    <button class="btn-success" onclick="validarEAutenticarToken(true)"><i class="fa-solid fa-key"></i> Confirmar Token</button>
     <div id="token-status-msg" style="width: 100%; font-size: 0.85rem; color: #6b7280; margin-top: 5px;">
       *O token fica gravado no navegador.
     </div>
@@ -175,7 +193,7 @@
         <label for="selectInstrumento" style="font-weight: 600;">Tabela / Instrumento:</label>
       </div>
       <select id="selectInstrumento" onchange="mudarConfiguracaoInstrumento()" style="flex: 1; min-width: 240px;">
-        <!-- Preenchido via JS (Padrões + Customizados salvos) -->
+        <!-- Preenchido via JS -->
       </select>
       <button class="btn-danger" id="btnExcluirCustom" style="display: none; padding: 7px 12px;" onclick="excluirTabelaCustomizada()"><i class="fa-solid fa-trash"></i> Excluir Tabela</button>
 
@@ -191,6 +209,27 @@
         </div>
         <button class="btn-success" style="padding: 8px 14px;" onclick="salvarTabelaCustomizada()"><i class="fa-solid fa-floppy-disk"></i> Salvar Nova Tabela</button>
       </div>
+    </div>
+
+    <!-- PAINEL DE CÉLULAS NULAS POR LINHA -->
+    <div class="null-cells-panel">
+      <div style="display: flex; align-items: center; gap: 6px; font-weight: 600; font-size: 0.9rem;">
+        <i class="fa-solid fa-ban" style="color: var(--danger);"></i> Células Nulas (Pretas):
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <span>Linha:</span>
+        <select id="nullRowSelect" style="min-width: 150px;"></select>
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <span>Início:</span>
+        <select id="nullStartNote" style="width: 95px;"></select>
+      </div>
+      <div style="display: flex; gap: 6px; align-items: center;">
+        <span>Fim:</span>
+        <select id="nullEndNote" style="width: 95px;"></select>
+      </div>
+      <button class="btn-dark" onclick="aplicarCelulasNulas(true)"><i class="fa-solid fa-eye-slash"></i> Tornar Nulas (Preto)</button>
+      <button class="btn-secondary" onclick="aplicarCelulasNulas(false)"><i class="fa-solid fa-eye"></i> Restaurar Normais</button>
     </div>
   </div>
 
@@ -227,15 +266,15 @@
     const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
     const ESCALA_CROMATICA_BASE = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
     
-    // Configurações padrão atualizadas com as oitavas corretas
+    // Oitavas corrigidas solicitadas
     const CONFIGS_PADRAO = {
-      piano: { nome: "Piano", start: "C3", end: "B3" },
+      piano: { nome: "Piano", start: "C3", end: "B4" },
       gaita: { nome: "Gaita", start: "C3", end: "G5" },
       trombone: { nome: "Trombone", start: "E1", end: "G3" },
       violao: { nome: "Violão 1ª Posição", start: "E2", end: "G#4" }
     };
 
-    let instrumentoAtualConfig = { nome: "Piano", start: "C3", end: "B3", colunasNotas: [] };
+    let instrumentoAtualConfig = { nome: "Piano", start: "C3", end: "B4", colunasNotas: [] };
     let shaArquivoAtual = null;
     let alunoIdAtual = null;
     let loteImportado = []; 
@@ -255,7 +294,6 @@
       atualizarSelectInstrumentos();
       construirColunasInstrumento("piano");
 
-      // DETECTAR LOTE DA URL E IMPORTAR AUTOMATICAMENTE
       const urlParams = new URLSearchParams(window.location.search);
       const loteParam = urlParams.get('lote');
       
@@ -270,27 +308,87 @@
     function popularSelectsNotas() {
       const selectStart = document.getElementById("customStartNote");
       const selectEnd = document.getElementById("customEndNote");
-      selectStart.innerHTML = "";
-      selectEnd.innerHTML = "";
+      const nullStart = document.getElementById("nullStartNote");
+      const nullEnd = document.getElementById("nullEndNote");
+      
+      [selectStart, selectEnd, nullStart, nullEnd].forEach(sel => { if(sel) sel.innerHTML = ""; });
 
       const notas = ["C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"];
       for (let oitava = 1; oitava <= 6; oitava++) {
         notas.forEach(n => {
           const val = `${n}${oitava}`;
           
-          const opt1 = document.createElement("option");
-          opt1.value = val;
-          opt1.text = val;
-          if (n === "C" && oitava === 3) opt1.selected = true;
-          selectStart.appendChild(opt1);
+          [selectStart, nullStart].forEach(sel => {
+            if (sel) {
+              const opt = document.createElement("option");
+              opt.value = val;
+              opt.text = val;
+              if (n === "C" && oitava === 3) opt.selected = true;
+              sel.appendChild(opt);
+            }
+          });
 
-          const opt2 = document.createElement("option");
-          opt2.value = val;
-          opt2.text = val;
-          if (n === "B" && oitava === 3) opt2.selected = true;
-          selectEnd.appendChild(opt2);
+          [selectEnd, nullEnd].forEach(sel => {
+            if (sel) {
+              const opt = document.createElement("option");
+              opt.value = val;
+              opt.text = val;
+              if (n === "B" && oitava === 3) opt.selected = true;
+              sel.appendChild(opt);
+            }
+          });
         });
       }
+    }
+
+    function popularSelectNotasInstrumento() {
+      const nullStart = document.getElementById("nullStartNote");
+      const nullEnd = document.getElementById("nullEndNote");
+      if (!nullStart || !nullEnd) return;
+
+      nullStart.innerHTML = "";
+      nullEnd.innerHTML = "";
+
+      const notas = instrumentoAtualConfig.colunasNotas || [];
+      notas.forEach(nota => {
+        const opt1 = document.createElement("option");
+        opt1.value = nota;
+        opt1.text = nota;
+        nullStart.appendChild(opt1);
+
+        const opt2 = document.createElement("option");
+        opt2.value = nota;
+        opt2.text = nota;
+        nullEnd.appendChild(opt2);
+      });
+      if (notas.length > 0) {
+        nullStart.value = notas[0];
+        nullEnd.value = notas[notas.length - 1];
+      }
+    }
+
+    function atualizarSelectLinhasNull() {
+      const select = document.getElementById("nullRowSelect");
+      if (!select) return;
+      select.innerHTML = "";
+
+      const linhas = document.querySelectorAll('#corpoTabela tr');
+      if (linhas.length === 0) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.text = "Nenhum exercício";
+        select.appendChild(opt);
+        return;
+      }
+
+      linhas.forEach((tr, index) => {
+        const inputNome = tr.querySelector('input[type="text"]');
+        const nomeEx = inputNome && inputNome.value.trim() ? inputNome.value.trim() : `Exercício ${index + 1}`;
+        const opt = document.createElement("option");
+        opt.value = index;
+        opt.text = `${index + 1}. ${nomeEx}`;
+        select.appendChild(opt);
+      });
     }
 
     function obterTabelasCustomizadas() {
@@ -302,17 +400,10 @@
       }
     }
 
-    function atualizarSelectInstrumentoSelecionado(chaveAtual) {
-      const select = document.getElementById("selectInstrumento");
-      select.value = chaveAtual;
-      mudarConfiguracaoInstrumento();
-    }
-
     function atualizarSelectInstrumentos(selecionarChave = "piano") {
       const select = document.getElementById("selectInstrumento");
       select.innerHTML = "";
 
-      // Padrões
       let optGroupPadrao = document.createElement("optgroup");
       optGroupPadrao.label = "Padrões";
       for (let key in CONFIGS_PADRAO) {
@@ -323,7 +414,6 @@
       }
       select.appendChild(optGroupPadrao);
 
-      // Customizados salvos
       const customTables = obterTabelasCustomizadas();
       const customKeys = Object.keys(customTables);
       if (customKeys.length > 0) {
@@ -338,7 +428,6 @@
         select.appendChild(optGroupCustom);
       }
 
-      // Opção Nova Tabela Customizada
       const optNovo = document.createElement("option");
       optNovo.value = "new_custom";
       optNovo.text = "➕ Criar Nova Tabela Customizada...";
@@ -348,7 +437,7 @@
     }
 
     function parseNota(notaStr) {
-      const match = notaStr.match(/^([A-G]#?)([0-9]?)$/);
+      const match = (notaStr || "").match(/^([A-G]#?)([0-9]?)$/);
       if (!match) return { idx: 0, nome: "C", oitava: 3 };
       const nome = match[1];
       const oitava = match[2] ? parseInt(match[2]) : 3;
@@ -395,42 +484,44 @@
         } else if (tipoOuConfig === "new_custom") {
           customPanel.style.display = "flex";
           btnExcluir.style.display = "none";
-          return; // Não altera tabela até preencher e salvar
+          return;
         }
-      } else if (typeof tipoOuConfig === 'object') {
+      } else if (typeof tipoOuConfig === 'object' && tipoOuConfig !== null) {
         customPanel.style.display = "none";
         btnExcluir.style.display = tipoOuConfig.key && tipoOuConfig.key.startsWith("custom_") ? "inline-flex" : "none";
+        if (!tipoOuConfig.colunasNotas && tipoOuConfig.start && tipoOuConfig.end) {
+          tipoOuConfig.colunasNotas = gerarNotasEntre(tipoOuConfig.start, tipoOuConfig.end);
+        }
         instrumentoAtualConfig = tipoOuConfig;
       }
 
-      document.getElementById("tituloTabelaSecao").innerText = `Lista de Exercícios & Tonalidades (${instrumentoAtualConfig.nome} - ${instrumentoAtualConfig.colunasNotas.length} notas: ${instrumentoAtualConfig.start} a ${instrumentoAtualConfig.end})`;
+      popularSelectNotasInstrumento();
+
+      const nomeInst = instrumentoAtualConfig.nome || "Instrumento";
+      const totalNotas = (instrumentoAtualConfig.colunasNotas || []).length;
+      const startNota = instrumentoAtualConfig.start || "";
+      const endNota = instrumentoAtualConfig.end || "";
+      document.getElementById("tituloTabelaSecao").innerText = `Lista de Exercícios & Tonalidades (${nomeInst} - ${totalNotas} notas: ${startNota} a ${endNota})`;
 
       const trHead = document.getElementById("cabecalhoTabelaTr");
       let htmlHead = `<th style="width: 260px;">Exercício</th>`;
-      instrumentoAtualConfig.colunasNotas.forEach(nota => {
+      (instrumentoAtualConfig.colunasNotas || []).forEach(nota => {
         htmlHead += `<th>${nota}</th>`;
       });
       htmlHead += `<th>Progresso</th><th style="width: 50px;">Ação</th>`;
       trHead.innerHTML = htmlHead;
 
-      const exerciciosAtuais = dadosAtuaisExercicios.length > 0 ? dadosAtuaisExercicios : getExerciciosDaTabela();
+      const exerciciosAtuais = Array.isArray(dadosAtuaisExercicios) && dadosAtuaisExercicios.length > 0 ? dadosAtuaisExercicios : getExerciciosDaTabela();
       document.getElementById('corpoTabela').innerHTML = "";
       
       if (exerciciosAtuais.length === 0) {
         adicionarLinhaMusica();
       } else {
         exerciciosAtuais.forEach(ex => {
-          const tonsMap = {};
-          if (ex.tons) {
-            ex.tons.forEach(t => { tonsMap[t.tom] = t.concluido; });
-          }
-          const tonalidadesObj = instrumentoAtualConfig.colunasNotas.map(nota => ({
-            tom: nota,
-            concluido: tonsMap[nota] || false
-          }));
-          adicionarLinhaMusicaComNotasObj(ex.nome, tonalidadesObj);
+          adicionarLinhaMusicaComObjeto(ex);
         });
       }
+      atualizarSelectLinhasNull();
     }
 
     function mudarConfiguracaoInstrumento() {
@@ -513,13 +604,15 @@
 
     function exibirStatus(mensagem, cor = "black") {
       const el = document.getElementById('statusMsg');
-      el.style.color = cor;
-      el.innerText = mensagem;
+      if (el) {
+        el.style.color = cor;
+        el.innerText = mensagem;
+      }
     }
 
     async function buscarIdAluno(busca) {
       const token = obterToken();
-      if (!token) return busca.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
+      if (!token) return (busca || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]/g, "_");
       
       try {
         const res = await fetch(`https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}/contents/alunos/index.json?ref=${GH_CONFIG.branch}`, {
@@ -533,9 +626,9 @@
         const jsonStr = new TextDecoder('utf-8').decode(bytes);
         const indexData = JSON.parse(jsonStr);
         
-        let encontrado = indexData.alunos.find(a => a.id === busca);
+        let encontrado = (indexData.alunos || []).find(a => a.id === busca);
         if (!encontrado) {
-          encontrado = indexData.alunos.find(a => a.nome.toLowerCase() === busca.toLowerCase());
+          encontrado = (indexData.alunos || []).find(a => (a.nome || "").toLowerCase() === (busca || "").toLowerCase());
         }
         return encontrado ? encontrado.id : busca;
       } catch (e) {
@@ -564,7 +657,7 @@
         }
 
         const files = await res.json();
-        const alunos = files
+        const alunos = (files || [])
           .filter(f => f.name.startsWith('aluno_') && f.name.endsWith('.json'))
           .map(f => f.name.replace('aluno_', '').replace('.json', ''))
           .sort();
@@ -586,81 +679,127 @@
       }
     }
 
-    function adicionarLinhaMusica(nomeExercício = "", tonsConcluidosArrayOrMap = []) {
-      const tbody = document.getElementById('corpoTabela');
-      const tr = document.createElement('tr');
-
-      let tdNome = `<td><input type="text" value="${nomeExercício}" placeholder="Nome do Exercício" style="width:100%;"></td>`;
-      let tdCheckboxes = "";
-      
-      const concluidosSet = Array.isArray(tonsConcluidosArrayOrMap) ? new Set(tonsConcluidosArrayOrMap) : null;
-
-      instrumentoAtualConfig.colunasNotas.forEach(nota => {
-        let checado = "";
-        if (concluidosSet) {
-          checado = concluidosSet.has(nota) ? "checked" : "";
-        } else if (typeof tonsConcluidosArrayOrMap === 'object' && tonsConcluidosArrayOrMap[nota]) {
-          checado = "checked";
-        }
-        tdCheckboxes += `<td><input type="checkbox" class="checkbox-tonalidade" data-tom="${nota}" ${checado} onchange="atualizarContadorLinha(this)"></td>`;
-      });
-
-      const totalCols = instrumentoAtualConfig.colunasNotas.length;
-      let tdProgresso = `<td><span class="badge-progresso progresso-incompleto">0 / ${totalCols}</span></td>`;
-      let tdAcao = `<td><button class="btn-danger" style="padding: 4px 8px;" onclick="removerLinha(this)" title="Excluir exercício"><i class="fa-solid fa-trash"></i></button></td>`;
-
-      tr.innerHTML = tdNome + tdCheckboxes + tdProgresso + tdAcao;
-      tbody.appendChild(tr);
-
-      atualizarContadorLinha(tr.querySelector('.checkbox-tonalidade'));
+    function adicionarLinhaMusica(nomeExercício = "", tonsDados = []) {
+      const exObj = { nome: nomeExercício, tons: tonsDados };
+      adicionarLinhaMusicaComObjeto(exObj);
     }
 
-    function adicionarLinhaMusicaComNotasObj(nomeExercício, tonsObj) {
+    function adicionarLinhaMusicaComObjeto(exObj) {
       const tbody = document.getElementById('corpoTabela');
       const tr = document.createElement('tr');
 
-      let tdNome = `<td><input type="text" value="${nomeExercício}" placeholder="Nome do Exercício" style="width:100%;"></td>`;
+      const nomeEx = exObj && exObj.nome ? exObj.nome : "";
+      let tdNome = `<td><input type="text" value="${nomeEx}" placeholder="Nome do Exercício" style="width:100%;" oninput="atualizarSelectLinhasNull()"></td>`;
       let tdCheckboxes = "";
       
       const tonsMap = {};
-      if (Array.isArray(tonsObj)) {
-        tonsObj.forEach(t => { tonsMap[t.tom] = t.concluido; });
+      const nulosMap = {};
+      if (exObj && Array.isArray(exObj.tons)) {
+        exObj.tons.forEach(t => {
+          tonsMap[t.tom] = t.concluido;
+          if (t.nulo) nulosMap[t.tom] = true;
+        });
       }
 
-      instrumentoAtualConfig.colunasNotas.forEach(nota => {
+      const colunas = instrumentoAtualConfig.colunasNotas || [];
+      colunas.forEach(nota => {
+        const isNulo = nulosMap[nota] || false;
         const checado = tonsMap[nota] ? "checked" : "";
-        tdCheckboxes += `<td><input type="checkbox" class="checkbox-tonalidade" data-tom="${nota}" ${checado} onchange="atualizarContadorLinha(this)"></td>`;
+        
+        if (isNulo) {
+          tdCheckboxes += `<td class="celula-nula" data-tom="${nota}" data-nulo="true"><input type="checkbox" class="checkbox-tonalidade" data-tom="${nota}" style="display:none;" ${checado} onchange="atualizarContadorLinha(this)">N/A</td>`;
+        } else {
+          tdCheckboxes += `<td data-tom="${nota}" data-nulo="false"><input type="checkbox" class="checkbox-tonalidade" data-tom="${nota}" ${checado} onchange="atualizarContadorLinha(this)"></td>`;
+        }
       });
 
-      const totalCols = instrumentoAtualConfig.colunasNotas.length;
-      let tdProgresso = `<td><span class="badge-progresso progresso-incompleto">0 / ${totalCols}</span></td>`;
+      let tdProgresso = `<td><span class="badge-progresso progresso-incompleto">0 / 0</span></td>`;
       let tdAcao = `<td><button class="btn-danger" style="padding: 4px 8px;" onclick="removerLinha(this)" title="Excluir exercício"><i class="fa-solid fa-trash"></i></button></td>`;
 
       tr.innerHTML = tdNome + tdCheckboxes + tdProgresso + tdAcao;
       tbody.appendChild(tr);
 
-      atualizarContadorLinha(tr.querySelector('.checkbox-tonalidade'));
+      atualizarContadorLinha(tr.querySelector('.checkbox-tonalidade') || tr);
+      atualizarSelectLinhasNull();
     }
 
     function atualizarContadorLinha(el) {
+      if (!el) return;
       const tr = el.closest('tr');
+      if (!tr) return;
+
+      const colunas = instrumentoAtualConfig.colunasNotas || [];
+      const nulosCells = tr.querySelectorAll('td[data-nulo="true"]');
+      const totalNulos = nulosCells.length;
+      const totalCols = Math.max(0, colunas.length - totalNulos);
+      
       const totalMarcados = tr.querySelectorAll('.checkbox-tonalidade:checked').length;
-      const totalCols = instrumentoAtualConfig.colunasNotas.length;
       const badge = tr.querySelector('.badge-progresso');
 
-      badge.innerText = `${totalMarcados} / ${totalCols}`;
-      badge.className = totalMarcados === totalCols ? "badge-progresso progresso-completo" : "badge-progresso progresso-incompleto";
+      if (badge) {
+        badge.innerText = `${totalMarcados} / ${totalCols}`;
+        badge.className = (totalMarcados === totalCols && totalCols > 0) ? "badge-progresso progresso-completo" : "badge-progresso progresso-incompleto";
+      }
+    }
+
+    function aplicarCelulasNulas(tornarNulo) {
+      const rowIndex = document.getElementById("nullRowSelect").value;
+      if (rowIndex === "" || rowIndex === null) {
+        return alert("Selecione uma linha válida.");
+      }
+
+      const startNote = document.getElementById("nullStartNote").value;
+      const endNote = document.getElementById("nullEndNote").value;
+
+      const startIdx = parseNota(startNote).idx;
+      const endIdx = parseNota(endNote).idx;
+      const minIdx = Math.min(startIdx, endIdx);
+      const maxIdx = Math.max(startIdx, endIdx);
+
+      const trs = document.querySelectorAll('#corpoTabela tr');
+      const tr = trs[rowIndex];
+      if (!tr) return alert("Linha não encontrada.");
+
+      const colunas = instrumentoAtualConfig.colunasNotas || [];
+      colunas.forEach(nota => {
+        const notaIdx = parseNota(nota).idx;
+        if (notaIdx >= minIdx && notaIdx <= maxIdx) {
+          const td = tr.querySelector(`td[data-tom="${nota}"]`);
+          if (td) {
+            const checkbox = td.querySelector('input[type="checkbox"]');
+            if (tornarNulo) {
+              td.className = "celula-nula";
+              td.setAttribute("data-nulo", "true");
+              if (checkbox) {
+                checkbox.checked = false;
+                checkbox.style.display = "none";
+              }
+              td.innerHTML = `<input type="checkbox" class="checkbox-tonalidade" data-tom="${nota}" style="display:none;" onchange="atualizarContadorLinha(this)">N/A`;
+            } else {
+              td.className = "";
+              td.setAttribute("data-nulo", "false");
+              td.innerHTML = `<input type="checkbox" class="checkbox-tonalidade" data-tom="${nota}" onchange="atualizarContadorLinha(this)">`;
+            }
+          }
+        }
+      });
+
+      const firstCb = tr.querySelector('.checkbox-tonalidade');
+      if (firstCb) atualizarContadorLinha(firstCb);
+      showToast(tornarNulo ? "⬛ Células marcadas como nulas!" : "⬜ Células restauradas!", "success");
     }
 
     function removerLinha(btn) {
       if (confirm("Tem certeza que deseja excluir este exercício?")) {
         btn.closest('tr').remove();
+        atualizarSelectLinhasNull();
       }
     }
 
     function limparTodaTabela() {
       if (confirm("Tem certeza que deseja APAGAR TODOS os exercícios da lista?")) {
         document.getElementById('corpoTabela').innerHTML = "";
+        atualizarSelectLinhasNull();
       }
     }
 
@@ -673,12 +812,16 @@
         if (nomeInput) {
           const nome = nomeInput.value.trim();
           if (nome) {
-            const checkboxes = tr.querySelectorAll('.checkbox-tonalidade');
+            const tds = tr.querySelectorAll('td[data-tom]');
             const tons = [];
-            checkboxes.forEach(cb => {
+            tds.forEach(td => {
+              const tom = td.getAttribute('data-tom');
+              const isNulo = td.getAttribute('data-nulo') === "true";
+              const cb = td.querySelector('input[type="checkbox"]');
               tons.push({
-                tom: cb.getAttribute('data-tom'),
-                concluido: cb.checked
+                tom: tom,
+                concluido: cb ? cb.checked : false,
+                nulo: isNulo
               });
             });
             exercicios.push({ nome: nome, tons: tons });
@@ -738,11 +881,11 @@
         let listaExercicios = [];
         if (Array.isArray(json)) {
           listaExercicios = json;
-        } else if (Array.isArray(json.exercicios)) {
+        } else if (json && Array.isArray(json.exercicios)) {
           listaExercicios = json.exercicios;
-        } else if (Array.isArray(json.repertorio)) {
+        } else if (json && Array.isArray(json.repertorio)) {
           listaExercicios = json.repertorio;
-        } else if (Array.isArray(json.lista)) {
+        } else if (json && Array.isArray(json.lista)) {
           listaExercicios = json.lista;
         }
 
@@ -753,11 +896,11 @@
 
         loteImportado = [];
         listaExercicios.forEach(item => {
-          const exNome = typeof item === 'string' ? item : (item.nome || item.exercicio || "");
+          const exNome = typeof item === 'string' ? item : (item && (item.nome || item.exercicio) ? (item.nome || item.exercicio) : "");
           if (exNome) {
             loteImportado.push({
               nome: exNome,
-              tons: instrumentoAtualConfig.colunasNotas.map(nota => ({ tom: nota, concluido: false }))
+              tons: (instrumentoAtualConfig.colunasNotas || []).map(nota => ({ tom: nota, concluido: false, nulo: false }))
             });
           }
         });
@@ -769,14 +912,13 @@
           document.getElementById('corpoTabela').innerHTML = "";
           
           exerciciosAtuais.forEach(e => {
-            const tonsConcluidos = e.tons ? e.tons.filter(t => t.concluido).map(t => t.tom) : [];
-            adicionarLinhaMusica(e.nome, tonsConcluidos);
+            adicionarLinhaMusicaComObjeto(e);
           });
           
           let adicionados = 0;
           loteImportado.forEach(e => {
             if (!nomesExistentes.has(e.nome)) {
-              adicionarLinhaMusica(e.nome, []);
+              adicionarLinhaMusicaComObjeto(e);
               adicionados++;
             }
           });
@@ -786,7 +928,7 @@
         } else {
           document.getElementById('corpoTabela').innerHTML = "";
           loteImportado.forEach(e => {
-            adicionarLinhaMusica(e.nome, []);
+            adicionarLinhaMusicaComObjeto(e);
           });
           exibirStatus(`✅ ${loteImportado.length} exercícios importados do lote "${nomeLote}"!`, "green");
           showToast(`🎵 ${loteImportado.length} exercícios importados!`, 'success');
@@ -856,8 +998,7 @@
               document.getElementById('corpoTabela').innerHTML = "";
             }
             json.exercicios.forEach(ex => {
-              const tonsConcluidos = ex.tons ? ex.tons.filter(t => t.concluido).map(t => t.tom) : [];
-              adicionarLinhaMusica(ex.nome, tonsConcluidos);
+              adicionarLinhaMusicaComObjeto(ex);
             });
           }
           exibirStatus("Arquivo JSON carregado com sucesso!", "green");
@@ -903,51 +1044,44 @@
           const jsonStr = new TextDecoder('utf-8').decode(bytes);
           const conteudoJson = JSON.parse(jsonStr);
 
-          if (conteudoJson.instrumento) {
+          if (conteudoJson && conteudoJson.instrumento) {
             instrumentoAtualConfig = conteudoJson.instrumento;
             if (conteudoJson.instrumento.key) {
               atualizarSelectInstrumentos(conteudoJson.instrumento.key);
             }
           }
-          if (conteudoJson.exercicios) {
+          if (conteudoJson && Array.isArray(conteudoJson.exercicios)) {
             exerciciosDoAluno = conteudoJson.exercicios;
           }
         }
 
         construirColunasInstrumento(instrumentoAtualConfig, exerciciosDoAluno);
 
-        const nomesExistentes = new Set(exerciciosDoAluno.map(e => e.nome));
+        const nomesExistentes = new Set((exerciciosDoAluno || []).map(e => e.nome));
         let adicionadosDoLote = 0;
-        loteImportado.forEach(e => {
+        (loteImportado || []).forEach(e => {
           if (!nomesExistentes.has(e.nome)) {
-            adicionarLinhaMusica(e.nome, []);
+            adicionarLinhaMusicaComObjeto(e);
             adicionadosDoLote++;
           }
         });
 
-        if (exerciciosDoAluno.length === 0 && loteImportado.length === 0) {
+        const totalExs = (exerciciosDoAluno || []).length + adicionadosDoLote;
+        if (totalExs === 0) {
           exibirStatus(`Aluno ${alunoId} - Nenhum exercício encontrado. Adicione novos.`, "orange");
         } else {
-          let msg = `Aluno ${alunoId} carregado! ${exerciciosDoAluno.length} exercícios existentes`;
+          let msg = `Aluno ${alunoId} carregado! ${(exerciciosDoAluno || []).length} exercícios existentes`;
           if (adicionadosDoLote > 0) {
             msg += ` + ${adicionadosDoLote} do lote importado`;
           }
           exibirStatus(`✅ ${msg}`, "green");
-          showToast(`🎵 ${exerciciosDoAluno.length + adicionadosDoLote} exercícios carregados!`, 'success');
+          showToast(`🎵 ${totalExs} exercícios carregados!`, 'success');
         }
 
       } catch (err) {
         exibirStatus("❌ Falha ao buscar dados: " + err.message, "red");
       }
     }
-
-    function sincronizarComPeriodo() {
-      console.log('✅ Tonalidades sincronizadas com o período');
-    }
-
-    window.sincronizarTonalidades = function(itens) {
-      console.log('🔄 Sincronizando tonalidades:', itens);
-    };
 
     async function salvarDadosAluno() {
       const busca = document.getElementById('buscaAluno').value.trim();
