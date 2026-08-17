@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Editor Markdown & Gerador de Acordes</title>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; height: 100vh; background-color: #f4f4f9; }
+        
+        header { background-color: #333; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        .header-left { display: flex; align-items: center; gap: 10px; }
+        input[type="text"] { padding: 6px; border-radius: 4px; border: none; width: 200px; }
+        
+        .actions button, .actions label { background-color: #007bff; color: white; border: none; padding: 8px 12px; margin-left: 10px; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+        .actions button:hover, .actions label:hover { background-color: #0056b3; }
+        .actions input[type="file"] { display: none; }
+
+        .main-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
+        
+        /* Painel do Editor e Visualizador */
+        .container { display: flex; flex: 1; overflow: hidden; }
+        .pane { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #ddd; }
+        .pane-header { background-color: #e9ecef; padding: 8px 15px; font-weight: bold; font-size: 0.9rem; color: #495057; border-bottom: 1px solid #ddd; }
+        textarea { flex: 1; resize: none; border: none; padding: 15px; font-family: 'Courier New', Courier, monospace; font-size: 1rem; outline: none; }
+        #preview { flex: 1; padding: 15px; overflow-y: auto; background-color: #fff; }
+
+        /* Modal Flutuante e Móvel do Gerador de Acordes */
+        .chord-modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.2);
+            z-index: 1000;
+        }
+        .chord-modal {
+            background: white;
+            width: 380px;
+            border-radius: 8px;
+            box-shadow: 0 5px 25px rgba(0,0,0,0.3);
+            display: flex;
+            flex-direction: column;
+            position: absolute;
+            top: 60px;
+            left: 50px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            touch-action: none;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 8px;
+            cursor: move;
+            user-select: none;
+        }
+        .modal-header h3 { font-size: 1.1rem; color: #333; }
+        .close-modal { background: none; border: none; font-size: 1.2rem; cursor: pointer; color: #777; }
+        .close-modal:hover { color: #000; }
+
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; text-align: left; }
+        .controls-grid.full { grid-template-columns: 1fr; }
+        .controls-grid label { font-size: 11px; font-weight: bold; color: #555; display: block; margin-bottom: 2px; }
+        .controls-grid input, .controls-grid select { width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
+        .chord-name-input { font-size: 15px; font-weight: bold; color: #e94560; border: 2px dashed #ccc; border-radius: 5px; text-align: center; width: 100%; padding: 5px; }
+        
+        .barre-section { background: #f8f9fa; padding: 8px; border-radius: 6px; border: 1px solid #e9ecef; margin-bottom: 10px; }
+        .barre-row { display: flex; gap: 5px; align-items: center; }
+
+        .chord-box { text-align: center; margin: 5px 0; }
+        svg { background: #fff; border-radius: 5px; box-shadow: inset 0 0 5px rgba(0,0,0,0.05); }
+        .clickable-area { fill: transparent; cursor: pointer; }
+        .clickable-area:hover { fill: rgba(233, 69, 96, 0.15); }
+
+        .btn-chord { background: #e94560; color: white; border: none; padding: 9px; font-size: 14px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px; }
+        .btn-chord:hover { background: #d0344f; }
+        
+        .toggle-generator { background: #6c757d !important; }
+        .toggle-generator:hover { background: #5a6268 !important; }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="header-left">
+            <input type="text" id="filename-input" value="documento.md" placeholder="Nome do arquivo">
+        </div>
+        <div class="actions">
+            <button class="toggle-generator" id="open-modal-btn">Criar / Inserir Acorde</button>
+            <label for="file-input">Abrir</label>
+            <input type="file" id="file-input" accept=".md,.txt">
+            <button id="save-btn">Salvar</button>
+        </div>
+    </header>
+
+    <div class="main-layout">
+        <!-- Editor e Visualizador -->
+        <div class="container">
+            <div class="pane">
+                <div class="pane-header">Editor (Markdown)</div>
+                <textarea id="editor" placeholder="# Comece a digitar..."></textarea>
+            </div>
+            <div class="pane">
+                <div class="pane-header">Visualizador (Preview)</div>
+                <div id="preview"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal Flutuante e Móvel: Gerador de Acordes -->
+    <div class="chord-modal-overlay" id="chordModalOverlay">
+        <div class="chord-modal" id="chordModal">
+            <div class="modal-header" id="modalHeader">
+                <h3>Gerador de Acordes</h3>
+                <button class="close-modal" id="close-modal-btn">&times;</button>
+            </div>
+
+            <div class="controls-grid full">
+                <div>
+                    <label>Nome do Acorde:</label>
+                    <input type="text" id="chordNameInput" class="chord-name-input" value="Bm">
+                </div>
+            </div>
+
+            <div class="controls-grid">
+                <div>
+                    <label>Casa Inicial (Traste):</label>
+                    <select id="startFretSelect" onchange="renderDots()">
+                        <option value="1">1ª Casa</option>
+                        <option value="2" selected>2ª Casa</option>
+                        <option value="3">3ª Casa</option>
+                        <option value="4">4ª Casa</option>
+                        <option value="5">5ª Casa</option>
+                        <option value="6">6ª Casa</option>
+                        <option value="7">7ª Casa</option>
+                        <option value="8">8ª Casa</option>
+                        <option value="9">9ª Casa</option>
+                        <option value="10">10ª Casa</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Modo de Inserção:</label>
+                    <select id="insertModeSelect">
+                        <option value="stack">Vertical (Empilhado)</option>
+                        <option value="inline">Horizontal (Lado a lado)</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="controls-grid full">
+                <div>
+                    <label>Alinhamento do Acorde:</label>
+                    <select id="textAlignSelect">
+                        <option value="center">Centralizado</option>
+                        <option value="left">Esquerda</option>
+                        <option value="right">Direita</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Bloco de Pestana -->
+            <div class="barre-section">
+                <label>Adicionar / Remover Pestana:</label>
+                <div class="barre-row">
+                    <select id="barreFret">
+                        <option value="1">Traste 1</option>
+                        <option value="2">Traste 2</option>
+                        <option value="3">Traste 3</option>
+                        <option value="4">Traste 4</option>
+                    </select>
+                    <select id="barreStart" title="Corda Inicial">
+                        <option value="0">6ª (E)</option>
+                        <option value="1" selected>5ª (A)</option>
+                        <option value="2">4ª (D)</option>
+                        <option value="3">3ª (G)</option>
+                        <option value="4">2ª (B)</option>
+                        <option value="5">1ª (e)</option>
+                    </select>
+                    <select id="barreEnd" title="Corda Final">
+                        <option value="0">6ª (E)</option>
+                        <option value="1">5ª (A)</option>
+                        <option value="2">4ª (D)</option>
+                        <option value="3">3ª (G)</option>
+                        <option value="4">2ª (B)</option>
+                        <option value="5" selected>1ª (e)</option>
+                    </select>
+                    <button type="button" onclick="toggleBarre()" style="background:#333; color:white; border:none; padding:5px 8px; border-radius:4px; font-size:11px; cursor:pointer;">Aplicar</button>
+                </div>
+            </div>
+
+            <div class="chord-box">
+                <svg id="fretboard" width="140" height="160" viewBox="0 0 140 160">
+                    <rect id="nut-rect" x="25" y="30" width="90" height="4" fill="#333"></rect>
+                    <path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"></path>
+                    <path d="M25 30v120M43 30v120M61 30v120M79 30v120M97 30v120M115 30v120" stroke="#666" stroke-width="1.2"></path>
+                    <g id="fret-number-group"></g>
+                    <g id="interactive-grid"></g>
+                    <g id="finger-dots"></g>
+                </svg>
+            </div>
+
+            <button class="btn-chord" onclick="insertChordIntoEditor()">Inserir no Texto</button>
+        </div>
+    </div>
+
+    <script>
+        const editor = document.getElementById('editor');
+        const preview = document.getElementById('preview');
+        const saveBtn = document.getElementById('save-btn');
+        const fileInput = document.getElementById('file-input');
+        const filenameInput = document.getElementById('filename-input');
+        
+        const chordModalOverlay = document.getElementById('chordModalOverlay');
+        const chordModal = document.getElementById('chordModal');
+        const openModalBtn = document.getElementById('open-modal-btn');
+        const closeModalBtn = document.getElementById('close-modal-btn');
+        const modalHeader = document.getElementById('modalHeader');
+
+        function updatePreview() {
+            preview.innerHTML = marked.parse(editor.value);
+        }
+
+        editor.addEventListener('input', updatePreview);
+
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            filenameInput.value = file.name;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                editor.value = e.target.result;
+                updatePreview();
+            };
+            reader.readAsText(file);
+        });
+
+        saveBtn.addEventListener('click', () => {
+            const markdownText = editor.value;
+            const blob = new Blob([markdownText], { type: 'text/markdown;charset=utf-8' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filenameInput.value || 'documento.md';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+
+        openModalBtn.addEventListener('click', () => { chordModalOverlay.style.display = 'block'; });
+        closeModalBtn.addEventListener('click', () => { chordModalOverlay.style.display = 'none'; });
+
+        // --- Arrastar Modal (Pointer Events) ---
+        let isDragging = false, startX, startY, initialX, initialY;
+
+        modalHeader.addEventListener('pointerdown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            
+            const rect = chordModal.getBoundingClientRect();
+            initialX = rect.left;
+            initialY = rect.top;
+            
+            chordModal.style.left = initialX + 'px';
+            chordModal.style.top = initialY + 'px';
+            
+            modalHeader.setPointerCapture(e.pointerId);
+            e.preventDefault();
+        });
+
+        modalHeader.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            chordModal.style.left = (initialX + dx) + 'px';
+            chordModal.style.top = (initialY + dy) + 'px';
+        });
+
+        modalHeader.addEventListener('pointerup', (e) => {
+            isDragging = false;
+            try { modalHeader.releasePointerCapture(e.pointerId); } catch (err) {}
+        });
+
+        // --- Chord Generator Logic ---
+        const stringsX = [25, 43, 61, 79, 97, 115];
+        const fretCentersY = { 0: 22, 1: 47, 2: 75, 3: 105, 4: 135 };
+        let activeNotes = [];
+        let activeBarres = [];
+
+        const gridGroup = document.getElementById('interactive-grid');
+        const dotsGroup = document.getElementById('finger-dots');
+        const fretNumberGroup = document.getElementById('fret-number-group');
+
+        for (let s = 0; s < 6; s++) {
+            for (let f = 0; f <= 4; f++) {
+                let cx = stringsX[s];
+                let rectWidth = (s < 5) ? (stringsX[s+1] - stringsX[s]) : 15;
+                let rectX = cx - rectWidth/2;
+                let rectY = (f === 0) ? 5 : (f === 1 ? 34 : (f === 2 ? 61 : (f === 3 ? 91 : 121)));
+                let rectHeight = (f === 0) ? 23 : 28;
+
+                let hitBox = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                hitBox.setAttribute("x", rectX);
+                hitBox.setAttribute("y", rectY);
+                hitBox.setAttribute("width", rectWidth);
+                hitBox.setAttribute("height", rectHeight);
+                hitBox.setAttribute("class", "clickable-area");
+                hitBox.onclick = () => handleCellClick(s, f);
+                gridGroup.appendChild(hitBox);
+            }
+        }
+
+        function handleCellClick(stringIndex, fretIndex) {
+            if (fretIndex === 0) {
+                let existing = activeNotes.find(n => n.string === stringIndex && n.fret === 0);
+                if (!existing) {
+                    activeNotes.push({ string: stringIndex, fret: 0, type: 'text', value: 'O' });
+                } else if (existing.value === 'O') {
+                    existing.value = 'X';
+                } else {
+                    activeNotes = activeNotes.filter(n => !(n.string === stringIndex && n.fret === 0));
+                }
+            } else {
+                let index = activeNotes.findIndex(n => n.string === stringIndex && n.fret === fretIndex);
+                if (index > -1) {
+                    activeNotes.splice(index, 1);
+                } else {
+                    activeNotes = activeNotes.filter(n => n.string !== stringIndex);
+                    activeNotes.push({ string: stringIndex, fret: fretIndex, type: 'dot' });
+                }
+            }
+            renderDots();
+        }
+
+        function toggleBarre() {
+            let fret = parseInt(document.getElementById('barreFret').value);
+            let s1 = parseInt(document.getElementById('barreStart').value);
+            let s2 = parseInt(document.getElementById('barreEnd').value);
+            let minStr = Math.min(s1, s2);
+            let maxStr = Math.max(s1, s2);
+
+            let index = activeBarres.findIndex(b => b.fret === fret);
+            if (index > -1) {
+                activeBarres.splice(index, 1);
+            } else {
+                activeBarres.push({ fret, minStr, maxStr });
+            }
+            renderDots();
+        }
+
+        function renderDots() {
+            dotsGroup.innerHTML = '';
+            fretNumberGroup.innerHTML = '';
+
+            let startFret = parseInt(document.getElementById('startFretSelect').value);
+
+            if (startFret > 1) {
+                let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                text.setAttribute("x", "12");
+                text.setAttribute("y", "50");
+                text.setAttribute("fill", "#333");
+                text.setAttribute("font-weight", "bold");
+                text.setAttribute("font-size", "13");
+                text.setAttribute("text-anchor", "middle");
+                text.textContent = startFret + "ª";
+                fretNumberGroup.appendChild(text);
+            }
+
+            activeBarres.forEach(barre => {
+                let x1 = stringsX[barre.minStr];
+                let x2 = stringsX[barre.maxStr];
+                let cy = fretCentersY[barre.fret];
+                let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", x1 - 6);
+                rect.setAttribute("y", cy - 6);
+                rect.setAttribute("width", (x2 - x1) + 12);
+                rect.setAttribute("height", "12");
+                rect.setAttribute("rx", "6");
+                rect.setAttribute("fill", "#e94560");
+                dotsGroup.appendChild(rect);
+            });
+
+            activeNotes.forEach(note => {
+                let cx = stringsX[note.string];
+                let cy = fretCentersY[note.fret];
+                if (note.type === 'dot') {
+                    let circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", cx);
+                    circle.setAttribute("cy", cy);
+                    circle.setAttribute("r", "6");
+                    circle.setAttribute("fill", "#e94560");
+                    dotsGroup.appendChild(circle);
+                } else if (note.type === 'text') {
+                    let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", cx);
+                    text.setAttribute("y", cy);
+                    text.setAttribute("fill", "#e94560");
+                    text.setAttribute("font-weight", "bold");
+                    text.setAttribute("font-size", "14");
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("dominant-baseline", "central");
+                    text.textContent = note.value;
+                    dotsGroup.appendChild(text);
+                }
+            });
+        }
+
+        function insertChordIntoEditor() {
+            let chordName = document.getElementById('chordNameInput').value || 'Bm';
+            let textAlign = document.getElementById('textAlignSelect').value;
+            let insertMode = document.getElementById('insertModeSelect').value;
+            let startFret = parseInt(document.getElementById('startFretSelect').value);
+            let elementsHTML = '';
+
+            if (startFret > 1) {
+                elementsHTML += `<text x="12" y="50" fill="#333" font-weight="bold" font-size="13" text-anchor="middle">${startFret}ª</text>`;
+            }
+
+            activeBarres.forEach(barre => {
+                let x1 = stringsX[barre.minStr];
+                let x2 = stringsX[barre.maxStr];
+                let cy = fretCentersY[barre.fret];
+                elementsHTML += `<rect x="${x1 - 6}" y="${cy - 6}" width="${(x2 - x1) + 12}" height="12" rx="6"/>`;
+            });
+
+            activeNotes.forEach(note => {
+                let cx = stringsX[note.string];
+                if (note.type === 'dot') {
+                    let cy = fretCentersY[note.fret];
+                    elementsHTML += `<circle cx="${cx}" cy="${cy}" r="6"/>`;
+                } else if (note.type === 'text') {
+                    elementsHTML += `<text x="${cx}" y="22">${note.value}</text>`;
+                }
+            });
+
+            // Ajustado margin-bottom para -6px para colar o nome no diagrama
+            let chordBody = `<div style="font:bold 20px sans-serif;color:#e94560;background:#fff;padding:0 8px;margin-bottom:-6px;text-align:center;position:relative;z-index:2;">${chordName}</div><svg width="140" height="160" viewBox="0 0 140 160"><rect x="25" y="30" width="90" height="4" fill="#333"/><path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"/><path d="M25 30v120M43 30v120M61 30v120M79 30v120M97 30v120M115 30v120" stroke="#666" stroke-width="1.2"/><g fill="#e94560" font-weight="bold" font-size="14" text-anchor="middle">${elementsHTML}</g></svg>`;
+
+            let finalOutput = '';
+            if (insertMode === 'inline') {
+                finalOutput = `<div style="display:inline-block; margin: 5px 10px; text-align:${textAlign};">${chordBody}</div>`;
+            } else {
+                finalOutput = `<div style="text-align:${textAlign}; margin: 20px 0;"><div style="display:inline-block;">${chordBody}</div></div>`;
+            }
+
+            const startPos = editor.selectionStart;
+            const endPos = editor.selectionEnd;
+            
+            editor.value = editor.value.substring(0, startPos) + "\n" + finalOutput + "\n" + editor.value.substring(endPos);
+            updatePreview();
+            
+            chordModalOverlay.style.display = 'none';
+        }
+
+        editor.value = "# Meu Guia de Cifras\n\nO nome do acorde agora está perfeitamente ajustado e alinhado junto ao diagrama!\n\n";
+        renderDots();
+        updatePreview();
+    </script>
+</body>
+</html>
