@@ -1070,7 +1070,11 @@
 
       try {
         const apiUrl = `https://api.github.com/repos/albertinosesc/pdf-conceito/contents/txt/${currentTxtFile}`;
-        const body = { message: `Atualizando ${currentTxtFile}`, content: conteudoBase64, branch: 'main' };
+        const body = { 
+          message: `Atualizando ${currentTxtFile}`, 
+          content: conteudoBase64, 
+          branch: GH_CONFIG.branch  // CORRIGIDO: usando a variável de configuração
+        };
         if (currentTxtSha) body.sha = currentTxtSha;
 
         const response = await fetch(apiUrl, {
@@ -1134,7 +1138,7 @@
     }
 
     // ============================================================
-    // FUNÇÕES MARKDOWN
+    // FUNÇÕES MARKDOWN - CORRIGIDAS
     // ============================================================
     function abrirMdPorLinha(btn) {
       const tr = btn.closest('tr');
@@ -1206,102 +1210,103 @@
       }
     }
 
-function mdRenderizar() {
-    const editor = document.getElementById('mdEditor');
-    const preview = document.getElementById('mdPreview');
-    const wordCount = document.getElementById('mdWordCount');
-    const conteudo = editor.value || '';
-    
-    try {
-        // ===== EXTRAI OS BLOCOS ABC ANTES DO PARSE =====
+    function mdRenderizar() {
+      const editor = document.getElementById('mdEditor');
+      const preview = document.getElementById('mdPreview');
+      const wordCount = document.getElementById('mdWordCount');
+      const conteudo = editor.value || '';
+      
+      try {
+        // Extrai os blocos ABC antes do parse
         const blocosABC = [];
         let textoParaParse = conteudo;
         
-        // Extrai todos os blocos [ABC] e substitui por placeholders
         textoParaParse = textoParaParse.replace(/\[ABC\]([\s\S]*?)\[\/ABC\]/g, function(match, codigo) {
-            const id = 'ABC_BLOCK_' + blocosABC.length;
-            blocosABC.push({ id, codigo: codigo.trim() });
-            return `{{${id}}}`;
+          const id = 'ABC_BLOCK_' + blocosABC.length;
+          blocosABC.push({ id, codigo: codigo.trim() });
+          return `{{${id}}}`;
         });
         
-        // Faz o parse do Markdown
         let html = marked.parse(textoParaParse);
         
-        // Restaura os blocos ABC
         blocosABC.forEach(block => {
-            const placeholder = `{{${block.id}}}`;
-            const abcDiv = `<div class="abcjs-container" data-abc="${encodeURIComponent(block.codigo)}" style="min-height:80px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin:10px 0;"></div>`;
-            html = html.replace(placeholder, abcDiv);
+          const placeholder = `{{${block.id}}}`;
+          const abcDiv = `<div class="abcjs-container" data-abc="${encodeURIComponent(block.codigo)}" style="min-height:80px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;padding:10px;margin:10px 0;"></div>`;
+          html = html.replace(placeholder, abcDiv);
         });
         
         preview.innerHTML = html;
         
-        // Renderiza os blocos ABC
         setTimeout(() => {
-            const containers = preview.querySelectorAll('.abcjs-container');
-            containers.forEach(container => {
-                const codigoEncoded = container.dataset.abc;
-                if (codigoEncoded) {
-                    const codigo = decodeURIComponent(codigoEncoded);
-                    if (typeof ABCJS !== 'undefined') {
-                        try {
-                            ABCJS.renderAbc(container, codigo, {
-                                responsive: 'resize',
-                                staffwidth: 700,
-                                paddingtop: 10,
-                                paddingbottom: 10
-                            });
-                        } catch (e) {
-                            container.innerHTML = `<div style="color:red;padding:10px;">❌ Erro ao renderizar: ${e.message}</div>`;
-                        }
-                    } else {
-                        container.innerHTML = `<pre style="background:#1e293b;color:#e2e8f0;padding:10px;border-radius:4px;overflow-x:auto;">${codigo}</pre>`;
-                    }
+          const containers = preview.querySelectorAll('.abcjs-container');
+          containers.forEach(container => {
+            const codigoEncoded = container.dataset.abc;
+            if (codigoEncoded) {
+              const codigo = decodeURIComponent(codigoEncoded);
+              if (typeof ABCJS !== 'undefined') {
+                try {
+                  ABCJS.renderAbc(container, codigo, {
+                    responsive: 'resize',
+                    staffwidth: 700,
+                    paddingtop: 10,
+                    paddingbottom: 10
+                  });
+                } catch (e) {
+                  container.innerHTML = `<div style="color:red;padding:10px;">❌ Erro ao renderizar: ${e.message}</div>`;
                 }
-            });
+              } else {
+                container.innerHTML = `<pre style="background:#1e293b;color:#e2e8f0;padding:10px;border-radius:4px;overflow-x:auto;">${codigo}</pre>`;
+              }
+            }
+          });
         }, 300);
         
         const palavras = conteudo.trim().split(/\s+/).filter(p => p.length > 0);
         if (wordCount) wordCount.textContent = `${palavras.length} palavras`;
-    } catch (e) {
+      } catch (e) {
         preview.innerHTML = `<div style="color:red;">❌ Erro ao renderizar: ${e.message}</div>`;
+      }
     }
-}
 
+    // CORRIGIDA: função mdAddFormat com cálculo correto
     function mdAddFormat(antes, depois) {
       const editor = document.getElementById('mdEditor');
       const start = editor.selectionStart;
       const end = editor.selectionEnd;
       const texto = editor.value;
       const selectedText = texto.substring(start, end);
-      let newText;
+      
+      // Guarda o comprimento da seleção ANTES de modificar
+      const selLength = end - start;
+      
       if (selectedText) {
-        newText = texto.substring(0, start) + antes + selectedText + depois + texto.substring(end);
-        editor.value = newText;
+        editor.value = texto.substring(0, start) + antes + selectedText + depois + texto.substring(end);
         editor.setSelectionRange(start + antes.length, start + antes.length + selectedText.length);
       } else {
-        newText = texto.substring(0, start) + antes + depois + texto.substring(end);
-        editor.value = newText;
+        editor.value = texto.substring(0, start) + antes + depois + texto.substring(end);
         editor.setSelectionRange(start + antes.length, start + antes.length);
       }
       mdRenderizar();
       editor.focus();
     }
 
+    // CORRIGIDA: mdAddLink com variável renomeada
     function mdAddLink() {
       const editor = document.getElementById('mdEditor');
       const start = editor.selectionStart;
-      const selectedText = editor.value.substring(start, start + editor.selectionEnd - start) || 'texto';
+      const end = editor.selectionEnd;
+      const selectedText = editor.value.substring(start, end) || 'texto';
       const url = prompt('Digite a URL:', 'https://');
       if (url) {
         const link = `[${selectedText}](${url})`;
-        const texto = editor.value;
-        editor.value = texto.substring(0, start) + link + texto.substring(start + editor.selectionEnd - start);
+        const textoAtual = editor.value;  // Renomeado para textoAtual
+        editor.value = textoAtual.substring(0, start) + link + textoAtual.substring(end);
         mdRenderizar();
         editor.focus();
       }
     }
 
+    // CORRIGIDA: mdAddImage com variável renomeada
     function mdAddImage() {
       const alt = prompt('Texto alternativo:', 'imagem');
       const url = prompt('URL da imagem:', 'https://');
@@ -1309,8 +1314,8 @@ function mdRenderizar() {
         const editor = document.getElementById('mdEditor');
         const start = editor.selectionStart;
         const img = `![${alt}](${url})`;
-        const texto = editor.value;
-        editor.value = texto.substring(0, start) + img + texto.substring(start);
+        const textoAtual = editor.value;  // Renomeado para textoAtual
+        editor.value = textoAtual.substring(0, start) + img + textoAtual.substring(start);
         mdRenderizar();
         editor.focus();
       }
@@ -1328,13 +1333,19 @@ function mdRenderizar() {
       utf8Bytes.forEach(b => binaryStr += String.fromCharCode(b));
       const conteudoBase64 = btoa(binaryStr);
 
-      const statusEl = document.getElementById('mdStatus');
-      statusEl.textContent = 'Salvando...';
-      statusEl.className = 'md-status saving';
+      const statusEl = document.querySelector('.md-toolbar .md-status');
+      if (statusEl) {
+        statusEl.textContent = 'Salvando...';
+        statusEl.className = 'md-status saving';
+      }
 
       try {
         const apiUrl = `https://api.github.com/repos/albertinosesc/pdf-conceito/contents/md/${currentMdFile}`;
-        const body = { message: `Atualizando ${currentMdFile}`, content: conteudoBase64, branch: 'main' };
+        const body = { 
+          message: `Atualizando ${currentMdFile}`, 
+          content: conteudoBase64, 
+          branch: GH_CONFIG.branch  // CORRIGIDO: usando a variável de configuração
+        };
         if (currentMdSha) body.sha = currentMdSha;
 
         const response = await fetch(apiUrl, {
@@ -1346,19 +1357,25 @@ function mdRenderizar() {
         if (response.ok) {
           const data = await response.json();
           currentMdSha = data.content.sha;
-          statusEl.textContent = '✅ Salvo!';
-          statusEl.className = 'md-status saved';
+          if (statusEl) {
+            statusEl.textContent = '✅ Salvo!';
+            statusEl.className = 'md-status saved';
+          }
           showToast(`✅ ${currentMdFile} salvo!`, 'success');
           setTimeout(() => {
-            statusEl.textContent = 'Editando...';
-            statusEl.className = 'md-status';
+            if (statusEl) {
+              statusEl.textContent = 'Editando...';
+              statusEl.className = 'md-status';
+            }
           }, 2000);
         } else {
           throw new Error('Erro ao salvar');
         }
       } catch (error) {
-        statusEl.textContent = `❌ ${error.message}`;
-        statusEl.className = 'md-status error';
+        if (statusEl) {
+          statusEl.textContent = `❌ ${error.message}`;
+          statusEl.className = 'md-status error';
+        }
         showToast(`❌ Erro: ${error.message}`, 'error');
       }
     }
@@ -1745,7 +1762,7 @@ function mdRenderizar() {
           const cacheKey = `lotes_aluno_${alunoId}`;
           localStorage.setItem(cacheKey, JSON.stringify(lotesImportados));
           
-          // ===== AVISA O PERÍODO QUE OS DADOS FORAM ATUALIZADOS =====
+          // Avisa o período que os dados foram atualizados
           if (typeof avisarPeriodo === 'function') {
               avisarPeriodo();
           } else {
@@ -1903,7 +1920,7 @@ function mdRenderizar() {
       if (e.target === this) fecharMdModal();
     });
 
-    console.log('✅ Conceitos Teóricos - Versão completa com gerenciamento de lotes e layout otimizado!');
+    console.log('✅ Conceitos Teóricos - Versão completa com todas as correções aplicadas!');
   </script>
 </body>
 </html>
