@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Verificador de Sequência e Tamanho - GitHub</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 850px; margin: 40px auto; padding: 20px; background: #f4f7f6; color: #333; }
+        .card { background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        label { display: block; margin-top: 12px; font-weight: bold; font-size: 14px; }
+        input[type="text"], button { padding: 10px; font-size: 16px; margin-top: 5px; border-radius: 5px; border: 1px solid #ccc; width: 100%; box-sizing: border-box; }
+        .search-input { padding: 8px; font-size: 14px; margin-top: 8px; margin-bottom: 8px; border-radius: 4px; border: 1px solid #bbb; width: 100%; box-sizing: border-box; }
+        button { background: #2ea44f; color: white; border: none; cursor: pointer; margin-top: 15px; }
+        button:hover { background: #2c974b; }
+        .btn-toggle { background: #6c757d; font-size: 13px; padding: 6px 10px; width: auto; margin-right: 5px; }
+        .btn-action { background: #007bff; font-size: 13px; padding: 6px 10px; width: auto; margin-right: 5px; }
+        .btn-action:hover { background: #0056b3; }
+        .results { margin-top: 20px; border-top: 1px solid #eee; padding-top: 15px; }
+        .missing-box { background: #ffeef0; padding: 10px; border-radius: 5px; border: 1px solid #fdaeb7; margin-top: 8px; max-height: 200px; overflow-y: auto; }
+        .missing-warning-box { background: #ffeef0; padding: 12px; border-radius: 5px; border: 1px solid #fdaeb7; margin-bottom: 15px; }
+        .missing-text { color: #d73a49; font-weight: bold; }
+        .found { color: #28a745; font-weight: bold; }
+        #fileList { max-height: 250px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; background: #fafafa; border-radius: 5px; list-style-type: none; margin-top: 8px; }
+        li { padding: 4px 0; border-bottom: 1px solid #eee; font-size: 14px; }
+        .info-box { background: #e7f5ff; padding: 12px; border-radius: 5px; border: 1px solid #74c0fc; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Verificador de Sequência e Tamanho no GitHub</h2>
+        
+        <label>Usuário ou Organização:</label>
+        <input type="text" id="owner" value="musicanplay3-sudo">
+        
+        <label>Nome do Repositório:</label>
+        <input type="text" id="repo" value="m-pav">
+        
+        <label>Caminho da Pasta:</label>
+        <input type="text" id="path" value="partituras/">
+        
+        <button id="checkBtn">Analisar Pasta no GitHub</button>
+        
+        <div id="loading" style="display:none; margin-top: 15px; font-style: italic; color: #666;">Buscando dados e calculando tamanhos...</div>
+        
+        <div id="results" class="results" style="display:none;">
+            <h3>Resultado da Análise</h3>
+            
+            <div class="info-box">
+                <p><strong>Total de arquivos:</strong> <span id="totalFiles">0</span></p>
+                <p><strong>Espaço ocupado na pasta:</strong> <span id="totalSize">0 MB</span></p>
+                <p><strong>Menor número:</strong> <span id="minNum">-</span> | <strong>Maior número:</strong> <span id="maxNum">-</span></p>
+            </div>
+            
+            <!-- Seção de Faltantes -->
+            <div id="warningContainer" class="missing-warning-box">
+                <p id="missingWarning" class="missing-text" style="margin: 0; font-size: 15px;"></p>
+                <div style="margin-top: 8px;">
+                    <button class="btn-toggle" onclick="toggleSection('missingListContainer')">Mostrar/Esconder lista</button>
+                    <button class="btn-action" onclick="copyMissingText()">Copiar Faltantes</button>
+                    <button class="btn-action" onclick="exportMissingTxt()">Exportar Faltantes (.txt)</button>
+                </div>
+                
+                <div id="missingListContainer" style="display:none; margin-top: 10px;">
+                    <input type="text" id="searchMissing" class="search-input" placeholder="Pesquisar número faltando..." onkeyup="filterMissingList()">
+                    <div id="missingList" class="missing-box">
+                        <span id="missingText"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Seção de Arquivos Encontrados -->
+            <div style="margin-top: 15px;">
+                <strong>Lista de Arquivos Encontrados:</strong>
+                <br>
+                <button class="btn-toggle" onclick="toggleSection('fileListContainer')">Mostrar/Esconder lista</button>
+                <button class="btn-action" onclick="copyFilesText()">Copiar Arquivos</button>
+                <button class="btn-action" onclick="exportFilesTxt()">Exportar Arquivos (.txt)</button>
+                
+                <div id="fileListContainer" style="display:none; margin-top: 10px;">
+                    <input type="text" id="searchFiles" class="search-input" placeholder="Pesquisar partitura (número ou nome)..." onkeyup="filterFilesList()">
+                    <ul id="fileList"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let globalMissing = [];
+        let globalFileDetails = [];
+
+        function toggleSection(elementId) {
+            const el = document.getElementById(elementId);
+            el.style.display = (el.style.display === 'block') ? 'none' : 'block';
+        }
+
+        function copyToClipboard(text, message) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert(message);
+            }).catch(err => {
+                alert('Erro ao copiar: ' + err);
+            });
+        }
+
+        function downloadTxt(filename, text) {
+            const element = document.createElement('a');
+            const file = new Blob([text], {type: 'text/plain'});
+            element.href = URL.createObjectURL(file);
+            element.download = filename;
+            document.body.appendChild(element);
+            element.click();
+            document.body.removeChild(element);
+        }
+
+        function copyMissingText() {
+            if (globalMissing.length === 0) {
+                alert('Não há números faltando para copiar.');
+                return;
+            }
+            copyToClipboard(globalMissing.join(', '), 'Números faltando copiados para a área de transferência!');
+        }
+
+        function exportMissingTxt() {
+            if (globalMissing.length === 0) {
+                alert('Não há números faltando para exportar.');
+                return;
+            }
+            downloadTxt('numeros_faltando.txt', globalMissing.join(', '));
+        }
+
+        function copyFilesText() {
+            if (globalFileDetails.length === 0) {
+                alert('Não há arquivos para copiar.');
+                return;
+            }
+            const text = globalFileDetails.map(f => `${f.num} - ${f.name}`).join('\n');
+            copyToClipboard(text, 'Lista de arquivos copiada para a área de transferência!');
+        }
+
+        function exportFilesTxt() {
+            if (globalFileDetails.length === 0) {
+                alert('Não há arquivos para exportar.');
+                return;
+            }
+            const text = globalFileDetails.map(f => `${f.num} - ${f.name} (${f.sizeStr})`).join('\n');
+            downloadTxt('arquivos_encontrados.txt', text);
+        }
+
+        function filterFilesList() {
+            const query = document.getElementById('searchFiles').value.toLowerCase();
+            const ul = document.getElementById('fileList');
+            const items = ul.getElementsByTagName('li');
+
+            for (let i = 0; i < items.length; i++) {
+                const text = items[i].textContent || items[i].innerText;
+                if (text.toLowerCase().indexOf(query) > -1) {
+                    items[i].style.display = "";
+                } else {
+                    items[i].style.display = "none";
+                }
+            }
+        }
+
+        function filterMissingList() {
+            const query = document.getElementById('searchMissing').value.trim();
+            const missingTextEl = document.getElementById('missingText');
+            
+            if (!query) {
+                missingTextEl.innerText = globalMissing.join(', ');
+                return;
+            }
+
+            const filtered = globalMissing.filter(num => num.toString().includes(query));
+            if (filtered.length > 0) {
+                missingTextEl.innerText = filtered.join(', ');
+            } else {
+                missingTextEl.innerText = 'Nenhum número correspondente encontrado nos faltantes.';
+            }
+        }
+
+        document.getElementById('checkBtn').addEventListener('click', async () => {
+            const owner = document.getElementById('owner').value.trim();
+            const repo = document.getElementById('repo').value.trim();
+            const path = document.getElementById('path').value.trim();
+            const loading = document.getElementById('loading');
+            const results = document.getElementById('results');
+
+            loading.style.display = 'block';
+            results.style.display = 'none';
+
+            document.getElementById('fileListContainer').style.display = 'none';
+            document.getElementById('missingListContainer').style.display = 'none';
+            document.getElementById('searchFiles').value = '';
+            document.getElementById('searchMissing').value = '';
+
+            try {
+                const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${path}`);
+                if (!response.ok) throw new Error('Verifique se o repositório é público e o caminho está correto.');
+                const data = await response.json();
+
+                let numbers = [];
+                globalFileDetails = [];
+                let totalBytes = 0;
+
+                data.forEach(item => {
+                    if (item.type === 'file') {
+                        totalBytes += item.size || 0;
+                        const match = item.name.match(/^(\d+)/);
+                        if (match) {
+                            const num = parseInt(match[1], 10);
+                            numbers.push(num);
+                            
+                            let sizeStr = '';
+                            if (item.size < 1024 * 1024) {
+                                sizeStr = (item.size / 1024).toFixed(1) + ' KB';
+                            } else {
+                                sizeStr = (item.size / (1024 * 1024)).toFixed(2) + ' MB';
+                            }
+
+                            globalFileDetails.push({ num, name: item.name, sizeStr });
+                        }
+                    }
+                });
+
+                let totalSizeFormatted = '';
+                if (totalBytes < 1024 * 1024 * 1024) {
+                    totalSizeFormatted = (totalBytes / (1024 * 1024)).toFixed(2) + ' MB';
+                } else {
+                    totalSizeFormatted = (totalBytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+                }
+
+                const uniqueNumbers = [...new Set(numbers)].sort((a, b) => a - b);
+                const min = uniqueNumbers[0], max = uniqueNumbers[uniqueNumbers.length - 1];
+                
+                globalMissing = [];
+                for (let i = min; i <= max; i++) {
+                    if (!uniqueNumbers.includes(i)) {
+                        globalMissing.push(i);
+                    }
+                }
+
+                document.getElementById('totalFiles').innerText = globalFileDetails.length;
+                document.getElementById('totalSize').innerText = totalSizeFormatted;
+                document.getElementById('minNum').innerText = min;
+                document.getElementById('maxNum').innerText = max;
+
+                const missingWarningEl = document.getElementById('missingWarning');
+                const missingTextEl = document.getElementById('missingText');
+                const warningContainer = document.getElementById('warningContainer');
+
+                if (globalMissing.length > 0) {
+                    missingWarningEl.innerText = `Atenção: Existem ${globalMissing.length} número(s) faltando na sequência.`;
+                    missingTextEl.innerText = globalMissing.join(', ');
+                    warningContainer.style.background = '#ffeef0';
+                    warningContainer.style.borderColor = '#fdaeb7';
+                } else {
+                    missingWarningEl.innerHTML = '<span class="found">Sequência perfeita! Nenhum número faltando.</span>';
+                    missingTextEl.innerHTML = '<span class="found">Nenhum número faltando.</span>';
+                    warningContainer.style.background = '#e6ffed';
+                    warningContainer.style.borderColor = '#acf2bd';
+                }
+
+                const fileListUl = document.getElementById('fileList');
+                fileListUl.innerHTML = '';
+                globalFileDetails.sort((a, b) => a.num - b.num).forEach(f => {
+                    fileListUl.innerHTML += `<li><strong>${f.num}</strong> - ${f.name} <span style="color: #666; font-size: 12px;">(${f.sizeStr})</span></li>`;
+                });
+
+                loading.style.display = 'none';
+                results.style.display = 'block';
+            } catch (err) {
+                loading.style.display = 'none';
+                alert('Erro: ' + err.message);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>Renomeador de Arquivos por Número</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; background: #f4f7f6; color: #333; }
+        .card { background: #fff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        button { background: #007bff; color: white; border: none; padding: 10px 20px; font-size: 16px; border-radius: 5px; cursor: pointer; margin-top: 10px; }
+        button:hover { background: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 14px; }
+        th { background: #f2f2f2; }
+        .log { margin-top: 15px; font-weight: bold; color: #28a745; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <h2>Renomeador de Arquivos (Manter apenas o número inicial)</h2>
+        <p>Selecione a pasta com os seus arquivos PDF. O app vai extrair o número inicial (ex: "23581") e manter a extensão original.</p>
+        
+        <button id="selectFolder">Selecionar Pasta</button>
+        <div id="log" class="log"></div>
+
+        <table id="previewTable" style="display:none;">
+            <thead>
+                <tr>
+                    <th>Nome Original</th>
+                    <th>Novo Nome Previsto</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+        
+        <button id="renameBtn" style="display:none; background: #28a745;">Confirmar e Renomear Arquivos</button>
+    </div>
+
+    <script>
+        let directoryHandle = null;
+        let fileMap = [];
+
+        document.getElementById('selectFolder').addEventListener('click', async () => {
+            try {
+                directoryHandle = await window.showDirectoryPicker();
+                fileMap = [];
+                const tbody = document.querySelector('#previewTable tbody');
+                tbody.innerHTML = '';
+                
+                for await (const entry of directoryHandle.values()) {
+                    if (entry.kind === 'file') {
+                        const fullName = entry.name;
+                        // Procura por números no início do nome do arquivo
+                        const match = fullName.match(/^(\d+)/);
+                        if (match) {
+                            const numberPart = match[1];
+                            const extension = fullName.substring(fullName.lastIndexOf('.'));
+                            const newName = numberPart + extension;
+                            
+                            fileMap.push({ oldName: fullName, newName: newName });
+                            
+                            const row = document.createElement('tr');
+                            row.innerHTML = `<td>${fullName}</td><td><strong>${newName}</strong></td>`;
+                            tbody.appendChild(row);
+                        }
+                    }
+                }
+
+                if (fileMap.length > 0) {
+                    document.getElementById('previewTable').style.display = 'table';
+                    document.getElementById('renameBtn').style.display = 'block';
+                    document.getElementById('log').innerText = `${fileMap.length} arquivos encontrados com padrão numérico.`;
+                } else {
+                    document.getElementById('log').innerText = 'Nenhum arquivo com número inicial encontrado.';
+                }
+            } catch (err) {
+                console.error(err);
+                document.getElementById('log').innerText = 'Seleção cancelada ou permissão negada.';
+            }
+        });
+
+        document.getElementById('renameBtn').addEventListener('click', async () => {
+            if (!directoryHandle) return;
+
+            try {
+                for (const file of fileMap) {
+                    if (file.oldName === file.newName) continue;
+
+                    // Lê o arquivo original
+                    const fileHandle = await directoryHandle.getFileHandle(file.oldName);
+                    const fileData = await fileHandle.getFile();
+
+                    // Cria o novo arquivo com o nome limpo
+                    const newFileHandle = await directoryHandle.getFileHandle(file.newName, { create: true });
+                    const writable = await newFileHandle.createWritable();
+                    await writable.write(fileData);
+                    await writable.close();
+
+                    // Remove o arquivo antigo com o nome longo
+                    await directoryHandle.removeEntry(file.oldName);
+                }
+
+                document.getElementById('log').innerText = 'Pronto! Todos os arquivos foram renomeados com sucesso.';
+                document.getElementById('renameBtn').style.display = 'none';
+            } catch (err) {
+                console.error(err);
+                document.getElementById('log').innerText = 'Erro ao renomear os arquivos: ' + err.message;
+            }
+        });
+    </script>
+</body>
+</html>
