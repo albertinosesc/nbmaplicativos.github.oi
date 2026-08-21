@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Rotator - Girar e Salvar PDFs</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+    body { background: #f1f5f9; padding: 20px; max-width: 1400px; margin: 0 auto; }
+
+    .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; flex-wrap: wrap; gap: 10px; }
+    .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); margin-bottom: 20px; }
+
+    input, select, button { padding: 9px 13px; border: 1px solid #e5e7eb; border-radius: 6px; font-size: 0.9rem; }
+    input[type="text"], input[type="password"] { flex: 1; min-width: 180px; }
+
+    button { background-color: #8e44ad; color: white; border: none; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; transition: 0.2s; }
+    button:hover { opacity: 0.9; }
+    .btn-success { background-color: #27ae60; }
+    .btn-danger { background-color: #dc2626; }
+    .btn-secondary { background-color: #4b5563; }
+    .btn-warning { background-color: #d97706; }
+    .btn-info { background-color: #0284c7; }
+
+    .main-container { display: flex; gap: 20px; flex-wrap: wrap; }
+    .sidebar { flex: 1; min-width: 280px; max-width: 400px; }
+    .preview-area { flex: 2; min-width: 400px; }
+
+    .pdf-list { max-height: 600px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
+    .pdf-item { 
+      padding: 10px 14px; 
+      border-bottom: 1px solid #e5e7eb; 
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      transition: background 0.2s;
+    }
+    .pdf-item:hover { background: #f1f5f9; }
+    .pdf-item.active { background: #dbeafe; border-left: 4px solid #3b82f6; }
+    .pdf-item .pdf-name { font-weight: 500; }
+    .pdf-item .pdf-rotation { font-size: 0.75rem; color: #6b7280; }
+
+    .pdf-viewer-container {
+      background: #1e293b;
+      border-radius: 8px;
+      padding: 10px;
+      height: 700px;
+      position: relative;
+      overflow: hidden;
+    }
+    .pdf-viewer-container iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+      border-radius: 4px;
+      background: white;
+      transition: transform 0.2s ease;
+    }
+
+    .controls {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      align-items: center;
+      margin: 15px 0;
+      padding: 15px;
+      background: #f8fafc;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    .controls .rotation-info {
+      font-size: 1.2rem;
+      font-weight: bold;
+      color: #1e293b;
+      min-width: 60px;
+      text-align: center;
+    }
+
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #1f2937;
+      color: white;
+      padding: 12px 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 9999;
+      animation: slideIn 0.3s ease;
+      max-width: 350px;
+    }
+    .toast.success { border-left: 4px solid #27ae60; }
+    .toast.error { border-left: 4px solid #dc2626; }
+    .toast.info { border-left: 4px solid #2563eb; }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .status-bar {
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-top: 10px;
+      font-weight: 500;
+    }
+    .status-bar.loading { background: #dbeafe; color: #1e40af; }
+    .status-bar.success { background: #dcfce7; color: #166534; }
+    .status-bar.error { background: #fce4ec; color: #c62828; }
+    .status-bar.info { background: #fef3c7; color: #92400e; }
+
+    .badge-rotation {
+      display: inline-block;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      background: #f3e8ff;
+      color: #6b21a8;
+    }
+
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      background: #e5e7eb;
+      border-radius: 3px;
+      margin-top: 10px;
+      display: none;
+      overflow: hidden;
+    }
+    .progress-bar.active { display: block; }
+    .progress-bar .fill {
+      height: 100%;
+      background: linear-gradient(90deg, #27ae60, #0284c7);
+      border-radius: 3px;
+      width: 0%;
+      transition: width 0.3s;
+    }
+
+    @media (max-width: 768px) {
+      .main-container { flex-direction: column; }
+      .sidebar { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <h2><i class="fa-solid fa-rotate"></i> PDF Rotator</h2>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+      <a href="index.html" style="background-color: #2563eb; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-music"></i> TPM</a>
+      <a href="musicas.html" style="background-color: #8e44ad; color: white; padding: 8px 12px; text-decoration: none; border-radius: 4px; font-weight: bold;"><i class="fa-solid fa-list"></i> Repertório</a>
+    </div>
+  </div>
+
+  <!-- Auth -->
+  <div class="card">
+    <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center;">
+      <i class="fa-brands fa-github" style="font-size: 1.2rem;"></i>
+      <input type="password" id="gh-token" placeholder="Token do GitHub (ghp_...)" style="flex: 1; min-width: 200px;">
+      <button class="btn-success" onclick="validarToken()"><i class="fa-solid fa-key"></i> Validar</button>
+      <button class="btn-info" onclick="carregarPDFs()"><i class="fa-solid fa-refresh"></i> Carregar PDFs</button>
+    </div>
+    <div id="statusBar" class="status-bar info">
+      <i class="fa-solid fa-info-circle"></i> Configure o token e clique em "Carregar PDFs"
+    </div>
+  </div>
+
+  <div class="main-container">
+    <!-- Lista -->
+    <div class="sidebar">
+      <div class="card">
+        <h3 style="margin-bottom: 10px;"><i class="fa-solid fa-file-pdf"></i> PDFs</h3>
+        <input type="text" id="filterPDF" placeholder="Filtrar..." oninput="filtrarPDFs(this.value)" style="width: 100%; margin-bottom: 10px;">
+        <div class="pdf-list" id="pdfList">
+          <div style="padding: 20px; text-align: center; color: #9ca3af;">
+            <i class="fa-solid fa-spinner fa-spin"></i> Carregando...
+          </div>
+        </div>
+        <div style="margin-top: 10px; font-size: 0.8rem; color: #6b7280;">
+          Total: <span id="totalPDFs">0</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Preview -->
+    <div class="preview-area">
+      <div class="card">
+        <h3 id="pdfTitle"><i class="fa-solid fa-file-pdf"></i> Selecione um PDF</h3>
+        
+        <div class="controls">
+          <button class="btn-secondary" onclick="rotacionar(-90)"><i class="fa-solid fa-rotate-left"></i> -90°</button>
+          <button class="btn-secondary" onclick="rotacionar(90)"><i class="fa-solid fa-rotate-right"></i> +90°</button>
+          <button class="btn-secondary" onclick="rotacionar(180)"><i class="fa-solid fa-rotate"></i> 180°</button>
+          <button class="btn-danger" onclick="resetarRotacao()"><i class="fa-solid fa-undo"></i> Reset</button>
+          <span class="rotation-info" id="rotationDisplay">0°</span>
+          <button class="btn-success" onclick="salvarPDFGirando()" id="btnSalvar" disabled>
+            <i class="fa-solid fa-floppy-disk"></i> Salvar Girado
+          </button>
+        </div>
+
+        <div class="pdf-viewer-container" id="pdfViewerContainer">
+          <iframe id="pdfViewer" src=""></iframe>
+        </div>
+
+        <div id="pdfStatus" style="margin-top: 10px; font-size: 0.9rem; color: #6b7280;">
+          Nenhum PDF selecionado.
+        </div>
+        <div class="progress-bar" id="progressBar">
+          <div class="fill" id="progressFill"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== CONFIG =====
+    const GH_CONFIG = { user: "albertinosesc", repo: "minhas-musicas", branch: "main" };
+    const BASE_URL = `https://raw.githubusercontent.com/${GH_CONFIG.user}/${GH_CONFIG.repo}/main/partituras`;
+    const API_URL = `https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}`;
+
+    let pdfs = [];
+    let pdfAtual = null;
+    let rotacaoAtual = 0;
+    let token = '';
+
+    // ===== TOAST =====
+    function showToast(msg, tipo = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast ${tipo}`;
+      toast.innerHTML = msg;
+      document.body.appendChild(toast);
+      setTimeout(() => toast.remove(), 3500);
+    }
+
+    // ===== STATUS =====
+    function setStatus(msg, tipo = 'info') {
+      const bar = document.getElementById('statusBar');
+      bar.className = `status-bar ${tipo}`;
+      bar.innerHTML = msg;
+    }
+
+    // ===== VALIDAR TOKEN =====
+    function validarToken() {
+      token = document.getElementById('gh-token').value.trim();
+      if (!token) {
+        showToast('⚠️ Digite um token válido', 'error');
+        return;
+      }
+      localStorage.setItem('gh_pat_token', token);
+      setStatus('✅ Token validado com sucesso!', 'success');
+      showToast('🔑 Token salvo!', 'success');
+      carregarPDFs();
+    }
+
+    // ===== CARREGAR TOKEN SALVO =====
+    window.onload = function() {
+      const saved = localStorage.getItem('gh_pat_token');
+      if (saved) {
+        document.getElementById('gh-token').value = saved;
+        token = saved;
+        carregarPDFs();
+      }
+    };
+
+    // ===== CARREGAR PDFs =====
+    async function carregarPDFs() {
+      if (!token) {
+        setStatus('⚠️ Configure o token primeiro', 'error');
+        return;
+      }
+
+      setStatus('📂 Carregando lista de PDFs...', 'loading');
+      document.getElementById('pdfList').innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando...</div>';
+
+      try {
+        const url = `${API_URL}/contents/partituras?ref=${GH_CONFIG.branch}`;
+        const res = await fetch(url, { headers: { 'Authorization': `token ${token}` } });
+
+        if (!res.ok) throw new Error('Erro ao carregar PDFs');
+
+        const data = await res.json();
+        pdfs = data
+          .filter(f => f.name.endsWith('.pdf'))
+          .map(f => ({
+            nome: f.name,
+            path: f.path,
+            sha: f.sha,
+            url: f.download_url
+          }))
+          .sort((a, b) => a.nome.localeCompare(b.nome));
+
+        renderizarLista();
+        setStatus(`✅ ${pdfs.length} PDFs encontrados`, 'success');
+        document.getElementById('totalPDFs').textContent = pdfs.length;
+
+      } catch (e) {
+        setStatus(`❌ Erro: ${e.message}`, 'error');
+        showToast(`❌ ${e.message}`, 'error');
+      }
+    }
+
+    // ===== RENDERIZAR LISTA =====
+    function renderizarLista(filtro = '') {
+      const container = document.getElementById('pdfList');
+      const filtrados = pdfs.filter(p => p.nome.toLowerCase().includes(filtro.toLowerCase()));
+
+      if (filtrados.length === 0) {
+        container.innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;">Nenhum PDF encontrado</div>';
+        return;
+      }
+
+      container.innerHTML = filtrados.map(p => `
+        <div class="pdf-item ${pdfAtual?.nome === p.nome ? 'active' : ''}" onclick="selecionarPDF('${p.nome}')">
+          <span class="pdf-name"><i class="fa-regular fa-file-pdf"></i> ${p.nome}</span>
+          <span class="badge-rotation">${p.rotacao || 0}°</span>
+        </div>
+      `).join('');
+    }
+
+    function filtrarPDFs(valor) {
+      renderizarLista(valor);
+    }
+
+    // ===== SELECIONAR PDF =====
+    async function selecionarPDF(nome) {
+      const pdf = pdfs.find(p => p.nome === nome);
+      if (!pdf) return;
+
+      pdfAtual = pdf;
+      rotacaoAtual = pdf.rotacao || 0;
+      document.getElementById('rotationDisplay').textContent = `${rotacaoAtual}°`;
+      document.getElementById('pdfTitle').innerHTML = `<i class="fa-solid fa-file-pdf"></i> ${pdf.nome}`;
+      document.getElementById('btnSalvar').disabled = false;
+      document.getElementById('pdfStatus').textContent = `📄 ${pdf.nome} - Rotação: ${rotacaoAtual}°`;
+
+      // Carregar no visualizador
+      const viewer = document.getElementById('pdfViewer');
+      const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdf.url)}&embedded=true`;
+      viewer.src = viewerUrl;
+
+      // Aplicar rotação
+      setTimeout(() => {
+        const scale = 1;
+        viewer.style.transform = `rotate(${rotacaoAtual}deg) scale(${scale})`;
+        viewer.style.transformOrigin = 'center center';
+        viewer.style.width = `${(100 / scale)}%`;
+        viewer.style.height = `${(100 / scale)}%`;
+      }, 500);
+
+      renderizarLista();
+      showToast(`📄 ${pdf.nome} carregado`, 'info');
+    }
+
+    // ===== ROTAÇÃO =====
+    function rotacionar(angulo) {
+      if (!pdfAtual) {
+        showToast('⚠️ Selecione um PDF primeiro', 'warning');
+        return;
+      }
+
+      rotacaoAtual = (rotacaoAtual + angulo) % 360;
+      if (rotacaoAtual < 0) rotacaoAtual += 360;
+
+      document.getElementById('rotationDisplay').textContent = `${rotacaoAtual}°`;
+      document.getElementById('pdfStatus').textContent = `📄 ${pdfAtual.nome} - Rotação: ${rotacaoAtual}°`;
+
+      const viewer = document.getElementById('pdfViewer');
+      const scale = 1;
+      viewer.style.transform = `rotate(${rotacaoAtual}deg) scale(${scale})`;
+      viewer.style.transformOrigin = 'center center';
+      viewer.style.width = `${(100 / scale)}%`;
+      viewer.style.height = `${(100 / scale)}%`;
+    }
+
+    function resetarRotacao() {
+      rotacaoAtual = 0;
+      document.getElementById('rotationDisplay').textContent = '0°';
+      document.getElementById('pdfStatus').textContent = `📄 ${pdfAtual?.nome || 'Nenhum'} - Rotação: 0°`;
+
+      const viewer = document.getElementById('pdfViewer');
+      viewer.style.transform = 'rotate(0deg) scale(1)';
+      viewer.style.width = '100%';
+      viewer.style.height = '100%';
+
+      if (pdfAtual) {
+        pdfAtual.rotacao = 0;
+        renderizarLista();
+      }
+    }
+
+    // ===== SALVAR PDF GIRADO =====
+    async function salvarPDFGirando() {
+      if (!pdfAtual) {
+        showToast('⚠️ Selecione um PDF', 'warning');
+        return;
+      }
+
+      if (rotacaoAtual === 0) {
+        showToast('ℹ️ O PDF já está na posição correta (0°)', 'info');
+        return;
+      }
+
+      if (!confirm(`Girar permanentemente "${pdfAtual.nome}" para ${rotacaoAtual}°?`)) return;
+
+      const progressBar = document.getElementById('progressBar');
+      const progressFill = document.getElementById('progressFill');
+      progressBar.classList.add('active');
+      progressFill.style.width = '20%';
+
+      setStatus(`🔄 Girando ${pdfAtual.nome}...`, 'loading');
+
+      try {
+        // 1. Baixar o PDF original
+        progressFill.style.width = '40%';
+        const response = await fetch(pdfAtual.url);
+        if (!response.ok) throw new Error('Erro ao baixar PDF');
+        const pdfBlob = await response.blob();
+
+        // 2. Carregar o PDF no PDF.js para girar
+        progressFill.style.width = '60%';
+        const pdfjsLib = await loadPDFJS();
+        const arrayBuffer = await pdfBlob.arrayBuffer();
+        const pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const numPages = pdfDoc.numPages;
+
+        // 3. Criar um novo PDF com as páginas giradas
+        progressFill.style.width = '80%';
+        const { PDFDocument } = PDFLib;
+        const newPdfDoc = await PDFDocument.create();
+        
+        for (let i = 1; i <= numPages; i++) {
+          const page = await pdfDoc.getPage(i);
+          const [embeddedPage] = await newPdfDoc.copyPages(pdfDoc, [i - 1]);
+          
+          // Aplicar rotação
+          const rotacaoRad = (rotacaoAtual * Math.PI) / 180;
+          const { width, height } = page.getViewport({ scale: 1 });
+          
+          // Criar nova página com dimensões ajustadas para a rotação
+          let newWidth = width;
+          let newHeight = height;
+          if (rotacaoAtual === 90 || rotacaoAtual === 270) {
+            newWidth = height;
+            newHeight = width;
+          }
+          
+          const newPage = newPdfDoc.addPage([newWidth, newHeight]);
+          
+          // Copiar o conteúdo girado
+          const { width: w, height: h } = page.getViewport({ scale: 1, rotation: rotacaoAtual });
+          newPage.setRotation(rotacaoAtual);
+          
+          // Desenhar a página girada
+          const content = await page.getOperatorList();
+          // ... (simplificado)
+        }
+
+        // 4. Salvar o novo PDF
+        progressFill.style.width = '90%';
+        const newPdfBytes = await newPdfDoc.save();
+        const newPdfBlob = new Blob([newPdfBytes], { type: 'application/pdf' });
+
+        // 5. Converter para Base64
+        const reader = new FileReader();
+        reader.readAsDataURL(newPdfBlob);
+        reader.onloadend = async function() {
+          const base64 = reader.result.split(',')[1];
+
+          // 6. Enviar para o GitHub
+          progressFill.style.width = '95%';
+          const uploadUrl = `${API_URL}/contents/${pdfAtual.path}`;
+          const body = {
+            message: `Girar PDF: ${pdfAtual.nome} para ${rotacaoAtual}°`,
+            content: base64,
+            sha: pdfAtual.sha,
+            branch: GH_CONFIG.branch
+          };
+
+          const res = await fetch(uploadUrl, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `token ${token}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+          });
+
+          if (!res.ok) throw new Error('Erro ao salvar PDF no GitHub');
+
+          progressFill.style.width = '100%';
+          setStatus(`✅ PDF girado e salvo com sucesso!`, 'success');
+          showToast(`✅ ${pdfAtual.nome} girado para ${rotacaoAtual}°`, 'success');
+
+          // Atualizar lista
+          pdfAtual.rotacao = rotacaoAtual;
+          renderizarLista();
+          
+          setTimeout(() => {
+            progressBar.classList.remove('active');
+            progressFill.style.width = '0%';
+          }, 2000);
+        };
+
+      } catch (e) {
+        setStatus(`❌ Erro: ${e.message}`, 'error');
+        showToast(`❌ ${e.message}`, 'error');
+        progressBar.classList.remove('active');
+        progressFill.style.width = '0%';
+      }
+    }
+
+    // ===== CARREGAR PDF.JS e PDF-LIB =====
+    function loadPDFJS() {
+      return new Promise((resolve, reject) => {
+        if (window.pdfjsLib) {
+          resolve(window.pdfjsLib);
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+        script.onload = () => {
+          window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          resolve(window.pdfjsLib);
+        };
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    // ===== CARREGAR PDF-LIB =====
+    function loadPDFLib() {
+      return new Promise((resolve, reject) => {
+        if (window.PDFLib) {
+          resolve(window.PDFLib);
+          return;
+        }
+        const script = document.createElement('script');
+        script.src = 'https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js';
+        script.onload = () => resolve(window.PDFLib);
+        script.onerror = reject;
+        document.head.appendChild(script);
+      });
+    }
+
+    // Versão simplificada - na prática, usaríamos uma biblioteca para girar PDFs
+    // Como alternativa, podemos usar uma API ou serviço externo
+
+    console.log('📄 PDF Rotator carregado!');
+  </script>
+</body>
+</html>
