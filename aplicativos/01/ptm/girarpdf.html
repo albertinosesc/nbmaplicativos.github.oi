@@ -3,8 +3,12 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF Rotator - Girar PDFs do m-pav</title>
+  <title>PDF Rotator - Visualização por Páginas</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- PDF.js para renderizar páginas separadas -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
     body { background: #f1f5f9; padding: 20px; max-width: 1400px; margin: 0 auto; }
@@ -24,7 +28,7 @@
     .btn-info { background-color: #0284c7; }
 
     .main-container { display: flex; gap: 20px; flex-wrap: wrap; }
-    .sidebar { flex: 1; min-width: 280px; max-width: 450px; }
+    .sidebar { flex: 1; min-width: 280px; max-width: 400px; }
     .preview-area { flex: 2; min-width: 400px; }
 
     .pdf-list { max-height: 500px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 6px; }
@@ -40,23 +44,49 @@
     .pdf-item:hover { background: #f1f5f9; }
     .pdf-item.active { background: #dbeafe; border-left: 4px solid #3b82f6; }
     .pdf-item .pdf-name { font-weight: 500; font-size: 0.85rem; }
-    .pdf-item .pdf-path { font-size: 0.7rem; color: #6b7280; }
 
-    .pdf-viewer-container {
+    /* VISUALIZADOR DE PÁGINAS SEPARADAS */
+    .pdf-pages-container {
       background: #1e293b;
       border-radius: 8px;
-      padding: 10px;
+      padding: 15px;
       height: 650px;
-      position: relative;
-      overflow: hidden;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
     }
-    .pdf-viewer-container iframe {
-      width: 100%;
-      height: 100%;
-      border: none;
-      border-radius: 4px;
+
+    .pdf-page-wrapper {
       background: white;
+      border-radius: 4px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+      width: 100%;
+      max-width: 800px;
+      display: flex;
+      justify-content: center;
+      padding: 10px;
       transition: transform 0.2s ease;
+      position: relative;
+    }
+
+    .pdf-page-wrapper .page-number {
+      position: absolute;
+      top: 5px;
+      right: 10px;
+      background: rgba(0,0,0,0.7);
+      color: white;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: bold;
+    }
+
+    .pdf-page-wrapper canvas {
+      max-width: 100%;
+      height: auto !important;
+      display: block;
     }
 
     .controls {
@@ -150,9 +180,22 @@
       margin-bottom: 10px;
     }
 
+    .page-controls {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 10px;
+      flex-wrap: wrap;
+    }
+    .page-controls button {
+      padding: 4px 12px;
+      font-size: 0.8rem;
+    }
+
     @media (max-width: 768px) {
       .main-container { flex-direction: column; }
       .sidebar { max-width: 100%; }
+      .pdf-pages-container { height: 450px; }
     }
   </style>
 </head>
@@ -189,9 +232,9 @@
     <!-- Lista -->
     <div class="sidebar">
       <div class="card">
-        <h3 style="margin-bottom: 10px;"><i class="fa-solid fa-file-pdf"></i> PDFs Disponíveis</h3>
+        <h3 style="margin-bottom: 10px;"><i class="fa-solid fa-file-pdf"></i> PDFs</h3>
         
-        <input type="text" id="filterPDF" placeholder="Filtrar PDFs..." oninput="filtrarPDFs(this.value)" style="width: 100%; margin-bottom: 10px;">
+        <input type="text" id="filterPDF" placeholder="Filtrar..." oninput="filtrarPDFs(this.value)" style="width: 100%; margin-bottom: 10px;">
         
         <div class="pdf-list" id="pdfList">
           <div style="padding: 20px; text-align: center; color: #9ca3af;">
@@ -199,7 +242,7 @@
           </div>
         </div>
         <div style="margin-top: 10px; font-size: 0.8rem; color: #6b7280;">
-          Total: <span id="totalPDFs">0</span> PDFs
+          Total: <span id="totalPDFs">0</span>
         </div>
       </div>
     </div>
@@ -220,8 +263,25 @@
           </button>
         </div>
 
-        <div class="pdf-viewer-container" id="pdfViewerContainer">
-          <iframe id="pdfViewer" src=""></iframe>
+        <!-- Container com páginas separadas -->
+        <div class="pdf-pages-container" id="pdfPagesContainer">
+          <div style="padding: 40px; text-align: center; color: #94a3b8;">
+            <i class="fa-solid fa-file-pdf fa-3x"></i>
+            <p style="margin-top: 10px;">Selecione um PDF para visualizar</p>
+          </div>
+        </div>
+
+        <!-- Controles de página -->
+        <div class="page-controls" id="pageControls" style="display: none;">
+          <span style="font-size: 0.85rem; color: #6b7280;">Páginas:</span>
+          <button class="btn-secondary" onclick="irParaPagina(1)"><i class="fa-solid fa-angles-left"></i></button>
+          <button class="btn-secondary" onclick="paginaAnterior()"><i class="fa-solid fa-chevron-left"></i></button>
+          <span id="pageInfo" style="font-size: 0.85rem; font-weight: bold; min-width: 80px; text-align: center;">1 / 1</span>
+          <button class="btn-secondary" onclick="proximaPagina()"><i class="fa-solid fa-chevron-right"></i></button>
+          <button class="btn-secondary" onclick="irParaPagina(totalPaginas)"><i class="fa-solid fa-angles-right"></i></button>
+          <span style="font-size: 0.85rem; color: #6b7280; margin-left: 10px;">
+            <i class="fa-solid fa-arrows-rotate"></i> Rotação: <span id="pageRotationDisplay">0</span>°
+          </span>
         </div>
 
         <div id="pdfStatus" style="margin-top: 10px; font-size: 0.9rem; color: #6b7280;">
@@ -235,7 +295,7 @@
   </div>
 
   <script>
-    // ===== CONFIG CORRETA =====
+    // ===== CONFIG =====
     const GH_CONFIG = { user: "musicanplay3-sudo", repo: "m-pav", branch: "main" };
     const API_URL = `https://api.github.com/repos/${GH_CONFIG.user}/${GH_CONFIG.repo}`;
     const RAW_URL = `https://raw.githubusercontent.com/${GH_CONFIG.user}/${GH_CONFIG.repo}/${GH_CONFIG.branch}`;
@@ -244,6 +304,15 @@
     let pdfAtual = null;
     let rotacaoAtual = 0;
     let token = '';
+
+    // PDF.js
+    let pdfDoc = null;
+    let totalPaginas = 0;
+    let paginaAtual = 1;
+    let scale = 1.2;
+
+    // ===== INICIALIZAR PDF.JS =====
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
     // ===== TOAST =====
     function showToast(msg, tipo = 'info') {
@@ -269,12 +338,12 @@
         return;
       }
       localStorage.setItem('gh_pat_token', token);
-      setStatus('✅ Token validado com sucesso!', 'success');
+      setStatus('✅ Token validado!', 'success');
       showToast('🔑 Token salvo!', 'success');
       carregarPDFs();
     }
 
-    // ===== CARREGAR TOKEN SALVO =====
+    // ===== CARREGAR TOKEN =====
     window.onload = function() {
       const saved = localStorage.getItem('gh_pat_token');
       if (saved) {
@@ -291,7 +360,7 @@
         return;
       }
 
-      setStatus('📂 Carregando PDFs da pasta partituras...', 'loading');
+      setStatus('📂 Carregando PDFs...', 'loading');
       document.getElementById('pdfList').innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando...</div>';
 
       try {
@@ -301,7 +370,7 @@
         if (!res.ok) {
           if (res.status === 404) {
             setStatus('⚠️ Pasta "partituras" não encontrada', 'warning');
-            document.getElementById('pdfList').innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;">Pasta "partituras" não encontrada</div>';
+            document.getElementById('pdfList').innerHTML = '<div style="padding:20px;text-align:center;color:#9ca3af;">Pasta não encontrada</div>';
             return;
           }
           throw new Error(`Erro ${res.status}: ${res.statusText}`);
@@ -323,14 +392,9 @@
         setStatus(`✅ ${pdfs.length} PDFs encontrados`, 'success');
         document.getElementById('totalPDFs').textContent = pdfs.length;
 
-        if (pdfs.length === 0) {
-          setStatus('⚠️ Nenhum PDF encontrado na pasta partituras', 'warning');
-        }
-
       } catch (e) {
         setStatus(`❌ Erro: ${e.message}`, 'error');
         showToast(`❌ ${e.message}`, 'error');
-        console.error(e);
       }
     }
 
@@ -367,23 +431,150 @@
       document.getElementById('pdfTitle').innerHTML = `<i class="fa-solid fa-file-pdf"></i> ${pdf.nome}`;
       document.getElementById('btnSalvar').disabled = false;
       document.getElementById('pdfStatus').textContent = `📄 ${pdf.nome} - Rotação: ${rotacaoAtual}°`;
-
-      // Carregar no visualizador
-      const viewer = document.getElementById('pdfViewer');
-      const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdf.url)}&embedded=true`;
-      viewer.src = viewerUrl;
-
-      // Aplicar rotação
-      setTimeout(() => {
-        const scale = 1;
-        viewer.style.transform = `rotate(${rotacaoAtual}deg) scale(${scale})`;
-        viewer.style.transformOrigin = 'center center';
-        viewer.style.width = `${(100 / scale)}%`;
-        viewer.style.height = `${(100 / scale)}%`;
-      }, 500);
+      document.getElementById('pageControls').style.display = 'flex';
 
       renderizarLista();
-      showToast(`📄 ${pdf.nome} carregado`, 'info');
+
+      // Carregar o PDF com PDF.js
+      await carregarPDFJS(pdf.url);
+    }
+
+    // ===== CARREGAR PDF COM PDF.JS =====
+    async function carregarPDFJS(url) {
+      const container = document.getElementById('pdfPagesContainer');
+      container.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando páginas...</div>';
+
+      try {
+        const loadingTask = pdfjsLib.getDocument(url);
+        pdfDoc = await loadingTask.promise;
+        totalPaginas = pdfDoc.numPages;
+        paginaAtual = 1;
+
+        document.getElementById('pageInfo').textContent = `1 / ${totalPaginas}`;
+        showToast(`📄 ${totalPaginas} páginas carregadas`, 'info');
+
+        // Renderizar todas as páginas separadamente
+        await renderizarTodasPaginas();
+
+      } catch (e) {
+        console.error('Erro ao carregar PDF:', e);
+        container.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444;">
+          <i class="fa-solid fa-triangle-exclamation fa-2x"></i>
+          <p style="margin-top:10px;">Erro ao carregar o PDF: ${e.message}</p>
+        </div>`;
+        showToast('❌ Erro ao carregar o PDF', 'error');
+      }
+    }
+
+    // ===== RENDERIZAR TODAS AS PÁGINAS SEPARADAS =====
+    async function renderizarTodasPaginas() {
+      const container = document.getElementById('pdfPagesContainer');
+      
+      // Mostrar apenas a página atual
+      container.innerHTML = '';
+      
+      // Criar wrapper para a página atual
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pdf-page-wrapper';
+      wrapper.id = 'pageWrapper';
+      
+      const pageNumber = document.createElement('span');
+      pageNumber.className = 'page-number';
+      pageNumber.textContent = `Página ${paginaAtual}`;
+      wrapper.appendChild(pageNumber);
+      
+      const canvas = document.createElement('canvas');
+      canvas.id = 'pdfCanvas';
+      wrapper.appendChild(canvas);
+      
+      container.appendChild(wrapper);
+
+      // Renderizar a página atual
+      await renderizarPagina(paginaAtual, canvas);
+
+      // Atualizar info
+      document.getElementById('pageInfo').textContent = `${paginaAtual} / ${totalPaginas}`;
+      document.getElementById('pageRotationDisplay').textContent = rotacaoAtual;
+    }
+
+    // ===== RENDERIZAR UMA PÁGINA ESPECÍFICA =====
+    async function renderizarPagina(numero, canvas) {
+      if (!pdfDoc) return;
+
+      try {
+        const page = await pdfDoc.getPage(numero);
+        const viewport = page.getViewport({ scale: scale });
+
+        const context = canvas.getContext('2d');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        // Aplicar rotação via CSS
+        const rotacaoRad = (rotacaoAtual * Math.PI) / 180;
+        const isRotated = rotacaoAtual === 90 || rotacaoAtual === 270;
+        
+        let displayWidth = viewport.width;
+        let displayHeight = viewport.height;
+        
+        if (isRotated) {
+          displayWidth = viewport.height;
+          displayHeight = viewport.width;
+        }
+
+        // Ajustar tamanho do canvas para caber no container
+        const container = document.getElementById('pdfPagesContainer');
+        const maxWidth = container.clientWidth - 40;
+        const maxHeight = container.clientHeight - 40;
+        
+        let finalScale = 1;
+        if (displayWidth > maxWidth) {
+          finalScale = maxWidth / displayWidth;
+        }
+        if (displayHeight * finalScale > maxHeight) {
+          finalScale = maxHeight / displayHeight;
+        }
+
+        const finalWidth = displayWidth * finalScale;
+        const finalHeight = displayHeight * finalScale;
+
+        canvas.style.width = `${finalWidth}px`;
+        canvas.style.height = `${finalHeight}px`;
+        canvas.style.transform = `rotate(${rotacaoAtual}deg)`;
+        canvas.style.transformOrigin = 'center center';
+
+        // Renderizar
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport
+        };
+
+        await page.render(renderContext).promise;
+
+      } catch (e) {
+        console.error('Erro ao renderizar página:', e);
+      }
+    }
+
+    // ===== NAVEGAÇÃO DE PÁGINAS =====
+    function proximaPagina() {
+      if (paginaAtual < totalPaginas) {
+        paginaAtual++;
+        renderizarTodasPaginas();
+      }
+    }
+
+    function paginaAnterior() {
+      if (paginaAtual > 1) {
+        paginaAtual--;
+        renderizarTodasPaginas();
+      }
+    }
+
+    function irParaPagina(num) {
+      if (num >= 1 && num <= totalPaginas) {
+        paginaAtual = num;
+        renderizarTodasPaginas();
+      }
     }
 
     // ===== ROTAÇÃO =====
@@ -398,28 +589,22 @@
 
       document.getElementById('rotationDisplay').textContent = `${rotacaoAtual}°`;
       document.getElementById('pdfStatus').textContent = `📄 ${pdfAtual.nome} - Rotação: ${rotacaoAtual}°`;
+      document.getElementById('pageRotationDisplay').textContent = rotacaoAtual;
 
-      const viewer = document.getElementById('pdfViewer');
-      const scale = 1;
-      viewer.style.transform = `rotate(${rotacaoAtual}deg) scale(${scale})`;
-      viewer.style.transformOrigin = 'center center';
-      viewer.style.width = `${(100 / scale)}%`;
-      viewer.style.height = `${(100 / scale)}%`;
+      // Re-renderizar a página atual com a nova rotação
+      renderizarTodasPaginas();
     }
 
     function resetarRotacao() {
       rotacaoAtual = 0;
       document.getElementById('rotationDisplay').textContent = '0°';
       document.getElementById('pdfStatus').textContent = `📄 ${pdfAtual?.nome || 'Nenhum'} - Rotação: 0°`;
-
-      const viewer = document.getElementById('pdfViewer');
-      viewer.style.transform = 'rotate(0deg) scale(1)';
-      viewer.style.width = '100%';
-      viewer.style.height = '100%';
+      document.getElementById('pageRotationDisplay').textContent = '0';
 
       if (pdfAtual) {
         pdfAtual.rotacao = 0;
         renderizarLista();
+        renderizarTodasPaginas();
       }
     }
 
@@ -435,7 +620,7 @@
         return;
       }
 
-      if (!confirm(`Girar permanentemente "${pdfAtual.nome}" para ${rotacaoAtual}°?\n\n⚠️ Isso substituirá o arquivo original no GitHub!`)) return;
+      if (!confirm(`Girar permanentemente "${pdfAtual.nome}" para ${rotacaoAtual}°?\n\n⚠️ Isso substituirá o arquivo original!`)) return;
 
       const progressBar = document.getElementById('progressBar');
       const progressFill = document.getElementById('progressFill');
@@ -445,13 +630,11 @@
       setStatus(`🔄 Girando ${pdfAtual.nome}...`, 'loading');
 
       try {
-        // Baixar o PDF
         progressFill.style.width = '30%';
         const response = await fetch(pdfAtual.url);
         if (!response.ok) throw new Error('Erro ao baixar PDF');
         const pdfBlob = await response.blob();
 
-        // Converter para Base64
         progressFill.style.width = '50%';
         const reader = new FileReader();
         reader.readAsDataURL(pdfBlob);
@@ -461,7 +644,6 @@
             const base64 = reader.result.split(',')[1];
             progressFill.style.width = '70%';
 
-            // Enviar para o GitHub
             const uploadUrl = `${API_URL}/contents/${pdfAtual.path}`;
             const body = {
               message: `Girar PDF: ${pdfAtual.nome} para ${rotacaoAtual}°`,
@@ -485,10 +667,9 @@
             }
 
             progressFill.style.width = '100%';
-            setStatus(`✅ PDF girado e salvo com sucesso!`, 'success');
+            setStatus(`✅ PDF girado e salvo!`, 'success');
             showToast(`✅ ${pdfAtual.nome} girado para ${rotacaoAtual}°`, 'success');
 
-            // Atualizar lista
             pdfAtual.rotacao = rotacaoAtual;
             renderizarLista();
             
@@ -510,9 +691,15 @@
       }
     }
 
-    console.log('📄 PDF Rotator carregado!');
+    // ===== REDIMENSIONAR =====
+    window.addEventListener('resize', () => {
+      if (pdfDoc) {
+        renderizarTodasPaginas();
+      }
+    });
+
+    console.log('📄 PDF Rotator com páginas separadas carregado!');
     console.log(`📁 Repositório: ${GH_CONFIG.user}/${GH_CONFIG.repo}`);
-    console.log(`📂 Pasta: partituras`);
   </script>
 </body>
 </html>
