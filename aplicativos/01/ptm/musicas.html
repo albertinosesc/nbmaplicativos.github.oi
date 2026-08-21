@@ -8,6 +8,9 @@
   
   <!-- ABCJS para renderização de partituras -->
   <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
+  
+  <!-- PDF.js para renderização nativa de PDF com rotação -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 
   <style>
     :root {
@@ -42,8 +45,8 @@
     button.btn-abc:hover { background-color: #0369a1; }
     button.btn-abc.disabled { background-color: #94a3b8; cursor: not-allowed; opacity: 0.6; }
     button.btn-abc.disabled:hover { background-color: #94a3b8; opacity: 0.6; }
-    button.btn-pdf { background-color: var(--accent); }
-    button.btn-pdf:hover { background-color: #15803d; }
+    button.btn-pdf { background-color: #2563eb; }
+    button.btn-pdf:hover { background-color: #1d4ed8; }
     button.btn-pdf.disabled { background-color: #94a3b8; cursor: not-allowed; opacity: 0.6; }
     button.btn-pdf.disabled:hover { background-color: #94a3b8; opacity: 0.6; }
     button.btn-lote { background-color: #8b5cf6; }
@@ -162,105 +165,176 @@
     .main-container { display: flex; gap: 15px; width: 100%; align-items: flex-start; position: relative; }
     .content-area { flex: 1; min-width: 300px; }
 
-    /* VISUALIZADOR DE PARTITURAS REDIMENSIONÁVEL COM O MOUSE */
+    /* ===== VISUALIZADOR DE PDF COM PDF.JS ===== */
     .pdf-preview-panel {
       position: relative;
-      width: 500px;
+      width: 520px;
       height: 650px;
       min-width: 280px;
       max-width: 95vw;
       min-height: 300px;
       max-height: 95vh;
-      background-color: #2c3e50;
+      background-color: #1e293b;
       display: none;
       flex-direction: column;
       border-radius: 8px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+      box-shadow: 0 6px 20px rgba(0,0,0,0.4);
       position: sticky;
       top: 20px;
-      transition: none;
       z-index: 100;
+      overflow: hidden;
+    }
+    .pdf-preview-panel.fullscreen {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      max-width: 100vw;
+      max-height: 100vh;
+      border-radius: 0;
+      z-index: 9998;
+      padding: 0;
     }
 
     .pdf-preview-header {
-      background-color: #34495e;
+      background-color: #0f172a;
       color: white;
-      padding: 10px 15px;
+      padding: 8px 14px;
       display: flex;
       justify-content: space-between;
       align-items: center;
-      gap: 10px;
-      cursor: move;
+      gap: 8px;
       flex-wrap: wrap;
+      flex-shrink: 0;
+      min-height: 44px;
     }
     .pdf-preview-header h3 {
-      font-size: 0.95rem;
+      font-size: 0.85rem;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       margin: 0;
+      max-width: 150px;
     }
-    .pdf-toolbar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-    .btn-pdf-action {
-      background-color: #2c3e50;
-      color: #ecf0f1;
-      border: 1px solid #455a64;
-      padding: 4px 8px;
+    .pdf-toolbar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .pdf-toolbar .btn-pdf-action {
+      background-color: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      padding: 3px 8px;
       border-radius: 4px;
-      font-size: 0.78rem;
+      font-size: 0.7rem;
       font-weight: 500;
       cursor: pointer;
       transition: all 0.2s;
     }
-    .btn-pdf-action:hover, .btn-pdf-action.active {
-      background-color: #1abc9c;
-      border-color: #16a085;
-      color: #ffffff;
-      font-weight: bold;
-    }
+    .pdf-toolbar .btn-pdf-action:hover { background-color: #334155; color: white; }
+    .pdf-toolbar .btn-pdf-action.active { background-color: #1abc9c; border-color: #16a085; color: white; }
+
     .btn-close-preview {
       background: none;
       border: none;
-      color: #bdc3c7;
-      font-size: 1.4rem;
-      line-height: 1;
+      color: #94a3b8;
+      font-size: 1.3rem;
       cursor: pointer;
       padding: 0 4px;
+      line-height: 1;
     }
-    .btn-close-preview:hover { color: #e74c3c; }
+    .btn-close-preview:hover { color: #ef4444; }
 
-    /* CONTÊINER COM SCROLL PARA PERMITIR VER TODO O CONTEÚDO DADO O ZOOM */
+    /* CONTAINER DO PDF COM SCROLL */
     .pdf-container {
-      display: flex;
-      width: 100%;
-      height: 100%;
-      gap: 6px;
-      background-color: #1e293b;
-      padding: 4px;
-      position: relative;
-      overflow: auto; 
-      justify-content: center;
-      align-items: center;
-    }
-
-    .iframe-overlay {
-      position: absolute;
-      top: 0; left: 0; right: 0; bottom: 0;
-      z-index: 10;
-      display: none;
-    }
-
-    .pdf-frame {
       flex: 1;
+      overflow: auto;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      background: #1e293b;
+      position: relative;
+      min-height: 0;
+    }
+    .pdf-container::-webkit-scrollbar { width: 6px; height: 6px; }
+    .pdf-container::-webkit-scrollbar-track { background: #1e293b; }
+    .pdf-container::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+
+    .pdf-page-wrapper {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex-shrink: 0;
       width: 100%;
-      height: 100%;
-      border: none;
+    }
+    .pdf-page-wrapper .page-number {
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 2px 14px;
+      border-radius: 12px;
+      font-size: 0.7rem;
+      font-weight: bold;
+      margin-bottom: 6px;
+      backdrop-filter: blur(4px);
+    }
+    .pdf-page-wrapper canvas {
+      display: block;
       border-radius: 4px;
-      background-color: #ffffff;
-      transition: transform 0.15s ease;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+      background: white;
+      max-width: 100%;
+      height: auto !important;
     }
 
-    /* ALÇAS DE REDIMENSIONAMENTO COM O MOUSE */
+    .pdf-controls {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+      align-items: center;
+      padding: 6px 12px;
+      background: #0f172a;
+      border-top: 1px solid #1e293b;
+      flex-shrink: 0;
+      min-height: 40px;
+    }
+    .pdf-controls button {
+      padding: 3px 10px;
+      font-size: 0.75rem;
+      background: #1e293b;
+      color: #94a3b8;
+      border: 1px solid #334155;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: 0.2s;
+    }
+    .pdf-controls button:hover { background: #334155; color: white; }
+    .pdf-controls .pdf-page-info {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      min-width: 60px;
+      text-align: center;
+      font-weight: 500;
+    }
+    .pdf-controls .pdf-rotation-info {
+      font-size: 0.75rem;
+      color: #1abc9c;
+      font-weight: bold;
+      min-width: 40px;
+      text-align: center;
+    }
+    .pdf-controls .pdf-zoom-input {
+      width: 50px;
+      padding: 2px 4px;
+      font-size: 0.7rem;
+      background: #1e293b;
+      color: white;
+      border: 1px solid #334155;
+      border-radius: 3px;
+      text-align: center;
+    }
+    .pdf-controls .pdf-zoom-input:focus { outline: 2px solid #3b82f6; }
+
+    /* RESIZE HANDLES */
     .resize-handle {
       position: absolute;
       z-index: 20;
@@ -294,9 +368,7 @@
       align-items: center;
       padding: 20px;
     }
-    .abc-modal.active {
-      display: flex;
-    }
+    .abc-modal.active { display: flex; }
     .abc-modal-content {
       background: #ffffff;
       border-radius: 12px;
@@ -338,9 +410,7 @@
       padding: 0 8px;
       transition: color 0.2s;
     }
-    .abc-modal-header .close-modal:hover {
-      color: #ef4444;
-    }
+    .abc-modal-header .close-modal:hover { color: #ef4444; }
     .abc-modal-body {
       display: flex;
       flex: 1;
@@ -366,9 +436,7 @@
       flex-direction: column;
       transition: all 0.3s ease;
     }
-    .abc-modal-body .abc-code-panel.hidden {
-      display: none;
-    }
+    .abc-modal-body .abc-code-panel.hidden { display: none; }
     .abc-modal-body .abc-code-panel textarea {
       flex: 1;
       background: #1e293b;
@@ -382,9 +450,7 @@
       min-height: 150px;
       width: 100%;
     }
-    .abc-modal-body .abc-code-panel textarea:focus {
-      outline: 2px solid #3b82f6;
-    }
+    .abc-modal-body .abc-code-panel textarea:focus { outline: 2px solid #3b82f6; }
     .abc-modal-body .abc-code-panel .code-actions {
       display: flex;
       gap: 8px;
@@ -435,15 +501,9 @@
     .btn-toggle-code {
       background-color: #6b7280;
     }
-    .btn-toggle-code:hover {
-      background-color: #4b5563;
-    }
-    .btn-toggle-code.active {
-      background-color: #3b82f6;
-    }
-    .btn-toggle-code.active:hover {
-      background-color: #2563eb;
-    }
+    .btn-toggle-code:hover { background-color: #4b5563; }
+    .btn-toggle-code.active { background-color: #3b82f6; }
+    .btn-toggle-code.active:hover { background-color: #2563eb; }
     #abc-paper {
       background: white;
       border-radius: 6px;
@@ -508,9 +568,7 @@
     .modal-close:hover { color: #dc2626; }
 
     @media (max-width: 768px) {
-      .abc-modal-body {
-        flex-direction: column;
-      }
+      .abc-modal-body { flex-direction: column; }
       .abc-modal-body .abc-code-panel {
         width: 100%;
         min-width: unset;
@@ -518,32 +576,14 @@
         border-top: 2px solid #1e293b;
         max-height: 300px;
       }
-    }
-
-    /* BOTÕES DE ROTAÇÃO - ÚNICA OCORRÊNCIA */
-    .btn-rotate {
-      background-color: #e67e22;
-      color: white;
-      border: none;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 0.78rem;
-      font-weight: 500;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .btn-rotate:hover {
-      background-color: #d35400;
-    }
-    .btn-rotate.active {
-      background-color: #1abc9c;
-      border-color: #16a085;
-    }
-    .rotate-indicator {
-      font-size: 0.7rem;
-      color: #ecf0f1;
-      min-width: 35px;
-      text-align: center;
+      .main-container { flex-direction: column; }
+      .pdf-preview-panel { 
+        position: relative; 
+        top: 0; 
+        width: 100% !important; 
+        height: 500px;
+        max-height: 70vh;
+      }
     }
   </style>
 </head>
@@ -670,7 +710,7 @@
       </div>
     </div>
 
-    <!-- PAINEL VISUALIZADOR DE PDF COM ROTAÇÃO -->
+    <!-- PAINEL VISUALIZADOR DE PDF COM PDF.JS -->
     <section class="pdf-preview-panel" id="pdfPreviewPanel">
       <div class="resize-handle resize-handle-left" id="handleLeft" title="Arraste para ajustar a largura"></div>
       <div class="resize-handle resize-handle-bottom" id="handleBottom" title="Arraste para ajustar a altura"></div>
@@ -679,37 +719,34 @@
       <div class="pdf-preview-header">
         <h3 id="pdfPreviewTitle">Partitura</h3>
         <div class="pdf-toolbar">
-          <button type="button" class="btn-pdf-action active" id="btnPage1" title="Visualizar 1 Página">1 Pág</button>
-          <button type="button" class="btn-pdf-action" id="btnPage2" title="Visualizar 2 Páginas Lado a Lado">2 Pág</button>
-          
-          <!-- CONTROLES DE ROTAÇÃO -->
-          <button type="button" class="btn-rotate" id="btnRotateLeft" title="Girar 90° para esquerda" onclick="rotacionarPDF(-90)">
-            <i class="fa-solid fa-rotate-left"></i> 90°
+          <button type="button" class="btn-pdf-action" id="btnFullscreen" onclick="togglePDFFullscreen()" title="Tela Cheia">
+            <i class="fa-solid fa-expand"></i>
           </button>
-          <button type="button" class="btn-rotate" id="btnRotateRight" title="Girar 90° para direita" onclick="rotacionarPDF(90)">
-            <i class="fa-solid fa-rotate-right"></i> 90°
-          </button>
-          <button type="button" class="btn-rotate" id="btnRotateReset" title="Resetar rotação" onclick="resetarRotacaoPDF()">
-            <i class="fa-solid fa-undo"></i>
-          </button>
-          <span class="rotate-indicator" id="rotateIndicator">0°</span>
-
-          <!-- CAMPO NUMÉRICO DE ZOOM COM PASSO DE 5% -->
-          <div style="display: flex; align-items: center; gap: 3px; background: #2c3e50; padding: 2px 5px; border-radius: 4px; border: 1px solid #455a64;">
-            <span style="font-size: 0.72rem; color: #ecf0f1;"><i class="fa-solid fa-magnifying-glass"></i> Zoom:</span>
-            <input type="number" id="zoomInput" min="30" max="300" value="100" step="5" style="width: 52px; padding: 1px 3px; font-size: 0.78rem; background: #34495e; color: white; border: 1px solid #55687d; border-radius: 3px; text-align: center;" oninput="alterarZoom(this.value)">
-            <span style="font-size: 0.72rem; color: #ecf0f1;">%</span>
-          </div>
-
-          <button type="button" class="btn-pdf-action" id="btnFullscreen" title="Alternar Tela Cheia"><i class="fa-solid fa-expand"></i></button>
-          <button type="button" class="btn-close-preview" id="btnClosePreview" title="Fechar">&times;</button>
+          <button type="button" class="btn-close-preview" id="btnClosePreview" onclick="fecharVisualizador()">&times;</button>
         </div>
       </div>
 
       <div class="pdf-container" id="pdfContainer">
-        <div class="iframe-overlay" id="iframeOverlay"></div>
-        <iframe class="pdf-frame" id="pdfIframe1" src=""></iframe>
-        <iframe class="pdf-frame" id="pdfIframe2" src="" style="display: none;"></iframe>
+        <div id="pdfPagesContainer"></div>
+      </div>
+
+      <div class="pdf-controls" id="pdfControls">
+        <button onclick="pdfPaginaAnterior()"><i class="fa-solid fa-chevron-left"></i></button>
+        <span class="pdf-page-info" id="pdfPageInfo">1 / 1</span>
+        <button onclick="pdfProximaPagina()"><i class="fa-solid fa-chevron-right"></i></button>
+        
+        <span style="color:#64748b;font-size:0.7rem;margin:0 4px;">|</span>
+        
+        <button onclick="pdfRotacionar(-90)" title="Girar -90°"><i class="fa-solid fa-rotate-left"></i></button>
+        <span class="pdf-rotation-info" id="pdfRotationInfo">0°</span>
+        <button onclick="pdfRotacionar(90)" title="Girar +90°"><i class="fa-solid fa-rotate-right"></i></button>
+        <button onclick="pdfResetarRotacao()" title="Resetar Rotação"><i class="fa-solid fa-undo"></i></button>
+        
+        <span style="color:#64748b;font-size:0.7rem;margin:0 4px;">|</span>
+        
+        <span style="font-size:0.7rem;color:#94a3b8;">Zoom:</span>
+        <input type="number" class="pdf-zoom-input" id="pdfZoomInput" value="100" min="30" max="300" step="5" oninput="pdfAlterarZoom(this.value)">
+        <span style="font-size:0.7rem;color:#94a3b8;">%</span>
       </div>
     </section>
   </div>
@@ -803,9 +840,17 @@
     let dadosMusicasCache = null;
     let alunoNomeAtual = null;
     
-    let currentPdfUrl = '';
-    let currentViewMode = 1;
-    let currentRotation = 0; // 0, 90, 180, 270
+    // ===== PDF.JS CONFIG =====
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    
+    let pdfDoc = null;
+    let pdfTotalPaginas = 0;
+    let pdfPaginaAtual = 1;
+    let pdfRotacao = 0;
+    let pdfZoom = 100;
+    let pdfUrlAtual = '';
+    let pdfTituloAtual = '';
+    let pdfCarregando = false;
 
     // ===== ABC GLOBALS =====
     let abcVisualObj = null;
@@ -823,7 +868,7 @@
     let cronometroPausado = false;
     let cronometroLoteAtual = null;
 
-    // ===== CONTROLE DE CONCORRÊNCIA (MUTEX/FILA) =====
+    // ===== CONTROLE DE CONCORRÊNCIA =====
     let isSaving = false;
     let saveQueue = [];
 
@@ -831,115 +876,8 @@
     const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
     const BASE_ABC_URL = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/ptm/abc";
 
-    // ===== CACHE PARA ARQUIVOS VERIFICADOS =====
+    // ===== CACHE =====
     const fileCache = new Map();
-
-    // =============================================
-    // ===== FUNÇÕES DE ROTAÇÃO DO PDF =====
-    // =============================================
-
-    function rotacionarPDF(angulo) {
-      currentRotation = (currentRotation + angulo) % 360;
-      if (currentRotation < 0) currentRotation += 360;
-      aplicarRotacaoPDF();
-    }
-
-    function resetarRotacaoPDF() {
-      currentRotation = 0;
-      aplicarRotacaoPDF();
-    }
-
-    function aplicarRotacaoPDF() {
-      const iframe1 = document.getElementById('pdfIframe1');
-      const iframe2 = document.getElementById('pdfIframe2');
-      const indicator = document.getElementById('rotateIndicator');
-      
-      const rotacao = `rotate(${currentRotation}deg)`;
-      
-      [iframe1, iframe2].forEach(iframe => {
-        if (iframe) {
-          // Preservar o zoom aplicado
-          const zoomInput = document.getElementById('zoomInput');
-          const zoom = parseInt(zoomInput.value) || 100;
-          const scale = zoom / 100;
-          
-          // Aplicar rotação junto com o zoom
-          iframe.style.transform = `${rotacao} scale(${scale})`;
-          iframe.style.transformOrigin = 'center center';
-          iframe.style.width = `${(100 / scale)}%`;
-          iframe.style.height = `${(100 / scale)}%`;
-        }
-      });
-      
-      if (indicator) {
-        indicator.textContent = `${currentRotation}°`;
-      }
-      
-      showToast(`🔄 PDF girado para ${currentRotation}°`, 'info');
-    }
-
-    // Sobrescrever a função alterarZoom para preservar a rotação
-    const originalAlterarZoom = window.alterarZoom;
-    window.alterarZoom = function(valor) {
-      let num = parseInt(valor);
-      if (isNaN(num)) return;
-      if (num < 30) num = 30;
-      if (num > 300) num = 300;
-
-      const scale = num / 100;
-      const iframe1 = document.getElementById('pdfIframe1');
-      const iframe2 = document.getElementById('pdfIframe2');
-      const rotacao = `rotate(${currentRotation}deg)`;
-
-      [iframe1, iframe2].forEach(iframe => {
-        if (iframe) {
-          iframe.style.transform = `${rotacao} scale(${scale})`;
-          iframe.style.transformOrigin = 'center center';
-          iframe.style.width = `${(100 / scale)}%`;
-          iframe.style.height = `${(100 / scale)}%`;
-        }
-      });
-    };
-
-    // Sobrescrever a função setViewMode para aplicar a rotação
-    const originalSetViewMode = window.setViewMode;
-    window.setViewMode = function(mode) {
-      currentViewMode = mode;
-      const panel = document.getElementById('pdfPreviewPanel');
-      const iframe1 = document.getElementById('pdfIframe1');
-      const iframe2 = document.getElementById('pdfIframe2');
-      const btn1 = document.getElementById('btnPage1');
-      const btn2 = document.getElementById('btnPage2');
-      const zoomInput = document.getElementById('zoomInput');
-      const currentZoom = zoomInput ? zoomInput.value : 100;
-
-      if (!currentPdfUrl) return;
-
-      if (mode === 1) {
-        iframe2.style.display = 'none';
-        iframe2.src = '';
-        iframe1.src = `${currentPdfUrl}#page=1`;
-        
-        if (!panel.style.width) panel.style.width = '520px';
-
-        btn1?.classList.add('active');
-        btn2?.classList.remove('active');
-      } else if (mode === 2) {
-        iframe2.style.display = 'block';
-        iframe1.src = `${currentPdfUrl}#page=1`;
-        iframe2.src = `${currentPdfUrl}#page=2`;
-
-        panel.style.width = '980px';
-
-        btn1?.classList.remove('active');
-        btn2?.classList.add('active');
-      }
-      
-      // Aplicar rotação após carregar
-      setTimeout(() => {
-        aplicarRotacaoPDF();
-      }, 100);
-    };
 
     // =============================================
     // ===== FUNÇÕES DE UI =====
@@ -964,11 +902,6 @@
       document.getElementById("inputLoteManual").addEventListener("keyup", (e) => {
         if (e.key === "Enter") carregarLoteManual();
       });
-
-      document.getElementById('btnPage1')?.addEventListener('click', () => setViewMode(1));
-      document.getElementById('btnPage2')?.addEventListener('click', () => setViewMode(2));
-      document.getElementById('btnFullscreen')?.addEventListener('click', toggleFullscreen);
-      document.getElementById('btnClosePreview')?.addEventListener('click', fecharVisualizador);
 
       initResizeHandlers();
 
@@ -1011,10 +944,9 @@
       statusEl.innerText = msg;
     }
 
-    // --- LÓGICA DE ARRASTAR / REDIMENSIONAR PAINEL PDF COM O MOUSE ---
+    // --- REDIMENSIONAR PAINEL PDF ---
     function initResizeHandlers() {
       const panel = document.getElementById('pdfPreviewPanel');
-      const overlay = document.getElementById('iframeOverlay');
       const handleLeft = document.getElementById('handleLeft');
       const handleBottom = document.getElementById('handleBottom');
       const handleCorner = document.getElementById('handleCorner');
@@ -1045,8 +977,6 @@
         startY = e.clientY;
         startWidth = panel.offsetWidth;
         startHeight = panel.offsetHeight;
-        
-        overlay.style.display = 'block';
 
         document.addEventListener('mousemove', handleMouseMove);
         document.addEventListener('mouseup', stopDrag);
@@ -1055,13 +985,13 @@
       function handleMouseMove(e) {
         if (isResizingLeft) {
           const dx = startX - e.clientX;
-          const newWidth = Math.max(300, Math.min(window.innerWidth * 0.9, startWidth + dx));
+          const newWidth = Math.max(280, Math.min(window.innerWidth * 0.9, startWidth + dx));
           panel.style.width = `${newWidth}px`;
         }
 
         if (isResizingBottom) {
           const dy = e.clientY - startY;
-          const newHeight = Math.max(350, Math.min(window.innerHeight * 0.95, startHeight + dy));
+          const newHeight = Math.max(300, Math.min(window.innerHeight * 0.95, startHeight + dy));
           panel.style.height = `${newHeight}px`;
         }
       }
@@ -1069,59 +999,13 @@
       function stopDrag() {
         isResizingLeft = false;
         isResizingBottom = false;
-        overlay.style.display = 'none';
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', stopDrag);
+        // Re-renderizar PDF após redimensionamento
+        if (pdfDoc) {
+          setTimeout(pdfRenderizarPaginaAtual, 200);
+        }
       }
-    }
-
-    // --- PAINEL VISUALIZADOR PDF (1 OU 2 PÁGINAS) ---
-    function openPDF(url, title = 'Partitura') {
-      const panel = document.getElementById('pdfPreviewPanel');
-      const titleEl = document.getElementById('pdfPreviewTitle');
-      const zoomInput = document.getElementById('zoomInput');
-      
-      currentPdfUrl = url.split('#')[0]; 
-      if (titleEl) titleEl.textContent = title;
-      
-      // Resetar rotação ao abrir novo PDF
-      currentRotation = 0;
-      const indicator = document.getElementById('rotateIndicator');
-      if (indicator) indicator.textContent = '0°';
-      
-      if (zoomInput) zoomInput.value = 100;
-      alterarZoom(100);
-
-      setViewMode(1);
-      panel.style.display = 'flex';
-    }
-
-    function toggleFullscreen() {
-      const panel = document.getElementById('pdfPreviewPanel');
-      if (!document.fullscreenElement) {
-        if (panel.requestFullscreen) panel.requestFullscreen();
-        else if (panel.webkitRequestFullscreen) panel.webkitRequestFullscreen();
-      } else {
-        if (document.exitFullscreen) document.exitFullscreen();
-        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-      }
-    }
-
-    function fecharVisualizador() {
-      const panel = document.getElementById('pdfPreviewPanel');
-      const iframe1 = document.getElementById('pdfIframe1');
-      const iframe2 = document.getElementById('pdfIframe2');
-      
-      panel.style.display = 'none';
-      if (iframe1) iframe1.src = '';
-      if (iframe2) iframe2.src = '';
-      
-      // Resetar rotação
-      currentRotation = 0;
-      const indicator = document.getElementById('rotateIndicator');
-      if (indicator) indicator.textContent = '0°';
-      
-      if (document.fullscreenElement) document.exitFullscreen();
     }
 
     // =============================================
@@ -2171,6 +2055,10 @@
       return null;
     }
 
+    // =============================================
+    // ===== FUNÇÕES PDF.JS =====
+    // =============================================
+
     async function abrirPDFMusica(index) {
       const m = repertorioAtual[index];
       if (!m) return;
@@ -2188,9 +2076,244 @@
         return;
       }
 
-      const viewerUrl = `https://docs.google.com/gview?url=${encodeURIComponent(pdfCaminho)}&embedded=true`;
-      openPDF(viewerUrl, m.title || m.nome);
+      // Abrir o PDF com o visualizador PDF.js
+      abrirPDFComPDFJS(pdfCaminho, m.title || m.nome);
     }
+
+    async function abrirPDFComPDFJS(url, titulo) {
+      const panel = document.getElementById('pdfPreviewPanel');
+      const titleEl = document.getElementById('pdfPreviewTitle');
+      const container = document.getElementById('pdfPagesContainer');
+      
+      pdfUrlAtual = url;
+      pdfTituloAtual = titulo || 'Partitura';
+      titleEl.textContent = pdfTituloAtual;
+      
+      // Resetar estado
+      pdfRotacao = 0;
+      pdfZoom = 100;
+      pdfPaginaAtual = 1;
+      
+      document.getElementById('pdfZoomInput').value = 100;
+      document.getElementById('pdfRotationInfo').textContent = '0°';
+      
+      panel.style.display = 'flex';
+      container.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando PDF...</div>';
+      
+      pdfCarregando = true;
+      
+      try {
+        const loadingTask = pdfjsLib.getDocument(url);
+        pdfDoc = await loadingTask.promise;
+        pdfTotalPaginas = pdfDoc.numPages;
+        pdfCarregando = false;
+        
+        document.getElementById('pdfPageInfo').textContent = `1 / ${pdfTotalPaginas}`;
+        document.getElementById('pdfControls').style.display = 'flex';
+        
+        showToast(`📄 ${pdfTotalPaginas} páginas carregadas`, 'info');
+        await pdfRenderizarPaginaAtual();
+        
+      } catch (e) {
+        console.error('Erro ao carregar PDF:', e);
+        container.innerHTML = `<div style="padding:40px;text-align:center;color:#ef4444;">
+          <i class="fa-solid fa-triangle-exclamation fa-2x"></i>
+          <p style="margin-top:10px;">Erro ao carregar o PDF: ${e.message}</p>
+          <p style="font-size:0.8rem;color:#94a3b8;margin-top:8px;">${url}</p>
+        </div>`;
+        pdfCarregando = false;
+        showToast('❌ Erro ao carregar o PDF', 'error');
+      }
+    }
+
+    async function pdfRenderizarPaginaAtual() {
+      const container = document.getElementById('pdfPagesContainer');
+      
+      if (!pdfDoc) {
+        container.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Nenhum PDF carregado</div>';
+        return;
+      }
+
+      container.innerHTML = '';
+      
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pdf-page-wrapper';
+      
+      const pageNumber = document.createElement('div');
+      pageNumber.className = 'page-number';
+      pageNumber.textContent = `Página ${pdfPaginaAtual} de ${pdfTotalPaginas}`;
+      wrapper.appendChild(pageNumber);
+      
+      const canvas = document.createElement('canvas');
+      wrapper.appendChild(canvas);
+      
+      container.appendChild(wrapper);
+
+      await pdfRenderizarPagina(pdfPaginaAtual, canvas);
+
+      document.getElementById('pdfPageInfo').textContent = `${pdfPaginaAtual} / ${pdfTotalPaginas}`;
+    }
+
+    async function pdfRenderizarPagina(numero, canvas) {
+      if (!pdfDoc) return;
+
+      try {
+        const page = await pdfDoc.getPage(numero);
+        
+        const container = document.getElementById('pdfPagesContainer');
+        const containerWidth = container.clientWidth - 20;
+        const containerHeight = container.clientHeight - 20;
+        
+        // Viewport original
+        const viewport = page.getViewport({ scale: 1 });
+        let baseWidth = viewport.width;
+        let baseHeight = viewport.height;
+        
+        // Calcular escala para caber no container
+        let scaleX = containerWidth / baseWidth;
+        let scaleY = containerHeight / baseHeight;
+        let scale = Math.min(scaleX, scaleY, 1.5);
+        scale = Math.max(scale, 0.2);
+        
+        // Aplicar zoom do usuário
+        scale = scale * (pdfZoom / 100);
+        
+        // Aplicar rotação via PDF.js
+        const rotatedViewport = page.getViewport({ scale: scale, rotation: pdfRotacao });
+        
+        canvas.width = rotatedViewport.width;
+        canvas.height = rotatedViewport.height;
+        canvas.style.width = `${rotatedViewport.width}px`;
+        canvas.style.height = `${rotatedViewport.height}px`;
+        canvas.style.maxWidth = '100%';
+        canvas.style.maxHeight = '100%';
+        
+        const context = canvas.getContext('2d');
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        
+        const renderContext = {
+          canvasContext: context,
+          viewport: rotatedViewport
+        };
+
+        await page.render(renderContext).promise;
+
+        document.getElementById('pdfRotationInfo').textContent = `${pdfRotacao}°`;
+
+      } catch (e) {
+        console.error('Erro ao renderizar página:', e);
+      }
+    }
+
+    // ===== CONTROLES DO PDF =====
+    function pdfProximaPagina() {
+      if (pdfPaginaAtual < pdfTotalPaginas) {
+        pdfPaginaAtual++;
+        pdfRenderizarPaginaAtual();
+      }
+    }
+
+    function pdfPaginaAnterior() {
+      if (pdfPaginaAtual > 1) {
+        pdfPaginaAtual--;
+        pdfRenderizarPaginaAtual();
+      }
+    }
+
+    function pdfRotacionar(angulo) {
+      pdfRotacao = (pdfRotacao + angulo) % 360;
+      if (pdfRotacao < 0) pdfRotacao += 360;
+      document.getElementById('pdfRotationInfo').textContent = `${pdfRotacao}°`;
+      if (pdfDoc) {
+        pdfRenderizarPaginaAtual();
+      }
+    }
+
+    function pdfResetarRotacao() {
+      pdfRotacao = 0;
+      document.getElementById('pdfRotationInfo').textContent = '0°';
+      if (pdfDoc) {
+        pdfRenderizarPaginaAtual();
+      }
+    }
+
+    function pdfAlterarZoom(valor) {
+      let num = parseInt(valor);
+      if (isNaN(num)) return;
+      if (num < 30) num = 30;
+      if (num > 300) num = 300;
+      pdfZoom = num;
+      document.getElementById('pdfZoomInput').value = num;
+      if (pdfDoc) {
+        pdfRenderizarPaginaAtual();
+      }
+    }
+
+    // ===== TELA CHEIA DO PDF =====
+    function togglePDFFullscreen() {
+      const panel = document.getElementById('pdfPreviewPanel');
+      const btn = document.getElementById('btnFullscreen');
+      
+      if (!document.fullscreenElement) {
+        if (panel.requestFullscreen) {
+          panel.requestFullscreen();
+        } else if (panel.webkitRequestFullscreen) {
+          panel.webkitRequestFullscreen();
+        }
+        btn.innerHTML = '<i class="fa-solid fa-compress"></i>';
+        panel.classList.add('fullscreen');
+      } else {
+        if (document.exitFullscreen) {
+          document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+          document.webkitExitFullscreen();
+        }
+        btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+        panel.classList.remove('fullscreen');
+      }
+    }
+
+    // Evento de fullscreen
+    document.addEventListener('fullscreenchange', () => {
+      const panel = document.getElementById('pdfPreviewPanel');
+      const btn = document.getElementById('btnFullscreen');
+      if (document.fullscreenElement) {
+        btn.innerHTML = '<i class="fa-solid fa-compress"></i>';
+        panel.classList.add('fullscreen');
+      } else {
+        btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
+        panel.classList.remove('fullscreen');
+        // Re-renderizar após sair da tela cheia
+        if (pdfDoc) {
+          setTimeout(pdfRenderizarPaginaAtual, 300);
+        }
+      }
+    });
+
+    function fecharVisualizador() {
+      const panel = document.getElementById('pdfPreviewPanel');
+      const container = document.getElementById('pdfPagesContainer');
+      
+      panel.style.display = 'none';
+      container.innerHTML = '';
+      pdfDoc = null;
+      pdfUrlAtual = '';
+      
+      if (document.fullscreenElement) {
+        document.exitFullscreen();
+      }
+    }
+
+    // Redimensionar ao mudar tamanho da janela
+    let pdfResizeTimer;
+    window.addEventListener('resize', () => {
+      clearTimeout(pdfResizeTimer);
+      pdfResizeTimer = setTimeout(() => {
+        if (pdfDoc && document.getElementById('pdfPreviewPanel').style.display !== 'none') {
+          pdfRenderizarPaginaAtual();
+        }
+      }, 300);
+    });
 
     // =============================================
     // ===== RENDERIZAÇÃO DA TABELA =====
@@ -2856,7 +2979,7 @@
       }
     });
 
-    console.log('✅ Repertório de Músicas do Aluno com todas as funcionalidades carregado!');
+    console.log('✅ Repertório de Músicas do Aluno com PDF.js e rotação carregado!');
   </script>
 </body>
 </html>
