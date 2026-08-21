@@ -168,11 +168,11 @@
     /* ===== VISUALIZADOR DE PDF COM PDF.JS ===== */
     .pdf-preview-panel {
       position: relative;
-      width: 520px;
-      height: 650px;
-      min-width: 280px;
+      width: 650px;
+      height: 750px;
+      min-width: 350px;
       max-width: 95vw;
-      min-height: 300px;
+      min-height: 400px;
       max-height: 95vh;
       background-color: #1e293b;
       display: none;
@@ -215,7 +215,7 @@
       overflow: hidden;
       text-overflow: ellipsis;
       margin: 0;
-      max-width: 150px;
+      max-width: 200px;
     }
     .pdf-toolbar { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
     .pdf-toolbar .btn-pdf-action {
@@ -243,18 +243,20 @@
     }
     .btn-close-preview:hover { color: #ef4444; }
 
-    /* CONTAINER DO PDF COM SCROLL */
+    /* CONTAINER DO PDF COM SCROLL - AGORA COM FLEX ROW PARA 2 PÁGINAS */
     .pdf-container {
       flex: 1;
       overflow: auto;
       padding: 10px;
       display: flex;
-      flex-direction: column;
-      align-items: center;
-      gap: 10px;
+      flex-direction: row;
+      align-items: flex-start;
+      justify-content: center;
+      gap: 15px;
       background: #1e293b;
       position: relative;
       min-height: 0;
+      flex-wrap: wrap;
     }
     .pdf-container::-webkit-scrollbar { width: 6px; height: 6px; }
     .pdf-container::-webkit-scrollbar-track { background: #1e293b; }
@@ -265,7 +267,7 @@
       flex-direction: column;
       align-items: center;
       flex-shrink: 0;
-      width: 100%;
+      max-width: 100%;
     }
     .pdf-page-wrapper .page-number {
       background: rgba(0,0,0,0.6);
@@ -308,6 +310,7 @@
       transition: 0.2s;
     }
     .pdf-controls button:hover { background: #334155; color: white; }
+    .pdf-controls button.active { background: #1abc9c; border-color: #16a085; color: white; }
     .pdf-controls .pdf-page-info {
       font-size: 0.8rem;
       color: #94a3b8;
@@ -700,7 +703,7 @@
               <th style="width: 120px; text-align: center;">Lote</th>
               <th style="width: 150px; text-align: center;">Status</th>
               <th>Observações</th>
-              <th style="width: 160px; text-align: center;">Ações</th>
+              <th style="width: 180px; text-align: center;">Ações</th>
             </tr>
           </thead>
           <tbody>
@@ -731,12 +734,20 @@
       </div>
 
       <div class="pdf-controls" id="pdfControls">
+        <!-- Navegação de páginas -->
         <button onclick="pdfPaginaAnterior()"><i class="fa-solid fa-chevron-left"></i></button>
         <span class="pdf-page-info" id="pdfPageInfo">1 / 1</span>
         <button onclick="pdfProximaPagina()"><i class="fa-solid fa-chevron-right"></i></button>
         
         <span style="color:#64748b;font-size:0.7rem;margin:0 4px;">|</span>
         
+        <!-- Modo de visualização: 1 ou 2 páginas -->
+        <button class="active" id="btnModo1Pag" onclick="pdfSetModoPaginas(1)" title="1 Página">1 Pág</button>
+        <button id="btnModo2Pag" onclick="pdfSetModoPaginas(2)" title="2 Páginas lado a lado">2 Pág</button>
+        
+        <span style="color:#64748b;font-size:0.7rem;margin:0 4px;">|</span>
+        
+        <!-- Controles de rotação -->
         <button onclick="pdfRotacionar(-90)" title="Girar -90°"><i class="fa-solid fa-rotate-left"></i></button>
         <span class="pdf-rotation-info" id="pdfRotationInfo">0°</span>
         <button onclick="pdfRotacionar(90)" title="Girar +90°"><i class="fa-solid fa-rotate-right"></i></button>
@@ -744,6 +755,7 @@
         
         <span style="color:#64748b;font-size:0.7rem;margin:0 4px;">|</span>
         
+        <!-- Zoom -->
         <span style="font-size:0.7rem;color:#94a3b8;">Zoom:</span>
         <input type="number" class="pdf-zoom-input" id="pdfZoomInput" value="100" min="30" max="300" step="5" oninput="pdfAlterarZoom(this.value)">
         <span style="font-size:0.7rem;color:#94a3b8;">%</span>
@@ -851,6 +863,7 @@
     let pdfUrlAtual = '';
     let pdfTituloAtual = '';
     let pdfCarregando = false;
+    let pdfModoPaginas = 1; // 1 ou 2
 
     // ===== ABC GLOBALS =====
     let abcVisualObj = null;
@@ -985,13 +998,13 @@
       function handleMouseMove(e) {
         if (isResizingLeft) {
           const dx = startX - e.clientX;
-          const newWidth = Math.max(280, Math.min(window.innerWidth * 0.9, startWidth + dx));
+          const newWidth = Math.max(350, Math.min(window.innerWidth * 0.9, startWidth + dx));
           panel.style.width = `${newWidth}px`;
         }
 
         if (isResizingBottom) {
           const dy = e.clientY - startY;
-          const newHeight = Math.max(300, Math.min(window.innerHeight * 0.95, startHeight + dy));
+          const newHeight = Math.max(400, Math.min(window.innerHeight * 0.95, startHeight + dy));
           panel.style.height = `${newHeight}px`;
         }
       }
@@ -1001,7 +1014,6 @@
         isResizingBottom = false;
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', stopDrag);
-        // Re-renderizar PDF após redimensionamento
         if (pdfDoc) {
           setTimeout(pdfRenderizarPaginaAtual, 200);
         }
@@ -2093,9 +2105,14 @@
       pdfRotacao = 0;
       pdfZoom = 100;
       pdfPaginaAtual = 1;
+      pdfModoPaginas = 1;
       
       document.getElementById('pdfZoomInput').value = 100;
       document.getElementById('pdfRotationInfo').textContent = '0°';
+      
+      // Atualizar botões de modo
+      document.getElementById('btnModo1Pag').classList.add('active');
+      document.getElementById('btnModo2Pag').classList.remove('active');
       
       panel.style.display = 'flex';
       container.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;"><i class="fa-solid fa-spinner fa-spin"></i> Carregando PDF...</div>';
@@ -2126,6 +2143,19 @@
       }
     }
 
+    // ===== MODO DE PÁGINAS =====
+    function pdfSetModoPaginas(modo) {
+      pdfModoPaginas = modo;
+      
+      // Atualizar botões
+      document.getElementById('btnModo1Pag').classList.toggle('active', modo === 1);
+      document.getElementById('btnModo2Pag').classList.toggle('active', modo === 2);
+      
+      if (pdfDoc) {
+        pdfRenderizarPaginaAtual();
+      }
+    }
+
     async function pdfRenderizarPaginaAtual() {
       const container = document.getElementById('pdfPagesContainer');
       
@@ -2136,22 +2166,46 @@
 
       container.innerHTML = '';
       
-      const wrapper = document.createElement('div');
-      wrapper.className = 'pdf-page-wrapper';
+      // Determinar quais páginas renderizar
+      let paginasParaRenderizar = [];
       
-      const pageNumber = document.createElement('div');
-      pageNumber.className = 'page-number';
-      pageNumber.textContent = `Página ${pdfPaginaAtual} de ${pdfTotalPaginas}`;
-      wrapper.appendChild(pageNumber);
+      if (pdfModoPaginas === 1) {
+        paginasParaRenderizar = [pdfPaginaAtual];
+      } else {
+        // Modo 2 páginas: mostra a página atual e a próxima (se existir)
+        paginasParaRenderizar = [pdfPaginaAtual];
+        if (pdfPaginaAtual < pdfTotalPaginas) {
+          paginasParaRenderizar.push(pdfPaginaAtual + 1);
+        }
+      }
       
-      const canvas = document.createElement('canvas');
-      wrapper.appendChild(canvas);
+      // Renderizar cada página
+      for (let i = 0; i < paginasParaRenderizar.length; i++) {
+        const numPagina = paginasParaRenderizar[i];
+        const wrapper = document.createElement('div');
+        wrapper.className = 'pdf-page-wrapper';
+        wrapper.style.flex = '1';
+        wrapper.style.minWidth = '0';
+        
+        const pageNumber = document.createElement('div');
+        pageNumber.className = 'page-number';
+        pageNumber.textContent = `Página ${numPagina} de ${pdfTotalPaginas}`;
+        wrapper.appendChild(pageNumber);
+        
+        const canvas = document.createElement('canvas');
+        wrapper.appendChild(canvas);
+        
+        container.appendChild(wrapper);
+        
+        await pdfRenderizarPagina(numPagina, canvas);
+      }
       
-      container.appendChild(wrapper);
-
-      await pdfRenderizarPagina(pdfPaginaAtual, canvas);
-
-      document.getElementById('pdfPageInfo').textContent = `${pdfPaginaAtual} / ${pdfTotalPaginas}`;
+      // Atualizar info da página
+      let infoTexto = `${pdfPaginaAtual} / ${pdfTotalPaginas}`;
+      if (pdfModoPaginas === 2 && pdfPaginaAtual < pdfTotalPaginas) {
+        infoTexto = `${pdfPaginaAtual}-${pdfPaginaAtual + 1} / ${pdfTotalPaginas}`;
+      }
+      document.getElementById('pdfPageInfo').textContent = infoTexto;
     }
 
     async function pdfRenderizarPagina(numero, canvas) {
@@ -2160,7 +2214,7 @@
       try {
         const page = await pdfDoc.getPage(numero);
         
-        const container = document.getElementById('pdfPagesContainer');
+        const container = document.getElementById('pdfContainer');
         const containerWidth = container.clientWidth - 20;
         const containerHeight = container.clientHeight - 20;
         
@@ -2207,15 +2261,23 @@
 
     // ===== CONTROLES DO PDF =====
     function pdfProximaPagina() {
-      if (pdfPaginaAtual < pdfTotalPaginas) {
-        pdfPaginaAtual++;
+      let novaPagina = pdfPaginaAtual + 1;
+      if (pdfModoPaginas === 2) {
+        novaPagina = pdfPaginaAtual + 2;
+      }
+      if (novaPagina <= pdfTotalPaginas) {
+        pdfPaginaAtual = novaPagina;
         pdfRenderizarPaginaAtual();
       }
     }
 
     function pdfPaginaAnterior() {
-      if (pdfPaginaAtual > 1) {
-        pdfPaginaAtual--;
+      let novaPagina = pdfPaginaAtual - 1;
+      if (pdfModoPaginas === 2) {
+        novaPagina = pdfPaginaAtual - 2;
+      }
+      if (novaPagina >= 1) {
+        pdfPaginaAtual = novaPagina;
         pdfRenderizarPaginaAtual();
       }
     }
@@ -2283,7 +2345,6 @@
       } else {
         btn.innerHTML = '<i class="fa-solid fa-expand"></i>';
         panel.classList.remove('fullscreen');
-        // Re-renderizar após sair da tela cheia
         if (pdfDoc) {
           setTimeout(pdfRenderizarPaginaAtual, 300);
         }
@@ -2979,7 +3040,7 @@
       }
     });
 
-    console.log('✅ Repertório de Músicas do Aluno com PDF.js e rotação carregado!');
+    console.log('✅ Repertório de Músicas do Aluno com PDF.js, rotação e 2 páginas carregado!');
   </script>
 </body>
 </html>
