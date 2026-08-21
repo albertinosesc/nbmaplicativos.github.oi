@@ -168,11 +168,11 @@
     /* ===== VISUALIZADOR DE PDF COM PDF.JS ===== */
     .pdf-preview-panel {
       position: relative;
-      width: 650px;
-      height: 750px;
-      min-width: 350px;
+      width: 750px;
+      height: 800px;
+      min-width: 400px;
       max-width: 95vw;
-      min-height: 400px;
+      min-height: 450px;
       max-height: 95vh;
       background-color: #1e293b;
       display: none;
@@ -243,7 +243,7 @@
     }
     .btn-close-preview:hover { color: #ef4444; }
 
-    /* CONTAINER DO PDF COM SCROLL - AGORA COM FLEX ROW PARA 2 PÁGINAS */
+    /* CONTAINER DO PDF - COM FLEX ROW PARA PÁGINAS LADO A LADO */
     .pdf-container {
       flex: 1;
       overflow: auto;
@@ -252,22 +252,23 @@
       flex-direction: row;
       align-items: flex-start;
       justify-content: center;
-      gap: 15px;
+      gap: 20px;
       background: #1e293b;
       position: relative;
       min-height: 0;
-      flex-wrap: wrap;
+      flex-wrap: nowrap;
     }
-    .pdf-container::-webkit-scrollbar { width: 6px; height: 6px; }
+    .pdf-container::-webkit-scrollbar { width: 8px; height: 8px; }
     .pdf-container::-webkit-scrollbar-track { background: #1e293b; }
-    .pdf-container::-webkit-scrollbar-thumb { background: #475569; border-radius: 3px; }
+    .pdf-container::-webkit-scrollbar-thumb { background: #475569; border-radius: 4px; }
 
     .pdf-page-wrapper {
       display: flex;
       flex-direction: column;
       align-items: center;
       flex-shrink: 0;
-      max-width: 100%;
+      min-width: 0;
+      flex: 0 1 auto;
     }
     .pdf-page-wrapper .page-number {
       background: rgba(0,0,0,0.6);
@@ -278,6 +279,7 @@
       font-weight: bold;
       margin-bottom: 6px;
       backdrop-filter: blur(4px);
+      white-space: nowrap;
     }
     .pdf-page-wrapper canvas {
       display: block;
@@ -314,7 +316,7 @@
     .pdf-controls .pdf-page-info {
       font-size: 0.8rem;
       color: #94a3b8;
-      min-width: 60px;
+      min-width: 80px;
       text-align: center;
       font-weight: 500;
     }
@@ -587,6 +589,7 @@
         height: 500px;
         max-height: 70vh;
       }
+      .pdf-container { flex-wrap: wrap; }
     }
   </style>
 </head>
@@ -998,13 +1001,13 @@
       function handleMouseMove(e) {
         if (isResizingLeft) {
           const dx = startX - e.clientX;
-          const newWidth = Math.max(350, Math.min(window.innerWidth * 0.9, startWidth + dx));
+          const newWidth = Math.max(400, Math.min(window.innerWidth * 0.9, startWidth + dx));
           panel.style.width = `${newWidth}px`;
         }
 
         if (isResizingBottom) {
           const dy = e.clientY - startY;
-          const newHeight = Math.max(400, Math.min(window.innerHeight * 0.95, startHeight + dy));
+          const newHeight = Math.max(450, Math.min(window.innerHeight * 0.95, startHeight + dy));
           panel.style.height = `${newHeight}px`;
         }
       }
@@ -2088,7 +2091,6 @@
         return;
       }
 
-      // Abrir o PDF com o visualizador PDF.js
       abrirPDFComPDFJS(pdfCaminho, m.title || m.nome);
     }
 
@@ -2151,6 +2153,14 @@
       document.getElementById('btnModo1Pag').classList.toggle('active', modo === 1);
       document.getElementById('btnModo2Pag').classList.toggle('active', modo === 2);
       
+      // Ajustar largura do painel para 2 páginas
+      const panel = document.getElementById('pdfPreviewPanel');
+      if (modo === 2) {
+        panel.style.width = '850px';
+      } else {
+        panel.style.width = '750px';
+      }
+      
       if (pdfDoc) {
         pdfRenderizarPaginaAtual();
       }
@@ -2171,12 +2181,16 @@
       
       if (pdfModoPaginas === 1) {
         paginasParaRenderizar = [pdfPaginaAtual];
+        container.style.flexWrap = 'nowrap';
+        container.style.justifyContent = 'center';
       } else {
         // Modo 2 páginas: mostra a página atual e a próxima (se existir)
         paginasParaRenderizar = [pdfPaginaAtual];
         if (pdfPaginaAtual < pdfTotalPaginas) {
           paginasParaRenderizar.push(pdfPaginaAtual + 1);
         }
+        container.style.flexWrap = 'nowrap';
+        container.style.justifyContent = 'center';
       }
       
       // Renderizar cada página
@@ -2184,8 +2198,9 @@
         const numPagina = paginasParaRenderizar[i];
         const wrapper = document.createElement('div');
         wrapper.className = 'pdf-page-wrapper';
-        wrapper.style.flex = '1';
+        wrapper.style.flex = '0 1 auto';
         wrapper.style.minWidth = '0';
+        wrapper.style.maxWidth = '100%';
         
         const pageNumber = document.createElement('div');
         pageNumber.className = 'page-number';
@@ -2215,8 +2230,14 @@
         const page = await pdfDoc.getPage(numero);
         
         const container = document.getElementById('pdfContainer');
-        const containerWidth = container.clientWidth - 20;
-        const containerHeight = container.clientHeight - 20;
+        const containerWidth = container.clientWidth - 40;
+        const containerHeight = container.clientHeight - 40;
+        
+        // Calcular largura disponível por página
+        let larguraDisponivel = containerWidth;
+        if (pdfModoPaginas === 2) {
+          larguraDisponivel = (containerWidth - 20) / 2;
+        }
         
         // Viewport original
         const viewport = page.getViewport({ scale: 1 });
@@ -2224,7 +2245,7 @@
         let baseHeight = viewport.height;
         
         // Calcular escala para caber no container
-        let scaleX = containerWidth / baseWidth;
+        let scaleX = larguraDisponivel / baseWidth;
         let scaleY = containerHeight / baseHeight;
         let scale = Math.min(scaleX, scaleY, 1.5);
         scale = Math.max(scale, 0.2);
@@ -2268,6 +2289,8 @@
       if (novaPagina <= pdfTotalPaginas) {
         pdfPaginaAtual = novaPagina;
         pdfRenderizarPaginaAtual();
+      } else {
+        showToast('📄 Última página', 'info');
       }
     }
 
@@ -2279,6 +2302,8 @@
       if (novaPagina >= 1) {
         pdfPaginaAtual = novaPagina;
         pdfRenderizarPaginaAtual();
+      } else {
+        showToast('📄 Primeira página', 'info');
       }
     }
 
@@ -3040,7 +3065,7 @@
       }
     });
 
-    console.log('✅ Repertório de Músicas do Aluno com PDF.js, rotação e 2 páginas carregado!');
+    console.log('✅ Repertório de Músicas do Aluno com PDF.js, rotação e 2 páginas lado a lado carregado!');
   </script>
 </body>
 </html>
