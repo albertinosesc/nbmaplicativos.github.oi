@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF Rotator - Com Scroll</title>
+  <title>PDF Rotator - Corrigido</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
@@ -23,7 +23,6 @@
     .btn-success { background-color: #27ae60; }
     .btn-danger { background-color: #dc2626; }
     .btn-secondary { background-color: #4b5563; }
-    .btn-warning { background-color: #d97706; }
     .btn-info { background-color: #0284c7; }
 
     .main-container { display: flex; gap: 20px; flex-wrap: wrap; }
@@ -44,18 +43,17 @@
     .pdf-item.active { background: #dbeafe; border-left: 4px solid #3b82f6; }
     .pdf-item .pdf-name { font-weight: 500; font-size: 0.85rem; }
 
-    /* VISUALIZADOR COM SCROLL */
+    /* VISUALIZADOR - SOLUÇÃO CORRETA */
     .pdf-pages-container {
       background: #1e293b;
       border-radius: 8px;
-      padding: 20px;
+      padding: 10px;
       height: 650px;
-      overflow-y: auto;
-      overflow-x: auto;
+      overflow: auto;
       display: flex;
       flex-direction: column;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .pdf-pages-container::-webkit-scrollbar {
@@ -69,19 +67,16 @@
       background: #475569;
       border-radius: 4px;
     }
-    .pdf-pages-container::-webkit-scrollbar-thumb:hover {
-      background: #64748b;
-    }
 
     .pdf-page-wrapper {
       display: flex;
       justify-content: center;
       align-items: flex-start;
       width: 100%;
-      min-height: 100px;
       position: relative;
       flex-shrink: 0;
       padding: 5px 0;
+      min-height: 100px;
     }
 
     .pdf-page-wrapper .page-number {
@@ -99,6 +94,15 @@
       backdrop-filter: blur(4px);
       display: inline-block;
       margin-top: 5px;
+      pointer-events: none;
+    }
+
+    .pdf-page-wrapper .canvas-wrapper {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      width: 100%;
+      background: transparent;
     }
 
     .pdf-page-wrapper canvas {
@@ -106,10 +110,11 @@
       border-radius: 2px;
       box-shadow: 0 2px 10px rgba(0,0,0,0.4);
       background: white;
-      max-width: none;
-      height: auto !important;
       image-rendering: auto;
-      transition: transform 0.15s ease;
+      transition: transform 0.2s ease;
+      transform-origin: center center;
+      max-width: 100%;
+      height: auto !important;
     }
 
     .controls {
@@ -236,7 +241,6 @@
       min-width: 40px;
     }
 
-    /* Botão para centralizar página */
     .btn-center {
       background-color: #0d9488;
     }
@@ -316,15 +320,15 @@
           
           <div class="zoom-controls">
             <span class="zoom-label" id="zoomLabel">100%</span>
-            <input type="range" id="zoomRange" min="20" max="300" value="100" oninput="alterarZoom(this.value)">
+            <input type="range" id="zoomRange" min="50" max="250" value="100" oninput="alterarZoom(this.value)">
           </div>
           
-          <button class="btn-center" onclick="centralizarPagina()" title="Centralizar página no container">
+          <button class="btn-center" onclick="centralizarPagina()" title="Centralizar página">
             <i class="fa-solid fa-arrows-center"></i>
           </button>
         </div>
 
-        <!-- Container COM SCROLL -->
+        <!-- Container -->
         <div class="pdf-pages-container" id="pdfPagesContainer">
           <div style="padding: 40px; text-align: center; color: #94a3b8;">
             <i class="fa-solid fa-file-pdf fa-3x"></i>
@@ -332,7 +336,7 @@
           </div>
         </div>
 
-        <!-- Controles de página -->
+        <!-- Controles -->
         <div class="page-controls" id="pageControls" style="display: none;">
           <span style="font-size: 0.85rem; color: #6b7280;">Páginas:</span>
           <button class="btn-secondary" onclick="irParaPagina(1)"><i class="fa-solid fa-angles-left"></i></button>
@@ -341,7 +345,7 @@
           <button class="btn-secondary" onclick="proximaPagina()"><i class="fa-solid fa-chevron-right"></i></button>
           <button class="btn-secondary" onclick="irParaPagina(totalPaginas)"><i class="fa-solid fa-angles-right"></i></button>
           <span style="font-size: 0.85rem; color: #6b7280; margin-left: 10px;">
-            <i class="fa-solid fa-arrows-rotate"></i> Rotação: <span id="pageRotationDisplay">0</span>°
+            <i class="fa-solid fa-arrows-rotate"></i> <span id="pageRotationDisplay">0</span>°
           </span>
           <span style="font-size: 0.85rem; color: #6b7280; margin-left: 10px;">
             Zoom: <span id="zoomDisplay">100</span>%
@@ -372,7 +376,9 @@
     let pdfDoc = null;
     let totalPaginas = 0;
     let paginaAtual = 1;
-    let zoomLevel = 1.0;
+    let zoomPercent = 100;
+    let canvasBaseWidth = 0;
+    let canvasBaseHeight = 0;
 
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
@@ -487,7 +493,7 @@
 
       pdfAtual = pdf;
       rotacaoAtual = pdf.rotacao || 0;
-      zoomLevel = 1.0;
+      zoomPercent = 100;
       document.getElementById('zoomRange').value = 100;
       document.getElementById('zoomLabel').textContent = '100%';
       document.getElementById('zoomDisplay').textContent = '100';
@@ -528,7 +534,7 @@
       }
     }
 
-    // ===== RENDERIZAR PÁGINA ATUAL COM SCROLL =====
+    // ===== RENDERIZAR PÁGINA =====
     async function renderizarPaginaAtual() {
       const container = document.getElementById('pdfPagesContainer');
       
@@ -537,26 +543,23 @@
         return;
       }
 
-      // Limpar container mas manter scroll
       container.innerHTML = '';
       
       const wrapper = document.createElement('div');
       wrapper.className = 'pdf-page-wrapper';
-      wrapper.style.width = '100%';
-      wrapper.style.display = 'flex';
-      wrapper.style.justifyContent = 'center';
-      wrapper.style.alignItems = 'flex-start';
-      wrapper.style.minHeight = '100px';
-      wrapper.style.padding = '10px 0';
       
       const pageNumber = document.createElement('div');
       pageNumber.className = 'page-number';
       pageNumber.textContent = `Página ${paginaAtual} de ${totalPaginas}`;
       wrapper.appendChild(pageNumber);
       
+      const canvasWrapper = document.createElement('div');
+      canvasWrapper.className = 'canvas-wrapper';
+      
       const canvas = document.createElement('canvas');
       canvas.id = 'pdfCanvas';
-      wrapper.appendChild(canvas);
+      canvasWrapper.appendChild(canvas);
+      wrapper.appendChild(canvasWrapper);
       
       container.appendChild(wrapper);
 
@@ -564,48 +567,60 @@
 
       document.getElementById('pageInfo').textContent = `${paginaAtual} / ${totalPaginas}`;
       document.getElementById('pageRotationDisplay').textContent = rotacaoAtual;
-      document.getElementById('zoomDisplay').textContent = Math.round(zoomLevel * 100);
+      document.getElementById('zoomDisplay').textContent = zoomPercent;
     }
 
-    // ===== RENDERIZAR PÁGINA COM ZOOM E SCROLL =====
+    // ===== RENDERIZAR PÁGINA COM ZOOM VIA CSS =====
     async function renderizarPagina(numero, canvas) {
       if (!pdfDoc) return;
 
       try {
         const page = await pdfDoc.getPage(numero);
         
-        // Viewport original
+        // Viewport em escala 1 (base)
         const viewport = page.getViewport({ scale: 1 });
-        let originalWidth = viewport.width;
-        let originalHeight = viewport.height;
+        const baseWidth = viewport.width;
+        const baseHeight = viewport.height;
         
-        // Se estiver rotacionado 90° ou 270°, trocar largura e altura
-        const isRotated = rotacaoAtual === 90 || rotacaoAtual === 270;
-        if (isRotated) {
-          [originalWidth, originalHeight] = [originalHeight, originalWidth];
-        }
+        // Salvar tamanho base
+        canvasBaseWidth = baseWidth;
+        canvasBaseHeight = baseHeight;
         
-        // Aplicar zoom DIRETAMENTE - sem limitar pelo container
-        const scale = zoomLevel;
+        // Calcular escala para caber no container (zoom 100%)
+        const container = document.getElementById('pdfPagesContainer');
+        const containerWidth = container.clientWidth - 30;
+        const containerHeight = container.clientHeight - 30;
         
-        // Viewport com escala
-        const scaledViewport = page.getViewport({ scale: scale });
+        // Escala base para caber no container
+        let scaleX = containerWidth / baseWidth;
+        let scaleY = containerHeight / baseHeight;
+        let baseScale = Math.min(scaleX, scaleY, 1.5);
+        baseScale = Math.max(baseScale, 0.3);
         
-        // Configurar canvas com o tamanho REAL (sem cortes)
-        canvas.width = scaledViewport.width;
-        canvas.height = scaledViewport.height;
+        // Aplicar zoom do usuário
+        const finalScale = baseScale * (zoomPercent / 100);
         
-        // Aplicar rotação via CSS
-        canvas.style.transform = `rotate(${rotacaoAtual}deg)`;
+        // Viewport com escala final
+        const scaledViewport = page.getViewport({ scale: finalScale });
+        
+        // Configurar canvas com tamanho BASE (sem zoom aplicado no canvas)
+        // O zoom será aplicado via CSS transform: scale()
+        canvas.width = baseWidth;
+        canvas.height = baseHeight;
+        canvas.style.width = `${baseWidth}px`;
+        canvas.style.height = `${baseHeight}px`;
+        
+        // Aplicar rotação + zoom via CSS
+        const scaleFactor = finalScale;
+        const rot = rotacaoAtual;
+        
+        canvas.style.transform = `rotate(${rot}deg) scale(${scaleFactor})`;
         canvas.style.transformOrigin = 'center center';
-        canvas.style.width = `${scaledViewport.width}px`;
-        canvas.style.height = `${scaledViewport.height}px`;
         canvas.style.maxWidth = 'none';
         canvas.style.maxHeight = 'none';
         canvas.style.display = 'block';
-        canvas.style.flexShrink = '0';
 
-        // Renderizar
+        // Renderizar com a escala final
         const context = canvas.getContext('2d');
         context.clearRect(0, 0, canvas.width, canvas.height);
         
@@ -616,41 +631,18 @@
 
         await page.render(renderContext).promise;
 
-        // Ajustar o container para permitir scroll
-        const container = document.getElementById('pdfPagesContainer');
-        const wrapper = canvas.parentElement;
-        
-        // Garantir que o wrapper tenha tamanho suficiente
-        const canvasWidth = canvas.width;
-        const canvasHeight = canvas.height;
-        
-        // Se estiver rotacionado, o canvas ocupa espaço diferente
-        let displayWidth = canvasWidth;
-        let displayHeight = canvasHeight;
-        if (isRotated) {
-          displayWidth = canvasHeight;
-          displayHeight = canvasWidth;
-        }
-        
-        wrapper.style.width = '100%';
-        wrapper.style.minHeight = `${displayHeight + 30}px`;
-        wrapper.style.display = 'flex';
-        wrapper.style.justifyContent = 'center';
-        wrapper.style.alignItems = 'flex-start';
-
       } catch (e) {
         console.error('Erro ao renderizar página:', e);
       }
     }
 
-    // ===== CENTRALIZAR PÁGINA =====
+    // ===== CENTRALIZAR =====
     function centralizarPagina() {
       const container = document.getElementById('pdfPagesContainer');
       const canvas = document.getElementById('pdfCanvas');
       
       if (!canvas) return;
       
-      // Scroll para o centro do canvas
       const containerRect = container.getBoundingClientRect();
       const canvasRect = canvas.getBoundingClientRect();
       
@@ -666,13 +658,12 @@
 
     // ===== ZOOM =====
     function alterarZoom(valor) {
-      zoomLevel = parseInt(valor) / 100;
+      zoomPercent = parseInt(valor);
       document.getElementById('zoomLabel').textContent = `${valor}%`;
       document.getElementById('zoomDisplay').textContent = valor;
       if (pdfDoc) {
         renderizarPaginaAtual();
-        // Pequeno delay para centralizar após renderizar
-        setTimeout(() => centralizarPagina(), 100);
+        setTimeout(() => centralizarPagina(), 150);
       }
     }
 
@@ -681,7 +672,7 @@
       if (paginaAtual < totalPaginas) {
         paginaAtual++;
         renderizarPaginaAtual();
-        setTimeout(() => centralizarPagina(), 100);
+        setTimeout(() => centralizarPagina(), 150);
       }
     }
 
@@ -689,7 +680,7 @@
       if (paginaAtual > 1) {
         paginaAtual--;
         renderizarPaginaAtual();
-        setTimeout(() => centralizarPagina(), 100);
+        setTimeout(() => centralizarPagina(), 150);
       }
     }
 
@@ -697,7 +688,7 @@
       if (num >= 1 && num <= totalPaginas) {
         paginaAtual = num;
         renderizarPaginaAtual();
-        setTimeout(() => centralizarPagina(), 100);
+        setTimeout(() => centralizarPagina(), 150);
       }
     }
 
@@ -716,7 +707,7 @@
       document.getElementById('pageRotationDisplay').textContent = rotacaoAtual;
 
       renderizarPaginaAtual();
-      setTimeout(() => centralizarPagina(), 100);
+      setTimeout(() => centralizarPagina(), 150);
     }
 
     function resetarRotacao() {
@@ -729,11 +720,11 @@
         pdfAtual.rotacao = 0;
         renderizarLista();
         renderizarPaginaAtual();
-        setTimeout(() => centralizarPagina(), 100);
+        setTimeout(() => centralizarPagina(), 150);
       }
     }
 
-    // ===== SALVAR PDF GIRADO =====
+    // ===== SALVAR PDF =====
     async function salvarPDFGirando() {
       if (!pdfAtual) {
         showToast('⚠️ Selecione um PDF', 'warning');
@@ -827,8 +818,7 @@
       }, 300);
     });
 
-    console.log('📄 PDF Rotator - Com Scroll carregado!');
-    console.log(`📁 Repositório: ${GH_CONFIG.user}/${GH_CONFIG.repo}`);
+    console.log('📄 PDF Rotator - Versão Corrigida carregado!');
   </script>
 </body>
 </html>
