@@ -165,11 +165,88 @@
       box-shadow: 0 0 0 2px var(--primary);
     }
 
-    /* GRID DE LOTES */
+    /* VIEW TOGGLE */
+    .view-toggle {
+      display: flex;
+      gap: 5px;
+      background: #f1f5f9;
+      padding: 4px;
+      border-radius: 8px;
+    }
+
+    .view-toggle button {
+      padding: 6px 14px;
+      border: none;
+      border-radius: 6px;
+      background: transparent;
+      color: #6b7280;
+      cursor: pointer;
+      font-size: 0.85rem;
+      transition: 0.2s;
+    }
+
+    .view-toggle button.active {
+      background: white;
+      color: var(--primary);
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+
+    .view-toggle button:hover:not(.active) {
+      background: #e5e7eb;
+    }
+
+    /* GRID DE LOTES - GALERIA */
     .lotes-grid {
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 20px;
+    }
+
+    /* LISTA DE LOTES */
+    .lotes-lista {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .lotes-lista .lote-card {
+      display: grid;
+      grid-template-columns: 180px 1fr 140px auto;
+      gap: 15px;
+      align-items: center;
+      padding: 12px 18px;
+    }
+
+    .lotes-lista .lote-card .lote-header {
+      margin-bottom: 0;
+    }
+
+    .lotes-lista .lote-card .lote-nome {
+      margin: 0;
+      font-size: 0.95rem;
+    }
+
+    .lotes-lista .lote-card .lote-detalhes {
+      margin: 0;
+      font-size: 0.8rem;
+      display: flex;
+      gap: 15px;
+    }
+
+    .lotes-lista .lote-card .lote-itens {
+      display: none;
+    }
+
+    .lotes-lista .lote-card .lote-actions {
+      margin-top: 0;
+      flex-wrap: nowrap;
+    }
+
+    .lotes-lista .lote-card .lote-actions button {
+      padding: 4px 10px;
+      font-size: 0.7rem;
+      flex: 0 1 auto;
+      min-width: auto;
     }
 
     .lote-card {
@@ -184,6 +261,10 @@
     .lote-card:hover {
       box-shadow: 0 4px 12px rgba(0,0,0,0.1);
       transform: translateY(-2px);
+    }
+
+    .lotes-lista .lote-card:hover {
+      transform: none;
     }
 
     .lote-card .lote-header {
@@ -301,6 +382,16 @@
     /* RESPONSIVE */
     @media (max-width: 768px) {
       .lotes-grid { grid-template-columns: 1fr; }
+      .lotes-lista .lote-card {
+        grid-template-columns: 1fr;
+        gap: 8px;
+      }
+      .lotes-lista .lote-card .lote-detalhes {
+        flex-wrap: wrap;
+      }
+      .lotes-lista .lote-card .lote-actions {
+        flex-wrap: wrap;
+      }
       .stats { justify-content: center; }
       .filters { flex-direction: column; align-items: stretch; }
       .filters .filter-group { justify-content: space-between; }
@@ -440,7 +531,17 @@
         <input type="text" id="filterBusca" placeholder="Digite para filtrar..." oninput="aplicarFiltros()" style="min-width: 150px; padding: 5px 10px;">
       </div>
 
-      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto;">
+      <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; align-items: center;">
+        <!-- VIEW TOGGLE -->
+        <div class="view-toggle">
+          <button id="viewGaleria" class="active" onclick="setView('galeria')">
+            <i class="fa-solid fa-th-large"></i> Galeria
+          </button>
+          <button id="viewLista" onclick="setView('lista')">
+            <i class="fa-solid fa-list"></i> Lista
+          </button>
+        </div>
+
         <button onclick="carregarLotes()"><i class="fa-solid fa-rotate"></i> Atualizar</button>
         <button class="btn-secondary" onclick="expandirTodos()"><i class="fa-solid fa-expand"></i> Expandir</button>
         <button class="btn-secondary" onclick="recolherTodos()"><i class="fa-solid fa-compress"></i> Recolher</button>
@@ -488,6 +589,7 @@
     let todosLotes = [];
     let lotesFiltrados = [];
     let expandidos = new Set();
+    let viewAtual = 'galeria'; // 'galeria' ou 'lista'
 
     window.onload = function() {
       const savedToken = localStorage.getItem("gh_pat_token");
@@ -543,17 +645,38 @@
       setTimeout(() => toast.remove(), 3000);
     }
 
+    // --- VIEW TOGGLE ---
+    function setView(view) {
+      viewAtual = view;
+      
+      // Atualizar botões
+      document.getElementById('viewGaleria').classList.toggle('active', view === 'galeria');
+      document.getElementById('viewLista').classList.toggle('active', view === 'lista');
+      
+      // Salvar preferência
+      localStorage.setItem('view_preference', view);
+      
+      // Re-renderizar
+      if (lotesFiltrados.length > 0 || document.getElementById('filterTipo').value) {
+        renderizarLotes();
+      }
+    }
+
+    // Carregar preferência de visualização
+    const savedView = localStorage.getItem('view_preference');
+    if (savedView) {
+      viewAtual = savedView;
+    }
+
     // --- MOSTRAR MODAL COM ABAS (JSON ou TXT) ---
     function mostrarModal(tipo, titulo, conteudo, extensao, itens = []) {
       const isJson = extensao === 'json';
       const icon = isJson ? 'fa-code' : 'fa-file-lines';
       
-      // Extrair itens limpos se for JSON
       let itensLimpos = [];
       if (isJson && itens.length > 0) {
         itensLimpos = itens;
       } else if (!isJson && conteudo) {
-        // Para TXT, pegar as linhas
         itensLimpos = conteudo.split('\n').filter(l => l.trim());
       }
       
@@ -640,7 +763,6 @@ ${conteudo}
 
       document.body.appendChild(modal);
 
-      // --- FUNÇÃO PARA COPIAR CONTEÚDO DO MODAL ---
       window.copiarConteudoModal = function() {
         const pre = modal.querySelector('#tab-codigo pre');
         if (pre) {
@@ -658,7 +780,6 @@ ${conteudo}
         }
       };
 
-      // --- FUNÇÃO PARA TROCAR ABAS ---
       const tabBtns = modal.querySelectorAll('.tab-btn');
       const tabContents = modal.querySelectorAll('.tab-content');
 
@@ -693,7 +814,6 @@ ${conteudo}
       });
     }
 
-    // --- VER ARQUIVO (JSON ou TXT) ---
     function verArquivo(id) {
       const lote = todosLotes.find(l => l.id === id);
       if (!lote) {
@@ -717,7 +837,6 @@ ${conteudo}
       showToast('❌ Não foi possível visualizar este arquivo.', 'error');
     }
 
-    // --- VER JSON (mantido para compatibilidade) ---
     function verLoteJson(id) {
       verArquivo(id);
     }
@@ -742,7 +861,6 @@ ${conteudo}
 
         const files = await res.json();
         
-        // ACEITAR .json E .txt
         const arquivosValidos = files.filter(f => 
           f.name.endsWith('.json') || f.name.endsWith('.txt')
         );
@@ -954,7 +1072,10 @@ ${conteudo}
         return;
       }
 
-      let html = `<div class="lotes-grid">`;
+      // Determinar classe do container
+      const containerClass = viewAtual === 'galeria' ? 'lotes-grid' : 'lotes-lista';
+      
+      let html = `<div class="${containerClass}">`;
 
       lotesFiltrados.forEach(lote => {
         const isExpandido = expandidos.has(lote.id);
@@ -974,6 +1095,11 @@ ${conteudo}
         const itensVisiveis = isExpandido ? lote.itens : lote.itens.slice(0, 5);
         const temMais = lote.itens.length > 5 && !isExpandido;
 
+        // Para lista, mostrar itens expandidos por padrão (mas com scroll)
+        const showItens = viewAtual === 'lista' ? true : isExpandido;
+        const itensParaMostrar = viewAtual === 'lista' ? lote.itens : itensVisiveis;
+        const temMaisLista = viewAtual === 'lista' ? false : temMais;
+
         html += `
           <div class="lote-card" id="lote-${lote.id}">
             <div class="lote-header">
@@ -987,26 +1113,39 @@ ${conteudo}
             <div class="lote-nome">${lote.nome}</div>
 
             <div class="lote-detalhes">
-              <span><i class="fa-regular fa-calendar"></i> Criado: ${dataCriacao}</span>
-              <span style="margin-left: 15px;"><i class="fa-regular fa-list"></i> ${lote.itens.length} itens</span>
-              <span style="margin-left: 15px;"><i class="fa-regular fa-file"></i> .${extensao}</span>
+              <span><i class="fa-regular fa-calendar"></i> ${dataCriacao}</span>
+              <span><i class="fa-regular fa-list"></i> ${lote.itens.length} itens</span>
+              <span><i class="fa-regular fa-file"></i> .${extensao}</span>
             </div>
 
-            <div class="lote-itens" id="itens-${lote.id}">
-              ${itensVisiveis.map((item, idx) => `
-                <div class="item">
-                  <span>${item}</span>
-                  <span class="item-index">#${idx + 1}</span>
-                </div>
-              `).join('')}
-              ${temMais ? `<div class="item" style="color: #6b7280; font-style: italic; justify-content: center;">... e mais ${lote.itens.length - 5} itens</div>` : ''}
-            </div>
+            ${viewAtual === 'galeria' ? `
+              <div class="lote-itens" id="itens-${lote.id}">
+                ${itensVisiveis.map((item, idx) => `
+                  <div class="item">
+                    <span>${item}</span>
+                    <span class="item-index">#${idx + 1}</span>
+                  </div>
+                `).join('')}
+                ${temMais ? `<div class="item" style="color: #6b7280; font-style: italic; justify-content: center;">... e mais ${lote.itens.length - 5} itens</div>` : ''}
+              </div>
+            ` : `
+              <div class="lote-itens" id="itens-${lote.id}" style="max-height: 100px;">
+                ${lote.itens.map((item, idx) => `
+                  <div class="item">
+                    <span>${item}</span>
+                    <span class="item-index">#${idx + 1}</span>
+                  </div>
+                `).join('')}
+              </div>
+            `}
 
             <div class="lote-actions">
-              <button onclick="toggleExpandir('${lote.id}')" class="btn-small btn-secondary" id="btn-expand-${lote.id}">
-                <i class="fa-solid ${isExpandido ? 'fa-compress' : 'fa-expand'}"></i>
-                ${isExpandido ? 'Recolher' : 'Expandir'}
-              </button>
+              ${viewAtual === 'galeria' ? `
+                <button onclick="toggleExpandir('${lote.id}')" class="btn-small btn-secondary" id="btn-expand-${lote.id}">
+                  <i class="fa-solid ${isExpandido ? 'fa-compress' : 'fa-expand'}"></i>
+                  ${isExpandido ? 'Recolher' : 'Expandir'}
+                </button>
+              ` : ''}
               <button onclick="copiarLote('${lote.id}')" class="btn-small" style="background-color: #0284c7;">
                 <i class="fa-solid fa-copy"></i> Copiar ID
               </button>
@@ -1023,6 +1162,10 @@ ${conteudo}
 
       html += `</div>`;
       container.innerHTML = html;
+      
+      // Atualizar estado dos botões de visualização
+      document.getElementById('viewGaleria').classList.toggle('active', viewAtual === 'galeria');
+      document.getElementById('viewLista').classList.toggle('active', viewAtual === 'lista');
     }
 
     // --- TOGGLE EXPANDIR ---
@@ -1108,6 +1251,14 @@ ${conteudo}
       if (e.ctrlKey && e.key === 'r') {
         e.preventDefault();
         carregarLotes();
+      }
+    });
+
+    // Inicializar visualização
+    document.addEventListener('DOMContentLoaded', function() {
+      if (viewAtual === 'lista') {
+        document.getElementById('viewGaleria').classList.remove('active');
+        document.getElementById('viewLista').classList.add('active');
       }
     });
   </script>
