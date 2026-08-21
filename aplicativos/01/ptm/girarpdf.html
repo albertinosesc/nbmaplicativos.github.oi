@@ -3,10 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>PDF Rotator - Visualização Melhorada</title>
+  <title>PDF Rotator - Sem Corte</title>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
-  <!-- PDF.js -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
   
   <style>
@@ -45,34 +44,34 @@
     .pdf-item.active { background: #dbeafe; border-left: 4px solid #3b82f6; }
     .pdf-item .pdf-name { font-weight: 500; font-size: 0.85rem; }
 
-    /* VISUALIZADOR - SEM ÁREA BRANCA */
+    /* VISUALIZADOR - SEM CORTE */
     .pdf-pages-container {
       background: #1e293b;
       border-radius: 8px;
-      padding: 10px;
+      padding: 15px;
       height: 650px;
-      overflow-y: auto;
+      overflow: auto;
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
       gap: 12px;
     }
 
     .pdf-page-wrapper {
-      background: transparent;
-      border-radius: 4px;
-      width: 100%;
-      max-width: 900px;
       display: flex;
       justify-content: center;
-      padding: 5px;
+      align-items: center;
+      width: 100%;
+      min-height: 100px;
       position: relative;
+      flex-shrink: 0;
     }
 
     .pdf-page-wrapper .page-number {
       position: absolute;
-      bottom: 10px;
-      right: 15px;
+      bottom: 8px;
+      right: 12px;
       background: rgba(0,0,0,0.6);
       color: white;
       padding: 2px 12px;
@@ -91,6 +90,7 @@
       max-width: 100%;
       height: auto !important;
       image-rendering: auto;
+      transition: transform 0.15s ease;
     }
 
     .controls {
@@ -200,7 +200,6 @@
       font-size: 0.8rem;
     }
 
-    /* CONTROLE DE ZOOM */
     .zoom-controls {
       display: flex;
       gap: 6px;
@@ -290,7 +289,7 @@
           
           <div class="zoom-controls">
             <span class="zoom-label" id="zoomLabel">100%</span>
-            <input type="range" id="zoomRange" min="50" max="200" value="100" oninput="alterarZoom(this.value)">
+            <input type="range" id="zoomRange" min="30" max="200" value="100" oninput="alterarZoom(this.value)">
           </div>
         </div>
 
@@ -336,13 +335,11 @@
     let rotacaoAtual = 0;
     let token = '';
 
-    // PDF.js
     let pdfDoc = null;
     let totalPaginas = 0;
     let paginaAtual = 1;
     let zoomLevel = 1.0;
 
-    // ===== INICIALIZAR PDF.JS =====
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
     // ===== TOAST =====
@@ -374,7 +371,6 @@
       carregarPDFs();
     }
 
-    // ===== CARREGAR TOKEN =====
     window.onload = function() {
       const saved = localStorage.getItem('gh_pat_token');
       if (saved) {
@@ -429,7 +425,6 @@
       }
     }
 
-    // ===== RENDERIZAR LISTA =====
     function renderizarLista(filtro = '') {
       const container = document.getElementById('pdfList');
       const filtrados = pdfs.filter(p => p.nome.toLowerCase().includes(filtro.toLowerCase()));
@@ -469,8 +464,6 @@
       document.getElementById('pageControls').style.display = 'flex';
 
       renderizarLista();
-
-      // Carregar o PDF
       await carregarPDFJS(pdf.url);
     }
 
@@ -500,16 +493,24 @@
       }
     }
 
-    // ===== RENDERIZAR PÁGINA ATUAL =====
+    // ===== RENDERIZAR PÁGINA ATUAL - SEM CORTE =====
     async function renderizarPaginaAtual() {
       const container = document.getElementById('pdfPagesContainer');
       
-      if (!pdfDoc) return;
+      if (!pdfDoc) {
+        container.innerHTML = '<div style="padding:40px;text-align:center;color:#94a3b8;">Nenhum PDF carregado</div>';
+        return;
+      }
 
       container.innerHTML = '';
       
       const wrapper = document.createElement('div');
       wrapper.className = 'pdf-page-wrapper';
+      wrapper.style.width = '100%';
+      wrapper.style.display = 'flex';
+      wrapper.style.justifyContent = 'center';
+      wrapper.style.alignItems = 'center';
+      wrapper.style.minHeight = '100px';
       
       const pageNumber = document.createElement('span');
       pageNumber.className = 'page-number';
@@ -528,29 +529,35 @@
       document.getElementById('pageRotationDisplay').textContent = rotacaoAtual;
     }
 
-    // ===== RENDERIZAR UMA PÁGINA =====
+    // ===== RENDERIZAR PÁGINA COM AJUSTE DE TAMANHO =====
     async function renderizarPagina(numero, canvas) {
       if (!pdfDoc) return;
 
       try {
         const page = await pdfDoc.getPage(numero);
         
-        // Calcular escala para caber no container
         const container = document.getElementById('pdfPagesContainer');
-        const containerWidth = container.clientWidth - 40;
-        const containerHeight = container.clientHeight - 40;
+        const containerWidth = container.clientWidth - 30;
+        const containerHeight = container.clientHeight - 30;
         
         // Viewport original
         const viewport = page.getViewport({ scale: 1 });
-        const originalWidth = viewport.width;
-        const originalHeight = viewport.height;
+        let originalWidth = viewport.width;
+        let originalHeight = viewport.height;
         
-        // Calcular escala para caber no container (com zoom)
+        // Se estiver rotacionado 90° ou 270°, trocar largura e altura
+        const isRotated = rotacaoAtual === 90 || rotacaoAtual === 270;
+        if (isRotated) {
+          [originalWidth, originalHeight] = [originalHeight, originalWidth];
+        }
+        
+        // Calcular escala para caber no container
         let scaleX = containerWidth / originalWidth;
         let scaleY = containerHeight / originalHeight;
         let scale = Math.min(scaleX, scaleY, 2.0) * zoomLevel;
-        scale = Math.max(scale, 0.3);
+        scale = Math.max(scale, 0.2);
         
+        // Viewport com escala
         const scaledViewport = page.getViewport({ scale: scale });
         
         // Configurar canvas
@@ -564,9 +571,12 @@
         canvas.style.height = `${scaledViewport.height}px`;
         canvas.style.maxWidth = '100%';
         canvas.style.maxHeight = '100%';
+        canvas.style.display = 'block';
 
         // Renderizar
         const context = canvas.getContext('2d');
+        context.clearRect(0, 0, canvas.width, canvas.height);
+        
         const renderContext = {
           canvasContext: context,
           viewport: scaledViewport
@@ -579,7 +589,7 @@
       }
     }
 
-    // ===== ALTERAR ZOOM =====
+    // ===== ZOOM =====
     function alterarZoom(valor) {
       zoomLevel = parseInt(valor) / 100;
       document.getElementById('zoomLabel').textContent = `${valor}%`;
@@ -734,7 +744,7 @@
       }, 300);
     });
 
-    console.log('📄 PDF Rotator - Versão Melhorada carregado!');
+    console.log('📄 PDF Rotator - Sem Corte carregado!');
     console.log(`📁 Repositório: ${GH_CONFIG.user}/${GH_CONFIG.repo}`);
   </script>
 </body>
