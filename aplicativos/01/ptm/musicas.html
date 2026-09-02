@@ -1439,82 +1439,105 @@
       return 'badge-em-estudo';
     }
 
-    // ===== ATUALIZAR OPÇÕES DE LOTE COM FILTRO =====
-    function atualizarOpcoesLote() {
-      const selectLote = document.getElementById('filterMusicaLote');
-      const valorSelecionado = selectLote.value;
-      const filtroStatusLote = document.getElementById('filterLoteStatus').value;
+// ===== ATUALIZAR OPÇÕES DE LOTE COM FILTRO =====
+function atualizarOpcoesLote() {
+  const selectLote = document.getElementById('filterMusicaLote');
+  const valorSelecionado = selectLote.value;
+  const filtroStatusLote = document.getElementById('filterLoteStatus').value;
 
-      // Coletar todos os lotes únicos do repertório
-      const lotesMap = new Map();
-      repertorioAtual.forEach(m => {
-        const loteNome = m.lote || 'Geral';
-        if (!lotesMap.has(loteNome)) {
-          lotesMap.set(loteNome, []);
-        }
-        lotesMap.get(loteNome).push(m);
-      });
+  // Coletar todos os lotes únicos do repertório
+  const lotesMap = new Map();
+  repertorioAtual.forEach(m => {
+    const loteNome = m.lote || 'Geral';
+    if (!lotesMap.has(loteNome)) {
+      lotesMap.set(loteNome, []);
+    }
+    lotesMap.get(loteNome).push(m);
+  });
 
-      // Filtrar lotes por status
-      let lotesFiltrados = [];
-      if (filtroStatusLote === 'todos') {
-        lotesFiltrados = Array.from(lotesMap.keys());
-      } else {
-        for (const [loteNome, musicas] of lotesMap) {
-          const statusLoteSalvo = dadosMusicasCache?.lotesStatus?.[loteNome]?.status;
-          if (statusLoteSalvo) {
-            if (statusLoteSalvo === filtroStatusLote) {
-              lotesFiltrados.push(loteNome);
-            }
-          } else {
-            // Se não tem status salvo, verifica se todas as músicas têm o status igual ao filtro
-            const todasComStatus = musicas.every(m => {
-              return m.status === filtroStatusLote || 
-                     (filtroStatusLote === 'Concluída' && (m.status === 'Concluída' || m.status === 'Concluído'));
-            });
-            if (todasComStatus) {
-              lotesFiltrados.push(loteNome);
-            }
-          }
+  // Filtrar lotes por status - APENAS os lotes que têm EXATAMENTE o status selecionado
+  let lotesFiltrados = [];
+  if (filtroStatusLote === 'todos') {
+    // Se for "todos", mostra todos os lotes
+    lotesFiltrados = Array.from(lotesMap.keys());
+  } else {
+    // Para cada lote, verificar qual é o status dele
+    for (const [loteNome, musicas] of lotesMap) {
+      // Primeiro, verificar se o lote tem um status salvo
+      const statusLoteSalvo = dadosMusicasCache?.lotesStatus?.[loteNome]?.status;
+      
+      let statusDoLote = statusLoteSalvo;
+      
+      // Se não tem status salvo, determinar pelo status das músicas
+      if (!statusDoLote) {
+        // Verificar se todas as músicas do lote têm o mesmo status
+        const statusUnico = musicas.every(m => m.status === musicas[0].status);
+        if (statusUnico && musicas.length > 0) {
+          statusDoLote = musicas[0].status;
+          // Mapear "Revisar" para "Revisão" para consistência
+          if (statusDoLote === 'Revisar') statusDoLote = 'Revisão';
+        } else {
+          // Se não tem status uniforme, considerar como "Em Estudo" por padrão
+          statusDoLote = 'Em Estudo';
         }
       }
-
-      // Ordenar os lotes
-      lotesFiltrados.sort();
-
-      // Atualizar o select
-      selectLote.innerHTML = '<option value="todos">Todos os Lotes</option>';
       
-      lotesFiltrados.forEach(lote => {
-        const option = document.createElement('option');
-        option.value = lote;
-        // Mostrar contagem de músicas
-        const count = lotesMap.get(lote)?.length || 0;
-        const statusLote = dadosMusicasCache?.lotesStatus?.[lote]?.status || 'Em Estudo';
-        const emoji = statusLote === 'Em Estudo' ? '📝' : 
-                      statusLote === 'Em Andamento' ? '🔄' : 
-                      statusLote === 'Revisão' ? '🔍' : '✅';
-        option.textContent = `${emoji} ${lote} (${count})`;
-        if (lote === valorSelecionado) option.selected = true;
-        selectLote.appendChild(option);
-      });
-
-      verificarLoteConcluido();
+      // Verificar se o status do lote corresponde ao filtro
+      // Para "Concluída", considerar também "Concluído"
+      if (filtroStatusLote === 'Concluída') {
+        if (statusDoLote === 'Concluída' || statusDoLote === 'Concluído') {
+          lotesFiltrados.push(loteNome);
+        }
+      } else {
+        if (statusDoLote === filtroStatusLote) {
+          lotesFiltrados.push(loteNome);
+        }
+      }
     }
+  }
 
-    // ===== FUNÇÃO PARA ATUALIZAR FILTRO DE STATUS DO LOTE =====
-    function atualizarFiltroLoteStatus() {
-      // Resetar o select de lotes para "todos"
-      document.getElementById('filterMusicaLote').value = 'todos';
-      // Reconstruir a lista de lotes com o novo filtro
-      atualizarOpcoesLote();
-      // Aplicar os filtros na tabela
-      renderizarTabela();
-      // Ocultar o seletor de status do lote quando estiver em "todos"
-      document.getElementById('loteStatusSelect').style.display = 'none';
-      document.getElementById('cronometroBar').style.display = 'none';
-    }
+  // Ordenar os lotes
+  lotesFiltrados.sort();
 
+  // Atualizar o select
+  selectLote.innerHTML = '<option value="todos">Todos os Lotes</option>';
+  
+  lotesFiltrados.forEach(lote => {
+    const option = document.createElement('option');
+    option.value = lote;
+    // Mostrar contagem de músicas e status
+    const count = lotesMap.get(lote)?.length || 0;
+    const statusLote = dadosMusicasCache?.lotesStatus?.[lote]?.status || 'Em Estudo';
+    const emoji = statusLote === 'Em Estudo' ? '📝' : 
+                  statusLote === 'Em Andamento' ? '🔄' : 
+                  statusLote === 'Revisão' ? '🔍' : '✅';
+    option.textContent = `${emoji} ${lote} (${count})`;
+    if (lote === valorSelecionado) option.selected = true;
+    selectLote.appendChild(option);
+  });
+
+  // Se o lote selecionado não estiver mais na lista (por causa do filtro), resetar para "todos"
+  if (valorSelecionado !== 'todos' && !lotesFiltrados.includes(valorSelecionado)) {
+    selectLote.value = 'todos';
+    // Ocultar o seletor de status do lote e o cronômetro
+    document.getElementById('loteStatusSelect').style.display = 'none';
+    document.getElementById('cronometroBar').style.display = 'none';
+  }
+
+  verificarLoteConcluido();
+}
+// ===== FUNÇÃO PARA ATUALIZAR FILTRO DE STATUS DO LOTE =====
+function atualizarFiltroLoteStatus() {
+  // Resetar o select de lotes para "todos"
+  document.getElementById('filterMusicaLote').value = 'todos';
+  // Ocultar o seletor de status do lote
+  document.getElementById('loteStatusSelect').style.display = 'none';
+  document.getElementById('cronometroBar').style.display = 'none';
+  // Reconstruir a lista de lotes com o novo filtro
+  atualizarOpcoesLote();
+  // Aplicar os filtros na tabela
+  renderizarTabela();
+}
     function removerLoteDoRepertorio() {
       const selectLote = document.getElementById('filterMusicaLote');
       const loteSelecionado = selectLote.value;
@@ -1579,25 +1602,37 @@
       verificarLoteConcluido();
     }
 
-    // =============================================
-    // ===== FUNÇÕES DE STATUS DO LOTE =====
-    // =============================================
 
-    function atualizarStatusLote() {
-      const select = document.getElementById('loteStatusSelect');
-      const status = select.value;
-      statusLoteAtual = status;
-      
-      const loteSelecionado = document.getElementById('filterMusicaLote').value;
-      if (loteSelecionado !== 'todos' && alunoIdAtual) {
-        salvarStatusLote(loteSelecionado, status);
-        showToast(`📦 Status do lote "${loteSelecionado}" alterado para: ${status}`, 'info');
-        verificarLoteConcluido();
-        // Atualizar a lista de lotes com o novo status
-        atualizarOpcoesLote();
-      }
+
+// ===== FUNÇÃO PARA ATUALIZAR O STATUS DO LOTE =====
+function atualizarStatusLote() {
+  const select = document.getElementById('loteStatusSelect');
+  const status = select.value;
+  statusLoteAtual = status;
+  
+  const loteSelecionado = document.getElementById('filterMusicaLote').value;
+  if (loteSelecionado !== 'todos' && alunoIdAtual) {
+    salvarStatusLote(loteSelecionado, status);
+    showToast(`📦 Status do lote "${loteSelecionado}" alterado para: ${status}`, 'info');
+    
+    // ATUALIZAR A LISTA DE LOTES IMEDIATAMENTE
+    // Isso fará com que o lote apareça apenas no filtro correto
+    atualizarOpcoesLote();
+    
+    // Verificar se o lote ainda está visível com o filtro atual
+    const filtroAtual = document.getElementById('filterLoteStatus').value;
+    if (filtroAtual !== 'todos' && filtroAtual !== status) {
+      // Se o lote não corresponde mais ao filtro, resetar para "todos"
+      document.getElementById('filterMusicaLote').value = 'todos';
+      document.getElementById('loteStatusSelect').style.display = 'none';
+      document.getElementById('cronometroBar').style.display = 'none';
+      showToast(`📦 O lote "${loteSelecionado}" saiu do filtro "${filtroAtual}"`, 'info');
     }
-
+    
+    verificarLoteConcluido();
+    renderizarTabela();
+  }
+}
     async function salvarStatusLote(loteNome, status) {
       if (!alunoIdAtual) return;
       
