@@ -3,315 +3,706 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Editor de Texto - Conectado ao Google Drive</title>
+    <title>Mapeador de Linhas Vazias - Google Sheets</title>
     <style>
-        html, body {
+        * {
             margin: 0;
             padding: 0;
-            height: 100%;
-            width: 100%;
-            overflow: hidden;
-            background-color: #f4f7f6;
+            box-sizing: border-box;
+        }
+        body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
         }
-
-        .app-container {
-            position: absolute;
-            top: 1cm;
-            bottom: 1cm;
-            left: 1cm;
-            right: 1cm;
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+        }
+        .input-group {
             display: flex;
-            flex-direction: column;
-            gap: 12px;
-            box-sizing: border-box;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
         }
-
-        textarea {
+        .input-group input, .input-group select {
             flex: 1;
-            width: 100%;
-            padding: 15px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            resize: none;
+            min-width: 200px;
+            padding: 12px 18px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
             font-size: 16px;
-            box-sizing: border-box;
-            font-family: inherit;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+            transition: all 0.3s;
         }
-
-        textarea:focus {
+        .input-group input:focus, .input-group select:focus {
             outline: none;
-            border-color: #008CBA;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
         }
-
-        .controls {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 100%;
+        .btn {
+            padding: 12px 30px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
         }
-
-        .row-file, .row-edit, .row-drive {
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+        .btn-secondary {
+            background: #6c757d;
+        }
+        .btn-success {
+            background: #28a745;
+        }
+        .btn-danger {
+            background: #dc3545;
+        }
+        .btn-warning {
+            background: #ffc107;
+            color: #333;
+        }
+        .btn-group {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
+            margin: 15px 0;
         }
-
-        .input-filename {
-            flex: 2;
-            min-width: 180px;
-            padding: 12px;
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            font-size: 15px;
-            box-sizing: border-box;
+        .status {
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
         }
-
-        .btn {
-            flex: 1;
-            min-width: 100px;
-            padding: 12px;
-            font-size: 14px;
-            font-weight: bold;
-            color: white;
-            border: none;
-            border-radius: 6px;
+        .status.success { border-left-color: #28a745; background: #d4edda; }
+        .status.error { border-left-color: #dc3545; background: #f8d7da; }
+        .status.info { border-left-color: #17a2b8; background: #d1ecf1; }
+        .status.warning { border-left-color: #ffc107; background: #fff3cd; }
+        
+        .method-selector {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .method-selector label {
+            margin-right: 20px;
             cursor: pointer;
-            transition: background-color 0.2s, opacity 0.2s;
-            text-align: center;
-            box-sizing: border-box;
-            user-select: none;
         }
-
-        .btn:active {
-            opacity: 0.9;
+        .method-selector input[type="radio"] {
+            margin-right: 5px;
         }
-
-        .btn-save { background-color: #4CAF50; }
-        .btn-save:hover { background-color: #45a049; }
-
-        .btn-open {
-            background-color: #008CBA;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+        
+        .table-container {
+            overflow-x: auto;
+            margin-top: 20px;
+            border-radius: 10px;
+            border: 1px solid #e0e0e0;
+            max-height: 600px;
+            overflow-y: auto;
         }
-        .btn-open:hover { background-color: #007bb5; }
-
-        .btn-copy { background-color: #607d8b; }
-        .btn-copy:hover { background-color: #546e7a; }
-
-        .btn-paste { background-color: #9c27b0; }
-        .btn-paste:hover { background-color: #8e24aa; }
-
-        .btn-clear { background-color: #f44336; }
-        .btn-clear:hover { background-color: #d32f2f; }
-
-        /* Botões do Google Drive */
-        .btn-drive-save { background-color: #ff9800; }
-        .btn-drive-save:hover { background-color: #e68a00; }
-
-        .btn-drive-fetch { background-color: #009688; }
-        .btn-drive-fetch:hover { background-color: #00796b; }
-
-        #file-input {
-            display: none;
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 14px;
         }
-
-        .loading-text {
+        th {
+            background: #f8f9fa;
+            padding: 12px 15px;
+            text-align: left;
+            font-weight: 600;
+            color: #333;
+            border-bottom: 2px solid #e0e0e0;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        td {
+            padding: 10px 15px;
+            border-bottom: 1px solid #e0e0e0;
+        }
+        tr:hover { background: #f8f9fa; }
+        tr.empty-row { background: #fff3cd; }
+        tr.empty-row:hover { background: #ffe69c; }
+        tr.last-empty { background: #d1ecf1; }
+        tr.last-empty:hover { background: #bee5eb; }
+        
+        .badge {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 20px;
             font-size: 12px;
+            font-weight: 600;
+        }
+        .badge-empty { background: #ffc107; color: #856404; }
+        .badge-last { background: #17a2b8; color: white; }
+        .badge-filled { background: #28a745; color: white; }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
             color: #666;
-            margin: 0;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+        .loading {
             display: none;
+            text-align: center;
+            padding: 40px;
+        }
+        .loading.active { display: block; }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+        }
+        .help-text {
+            background: #e7f3ff;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 10px 0;
+            font-size: 14px;
+        }
+        .help-text code {
+            background: #fff;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+        @media (max-width: 768px) {
+            .container { padding: 15px; }
+            .input-group input, .input-group select { min-width: 100%; }
+            .btn-group { flex-direction: column; }
+            .btn-group .btn { width: 100%; }
         }
     </style>
 </head>
 <body>
+    <div class="container">
+        <h1>📊 Mapeador de Linhas Vazias</h1>
+        <p class="subtitle">Identifique linhas vazias e a última linha vazia em planilhas Google (sem necessidade de API Key)</p>
 
-<div class="app-container">
-    <textarea id="text-area" placeholder="Digite seu texto aqui..."></textarea>
-    
-    <div class="controls">
-        <p id="status" class="loading-text">Processando operação no Google Drive...</p>
-
-        <div class="row-edit">
-            <button class="btn btn-copy" onclick="copiarTexto()">Copiar</button>
-            <button class="btn btn-paste" onclick="colarTexto()">Colar</button>
-            <button class="btn btn-clear" onclick="limparTexto()">Limpar</button>
-        </div>
-
-        <div class="row-drive">
-            <button class="btn btn-drive-save" onclick="salvarNoGoogleDrive()">Salvar no Google Drive ☁️</button>
-            <button class="btn btn-drive-fetch" onclick="buscarDoGoogleDrive()">Buscar Arquivo por Nome 📂</button>
-        </div>
-
-        <div class="row-file">
-            <input type="text" id="filename-input" class="input-filename" placeholder="Nome do arquivo" value="documento">
-            <button class="btn btn-save" onclick="salvarArquivoLocal()">Salvar no PC/Celular</button>
-            <label class="btn btn-open">
-                Abrir do Dispositivo
-                <input type="file" id="file-input" accept=".txt" onchange="abrirArquivoLocal(event)">
+        <!-- Método de acesso -->
+        <div class="method-selector">
+            <strong>Método de acesso:</strong>
+            <label>
+                <input type="radio" name="method" value="public" checked onchange="toggleMethod()">
+                📤 Planilha Pública (CSV exportado)
+            </label>
+            <label>
+                <input type="radio" name="method" value="gid" onchange="toggleMethod()">
+                🔗 Link com gid (publicado na web)
+            </label>
+            <label>
+                <input type="radio" name="method" value="paste" onchange="toggleMethod()">
+                📋 Colar dados manualmente
             </label>
         </div>
+
+        <div class="input-group">
+            <input type="text" id="sheetUrl" placeholder="URL da planilha ou ID" value="">
+            <input type="text" id="sheetGid" placeholder="gid (ex: 0, 1, 2...)" value="0" style="display:none; min-width:100px;">
+            <button class="btn" onclick="loadSheet()">🔍 Carregar Planilha</button>
+        </div>
+
+        <div id="pasteArea" style="display:none; margin-bottom:15px;">
+            <textarea id="pasteData" rows="8" placeholder="Cole aqui os dados da planilha (separados por TAB ou vírgula)&#10;Exemplo:&#10;Nome	Idade	Cidade&#10;João	25	São Paulo&#10;Maria	30	Rio" style="width:100%; padding:10px; border:2px solid #e0e0e0; border-radius:10px; font-family:monospace;"></textarea>
+            <button class="btn btn-success" onclick="loadPastedData()" style="margin-top:10px;">📥 Processar Dados Colados</button>
+        </div>
+
+        <div class="help-text" id="helpText">
+            💡 <strong>Como usar:</strong><br>
+            1. <strong>Planilha Pública:</strong> Cole a URL da planilha e clique em "Carregar"<br>
+            2. <strong>Link com gid:</strong> Use o link de publicação da planilha (Arquivo > Compartilhar > Publicar na web)<br>
+            3. <strong>Colar dados:</strong> Copie e cole os dados diretamente
+        </div>
+
+        <div id="status" class="status info">
+            💡 Insira a URL ou ID da planilha e clique em "Carregar Planilha"
+        </div>
+
+        <div id="sheetSelector" style="display:none; margin-bottom:15px;">
+            <label><strong>Selecione a aba:</strong></label>
+            <select id="sheetSelect" onchange="analyzeSheet()" style="padding:10px; border:2px solid #e0e0e0; border-radius:10px; margin-left:10px; min-width:200px;"></select>
+            <span style="margin-left:15px; color:#666;" id="sheetInfo"></span>
+        </div>
+
+        <div class="btn-group">
+            <button class="btn btn-success" onclick="analyzeSheet()">🔎 Analisar Linhas Vazias</button>
+            <button class="btn btn-secondary" onclick="exportCSV()">📥 Exportar CSV</button>
+            <button class="btn btn-warning" onclick="exportJSON()">📄 Exportar JSON</button>
+            <button class="btn btn-danger" onclick="clearResults()">🗑️ Limpar</button>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p style="margin-top:15px; color:#666;">Carregando dados...</p>
+        </div>
+
+        <div id="stats" class="stats" style="display:none;"></div>
+
+        <div id="results">
+            <div class="empty-state">
+                <p>Nenhuma análise realizada ainda.<br>Carregue uma planilha e clique em "Analisar Linhas Vazias".</p>
+            </div>
+        </div>
     </div>
-</div>
 
-<script>
-    // URL do seu novo Web App do Google Apps Script configurada
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyEBC0vHLBAEDhvV6XHyk3Uowf9xHCW3v67pSCToaaASHOH3Gmam7q1YE7fe11hBn4i/exec";
+    <script>
+        let currentData = [];
+        let currentSheetName = '';
+        let sheetData = {};
+        let analysisResult = null;
+        let allSheets = {};
 
-    const textArea = document.getElementById('text-area');
-    const filenameInput = document.getElementById('filename-input');
-    const statusText = document.getElementById('status');
-
-    function mostrarStatus(texto, mostrar) {
-        statusText.innerText = texto;
-        statusText.style.display = mostrar ? 'block' : 'none';
-    }
-
-    // --- FUNÇÕES DO GOOGLE DRIVE ---
-
-    function salvarNoGoogleDrive() {
-        const texto = textArea.value;
-        let nomeArquivo = filenameInput.value.trim();
-
-        if (nomeArquivo === "") nomeArquivo = "documento";
-        if (!nomeArquivo.endsWith('.txt')) nomeArquivo += '.txt';
-
-        mostrarStatus("Salvando arquivo na pasta do Google Drive...", true);
-
-        const dados = {
-            nome: nomeArquivo,
-            conteudo: texto
-        };
-
-        fetch(WEB_APP_URL, {
-            method: 'POST',
-            mode: 'no-cors', 
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(dados)
-        })
-        .then(() => {
-            mostrarStatus("", false);
-            alert("Solicitação enviada! Verifique sua pasta do Google Drive. O arquivo '" + nomeArquivo + "' deve aparecer em instantes.");
-        })
-        .catch(erro => {
-            mostrarStatus("", false);
-            console.error(erro);
-            alert("Ocorreu um erro ao tentar salvar no Google Drive.");
-        });
-    }
-
-    function buscarDoGoogleDrive() {
-        let nomeBuscar = prompt("Digite o nome exato do arquivo que deseja buscar do Google Drive:");
-        
-        if (!nomeBuscar || nomeBuscar.trim() === "") {
-            return; 
-        }
-
-        nomeBuscar = nomeBuscar.trim();
-        if (!nomeBuscar.endsWith('.txt')) {
-            nomeBuscar += '.txt';
-        }
-
-        mostrarStatus("Buscando arquivo '" + nomeBuscar + "' no Google Drive...", true);
-
-        fetch(WEB_APP_URL + "?nome=" + encodeURIComponent(nomeBuscar))
-        .then(resposta => resposta.json())
-        .then(dados => {
-            mostrarStatus("", false);
+        function toggleMethod() {
+            const method = document.querySelector('input[name="method"]:checked').value;
+            document.getElementById('sheetGid').style.display = method === 'gid' ? 'inline-block' : 'none';
+            document.getElementById('pasteArea').style.display = method === 'paste' ? 'block' : 'none';
+            document.getElementById('sheetUrl').placeholder = method === 'paste' ? 'Nome da planilha (opcional)' : 'URL ou ID da planilha';
             
-            if (dados.status === "sucesso") {
-                // Insere o texto puro diretamente no editor
-                textArea.value = dados.conteudo;
-                filenameInput.value = dados.nome.replace(/\.[^/.]+$/, "");
-                alert("Arquivo '" + dados.nome + "' carregado com sucesso do Google Drive!");
-            } else if (dados.status === "nao_encontrado") {
-                alert(dados.mensagem);
+            const helpText = document.getElementById('helpText');
+            if (method === 'public') {
+                helpText.innerHTML = `💡 <strong>Planilha Pública:</strong> A planilha deve estar pública ou compartilhada com "Qualquer um com o link". URL exemplo: <code>https://docs.google.com/spreadsheets/d/1ABC123/edit</code>`;
+            } else if (method === 'gid') {
+                helpText.innerHTML = `💡 <strong>Link com gid:</strong> Publique a planilha em "Arquivo > Compartilhar > Publicar na web" e use o link. Exemplo: <code>https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=0&single=true&output=csv</code>`;
             } else {
-                alert("Erro retornado pelo servidor: " + dados.mensagem);
+                helpText.innerHTML = `💡 <strong>Colar dados:</strong> Copie os dados da planilha (Ctrl+C) e cole abaixo. Use TAB para separar colunas.`;
             }
-        })
-        .catch(erro => {
-            mostrarStatus("", false);
-            console.error(erro);
-            alert("Não foi possível conectar ao Google Drive ou ler o arquivo. Verifique se salvou e publicou a 'Nova Versão' do script corretamente.");
-        });
-    }
-
-
-    // --- FUNÇÕES TRADICIONAIS (LOCAIS) ---
-
-    function salvarArquivoLocal() {
-        const texto = textArea.value;
-        let nomeArquivo = filenameInput.value.trim();
-
-        if (nomeArquivo === "") nomeArquivo = "documento";
-        if (!nomeArquivo.endsWith('.txt')) nomeArquivo += '.txt';
-
-        const blob = new Blob([texto], { type: 'text/plain;charset=utf-8' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = nomeArquivo;
-        link.click();
-        URL.revokeObjectURL(link.href);
-    }
-
-    function abrirArquivoLocal(event) {
-        const input = event.target;
-        const file = input.files[0];
-        if (!file) return;
-
-        const leitor = new FileReader();
-        leitor.onload = function(e) {
-            textArea.value = e.target.result;
-            filenameInput.value = file.name.replace(/\.[^/.]+$/, "");
-        };
-        leitor.readAsText(file);
-        input.value = ''; 
-    }
-
-    function copiarTexto() {
-        if (textArea.value.trim() === "") {
-            alert("Não há texto para copiar!");
-            return;
         }
-        textArea.select();
-        textArea.setSelectionRange(0, 99999);
-        try {
-            document.execCommand('copy');
-            alert("Texto copiado!");
-        } catch (err) {
-            alert("Erro ao copiar.");
-        }
-        window.getSelection().removeAllRanges();
-    }
 
-    function colarTexto() {
-        if (navigator.clipboard && window.isSecureContext) {
-            navigator.clipboard.readText()
-                .then(texto => {
-                    const start = textArea.selectionStart;
-                    const end = textArea.selectionEnd;
-                    const textoAtual = textArea.value;
-                    textArea.value = textoAtual.substring(0, start) + texto + textoAtual.substring(end);
-                    textArea.focus();
+        // Função para extrair ID da planilha
+        function extractSpreadsheetId(url) {
+            if (!url) return null;
+            
+            // Se for URL de publicação
+            if (url.includes('/d/e/')) {
+                const match = url.match(/\/d\/e\/([a-zA-Z0-9-_]+)/);
+                if (match) return match[1];
+            }
+            
+            // URL normal
+            const patterns = [
+                /\/d\/([a-zA-Z0-9-_]+)/,
+                /spreadsheets\/d\/([a-zA-Z0-9-_]+)/,
+                /key=([a-zA-Z0-9-_]+)/
+            ];
+            
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match) return match[1];
+            }
+            return url; // Pode ser o ID diretamente
+        }
+
+        // Carregar planilha
+        async function loadSheet() {
+            const method = document.querySelector('input[name="method"]:checked').value;
+            
+            if (method === 'paste') {
+                document.getElementById('pasteArea').style.display = 'block';
+                showStatus('📋 Cole os dados da planilha no campo abaixo e clique em "Processar Dados Colados"', 'info');
+                return;
+            }
+
+            const url = document.getElementById('sheetUrl').value.trim();
+            if (!url) {
+                showStatus('⚠️ Por favor, insira a URL ou ID da planilha.', 'error');
+                return;
+            }
+
+            showStatus('🔄 Carregando dados...', 'info');
+            document.getElementById('loading').classList.add('active');
+            document.getElementById('results').innerHTML = '';
+
+            try {
+                if (method === 'public') {
+                    await loadPublicSheet(url);
+                } else if (method === 'gid') {
+                    await loadPublishedSheet(url);
+                }
+            } catch (error) {
+                showStatus('❌ Erro ao carregar: ' + error.message, 'error');
+            } finally {
+                document.getElementById('loading').classList.remove('active');
+            }
+        }
+
+        // Método 1: Planilha pública (exportar como CSV)
+        async function loadPublicSheet(url) {
+            const id = extractSpreadsheetId(url);
+            if (!id) throw new Error('Não foi possível extrair o ID da planilha');
+
+            // Tentar diferentes formatos de exportação
+            const formats = [
+                `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`,
+                `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`,
+                `https://docs.google.com/spreadsheets/d/${id}/pub?output=csv`
+            ];
+
+            let csvData = null;
+            let lastError = null;
+
+            for (const format of formats) {
+                try {
+                    const response = await fetch(format);
+                    if (response.ok) {
+                        csvData = await response.text();
+                        break;
+                    }
+                } catch (e) {
+                    lastError = e;
+                }
+            }
+
+            if (!csvData) {
+                throw new Error('Não foi possível acessar a planilha. Verifique se ela está pública ou compartilhada com "Qualquer um com o link".');
+            }
+
+            // Processar CSV
+            const rows = parseCSV(csvData);
+            if (rows.length === 0) throw new Error('Nenhum dado encontrado na planilha');
+
+            // Tentar detectar abas
+            const sheets = detectSheets(rows);
+            allSheets = sheets;
+            
+            populateSheetSelector(Object.keys(sheets));
+            currentData = sheets[Object.keys(sheets)[0]] || rows;
+            currentSheetName = Object.keys(sheets)[0] || 'Planilha1';
+            
+            document.getElementById('sheetSelector').style.display = 'block';
+            document.getElementById('sheetInfo').textContent = `📄 ${currentData.length} linhas carregadas`;
+            showStatus(`✅ Planilha carregada com sucesso! ${Object.keys(sheets).length} aba(s) encontrada(s).`, 'success');
+        }
+
+        // Método 2: Link publicado com gid
+        async function loadPublishedSheet(url) {
+            const gid = document.getElementById('sheetGid').value || '0';
+            
+            // Construir URL de exportação
+            let csvUrl = url;
+            if (!url.includes('output=csv')) {
+                csvUrl = url.includes('?') ? url + '&output=csv' : url + '?output=csv';
+            }
+            
+            const response = await fetch(csvUrl);
+            if (!response.ok) throw new Error('Erro ao acessar a planilha publicada');
+            
+            const csvData = await response.text();
+            const rows = parseCSV(csvData);
+            
+            if (rows.length === 0) throw new Error('Nenhum dado encontrado');
+            
+            allSheets = { 'Planilha1': rows };
+            currentData = rows;
+            currentSheetName = 'Planilha1';
+            
+            populateSheetSelector(['Planilha1']);
+            document.getElementById('sheetSelector').style.display = 'block';
+            document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas carregadas`;
+            showStatus('✅ Planilha publicada carregada com sucesso!', 'success');
+        }
+
+        // Processar dados colados
+        function loadPastedData() {
+            const text = document.getElementById('pasteData').value;
+            if (!text.trim()) {
+                showStatus('⚠️ Por favor, cole alguns dados.', 'error');
+                return;
+            }
+
+            const rows = text.split('\n')
+                .filter(row => row.trim())
+                .map(row => row.split('\t').map(cell => cell.trim()));
+            
+            if (rows.length === 0) {
+                showStatus('⚠️ Nenhum dado válido encontrado.', 'error');
+                return;
+            }
+
+            allSheets = { 'Dados Colados': rows };
+            currentData = rows;
+            currentSheetName = 'Dados Colados';
+            
+            populateSheetSelector(['Dados Colados']);
+            document.getElementById('sheetSelector').style.display = 'block';
+            document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas carregadas`;
+            showStatus(`✅ ${rows.length} linhas carregadas com sucesso!`, 'success');
+            
+            // Analisar automaticamente
+            analyzeSheet();
+        }
+
+        // Parse CSV
+        function parseCSV(csv) {
+            const lines = csv.split('\n').filter(line => line.trim());
+            return lines.map(line => {
+                // Tentar detectar separador
+                let separator = ',';
+                if (line.includes('\t')) separator = '\t';
+                else if (line.includes(';')) separator = ';';
+                
+                return line.split(separator).map(cell => cell.trim().replace(/^"|"$/g, ''));
+            });
+        }
+
+        // Detectar abas em CSV (simples)
+        function detectSheets(rows) {
+            const sheets = {};
+            let currentSheet = 'Planilha1';
+            let currentRows = [];
+            
+            // Procura por marcadores de aba (se houver)
+            // Ou usa todas as linhas como uma única aba
+            sheets['Planilha1'] = rows;
+            
+            return sheets;
+        }
+
+        // Popular selector de abas
+        function populateSheetSelector(names) {
+            const select = document.getElementById('sheetSelect');
+            select.innerHTML = '';
+            
+            names.forEach(name => {
+                const option = document.createElement('option');
+                option.value = name;
+                option.textContent = name;
+                select.appendChild(option);
+            });
+            
+            if (names.length > 0) {
+                select.value = names[0];
+            }
+        }
+
+        // Analisar linhas vazias
+        function analyzeSheet() {
+            const select = document.getElementById('sheetSelect');
+            const sheetName = select.value || Object.keys(allSheets)[0];
+            
+            currentData = allSheets[sheetName] || [];
+            currentSheetName = sheetName;
+            
+            if (!currentData || currentData.length === 0) {
+                showStatus('⚠️ Nenhum dado encontrado nesta aba.', 'error');
+                return;
+            }
+
+            const results = [];
+            let lastEmptyRow = -1;
+            
+            for (let i = 0; i < currentData.length; i++) {
+                const row = currentData[i];
+                const colA = row[0] || '';
+                const isEmpty = colA.toString().trim() === '';
+                const allEmpty = row.every(cell => cell === '' || cell === null || cell === undefined);
+                
+                results.push({
+                    rowIndex: i + 1,
+                    colA: colA,
+                    isEmpty: isEmpty,
+                    isLastEmpty: false,
+                    allColumnsEmpty: allEmpty
                 });
-        } else {
-            alert("Use o atalho nativo para colar (Ctrl+V ou pressionando a tela).");
+                
+                if (isEmpty) lastEmptyRow = i + 1;
+            }
+            
+            if (lastEmptyRow > 0) {
+                const lastEmpty = results.find(r => r.rowIndex === lastEmptyRow);
+                if (lastEmpty) lastEmpty.isLastEmpty = true;
+            }
+            
+            const emptyRows = results.filter(r => r.isEmpty).length;
+            const emptyAllColumns = results.filter(r => r.allColumnsEmpty).length;
+            
+            analysisResult = {
+                sheetName: sheetName,
+                results: results,
+                totalRows: results.length,
+                emptyRows: emptyRows,
+                emptyAllColumns: emptyAllColumns,
+                lastEmptyRow: lastEmptyRow,
+                filledRows: results.length - emptyRows
+            };
+            
+            renderResults(analysisResult);
+            updateStats(analysisResult);
+            
+            showStatus(`✅ Análise concluída! ${emptyRows} linhas vazias encontradas${lastEmptyRow > 0 ? ' (Última: linha ' + lastEmptyRow + ')' : ''}`, 'success');
         }
-    }
 
-    function limparTexto() {
-        if (textArea.value !== "" && confirm("Deseja apagar tudo?")) {
-            textArea.value = "";
-            textArea.focus();
+        // Renderizar resultados
+        function renderResults(result) {
+            const container = document.getElementById('results');
+            
+            if (!result || result.results.length === 0) {
+                container.innerHTML = `<div class="empty-state"><p>Nenhum dado para analisar.</p></div>`;
+                return;
+            }
+            
+            let html = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Linha</th>
+                                <th>Coluna A</th>
+                                <th>Status</th>
+                                <th>Todas colunas vazias?</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            
+            result.results.forEach(row => {
+                let rowClass = '';
+                let statusBadge = '';
+                
+                if (row.isLastEmpty && row.isEmpty) {
+                    rowClass = 'last-empty';
+                    statusBadge = '<span class="badge badge-last">⬅️ ÚLTIMA VAZIA</span>';
+                } else if (row.isEmpty) {
+                    rowClass = 'empty-row';
+                    statusBadge = '<span class="badge badge-empty">📭 Vazia</span>';
+                } else {
+                    statusBadge = '<span class="badge badge-filled">✅ Preenchida</span>';
+                }
+                
+                html += `
+                    <tr class="${rowClass}">
+                        <td><strong>${row.rowIndex}</strong></td>
+                        <td>${row.colA || '—'}</td>
+                        <td>${statusBadge}</td>
+                        <td>${row.allColumnsEmpty ? '✅ Sim' : '❌ Não'}</td>
+                    </tr>
+                `;
+            });
+            
+            html += `</tbody></table></div>`;
+            container.innerHTML = html;
         }
-    }
-</script>
 
+        // Atualizar estatísticas
+        function updateStats(result) {
+            const statsDiv = document.getElementById('stats');
+            statsDiv.style.display = 'grid';
+            
+            statsDiv.innerHTML = `
+                <div class="stat-card"><div class="stat-number">${result.totalRows}</div><div class="stat-label">Total de Linhas</div></div>
+                <div class="stat-card"><div class="stat-number" style="color:#ffc107;">${result.emptyRows}</div><div class="stat-label">Linhas Vazias</div></div>
+                <div class="stat-card"><div class="stat-number" style="color:#17a2b8;">${result.lastEmptyRow > 0 ? result.lastEmptyRow : '—'}</div><div class="stat-label">Última Linha Vazia</div></div>
+                <div class="stat-card"><div class="stat-number" style="color:#28a745;">${result.filledRows}</div><div class="stat-label">Linhas Preenchidas</div></div>
+                <div class="stat-card"><div class="stat-number" style="color:#dc3545;">${result.emptyAllColumns}</div><div class="stat-label">Totalmente Vazias</div></div>
+            `;
+        }
+
+        // Exportar CSV
+        function exportCSV() {
+            if (!analysisResult) {
+                showStatus('⚠️ Nenhuma análise para exportar.', 'error');
+                return;
+            }
+            
+            let csv = 'Linha,Valor Coluna A,Status,Todas Colunas Vazias\n';
+            analysisResult.results.forEach(row => {
+                let status = row.isEmpty ? 'Vazia' : 'Preenchida';
+                if (row.isLastEmpty) status = 'ÚLTIMA VAZIA';
+                csv += `${row.rowIndex},"${row.colA || ''}",${status},${row.allColumnsEmpty ? 'Sim' : 'Não'}\n`;
+            });
+            
+            downloadFile(csv, `analise_${analysisResult.sheetName}_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
+            showStatus('✅ CSV exportado!', 'success');
+        }
+
+        // Exportar JSON
+        function exportJSON() {
+            if (!analysisResult) {
+                showStatus('⚠️ Nenhuma análise para exportar.', 'error');
+                return;
+            }
+            
+            const json = JSON.stringify(analysisResult, null, 2);
+            downloadFile(json, `analise_${analysisResult.sheetName}_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
+            showStatus('✅ JSON exportado!', 'success');
+        }
+
+        // Download file
+        function downloadFile(content, filename, mimeType) {
+            const blob = new Blob([content], { type: mimeType + ';charset=utf-8;' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        // Limpar resultados
+        function clearResults() {
+            document.getElementById('results').innerHTML = `<div class="empty-state"><p>Resultados limpos.</p></div>`;
+            document.getElementById('stats').style.display = 'none';
+            analysisResult = null;
+            showStatus('🗑️ Resultados limpos.', 'info');
+        }
+
+        function showStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.textContent = message;
+            statusDiv.className = 'status ' + type;
+        }
+
+        // Inicializar
+        toggleMethod();
+    </script>
 </body>
 </html>
