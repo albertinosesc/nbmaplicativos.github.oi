@@ -471,34 +471,62 @@
             margin: 20px 0;
         }
 
-        /* Botão toggle da tabela */
-        .toggle-table-btn {
+        /* Botões toggle individuais */
+        .toggle-controls {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin: 10px 0;
+            align-items: center;
+        }
+        .toggle-btn {
             padding: 8px 18px;
-            background: #6c757d;
-            color: white;
             border: none;
             border-radius: 8px;
             font-weight: 600;
             cursor: pointer;
             transition: 0.3s;
             font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
         }
-        .toggle-table-btn:hover {
-            background: #5a6268;
+        .toggle-btn:hover {
+            transform: scale(1.02);
         }
-        .toggle-table-btn.active {
+        .toggle-btn.active {
             background: #28a745;
+            color: white;
         }
-        .toggle-table-btn.active:hover {
+        .toggle-btn.active:hover {
             background: #218838;
         }
-
-        /* Container que será escondido/mostrado */
-        .tables-wrapper {
-            transition: all 0.3s ease;
+        .toggle-btn.inactive {
+            background: #6c757d;
+            color: white;
         }
-        .tables-wrapper.hidden {
-            display: none;
+        .toggle-btn.inactive:hover {
+            background: #5a6268;
+        }
+        .toggle-btn .badge-count {
+            background: rgba(255,255,255,0.25);
+            padding: 0 8px;
+            border-radius: 12px;
+            font-size: 12px;
+        }
+        .toggle-btn.empty-list-btn.active {
+            background: #ffc107;
+            color: #333;
+        }
+        .toggle-btn.empty-list-btn.active:hover {
+            background: #e0a800;
+        }
+        .toggle-btn.empty-list-btn.inactive {
+            background: #e9ecef;
+            color: #666;
+        }
+        .toggle-btn.empty-list-btn.inactive:hover {
+            background: #dde0e3;
         }
 
         @media (max-width: 768px) {
@@ -517,6 +545,8 @@
             .modal-body .result-item { flex-wrap: wrap; }
             .modal-body .result-item .col-a, 
             .modal-body .result-item .col-b { flex: 1 1 100%; }
+            .toggle-controls { flex-direction: column; }
+            .toggle-controls .toggle-btn { width: 100%; justify-content: center; }
         }
     </style>
 </head>
@@ -602,24 +632,23 @@
         <!-- ESTATÍSTICAS -->
         <div id="stats" class="stats" style="display:none;"></div>
 
-        <!-- BOTÃO MOSTRAR/ESCONDER TABELAS -->
-        <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 0; flex-wrap:wrap; gap:10px;">
-            <span style="font-weight:600; color:#333;" id="tableTitle">📋 Tabelas</span>
-            <button class="toggle-table-btn active" id="toggleTableBtn" onclick="toggleTabelas()">
-                🔽 Esconder Tabelas
+        <!-- CONTROLES INDIVIDUAIS -->
+        <div class="toggle-controls" id="toggleControls" style="display:none;">
+            <button class="toggle-btn empty-list-btn active" id="toggleEmptyList" onclick="toggleEmptyList()">
+                📭 Linhas Vazias <span class="badge-count" id="emptyCountBadge">0</span>
+            </button>
+            <button class="toggle-btn active" id="toggleFullTable" onclick="toggleFullTable()">
+                📋 Tabela Completa <span class="badge-count" id="tableCountBadge">0</span>
             </button>
         </div>
 
-        <!-- WRAPPER QUE CONTÉM TODAS AS TABELAS -->
-        <div class="tables-wrapper" id="tablesWrapper">
-            <!-- LISTA COMPACTA DE LINHAS VAZIAS -->
-            <div id="emptyLinesList" style="display:none;" class="empty-lines-list"></div>
+        <!-- LISTA DE LINHAS VAZIAS -->
+        <div id="emptyLinesList" style="display:none;" class="empty-lines-list"></div>
 
-            <!-- RESULTADOS (TABELA COMPLETA) -->
-            <div id="results">
-                <div class="empty-state">
-                    <p>Nenhuma análise realizada ainda.<br>Clique em um botão rápido ou carregue uma planilha.</p>
-                </div>
+        <!-- TABELA COMPLETA -->
+        <div id="results">
+            <div class="empty-state">
+                <p>Nenhuma análise realizada ainda.<br>Clique em um botão rápido ou carregue uma planilha.</p>
             </div>
         </div>
     </div>
@@ -649,7 +678,8 @@
         let currentSheetName = '';
         let allSheets = {};
         let analysisResult = null;
-        let tabelasVisiveis = true;
+        let emptyListVisivel = true;
+        let fullTableVisivel = true;
 
         // ============================================================
         // LINKS DAS PLANILHAS
@@ -679,6 +709,50 @@
         }
 
         // ============================================================
+        // TOGGLE INDIVIDUAL: LISTA DE VAZIAS
+        // ============================================================
+        function toggleEmptyList() {
+            const el = document.getElementById('emptyLinesList');
+            const btn = document.getElementById('toggleEmptyList');
+            
+            emptyListVisivel = !emptyListVisivel;
+            
+            if (emptyListVisivel) {
+                el.style.display = 'block';
+                btn.classList.remove('inactive');
+                btn.classList.add('active');
+                btn.innerHTML = '📭 Linhas Vazias <span class="badge-count" id="emptyCountBadge">' + (analysisResult ? analysisResult.emptyRows : 0) + '</span>';
+            } else {
+                el.style.display = 'none';
+                btn.classList.remove('active');
+                btn.classList.add('inactive');
+                btn.innerHTML = '📭 Linhas Vazias (ocultas)';
+            }
+        }
+
+        // ============================================================
+        // TOGGLE INDIVIDUAL: TABELA COMPLETA
+        // ============================================================
+        function toggleFullTable() {
+            const el = document.getElementById('results');
+            const btn = document.getElementById('toggleFullTable');
+            
+            fullTableVisivel = !fullTableVisivel;
+            
+            if (fullTableVisivel) {
+                el.style.display = 'block';
+                btn.classList.remove('inactive');
+                btn.classList.add('active');
+                btn.innerHTML = '📋 Tabela Completa <span class="badge-count" id="tableCountBadge">' + (analysisResult ? analysisResult.totalRows : 0) + '</span>';
+            } else {
+                el.style.display = 'none';
+                btn.classList.remove('active');
+                btn.classList.add('inactive');
+                btn.innerHTML = '📋 Tabela Completa (oculta)';
+            }
+        }
+
+        // ============================================================
         // BUSCA NA COLUNA B (com Modal)
         // ============================================================
         function buscarColunaB() {
@@ -695,7 +769,6 @@
                 return;
             }
 
-            // Buscar na Coluna B (índice 1) de cada linha
             const resultados = [];
             analysisResult.results.forEach((row, index) => {
                 const dadosLinha = currentData[index] || [];
@@ -711,9 +784,7 @@
                 }
             });
 
-            // Abrir modal com resultados
             abrirModal(resultados, termo);
-            
             info.textContent = `🔍 ${resultados.length} resultado(s) encontrado(s) para "${termo}"`;
         }
 
@@ -752,12 +823,10 @@
             document.getElementById('searchModal').classList.remove('active');
         }
 
-        // Fechar modal com ESC
         document.addEventListener('keydown', function(e) {
             if (e.key === 'Escape') fecharModal();
         });
 
-        // Fechar modal clicando fora
         document.getElementById('searchModal').addEventListener('click', function(e) {
             if (e.target === this) fecharModal();
         });
@@ -769,29 +838,7 @@
         }
 
         // ============================================================
-        // MOSTRAR/ESCONDER TODAS AS TABELAS
-        // ============================================================
-        function toggleTabelas() {
-            const wrapper = document.getElementById('tablesWrapper');
-            const btn = document.getElementById('toggleTableBtn');
-            
-            tabelasVisiveis = !tabelasVisiveis;
-            
-            if (tabelasVisiveis) {
-                wrapper.classList.remove('hidden');
-                btn.textContent = '🔽 Esconder Tabelas';
-                btn.classList.add('active');
-                document.getElementById('tableTitle').textContent = '📋 Tabelas';
-            } else {
-                wrapper.classList.add('hidden');
-                btn.textContent = '🔼 Mostrar Tabelas';
-                btn.classList.remove('active');
-                document.getElementById('tableTitle').textContent = '📋 Tabelas (escondidas)';
-            }
-        }
-
-        // ============================================================
-        // DEMAIS FUNÇÕES (mantidas do código anterior)
+        // DEMAIS FUNÇÕES
         // ============================================================
 
         function toggleMethod() {
@@ -848,10 +895,7 @@
             document.getElementById('results').innerHTML = '';
             document.getElementById('emptyLinesList').style.display = 'none';
             document.getElementById('searchBar').style.display = 'none';
-            document.getElementById('tablesWrapper').classList.remove('hidden');
-            tabelasVisiveis = true;
-            document.getElementById('toggleTableBtn').textContent = '🔽 Esconder Tabelas';
-            document.getElementById('toggleTableBtn').classList.add('active');
+            document.getElementById('toggleControls').style.display = 'none';
 
             try {
                 if (method === 'public') {
@@ -902,6 +946,7 @@
             document.getElementById('sheetSelector').style.display = 'block';
             document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas (Coluna A: vazias | Coluna B: busca)`;
             document.getElementById('searchBar').style.display = 'flex';
+            document.getElementById('toggleControls').style.display = 'flex';
             showStatus(`✅ Planilha carregada! ${rows.length} linhas.`, 'success');
             analyzeSheet();
         }
@@ -931,6 +976,7 @@
             document.getElementById('sheetSelector').style.display = 'block';
             document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas (Coluna A: vazias | Coluna B: busca)`;
             document.getElementById('searchBar').style.display = 'flex';
+            document.getElementById('toggleControls').style.display = 'flex';
             showStatus(`✅ Planilha carregada! ${rows.length} linhas.`, 'success');
             analyzeSheet();
         }
@@ -966,6 +1012,7 @@
             document.getElementById('sheetSelector').style.display = 'block';
             document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas (Coluna A: vazias | Coluna B: busca)`;
             document.getElementById('searchBar').style.display = 'flex';
+            document.getElementById('toggleControls').style.display = 'flex';
             showStatus(`✅ ${rows.length} linhas carregadas!`, 'success');
             analyzeSheet();
         }
@@ -1082,12 +1129,25 @@
             renderEmptyLinesList(analysisResult);
             updateStats(analysisResult);
             
-            // Garantir que as tabelas fiquem visíveis
-            document.getElementById('tablesWrapper').classList.remove('hidden');
-            tabelasVisiveis = true;
-            document.getElementById('toggleTableBtn').textContent = '🔽 Esconder Tabelas';
-            document.getElementById('toggleTableBtn').classList.add('active');
-            document.getElementById('tableTitle').textContent = '📋 Tabelas';
+            // Resetar visibilidade
+            emptyListVisivel = true;
+            fullTableVisivel = true;
+            
+            // Atualizar botões
+            const emptyBtn = document.getElementById('toggleEmptyList');
+            const tableBtn = document.getElementById('toggleFullTable');
+            
+            emptyBtn.classList.remove('inactive');
+            emptyBtn.classList.add('active');
+            emptyBtn.innerHTML = '📭 Linhas Vazias <span class="badge-count" id="emptyCountBadge">' + emptyRows + '</span>';
+            
+            tableBtn.classList.remove('inactive');
+            tableBtn.classList.add('active');
+            tableBtn.innerHTML = '📋 Tabela Completa <span class="badge-count" id="tableCountBadge">' + results.length + '</span>';
+            
+            document.getElementById('emptyLinesList').style.display = 'block';
+            document.getElementById('results').style.display = 'block';
+            document.getElementById('toggleControls').style.display = 'flex';
             
             const msg = `✅ Análise concluída! ${emptyRows} linhas vazias na Coluna A${lastEmptyRow > 0 ? ' (Última: linha ' + lastEmptyRow + ')' : ''}`;
             showStatus(msg, 'success');
@@ -1271,6 +1331,7 @@
             document.getElementById('stats').style.display = 'none';
             document.getElementById('emptyLinesList').style.display = 'none';
             document.getElementById('searchBar').style.display = 'none';
+            document.getElementById('toggleControls').style.display = 'none';
             document.getElementById('searchInput').value = '';
             document.getElementById('searchInfo').textContent = '';
             analysisResult = null;
