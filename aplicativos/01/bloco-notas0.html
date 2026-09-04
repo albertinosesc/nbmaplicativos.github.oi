@@ -3,13 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mapeador de Linhas Vazias - Google Sheets</title>
+    <title>Mapeador de Linhas Vazias - Coluna A</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -27,10 +23,23 @@
         h1 {
             color: #333;
             margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
         }
         .subtitle {
             color: #666;
             margin-bottom: 30px;
+            font-size: 16px;
+        }
+        .highlight-coluna {
+            background: #e7f3ff;
+            padding: 10px 15px;
+            border-radius: 8px;
+            display: inline-block;
+            margin-bottom: 15px;
+            font-weight: 600;
+            color: #0056b3;
         }
         .input-group {
             display: flex;
@@ -62,24 +71,16 @@
             font-weight: 600;
             cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
+            white-space: nowrap;
         }
         .btn:hover {
             transform: translateY(-2px);
             box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
         }
-        .btn-secondary {
-            background: #6c757d;
-        }
-        .btn-success {
-            background: #28a745;
-        }
-        .btn-danger {
-            background: #dc3545;
-        }
-        .btn-warning {
-            background: #ffc107;
-            color: #333;
-        }
+        .btn-secondary { background: #6c757d; }
+        .btn-success { background: #28a745; }
+        .btn-danger { background: #dc3545; }
+        .btn-warning { background: #ffc107; color: #333; }
         .btn-group {
             display: flex;
             gap: 10px;
@@ -107,6 +108,8 @@
         .method-selector label {
             margin-right: 20px;
             cursor: pointer;
+            display: inline-block;
+            padding: 5px 0;
         }
         .method-selector input[type="radio"] {
             margin-right: 5px;
@@ -139,6 +142,7 @@
         td {
             padding: 10px 15px;
             border-bottom: 1px solid #e0e0e0;
+            vertical-align: top;
         }
         tr:hover { background: #f8f9fa; }
         tr.empty-row { background: #fff3cd; }
@@ -156,6 +160,7 @@
         .badge-empty { background: #ffc107; color: #856404; }
         .badge-last { background: #17a2b8; color: white; }
         .badge-filled { background: #28a745; color: white; }
+        .badge-multiline { background: #6f42c1; color: white; font-size: 10px; }
         
         .stats {
             display: grid;
@@ -216,34 +221,48 @@
             border-radius: 4px;
             font-size: 13px;
         }
+        #pasteArea textarea {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            resize: vertical;
+            min-height: 150px;
+        }
+        .coluna-a-destaque {
+            background: #e3f2fd;
+            font-weight: 600;
+        }
+        .texto-com-quebra {
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
         @media (max-width: 768px) {
             .container { padding: 15px; }
             .input-group input, .input-group select { min-width: 100%; }
             .btn-group { flex-direction: column; }
-            .btn-group .btn { width: 100%; }
+            .btn-group .btn { width: 100%; text-align: center; }
+            .method-selector label { display: block; margin: 5px 0; }
         }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>📊 Mapeador de Linhas Vazias</h1>
-        <p class="subtitle">Identifique linhas vazias e a última linha vazia em planilhas Google (sem necessidade de API Key)</p>
+        <p class="subtitle">Analisa APENAS a <strong>Coluna A</strong> e identifica a última linha vazia</p>
+
+        <div class="highlight-coluna">
+            🔍 Foco: Coluna A (primeira coluna da planilha)
+        </div>
 
         <!-- Método de acesso -->
         <div class="method-selector">
             <strong>Método de acesso:</strong>
-            <label>
-                <input type="radio" name="method" value="public" checked onchange="toggleMethod()">
-                📤 Planilha Pública (CSV exportado)
-            </label>
-            <label>
-                <input type="radio" name="method" value="gid" onchange="toggleMethod()">
-                🔗 Link com gid (publicado na web)
-            </label>
-            <label>
-                <input type="radio" name="method" value="paste" onchange="toggleMethod()">
-                📋 Colar dados manualmente
-            </label>
+            <label><input type="radio" name="method" value="public" checked onchange="toggleMethod()"> 📤 Planilha Pública</label>
+            <label><input type="radio" name="method" value="gid" onchange="toggleMethod()"> 🔗 Link CSV publicado</label>
+            <label><input type="radio" name="method" value="paste" onchange="toggleMethod()"> 📋 Colar dados</label>
         </div>
 
         <div class="input-group">
@@ -253,19 +272,22 @@
         </div>
 
         <div id="pasteArea" style="display:none; margin-bottom:15px;">
-            <textarea id="pasteData" rows="8" placeholder="Cole aqui os dados da planilha (separados por TAB ou vírgula)&#10;Exemplo:&#10;Nome	Idade	Cidade&#10;João	25	São Paulo&#10;Maria	30	Rio" style="width:100%; padding:10px; border:2px solid #e0e0e0; border-radius:10px; font-family:monospace;"></textarea>
+            <p style="margin-bottom:8px; color:#666; font-size:14px;">
+                <strong>Cole os dados aqui</strong> (apenas a Coluna A será analisada):
+            </p>
+            <textarea id="pasteData" rows="8" placeholder="Cole os dados da planilha (Ctrl+C / Ctrl+V)&#10;Exemplo:&#10;Nome do Músico&#10;João Silva&#10;&#10;Maria Santos&#10;Carlos Souza"></textarea>
             <button class="btn btn-success" onclick="loadPastedData()" style="margin-top:10px;">📥 Processar Dados Colados</button>
         </div>
 
         <div class="help-text" id="helpText">
             💡 <strong>Como usar:</strong><br>
-            1. <strong>Planilha Pública:</strong> Cole a URL da planilha e clique em "Carregar"<br>
-            2. <strong>Link com gid:</strong> Use o link de publicação da planilha (Arquivo > Compartilhar > Publicar na web)<br>
-            3. <strong>Colar dados:</strong> Copie e cole os dados diretamente
+            1. <strong>Planilha Pública:</strong> Cole a URL da planilha (compartilhada com "Qualquer um com o link")<br>
+            2. <strong>Link CSV:</strong> Use o link de publicação (Arquivo > Publicar na web > CSV)<br>
+            3. <strong>Colar dados:</strong> Copie e cole os dados diretamente (recomendado para teste)
         </div>
 
         <div id="status" class="status info">
-            💡 Insira a URL ou ID da planilha e clique em "Carregar Planilha"
+            💡 Insira a URL ou cole os dados e clique em "Carregar" ou "Processar"
         </div>
 
         <div id="sheetSelector" style="display:none; margin-bottom:15px;">
@@ -275,7 +297,7 @@
         </div>
 
         <div class="btn-group">
-            <button class="btn btn-success" onclick="analyzeSheet()">🔎 Analisar Linhas Vazias</button>
+            <button class="btn btn-success" onclick="analyzeSheet()">🔎 Analisar Coluna A</button>
             <button class="btn btn-secondary" onclick="exportCSV()">📥 Exportar CSV</button>
             <button class="btn btn-warning" onclick="exportJSON()">📄 Exportar JSON</button>
             <button class="btn btn-danger" onclick="clearResults()">🗑️ Limpar</button>
@@ -290,17 +312,26 @@
 
         <div id="results">
             <div class="empty-state">
-                <p>Nenhuma análise realizada ainda.<br>Carregue uma planilha e clique em "Analisar Linhas Vazias".</p>
+                <p>Nenhuma análise realizada ainda.<br>Carregue uma planilha e clique em "Analisar Coluna A".</p>
             </div>
         </div>
     </div>
 
     <script>
+        // ============================================================
+        // CONFIGURAÇÃO: Só analisa a COLUNA A (índice 0)
+        // ============================================================
+        const COLUNA_ALVO = 0; // Coluna A = índice 0
+
         let currentData = [];
         let currentSheetName = '';
         let sheetData = {};
         let analysisResult = null;
         let allSheets = {};
+
+        // ============================================================
+        // FUNÇÕES PRINCIPAIS
+        // ============================================================
 
         function toggleMethod() {
             const method = document.querySelector('input[name="method"]:checked').value;
@@ -310,39 +341,37 @@
             
             const helpText = document.getElementById('helpText');
             if (method === 'public') {
-                helpText.innerHTML = `💡 <strong>Planilha Pública:</strong> A planilha deve estar pública ou compartilhada com "Qualquer um com o link". URL exemplo: <code>https://docs.google.com/spreadsheets/d/1ABC123/edit</code>`;
+                helpText.innerHTML = `💡 <strong>Planilha Pública:</strong> A planilha deve estar pública ou compartilhada com "Qualquer um com o link". <br>🔍 <strong>Foco:</strong> Apenas a <strong>Coluna A</strong> será analisada.`;
             } else if (method === 'gid') {
-                helpText.innerHTML = `💡 <strong>Link com gid:</strong> Publique a planilha em "Arquivo > Compartilhar > Publicar na web" e use o link. Exemplo: <code>https://docs.google.com/spreadsheets/d/e/2PACX-.../pub?gid=0&single=true&output=csv</code>`;
+                helpText.innerHTML = `💡 <strong>Link CSV:</strong> Publique em "Arquivo > Compartilhar > Publicar na web" e escolha "CSV". <br>🔍 <strong>Foco:</strong> Apenas a <strong>Coluna A</strong> será analisada.`;
             } else {
-                helpText.innerHTML = `💡 <strong>Colar dados:</strong> Copie os dados da planilha (Ctrl+C) e cole abaixo. Use TAB para separar colunas.`;
+                helpText.innerHTML = `💡 <strong>Colar dados:</strong> Copie os dados da planilha (Ctrl+C) e cole abaixo. <br>🔍 <strong>Foco:</strong> Apenas a <strong>Coluna A</strong> (primeira coluna) será analisada.`;
             }
         }
 
-        // Função para extrair ID da planilha
+        // Extrair ID da planilha
         function extractSpreadsheetId(url) {
             if (!url) return null;
-            
-            // Se for URL de publicação
             if (url.includes('/d/e/')) {
                 const match = url.match(/\/d\/e\/([a-zA-Z0-9-_]+)/);
                 if (match) return match[1];
             }
-            
-            // URL normal
             const patterns = [
                 /\/d\/([a-zA-Z0-9-_]+)/,
                 /spreadsheets\/d\/([a-zA-Z0-9-_]+)/,
                 /key=([a-zA-Z0-9-_]+)/
             ];
-            
             for (const pattern of patterns) {
                 const match = url.match(pattern);
                 if (match) return match[1];
             }
-            return url; // Pode ser o ID diretamente
+            return url;
         }
 
-        // Carregar planilha
+        // ============================================================
+        // CARREGAR PLANILHA
+        // ============================================================
+
         async function loadSheet() {
             const method = document.querySelector('input[name="method"]:checked').value;
             
@@ -380,7 +409,6 @@
             const id = extractSpreadsheetId(url);
             if (!id) throw new Error('Não foi possível extrair o ID da planilha');
 
-            // Tentar diferentes formatos de exportação
             const formats = [
                 `https://docs.google.com/spreadsheets/d/${id}/export?format=csv`,
                 `https://docs.google.com/spreadsheets/d/${id}/gviz/tq?tqx=out:csv`,
@@ -388,8 +416,6 @@
             ];
 
             let csvData = null;
-            let lastError = null;
-
             for (const format of formats) {
                 try {
                     const response = await fetch(format);
@@ -397,41 +423,36 @@
                         csvData = await response.text();
                         break;
                     }
-                } catch (e) {
-                    lastError = e;
-                }
+                } catch (e) { /* tenta próximo */ }
             }
 
             if (!csvData) {
-                throw new Error('Não foi possível acessar a planilha. Verifique se ela está pública ou compartilhada com "Qualquer um com o link".');
+                throw new Error('Não foi possível acessar a planilha. Verifique se ela está pública.');
             }
 
-            // Processar CSV
             const rows = parseCSV(csvData);
-            if (rows.length === 0) throw new Error('Nenhum dado encontrado na planilha');
+            if (rows.length === 0) throw new Error('Nenhum dado encontrado');
 
-            // Tentar detectar abas
-            const sheets = detectSheets(rows);
-            allSheets = sheets;
+            allSheets = { 'Planilha1': rows };
+            currentData = rows;
+            currentSheetName = 'Planilha1';
             
-            populateSheetSelector(Object.keys(sheets));
-            currentData = sheets[Object.keys(sheets)[0]] || rows;
-            currentSheetName = Object.keys(sheets)[0] || 'Planilha1';
-            
+            populateSheetSelector(['Planilha1']);
             document.getElementById('sheetSelector').style.display = 'block';
-            document.getElementById('sheetInfo').textContent = `📄 ${currentData.length} linhas carregadas`;
-            showStatus(`✅ Planilha carregada com sucesso! ${Object.keys(sheets).length} aba(s) encontrada(s).`, 'success');
+            document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas (Coluna A)`;
+            showStatus(`✅ Planilha carregada! ${rows.length} linhas. Clique em "Analisar Coluna A".`, 'success');
         }
 
         // Método 2: Link publicado com gid
         async function loadPublishedSheet(url) {
             const gid = document.getElementById('sheetGid').value || '0';
             
-            // Construir URL de exportação
             let csvUrl = url;
             if (!url.includes('output=csv')) {
                 csvUrl = url.includes('?') ? url + '&output=csv' : url + '?output=csv';
             }
+            // Se for /pubhtml, trocar para /pub
+            csvUrl = csvUrl.replace('/pubhtml', '/pub');
             
             const response = await fetch(csvUrl);
             if (!response.ok) throw new Error('Erro ao acessar a planilha publicada');
@@ -447,11 +468,14 @@
             
             populateSheetSelector(['Planilha1']);
             document.getElementById('sheetSelector').style.display = 'block';
-            document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas carregadas`;
-            showStatus('✅ Planilha publicada carregada com sucesso!', 'success');
+            document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas (Coluna A)`;
+            showStatus(`✅ Planilha carregada! ${rows.length} linhas. Clique em "Analisar Coluna A".`, 'success');
         }
 
-        // Processar dados colados
+        // ============================================================
+        // PROCESSAR DADOS COLADOS
+        // ============================================================
+
         function loadPastedData() {
             const text = document.getElementById('pasteData').value;
             if (!text.trim()) {
@@ -459,10 +483,22 @@
                 return;
             }
 
-            const rows = text.split('\n')
-                .filter(row => row.trim())
-                .map(row => row.split('\t').map(cell => cell.trim()));
+            // Processar mantendo quebras de linha dentro das células
+            const rows = [];
+            const lines = text.split('\n');
             
+            for (const line of lines) {
+                if (line.trim() === '') {
+                    // Linha vazia = célula vazia na coluna A
+                    rows.push(['']);
+                } else {
+                    // Pega o conteúdo da linha como um todo (primeira coluna)
+                    // Se houver TAB, pega apenas a primeira coluna
+                    const firstCol = line.split('\t')[0] || line;
+                    rows.push([firstCol]);
+                }
+            }
+
             if (rows.length === 0) {
                 showStatus('⚠️ Nenhum dado válido encontrado.', 'error');
                 return;
@@ -474,57 +510,88 @@
             
             populateSheetSelector(['Dados Colados']);
             document.getElementById('sheetSelector').style.display = 'block';
-            document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas carregadas`;
-            showStatus(`✅ ${rows.length} linhas carregadas com sucesso!`, 'success');
+            document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas (Coluna A)`;
+            showStatus(`✅ ${rows.length} linhas carregadas! Clique em "Analisar Coluna A".`, 'success');
             
             // Analisar automaticamente
             analyzeSheet();
         }
 
-        // Parse CSV
+        // ============================================================
+        // PARSE CSV (mantém quebras de linha)
+        // ============================================================
+
         function parseCSV(csv) {
-            const lines = csv.split('\n').filter(line => line.trim());
-            return lines.map(line => {
-                // Tentar detectar separador
-                let separator = ',';
-                if (line.includes('\t')) separator = '\t';
-                else if (line.includes(';')) separator = ';';
+            const lines = csv.split('\n');
+            const result = [];
+            let currentRow = [];
+            let currentCell = '';
+            let insideQuotes = false;
+
+            for (let i = 0; i < lines.length; i++) {
+                const line = lines[i];
                 
-                return line.split(separator).map(cell => cell.trim().replace(/^"|"$/g, ''));
-            });
+                for (let j = 0; j < line.length; j++) {
+                    const char = line[j];
+                    
+                    if (char === '"') {
+                        if (insideQuotes && line[j+1] === '"') {
+                            currentCell += '"';
+                            j++;
+                        } else {
+                            insideQuotes = !insideQuotes;
+                        }
+                    } else if (char === ',' && !insideQuotes) {
+                        currentRow.push(currentCell.trim());
+                        currentCell = '';
+                    } else {
+                        currentCell += char;
+                    }
+                }
+                
+                // Se ainda está dentro de aspas, a quebra de linha faz parte da célula
+                if (insideQuotes) {
+                    currentCell += '\n';
+                } else {
+                    // Fim da linha
+                    currentRow.push(currentCell.trim());
+                    if (currentRow.length > 0) {
+                        result.push(currentRow);
+                    }
+                    currentRow = [];
+                    currentCell = '';
+                }
+            }
+            
+            // Última linha
+            if (currentRow.length > 0 || currentCell) {
+                if (currentCell) currentRow.push(currentCell.trim());
+                if (currentRow.length > 0) result.push(currentRow);
+            }
+
+            return result;
         }
 
-        // Detectar abas em CSV (simples)
-        function detectSheets(rows) {
-            const sheets = {};
-            let currentSheet = 'Planilha1';
-            let currentRows = [];
-            
-            // Procura por marcadores de aba (se houver)
-            // Ou usa todas as linhas como uma única aba
-            sheets['Planilha1'] = rows;
-            
-            return sheets;
-        }
+        // ============================================================
+        // POPULAR SELECTOR DE ABAS
+        // ============================================================
 
-        // Popular selector de abas
         function populateSheetSelector(names) {
             const select = document.getElementById('sheetSelect');
             select.innerHTML = '';
-            
             names.forEach(name => {
                 const option = document.createElement('option');
                 option.value = name;
                 option.textContent = name;
                 select.appendChild(option);
             });
-            
-            if (names.length > 0) {
-                select.value = names[0];
-            }
+            if (names.length > 0) select.value = names[0];
         }
 
-        // Analisar linhas vazias
+        // ============================================================
+        // ANALISAR LINHAS VAZIAS (SOMENTE COLUNA A)
+        // ============================================================
+
         function analyzeSheet() {
             const select = document.getElementById('sheetSelect');
             const sheetName = select.value || Object.keys(allSheets)[0];
@@ -539,49 +606,71 @@
 
             const results = [];
             let lastEmptyRow = -1;
-            
+            let totalCaracteres = 0;
+            let linhasComQuebra = 0;
+
             for (let i = 0; i < currentData.length; i++) {
+                // PEGA SOMENTE A COLUNA A (índice 0)
                 const row = currentData[i];
-                const colA = row[0] || '';
-                const isEmpty = colA.toString().trim() === '';
-                const allEmpty = row.every(cell => cell === '' || cell === null || cell === undefined);
+                const colA = (row && row.length > 0) ? row[0] : '';
+                const valorStr = colA !== undefined && colA !== null ? String(colA) : '';
                 
+                // Verifica se está vazio (considerando espaços)
+                const isEmpty = valorStr.trim() === '';
+                
+                // Conta caracteres para estatísticas
+                totalCaracteres += valorStr.length;
+                
+                // Verifica se tem quebra de linha
+                if (valorStr.includes('\n') || valorStr.includes('\r')) {
+                    linhasComQuebra++;
+                }
+
                 results.push({
                     rowIndex: i + 1,
-                    colA: colA,
+                    colA: valorStr,
                     isEmpty: isEmpty,
                     isLastEmpty: false,
-                    allColumnsEmpty: allEmpty
+                    hasLineBreak: valorStr.includes('\n') || valorStr.includes('\r'),
+                    length: valorStr.length,
+                    displayValue: valorStr || '(vazio)'
                 });
                 
                 if (isEmpty) lastEmptyRow = i + 1;
             }
             
+            // Marcar a última linha vazia
             if (lastEmptyRow > 0) {
                 const lastEmpty = results.find(r => r.rowIndex === lastEmptyRow);
                 if (lastEmpty) lastEmpty.isLastEmpty = true;
             }
             
             const emptyRows = results.filter(r => r.isEmpty).length;
-            const emptyAllColumns = results.filter(r => r.allColumnsEmpty).length;
+            const filledRows = results.length - emptyRows;
             
             analysisResult = {
                 sheetName: sheetName,
                 results: results,
                 totalRows: results.length,
                 emptyRows: emptyRows,
-                emptyAllColumns: emptyAllColumns,
+                filledRows: filledRows,
                 lastEmptyRow: lastEmptyRow,
-                filledRows: results.length - emptyRows
+                linhasComQuebra: linhasComQuebra,
+                totalCaracteres: totalCaracteres,
+                mediaCaracteres: results.length > 0 ? (totalCaracteres / results.length).toFixed(1) : 0
             };
             
             renderResults(analysisResult);
             updateStats(analysisResult);
             
-            showStatus(`✅ Análise concluída! ${emptyRows} linhas vazias encontradas${lastEmptyRow > 0 ? ' (Última: linha ' + lastEmptyRow + ')' : ''}`, 'success');
+            const msg = `✅ Análise concluída! ${emptyRows} linhas vazias na Coluna A${lastEmptyRow > 0 ? ' (Última: linha ' + lastEmptyRow + ')' : ''}`;
+            showStatus(msg, 'success');
         }
 
-        // Renderizar resultados
+        // ============================================================
+        // RENDERIZAR RESULTADOS (SOMENTE COLUNA A)
+        // ============================================================
+
         function renderResults(result) {
             const container = document.getElementById('results');
             
@@ -595,10 +684,10 @@
                     <table>
                         <thead>
                             <tr>
-                                <th>Linha</th>
-                                <th>Coluna A</th>
-                                <th>Status</th>
-                                <th>Todas colunas vazias?</th>
+                                <th style="width:60px;">Linha</th>
+                                <th>📌 Coluna A (valor)</th>
+                                <th style="width:130px;">Status</th>
+                                <th style="width:100px;">Quebra de linha</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -618,12 +707,15 @@
                     statusBadge = '<span class="badge badge-filled">✅ Preenchida</span>';
                 }
                 
+                const quebraBadge = row.hasLineBreak ? '<span class="badge badge-multiline">↕ Quebra</span>' : '—';
+                const valorDisplay = row.isEmpty ? '—' : row.colA;
+                
                 html += `
                     <tr class="${rowClass}">
                         <td><strong>${row.rowIndex}</strong></td>
-                        <td>${row.colA || '—'}</td>
+                        <td class="texto-com-quebra ${!row.isEmpty ? 'coluna-a-destaque' : ''}">${valorDisplay}</td>
                         <td>${statusBadge}</td>
-                        <td>${row.allColumnsEmpty ? '✅ Sim' : '❌ Não'}</td>
+                        <td>${quebraBadge}</td>
                     </tr>
                 `;
             });
@@ -632,39 +724,70 @@
             container.innerHTML = html;
         }
 
-        // Atualizar estatísticas
+        // ============================================================
+        // ATUALIZAR ESTATÍSTICAS
+        // ============================================================
+
         function updateStats(result) {
             const statsDiv = document.getElementById('stats');
             statsDiv.style.display = 'grid';
             
             statsDiv.innerHTML = `
-                <div class="stat-card"><div class="stat-number">${result.totalRows}</div><div class="stat-label">Total de Linhas</div></div>
-                <div class="stat-card"><div class="stat-number" style="color:#ffc107;">${result.emptyRows}</div><div class="stat-label">Linhas Vazias</div></div>
-                <div class="stat-card"><div class="stat-number" style="color:#17a2b8;">${result.lastEmptyRow > 0 ? result.lastEmptyRow : '—'}</div><div class="stat-label">Última Linha Vazia</div></div>
-                <div class="stat-card"><div class="stat-number" style="color:#28a745;">${result.filledRows}</div><div class="stat-label">Linhas Preenchidas</div></div>
-                <div class="stat-card"><div class="stat-number" style="color:#dc3545;">${result.emptyAllColumns}</div><div class="stat-label">Totalmente Vazias</div></div>
+                <div class="stat-card">
+                    <div class="stat-number">${result.totalRows}</div>
+                    <div class="stat-label">Total de Linhas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color:#ffc107;">${result.emptyRows}</div>
+                    <div class="stat-label">Linhas Vazias (Coluna A)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color:#17a2b8;">${result.lastEmptyRow > 0 ? result.lastEmptyRow : '—'}</div>
+                    <div class="stat-label">Última Linha Vazia</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color:#28a745;">${result.filledRows}</div>
+                    <div class="stat-label">Linhas Preenchidas</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color:#6f42c1;">${result.linhasComQuebra}</div>
+                    <div class="stat-label">Com Quebra de Linha</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" style="color:#fd7e14;">${result.mediaCaracteres}</div>
+                    <div class="stat-label">Média de Caracteres</div>
+                </div>
             `;
         }
 
-        // Exportar CSV
+        // ============================================================
+        // EXPORTAR CSV
+        // ============================================================
+
         function exportCSV() {
             if (!analysisResult) {
                 showStatus('⚠️ Nenhuma análise para exportar.', 'error');
                 return;
             }
             
-            let csv = 'Linha,Valor Coluna A,Status,Todas Colunas Vazias\n';
+            let csv = 'Linha,Valor Coluna A,Status,Tem Quebra de Linha\n';
             analysisResult.results.forEach(row => {
                 let status = row.isEmpty ? 'Vazia' : 'Preenchida';
                 if (row.isLastEmpty) status = 'ÚLTIMA VAZIA';
-                csv += `${row.rowIndex},"${row.colA || ''}",${status},${row.allColumnsEmpty ? 'Sim' : 'Não'}\n`;
+                const quebra = row.hasLineBreak ? 'Sim' : 'Não';
+                // Escapar aspas no valor
+                const valor = row.colA.replace(/"/g, '""');
+                csv += `${row.rowIndex},"${valor}",${status},${quebra}\n`;
             });
             
-            downloadFile(csv, `analise_${analysisResult.sheetName}_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
+            downloadFile(csv, `analise_colunaA_${analysisResult.sheetName}_${new Date().toISOString().slice(0,10)}.csv`, 'text/csv');
             showStatus('✅ CSV exportado!', 'success');
         }
 
-        // Exportar JSON
+        // ============================================================
+        // EXPORTAR JSON
+        // ============================================================
+
         function exportJSON() {
             if (!analysisResult) {
                 showStatus('⚠️ Nenhuma análise para exportar.', 'error');
@@ -672,11 +795,14 @@
             }
             
             const json = JSON.stringify(analysisResult, null, 2);
-            downloadFile(json, `analise_${analysisResult.sheetName}_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
+            downloadFile(json, `analise_colunaA_${analysisResult.sheetName}_${new Date().toISOString().slice(0,10)}.json`, 'application/json');
             showStatus('✅ JSON exportado!', 'success');
         }
 
-        // Download file
+        // ============================================================
+        // DOWNLOAD
+        // ============================================================
+
         function downloadFile(content, filename, mimeType) {
             const blob = new Blob([content], { type: mimeType + ';charset=utf-8;' });
             const link = document.createElement('a');
@@ -687,7 +813,10 @@
             document.body.removeChild(link);
         }
 
-        // Limpar resultados
+        // ============================================================
+        // LIMPAR
+        // ============================================================
+
         function clearResults() {
             document.getElementById('results').innerHTML = `<div class="empty-state"><p>Resultados limpos.</p></div>`;
             document.getElementById('stats').style.display = 'none';
@@ -695,13 +824,20 @@
             showStatus('🗑️ Resultados limpos.', 'info');
         }
 
+        // ============================================================
+        // STATUS
+        // ============================================================
+
         function showStatus(message, type = 'info') {
             const statusDiv = document.getElementById('status');
             statusDiv.textContent = message;
             statusDiv.className = 'status ' + type;
         }
 
-        // Inicializar
+        // ============================================================
+        // INICIALIZAR
+        // ============================================================
+
         toggleMethod();
     </script>
 </body>
