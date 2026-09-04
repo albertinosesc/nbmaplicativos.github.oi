@@ -211,7 +211,7 @@
         }
         .method-selector input[type="radio"] { margin-right: 5px; }
 
-        /* TABELA */
+        /* TABELA PRINCIPAL */
         .table-container {
             overflow-x: auto;
             margin-top: 15px;
@@ -246,8 +246,6 @@
         tr.empty-row:hover { background: #ffe69c; }
         tr.last-empty { background: #d1ecf1; }
         tr.last-empty:hover { background: #bee5eb; }
-        tr.search-match { background: #d4edda !important; }
-        tr.search-match:hover { background: #c3e6cb !important; }
 
         .badge {
             display: inline-block;
@@ -302,6 +300,103 @@
         .empty-lines-list .empty-message {
             color: #6c757d;
             font-style: italic;
+        }
+
+        /* RESULTADOS DA BUSCA - MODAL */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        .modal-overlay.active {
+            display: flex;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            max-width: 700px;
+            width: 100%;
+            max-height: 80vh;
+            padding: 25px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+            flex-shrink: 0;
+        }
+        .modal-header h2 {
+            font-size: 20px;
+            color: #333;
+        }
+        .modal-header .close-modal {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            transition: 0.3s;
+            padding: 0 10px;
+        }
+        .modal-header .close-modal:hover {
+            color: #333;
+            transform: rotate(90deg);
+        }
+        .modal-body {
+            overflow-y: auto;
+            padding: 15px 0;
+            flex: 1;
+        }
+        .modal-body .result-item {
+            display: flex;
+            padding: 10px 12px;
+            border-bottom: 1px solid #f0f0f0;
+            gap: 15px;
+            align-items: center;
+        }
+        .modal-body .result-item:hover {
+            background: #f8f9fa;
+        }
+        .modal-body .result-item .row-num {
+            font-weight: 700;
+            color: #667eea;
+            min-width: 50px;
+        }
+        .modal-body .result-item .col-a {
+            flex: 1;
+            font-weight: 500;
+        }
+        .modal-body .result-item .col-b {
+            flex: 1.5;
+            color: #555;
+        }
+        .modal-body .no-results {
+            text-align: center;
+            padding: 40px;
+            color: #999;
+        }
+        .modal-footer {
+            padding-top: 15px;
+            border-top: 2px solid #f0f0f0;
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            flex-shrink: 0;
         }
 
         .stats {
@@ -369,10 +464,6 @@
             min-height: 150px;
         }
         .coluna-a-destaque { background: #e3f2fd; font-weight: 600; }
-        .texto-com-quebra {
-            white-space: pre-wrap;
-            word-break: break-word;
-        }
 
         .divider {
             border: none;
@@ -402,6 +493,14 @@
             background: #218838;
         }
 
+        /* Container que será escondido/mostrado */
+        .tables-wrapper {
+            transition: all 0.3s ease;
+        }
+        .tables-wrapper.hidden {
+            display: none;
+        }
+
         @media (max-width: 768px) {
             .container { padding: 15px; }
             .quick-buttons { flex-direction: column; }
@@ -414,6 +513,10 @@
             .search-bar { flex-direction: column; }
             .search-bar input { width: 100%; }
             .search-bar .btn-search, .search-bar .btn-clear-search { width: 100%; }
+            .modal-content { max-width: 100%; margin: 10px; padding: 15px; }
+            .modal-body .result-item { flex-wrap: wrap; }
+            .modal-body .result-item .col-a, 
+            .modal-body .result-item .col-b { flex: 1 1 100%; }
         }
     </style>
 </head>
@@ -442,7 +545,7 @@
 
         <!-- BARRA DE BUSCA (Coluna B) -->
         <div class="search-bar" id="searchBar" style="display:none;">
-            <input type="text" id="searchInput" placeholder="🔍 Buscar na Coluna B..." onkeyup="buscarColunaB()">
+            <input type="text" id="searchInput" placeholder="🔍 Buscar na Coluna B..." onkeyup="if(event.key==='Enter') buscarColunaB()">
             <button class="btn-search" onclick="buscarColunaB()">Buscar</button>
             <button class="btn-clear-search" onclick="limparBusca()">✕ Limpar</button>
             <span class="search-info" id="searchInfo"></span>
@@ -499,21 +602,40 @@
         <!-- ESTATÍSTICAS -->
         <div id="stats" class="stats" style="display:none;"></div>
 
-        <!-- LISTA COMPACTA DE LINHAS VAZIAS -->
-        <div id="emptyLinesList" style="display:none;" class="empty-lines-list"></div>
-
-        <!-- BOTÃO MOSTRAR/ESCONDER TABELA -->
+        <!-- BOTÃO MOSTRAR/ESCONDER TABELAS -->
         <div style="display:flex; justify-content:space-between; align-items:center; margin:10px 0; flex-wrap:wrap; gap:10px;">
-            <span style="font-weight:600; color:#333;" id="tableTitle">📋 Tabela completa</span>
-            <button class="toggle-table-btn active" id="toggleTableBtn" onclick="toggleTabela()">
-                🔽 Esconder Tabela
+            <span style="font-weight:600; color:#333;" id="tableTitle">📋 Tabelas</span>
+            <button class="toggle-table-btn active" id="toggleTableBtn" onclick="toggleTabelas()">
+                🔽 Esconder Tabelas
             </button>
         </div>
 
-        <!-- RESULTADOS (TABELA) -->
-        <div id="results">
-            <div class="empty-state">
-                <p>Nenhuma análise realizada ainda.<br>Clique em um botão rápido ou carregue uma planilha.</p>
+        <!-- WRAPPER QUE CONTÉM TODAS AS TABELAS -->
+        <div class="tables-wrapper" id="tablesWrapper">
+            <!-- LISTA COMPACTA DE LINHAS VAZIAS -->
+            <div id="emptyLinesList" style="display:none;" class="empty-lines-list"></div>
+
+            <!-- RESULTADOS (TABELA COMPLETA) -->
+            <div id="results">
+                <div class="empty-state">
+                    <p>Nenhuma análise realizada ainda.<br>Clique em um botão rápido ou carregue uma planilha.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE RESULTADOS DA BUSCA -->
+    <div class="modal-overlay" id="searchModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalTitle">🔍 Resultados da Busca</h2>
+                <button class="close-modal" onclick="fecharModal()">✕</button>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <div class="no-results">Nenhum resultado encontrado.</div>
+            </div>
+            <div class="modal-footer" id="modalFooter">
+                <span id="modalCount">0</span> resultado(s) encontrado(s)
             </div>
         </div>
     </div>
@@ -527,8 +649,7 @@
         let currentSheetName = '';
         let allSheets = {};
         let analysisResult = null;
-        let tabelaVisivel = true;
-        let dadosOriginais = [];
+        let tabelasVisiveis = true;
 
         // ============================================================
         // LINKS DAS PLANILHAS
@@ -558,7 +679,7 @@
         }
 
         // ============================================================
-        // BUSCA NA COLUNA B
+        // BUSCA NA COLUNA B (com Modal)
         // ============================================================
         function buscarColunaB() {
             const termo = document.getElementById('searchInput').value.toLowerCase().trim();
@@ -570,75 +691,107 @@
             }
 
             if (!termo) {
-                limparBusca();
+                info.textContent = 'Digite um termo para buscar.';
                 return;
             }
 
             // Buscar na Coluna B (índice 1) de cada linha
-            const matches = [];
+            const resultados = [];
             analysisResult.results.forEach((row, index) => {
                 const dadosLinha = currentData[index] || [];
                 const colunaB = dadosLinha.length > 1 ? String(dadosLinha[1] || '') : '';
+                const colunaA = row.colA || '';
                 if (colunaB.toLowerCase().includes(termo)) {
-                    matches.push(row.rowIndex);
+                    resultados.push({
+                        linha: row.rowIndex,
+                        colunaA: colunaA || '(vazio)',
+                        colunaB: colunaB || '(vazio)',
+                        isEmpty: row.isEmpty
+                    });
                 }
             });
 
-            // Marcar linhas na tabela
-            const rows = document.querySelectorAll('#results tbody tr');
-            rows.forEach((tr, index) => {
-                tr.classList.remove('search-match');
-                const rowData = analysisResult.results[index];
-                if (rowData && matches.includes(rowData.rowIndex)) {
-                    tr.classList.add('search-match');
-                }
-            });
-
-            info.textContent = `🔍 ${matches.length} resultado(s) encontrado(s) para "${termo}" na Coluna B`;
+            // Abrir modal com resultados
+            abrirModal(resultados, termo);
             
-            if (matches.length === 0) {
-                info.textContent = `❌ Nenhum resultado para "${termo}" na Coluna B`;
-            }
-
-            // Se a tabela estiver escondida, mostrar
-            if (!tabelaVisivel) {
-                toggleTabela();
-            }
+            info.textContent = `🔍 ${resultados.length} resultado(s) encontrado(s) para "${termo}"`;
         }
+
+        function abrirModal(resultados, termo) {
+            const modal = document.getElementById('searchModal');
+            const body = document.getElementById('modalBody');
+            const footer = document.getElementById('modalCount');
+            const title = document.getElementById('modalTitle');
+            
+            title.textContent = `🔍 Resultados para "${termo}"`;
+            
+            if (resultados.length === 0) {
+                body.innerHTML = `<div class="no-results">😕 Nenhum resultado encontrado para "${termo}" na Coluna B.</div>`;
+                footer.textContent = '0';
+            } else {
+                let html = '';
+                resultados.forEach(r => {
+                    const isEmptyClass = r.isEmpty ? 'style="color:#856404;"' : '';
+                    html += `
+                        <div class="result-item">
+                            <span class="row-num">#${r.linha}</span>
+                            <span class="col-a" ${isEmptyClass}>${r.colunaA}</span>
+                            <span class="col-b"><strong>${r.colunaB}</strong></span>
+                        </div>
+                    `;
+                });
+                body.innerHTML = html;
+                footer.textContent = resultados.length;
+            }
+            
+            modal.classList.add('active');
+            document.getElementById('modalCount').textContent = resultados.length;
+        }
+
+        function fecharModal() {
+            document.getElementById('searchModal').classList.remove('active');
+        }
+
+        // Fechar modal com ESC
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape') fecharModal();
+        });
+
+        // Fechar modal clicando fora
+        document.getElementById('searchModal').addEventListener('click', function(e) {
+            if (e.target === this) fecharModal();
+        });
 
         function limparBusca() {
             document.getElementById('searchInput').value = '';
             document.getElementById('searchInfo').textContent = '';
-            document.querySelectorAll('#results tbody tr').forEach(tr => {
-                tr.classList.remove('search-match');
-            });
+            fecharModal();
         }
 
         // ============================================================
-        // MOSTRAR/ESCONDER TABELA
+        // MOSTRAR/ESCONDER TODAS AS TABELAS
         // ============================================================
-        function toggleTabela() {
-            const container = document.getElementById('results');
+        function toggleTabelas() {
+            const wrapper = document.getElementById('tablesWrapper');
             const btn = document.getElementById('toggleTableBtn');
-            const title = document.getElementById('tableTitle');
             
-            tabelaVisivel = !tabelaVisivel;
+            tabelasVisiveis = !tabelasVisiveis;
             
-            if (tabelaVisivel) {
-                container.style.display = 'block';
-                btn.textContent = '🔽 Esconder Tabela';
+            if (tabelasVisiveis) {
+                wrapper.classList.remove('hidden');
+                btn.textContent = '🔽 Esconder Tabelas';
                 btn.classList.add('active');
-                title.textContent = '📋 Tabela completa';
+                document.getElementById('tableTitle').textContent = '📋 Tabelas';
             } else {
-                container.style.display = 'none';
-                btn.textContent = '🔼 Mostrar Tabela';
+                wrapper.classList.add('hidden');
+                btn.textContent = '🔼 Mostrar Tabelas';
                 btn.classList.remove('active');
-                title.textContent = '📋 Tabela (escondida)';
+                document.getElementById('tableTitle').textContent = '📋 Tabelas (escondidas)';
             }
         }
 
         // ============================================================
-        // DEMAIS FUNÇÕES
+        // DEMAIS FUNÇÕES (mantidas do código anterior)
         // ============================================================
 
         function toggleMethod() {
@@ -695,6 +848,10 @@
             document.getElementById('results').innerHTML = '';
             document.getElementById('emptyLinesList').style.display = 'none';
             document.getElementById('searchBar').style.display = 'none';
+            document.getElementById('tablesWrapper').classList.remove('hidden');
+            tabelasVisiveis = true;
+            document.getElementById('toggleTableBtn').textContent = '🔽 Esconder Tabelas';
+            document.getElementById('toggleTableBtn').classList.add('active');
 
             try {
                 if (method === 'public') {
@@ -740,13 +897,13 @@
             allSheets = { 'Planilha1': rows };
             currentData = rows;
             currentSheetName = 'Planilha1';
-            dadosOriginais = rows.map(r => [...r]);
             
             populateSheetSelector(['Planilha1']);
             document.getElementById('sheetSelector').style.display = 'block';
             document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas (Coluna A: vazias | Coluna B: busca)`;
             document.getElementById('searchBar').style.display = 'flex';
-            showStatus(`✅ Planilha carregada! ${rows.length} linhas. Clique em "Analisar Coluna A".`, 'success');
+            showStatus(`✅ Planilha carregada! ${rows.length} linhas.`, 'success');
+            analyzeSheet();
         }
 
         async function loadPublishedSheet(url) {
@@ -769,13 +926,13 @@
             allSheets = { 'Planilha1': rows };
             currentData = rows;
             currentSheetName = 'Planilha1';
-            dadosOriginais = rows.map(r => [...r]);
             
             populateSheetSelector(['Planilha1']);
             document.getElementById('sheetSelector').style.display = 'block';
             document.getElementById('sheetInfo').textContent = `📄 ${rows.length} linhas (Coluna A: vazias | Coluna B: busca)`;
             document.getElementById('searchBar').style.display = 'flex';
-            showStatus(`✅ Planilha carregada! ${rows.length} linhas. Clique em "Analisar Coluna A".`, 'success');
+            showStatus(`✅ Planilha carregada! ${rows.length} linhas.`, 'success');
+            analyzeSheet();
         }
 
         function loadPastedData() {
@@ -804,7 +961,6 @@
             allSheets = { 'Dados Colados': rows };
             currentData = rows;
             currentSheetName = 'Dados Colados';
-            dadosOriginais = rows.map(r => [...r]);
             
             populateSheetSelector(['Dados Colados']);
             document.getElementById('sheetSelector').style.display = 'block';
@@ -879,7 +1035,6 @@
             
             currentData = allSheets[sheetName] || [];
             currentSheetName = sheetName;
-            dadosOriginais = currentData.map(r => [...r]);
             
             if (!currentData || currentData.length === 0) {
                 showStatus('⚠️ Nenhum dado encontrado nesta aba.', 'error');
@@ -927,17 +1082,16 @@
             renderEmptyLinesList(analysisResult);
             updateStats(analysisResult);
             
-            // Garantir que a tabela fique visível
-            tabelaVisivel = true;
-            document.getElementById('results').style.display = 'block';
-            document.getElementById('toggleTableBtn').textContent = '🔽 Esconder Tabela';
+            // Garantir que as tabelas fiquem visíveis
+            document.getElementById('tablesWrapper').classList.remove('hidden');
+            tabelasVisiveis = true;
+            document.getElementById('toggleTableBtn').textContent = '🔽 Esconder Tabelas';
             document.getElementById('toggleTableBtn').classList.add('active');
-            document.getElementById('tableTitle').textContent = '📋 Tabela completa';
+            document.getElementById('tableTitle').textContent = '📋 Tabelas';
             
             const msg = `✅ Análise concluída! ${emptyRows} linhas vazias na Coluna A${lastEmptyRow > 0 ? ' (Última: linha ' + lastEmptyRow + ')' : ''}`;
             showStatus(msg, 'success');
             
-            // Limpar busca
             limparBusca();
         }
 
@@ -981,7 +1135,7 @@
         }
 
         // ============================================================
-        // RENDERIZAR TABELA (sem Status e Quebra)
+        // RENDERIZAR TABELA (Coluna A + Coluna B)
         // ============================================================
 
         function renderResults(result) {
@@ -998,8 +1152,8 @@
                         <thead>
                             <tr>
                                 <th style="width:60px;">Linha</th>
-                                <th>📌 Coluna A (valor)</th>
-                                <th>📌 Coluna B (valor)</th>
+                                <th>📌 Coluna A</th>
+                                <th>📌 Coluna B</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1013,11 +1167,9 @@
                     rowClass = 'empty-row';
                 }
                 
-                // Pega a Coluna B dos dados originais
                 const dadosLinha = currentData[index] || [];
                 const colunaB = dadosLinha.length > 1 ? dadosLinha[1] : '';
                 const colunaBDisplay = (colunaB !== undefined && colunaB !== null && String(colunaB).trim() !== '') ? colunaB : '—';
-                
                 const valorDisplay = row.isEmpty ? '—' : row.colA;
                 
                 html += `
@@ -1090,7 +1242,6 @@
                 return;
             }
             
-            // Incluir dados completos no JSON
             const exportData = {
                 ...analysisResult,
                 dadosCompletos: currentData.map((row, index) => ({
@@ -1123,11 +1274,7 @@
             document.getElementById('searchInput').value = '';
             document.getElementById('searchInfo').textContent = '';
             analysisResult = null;
-            tabelaVisivel = true;
-            document.getElementById('toggleTableBtn').textContent = '🔽 Esconder Tabela';
-            document.getElementById('toggleTableBtn').classList.add('active');
-            document.getElementById('tableTitle').textContent = '📋 Tabela completa';
-            document.getElementById('results').style.display = 'block';
+            fecharModal();
             showStatus('🗑️ Resultados limpos.', 'info');
         }
 
