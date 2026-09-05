@@ -7,6 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
+        /* ===== SEU CSS EXISTENTE ===== */
         :root {
             --primary-color: #2c3e50;
             --accent-color: #16a085;
@@ -646,11 +647,11 @@
             </div>
         </div>
 
-        <!-- ESTATÍSTICAS (sem "Próximo código") -->
         <div class="stats-bar" id="statsBar" style="max-width:1400px; margin: 0 auto 15px auto;">
             <div class="stat-item">📚 <span class="numero" id="totalProgressoes">0</span> Progressões</div>
             <div class="stat-item">🎵 <span class="numero" id="totalCodigos">0</span> Códigos</div>
             <div class="stat-item">🎼 <span class="numero" id="totalMusicasStats">0</span> Músicas</div>
+            <div class="stat-item">🔢 Próximo código: <span class="numero" id="proximoCodigoStats">-</span></div>
         </div>
 
         <div class="main-layout">
@@ -738,7 +739,9 @@
             <div class="proximo-codigo">
                 <strong>📊 Status da Biblioteca:</strong>
                 <span id="totalMusicasAdmin">Carregando...</span>
-                <!-- Próximo código removido -->
+                <strong>| Próximo Código:</strong>
+                <span class="numero" id="proximoCodigoAdmin">-</span>
+                <button class="admin-btn" onclick="atualizarEstatisticas()" style="padding: 5px 15px; font-size: 12px; background: var(--accent-color);">Atualizar</button>
             </div>
 
             <hr style="border: 0; border-top: 1px solid #ddd; margin: 15px 0;">
@@ -774,6 +777,7 @@
 
             <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                 <button class="admin-btn" onclick="salvarNaPlanilha()">💾 Salvar na Planilha</button>
+                <button class="admin-btn success" onclick="atualizarEstatisticas()">🔄 Atualizar Estatísticas</button>
                 <button class="admin-btn danger" onclick="limparCacheLocal()">🗑️ Limpar Cache</button>
                 <button class="admin-btn" onclick="recarregarDados()" style="background-color: #e67e22;">🔄 Recarregar Dados</button>
                 <button class="admin-btn" onclick="testarConexao()" style="background-color: #16a085;">📡 Testar Conexão</button>
@@ -856,7 +860,7 @@
         // CONFIGURAÇÕES
         // ========================================
         // 📌 ATUALIZE ESTA URL COM A DO SEU APPS SCRIPT
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzb7tP3ctOu5KhxPDkSjWl0vsWzr9m0JpKs3WkjQNa2vXqhd3Y7FofwaqTySMtLKSMZ/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzVhPyh7ih29l8mAZcGlmhB_TuXBMzAsBEf7gbCdRQxKcLaXoU1gutLXknuTFBypN_0/exec";
 
         const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
         const BASE_ABC_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/abc";
@@ -1422,7 +1426,7 @@
         function recarregarDados() { loadFromSheet(true); showToast('🔄 Recarregando...', 'info'); }
 
         // ========================================
-        // ESTATÍSTICAS (sem "Próximo código")
+        // ESTATÍSTICAS
         // ========================================
         function calcularEstatisticas() {
             const codigos = new Set();
@@ -1434,8 +1438,19 @@
             document.getElementById('totalProgressoes').textContent = totalProgs;
             document.getElementById('totalCodigos').textContent = codigosArray.length;
             document.getElementById('totalMusicasStats').textContent = totalMusicas;
+            document.getElementById('proximoCodigoStats').textContent = ultimoCodigo + 1;
             document.getElementById('totalMusicasAdmin').textContent = `${totalMusicas} músicas`;
-            // NÃO exibe "Próximo código" em lugar nenhum
+            document.getElementById('proximoCodigoAdmin').textContent = ultimoCodigo + 1;
+        }
+
+        function atualizarEstatisticas() {
+            calcularEstatisticas();
+            const container = document.querySelector('.proximo-codigo');
+            if (container) {
+                container.style.background = '#eafaf1';
+                setTimeout(() => { container.style.background = '#e8f8f5'; }, 1000);
+            }
+            renderProgressoes();
         }
 
         // ========================================
@@ -1659,7 +1674,8 @@
                 musicas: rawIndex
             };
 
-            mostrarResultado('info', '📤 Enviando dados...');
+            // Exibe os dados que serão enviados
+            mostrarResultado('info', '📤 Enviando: ' + JSON.stringify(data, null, 2));
 
             try {
                 const response = await fetch(SCRIPT_URL, {
@@ -1678,6 +1694,7 @@
                     document.getElementById('admProgNum').value = '';
                     document.getElementById('admHarmNum').value = '';
                     document.getElementById('rawIndex').value = '';
+                    // Recarrega dados
                     await loadFromSheet(true);
                 } else {
                     mostrarResultado('error', '❌ ' + result.message);
