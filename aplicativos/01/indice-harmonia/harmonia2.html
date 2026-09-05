@@ -1364,7 +1364,7 @@
         // ========================================
 
         // 📌 URL DO APPS SCRIPT (FIXA - NÃO PRECISA COPIAR E COLAR)
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz0nk3NNP71iEJXST4mztNObjZ9lIQ0w43XZpiBdk9AYXnUXZqbZSAw0OxADz-N8KXp/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzPZ4-LKUrU6EFrW1LZUrIXcw3BD8l_cnBsJEt4cfELHunwG9-DdK4n-cUPJ-iHE6VU/exec";
 
         const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
         const BASE_ABC_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/abc";
@@ -2525,76 +2525,79 @@
         // SALVAR NA PLANILHA
         // ========================================
 
-        async function salvarNaPlanilha() {
-            const code = document.getElementById('admCode').value.trim();
-            const progName = document.getElementById('admProgName').value.trim();
-            const progNum = document.getElementById('admProgNum').value.trim();
-            const harmNum = document.getElementById('admHarmNum').value.trim();
-            const rawIndex = document.getElementById('rawIndex').value.trim();
+async function salvarNaPlanilha() {
+    const code = document.getElementById('admCode').value.trim();
+    const progName = document.getElementById('admProgName').value.trim();
+    const progNum = document.getElementById('admProgNum').value.trim();
+    const harmNum = document.getElementById('admHarmNum').value.trim();
+    const rawIndex = document.getElementById('rawIndex').value.trim();
 
-            if (!code || !progName || !progNum || !harmNum || !rawIndex) {
-                mostrarResultado('error', '❌ Preencha todos os campos!');
-                return;
-            }
+    if (!code || !progName || !progNum || !harmNum || !rawIndex) {
+        mostrarResultado('error', '❌ Preencha todos os campos!');
+        return;
+    }
 
-            const refProg = document.getElementById('refProg').value;
-            const refHarm = document.getElementById('refHarm').value;
+    const refProg = document.getElementById('refProg').value;
+    const refHarm = document.getElementById('refHarm').value;
 
-            const extractByNumber = (text, number) => {
-                const lines = text.split('\n');
-                for (let line of lines) {
-                    const parts = line.split('.');
-                    if (parts.length >= 2 && parts[0].trim() === String(number)) {
-                        return parts.slice(1).join('.').trim();
-                    }
-                }
-                return '';
-            };
-
-            const extractedProg = extractByNumber(refProg, progNum);
-            const extractedHarm = extractByNumber(refHarm, harmNum);
-
-            if (!extractedProg || !extractedHarm) {
-                mostrarResultado('error', '❌ Número de referência não encontrado nas tabelas!');
-                return;
-            }
-
-            const data = {
-                codigo: code,
-                progressao_nome: progName,
-                progressao: extractedProg,
-                harmonia: extractedHarm,
-                musicas: rawIndex,
-                refProg: refProg,
-                refHarm: refHarm
-            };
-
-            mostrarResultado('info', '💾 Salvando dados na planilha...');
-
-            try {
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(data)
-                });
-
-                const result = await response.json();
-
-                if (result.success) {
-                    mostrarResultado('success', '✅ ' + result.message);
-                    await loadFromSheet(true);
-                    document.getElementById('admCode').value = '';
-                    document.getElementById('admProgName').value = '';
-                    document.getElementById('admProgNum').value = '';
-                    document.getElementById('admHarmNum').value = '';
-                    document.getElementById('rawIndex').value = '';
-                } else {
-                    mostrarResultado('error', '❌ ' + result.message);
-                }
-            } catch (error) {
-                mostrarResultado('error', '❌ Erro ao salvar: ' + error.message);
+    const extractByNumber = (text, number) => {
+        const lines = text.split('\n');
+        for (let line of lines) {
+            const parts = line.split('.');
+            if (parts.length >= 2 && parts[0].trim() === String(number)) {
+                return parts.slice(1).join('.').trim();
             }
         }
+        return '';
+    };
+
+    const extractedProg = extractByNumber(refProg, progNum);
+    const extractedHarm = extractByNumber(refHarm, harmNum);
+
+    if (!extractedProg || !extractedHarm) {
+        mostrarResultado('error', '❌ Número de referência não encontrado nas tabelas!');
+        return;
+    }
+
+    const data = {
+        codigo: code,
+        progressao_nome: progName,
+        progressao: extractedProg,
+        harmonia: extractedHarm,
+        musicas: rawIndex,
+        refProg: refProg,
+        refHarm: refHarm
+    };
+
+    mostrarResultado('info', '💾 Salvando...');
+
+    try {
+        // SOLUÇÃO: Content-Type: text/plain (evita preflight OPTIONS)
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain;charset=utf-8'
+            },
+            body: JSON.stringify(data)
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+            mostrarResultado('success', '✅ ' + result.message);
+            await loadFromSheet(true);
+            document.getElementById('admCode').value = '';
+            document.getElementById('admProgName').value = '';
+            document.getElementById('admProgNum').value = '';
+            document.getElementById('admHarmNum').value = '';
+            document.getElementById('rawIndex').value = '';
+        } else {
+            mostrarResultado('error', '❌ ' + result.message);
+        }
+    } catch (error) {
+        mostrarResultado('error', '❌ Erro: ' + error.message);
+    }
+}
 
         function mostrarResultado(tipo, mensagem) {
             const container = document.getElementById('adminResult');
