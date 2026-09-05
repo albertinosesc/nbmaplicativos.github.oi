@@ -926,6 +926,13 @@
             margin-bottom: 12px;
         }
 
+        .editor-output-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
+        }
+
         .editor-output {
             background: #2f3640;
             color: #fbc531;
@@ -936,6 +943,34 @@
             font-weight: bold;
             min-height: 24px;
             word-break: break-all;
+            flex: 1;
+        }
+
+        .btn-copy-output {
+            background-color: #4a6fa5;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            font-size: 13px;
+            cursor: pointer;
+            transition: background 0.2s, transform 0.1s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            white-space: nowrap;
+        }
+
+        .btn-copy-output:hover {
+            background-color: #2c4a7c;
+        }
+
+        .btn-copy-output:active {
+            transform: scale(0.95);
+        }
+
+        .btn-copy-output.copied {
+            background-color: var(--success-color);
         }
 
         .skeleton-item {
@@ -1006,6 +1041,9 @@
             }
             .admin-grid {
                 grid-template-columns: 1fr 1fr;
+            }
+            .editor-output-wrapper {
+                flex-wrap: wrap;
             }
         }
     </style>
@@ -1131,7 +1169,12 @@
                     <input type="text" id="progInput" class="editor-input" placeholder="Digite ex: 1,3,6m" oninput="convertProgression()">
 
                     <label style="font-weight: bold; font-size: 12px; display: block; margin-bottom: 4px;">Saída Formatada:</label>
-                    <div class="editor-output" id="progOutput">I-III-VIm</div>
+                    <div class="editor-output-wrapper">
+                        <div class="editor-output" id="progOutput">I-III-VIm</div>
+                        <button class="btn-copy-output" onclick="copiarProgOutput()" title="Copiar saída">
+                            <i class="fa-regular fa-copy"></i> Copiar
+                        </button>
+                    </div>
                 </div>
 
                 <div class="editor-card">
@@ -1146,7 +1189,12 @@
                     <input type="text" id="harmInput" class="editor-input" placeholder="Digite ex: 1-4,4-5-6m,.,3,5,1" oninput="convertHarmony()">
 
                     <label style="font-weight: bold; font-size: 12px; display: block; margin-bottom: 4px;">Saída Formatada:</label>
-                    <div class="editor-output" id="harmOutput">| I IV | IV V VIm | % | III | V | I |]</div>
+                    <div class="editor-output-wrapper">
+                        <div class="editor-output" id="harmOutput">| I IV | IV V VIm | % | III | V | I |]</div>
+                        <button class="btn-copy-output" onclick="copiarHarmOutput()" title="Copiar saída">
+                            <i class="fa-regular fa-copy"></i> Copiar
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -1454,24 +1502,19 @@
             document.getElementById('progOutput').innerText = converted;
         }
 
-        // ===== NOVA FUNÇÃO: Formata harmonia com suporte a hífen =====
+        // ===== Formata harmonia com suporte a hífen =====
         function formatHarmonyDisplay(harmony) {
             if (!harmony) return '';
-            // Remove espaços extras
             const clean = harmony.trim();
             if (!clean) return '|]';
 
-            // Separa os compassos por vírgula
             const compassos = clean.split(',').map(c => c.trim());
             const result = compassos.map(comp => {
-                // Se for '.', representa repetição
                 if (comp === '.') return '%';
-                // Se contém hífen, separa os acordes
                 if (comp.includes('-')) {
                     const acordes = comp.split('-').map(t => toRomanDegree(t.trim()));
                     return acordes.join(' ');
                 } else {
-                    // Um único acorde
                     return toRomanDegree(comp);
                 }
             });
@@ -1486,6 +1529,49 @@
             }
             const output = formatHarmonyDisplay(input);
             document.getElementById('harmOutput').innerText = output;
+        }
+
+        // ========================================
+        // FUNÇÕES DE CÓPIA
+        // ========================================
+
+        function copiarTexto(elementId) {
+            const el = document.getElementById(elementId);
+            const texto = el.innerText;
+            if (!texto || texto === '-' || texto === '|]') {
+                showToast('Nada para copiar', 'info');
+                return;
+            }
+            navigator.clipboard.writeText(texto).then(() => {
+                showToast('📋 Copiado!', 'success');
+                // Feedback visual no botão correspondente
+                const btn = el.parentElement.querySelector('.btn-copy-output');
+                if (btn) {
+                    btn.classList.add('copied');
+                    btn.innerHTML = '<i class="fa-regular fa-check"></i> Copiado!';
+                    setTimeout(() => {
+                        btn.classList.remove('copied');
+                        btn.innerHTML = '<i class="fa-regular fa-copy"></i> Copiar';
+                    }, 1500);
+                }
+            }).catch(() => {
+                // fallback
+                const range = document.createRange();
+                range.selectNode(el);
+                window.getSelection().removeAllRanges();
+                window.getSelection().addRange(range);
+                document.execCommand('copy');
+                window.getSelection().removeAllRanges();
+                showToast('📋 Copiado!', 'success');
+            });
+        }
+
+        function copiarProgOutput() {
+            copiarTexto('progOutput');
+        }
+
+        function copiarHarmOutput() {
+            copiarTexto('harmOutput');
         }
 
         // ========================================
@@ -2220,7 +2306,6 @@
             codigosOrdenados.forEach((cod, index) => {
                 const grupo = grupos[cod];
                 const isActive = cod === codigoSelecionado;
-                // Aplica a formatação com hífen
                 const harmoniaFormatada = formatHarmonyDisplay(grupo.harmonia);
 
                 html += `
