@@ -1484,33 +1484,33 @@
         // ========================================
         // ESTATÍSTICAS CORRIGIDAS
         // ========================================
-        function calcularEstatisticas() {
-            // Conta códigos únicos em TODAS as abas
-            const codigosSet = new Set();
-            allEntries.forEach(item => {
-                if (item.codigo) codigosSet.add(String(item.codigo));
-            });
-            const totalCodigos = codigosSet.size;
-            
-            // Total de músicas
-            totalMusicas = allEntries.length;
-            
-            // Total de progressões
-            const totalProgs = Object.keys(dadosPorProgressao).length;
-            
-            // Último código GLOBAL
-            const codigosArray = Array.from(codigosSet).map(Number).filter(n => !isNaN(n));
-            ultimoCodigoGlobal = codigosArray.length > 0 ? Math.max(...codigosArray) : 0;
-            
-            // ATUALIZA A INTERFACE
-            document.getElementById('totalProgressoes').textContent = totalProgs;
-            document.getElementById('totalCodigos').textContent = totalCodigos;
-            document.getElementById('totalMusicasStats').textContent = totalMusicas;
-            
-            console.log(`📊 Estatísticas: ${totalProgs} progressões, ${totalCodigos} códigos, ${totalMusicas} músicas`);
-            console.log(`🔢 Último código global: ${ultimoCodigoGlobal}`);
+function calcularEstatisticas() {
+    // Conta códigos que têm PELO MENOS UMA MÚSICA (igual à Biblioteca)
+    const codigosComMusica = new Set();
+    allEntries.forEach(item => {
+        if (item.codigo && item.musica && item.musica.trim() !== '') {
+            codigosComMusica.add(String(item.codigo));
         }
-
+    });
+    const totalCodigos = codigosComMusica.size;
+    
+    // Total de músicas
+    totalMusicas = allEntries.length;
+    
+    // Total de progressões
+    const totalProgs = Object.keys(dadosPorProgressao).length;
+    
+    // Último código (apenas para referência)
+    const codigosArray = Array.from(codigosComMusica).map(Number).filter(n => !isNaN(n));
+    ultimoCodigoGlobal = codigosArray.length > 0 ? Math.max(...codigosArray) : 0;
+    
+    // ATUALIZA A INTERFACE
+    document.getElementById('totalProgressoes').textContent = totalProgs;
+    document.getElementById('totalCodigos').textContent = totalCodigos;
+    document.getElementById('totalMusicasStats').textContent = totalMusicas;
+    
+    console.log(`📊 Estatísticas: ${totalProgs} progressões, ${totalCodigos} códigos, ${totalMusicas} músicas`);
+}
         // ========================================
         // BIBLIOTECA – RENDER PROGRESSÕES
         // ========================================
@@ -1769,119 +1769,130 @@
             mostrarResultado('success', '✅ Progressão "' + nome + '" criada localmente. Clique em "Salvar" para persistir.');
         }
 
-        function adminCarregarDados() {
-            const select = document.getElementById('adminSelectProg');
-            const prog = select.value;
-            if (!prog) {
-                document.getElementById('adminHarmoniesContainer').innerHTML = '<p class="placeholder-text">Selecione uma progressão.</p>';
-                return;
-            }
-            const items = dadosPorProgressao[prog] || [];
-            const map = new Map();
-            items.forEach(item => {
-                const cod = String(item.codigo);
-                if (!map.has(cod)) {
-                    map.set(cod, { harmonia: item.harmonia || '', musicas: [] });
-                }
-                if (item.musica && item.musica.trim()) {
-                    map.get(cod).musicas.push(item.musica.trim());
-                }
-            });
-            const sortedCodes = Array.from(map.keys()).sort((a, b) => Number(a) - Number(b));
-            
-            let html = '<div style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:6px;">';
-            html += `<table>
-                <thead>
-                    <tr>
-                        <th style="width:80px;">Código</th>
-                        <th>Harmonia</th>
-                        <th style="width:120px; text-align:center;">Músicas</th>
-                        <th style="width:60px; text-align:center;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="adminHarmoniesBody">`;
-            if (sortedCodes.length === 0) {
-                html += `<tr><td colspan="4" style="padding:20px; text-align:center; color:#7f8c8d;">Nenhum dado cadastrado.</td></tr>`;
-            } else {
-                sortedCodes.forEach(cod => {
-                    const data = map.get(cod);
-                    const musicasStr = data.musicas.join('\n');
-                    html += `<tr id="admin-row-${cod}">
-                        <td style="vertical-align:top;"><span class="codigo-badge">#${cod}</span>
-                            <input type="hidden" class="admin-codigo-hidden" value="${cod}">
-                        </td>
-                        <td style="vertical-align:top;">
-                            <input type="text" class="admin-harm-input" data-codigo="${cod}" value="${data.harmonia}" placeholder="Digite a harmonia" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace;">
-                        </td>
-                        <td style="vertical-align:top;">
-                            <button class="btn-musicas" onclick="adminToggleMusicas('${cod}')">
-                                <i class="fa-solid fa-music"></i> ${data.musicas.length > 0 ? data.musicas.length : 'Adicionar'}
-                            </button>
-                            <div id="admin-musicas-div-${cod}" class="admin-musicas-div">
-                                <textarea class="admin-musicas-textarea" data-codigo="${cod}" rows="3" placeholder="Uma música por linha">${musicasStr}</textarea>
-                            </div>
-                        </td>
-                        <td style="text-align:center; vertical-align:top;">
-                            <button onclick="adminExcluirLinha('${cod}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:16px;" title="Excluir"><i class="fa-solid fa-trash"></i></button>
-                        </td>
-                    </tr>`;
-                });
-            }
-            html += `</tbody></table></div>`;
-            html += `<div style="margin-top:8px; font-size:12px; color:#7f8c8d;">Total: ${sortedCodes.length} código(s).</div>`;
-            document.getElementById('adminHarmoniesContainer').innerHTML = html;
+function adminCarregarDados() {
+    const select = document.getElementById('adminSelectProg');
+    const prog = select.value;
+    if (!prog) {
+        document.getElementById('adminHarmoniesContainer').innerHTML = '<p class="placeholder-text">Selecione uma progressão.</p>';
+        return;
+    }
+    const items = dadosPorProgressao[prog] || [];
+    const map = new Map();
+    items.forEach(item => {
+        const cod = String(item.codigo);
+        if (!map.has(cod)) {
+            map.set(cod, { harmonia: item.harmonia || '', musicas: [] });
         }
-
-        function adminToggleMusicas(codigo) {
-            const div = document.getElementById(`admin-musicas-div-${codigo}`);
-            if (div) {
-                div.classList.toggle('visible');
-            }
+        if (item.musica && item.musica.trim()) {
+            map.get(cod).musicas.push(item.musica.trim());
         }
-
-        function adminAdicionarLinha() {
-            const prog = document.getElementById('adminSelectProg').value;
-            if (!prog) {
-                mostrarResultado('error', '❌ Selecione ou crie uma progressão primeiro.');
-                return;
-            }
-            
-            const nextCode = ultimoCodigoGlobal > 0 ? ultimoCodigoGlobal + 1 : 1;
-            
-            const tbody = document.getElementById('adminHarmoniesBody');
-            if (!tbody) {
-                adminCarregarDados();
-                return;
-            }
-            const emptyMsg = tbody.querySelector('td[colspan="4"]');
-            if (emptyMsg) emptyMsg.parentElement.remove();
-
-            const tr = document.createElement('tr');
-            tr.id = `admin-row-${nextCode}`;
-            tr.innerHTML = `
-                <td style="vertical-align:top;"><span class="codigo-badge">#${nextCode}</span>
-                    <input type="hidden" class="admin-codigo-hidden" value="${nextCode}">
+    });
+    const sortedCodes = Array.from(map.keys()).sort((a, b) => Number(a) - Number(b));
+    
+    let html = '<div style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:6px;">';
+    html += `<table style="width:100%; border-collapse:collapse; font-size:14px;">
+        <thead style="background:#f8f9fa;">
+            <tr>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid #ddd; width:80px;">Código</th>
+                <th style="padding:8px; text-align:left; border-bottom:2px solid #ddd;">Harmonia</th>
+                <th style="padding:8px; text-align:center; border-bottom:2px solid #ddd; width:120px;">Músicas</th>
+                <th style="padding:8px; text-align:center; border-bottom:2px solid #ddd; width:60px;">Ações</th>
+            </tr>
+        </thead>
+        <tbody id="adminHarmoniesBody">`;
+    if (sortedCodes.length === 0) {
+        html += `<tr><td colspan="4" style="padding:20px; text-align:center; color:#7f8c8d;">Nenhum dado cadastrado.</td></tr>`;
+    } else {
+        sortedCodes.forEach(cod => {
+            const data = map.get(cod);
+            const musicasStr = data.musicas.join('\n');
+            html += `<tr id="admin-row-${cod}">
+                <td style="padding:6px; border-bottom:1px solid #eee; vertical-align:top;">
+                    <span class="codigo-badge">#${cod}</span>
+                    <input type="hidden" class="admin-codigo-hidden" value="${cod}">
                 </td>
-                <td style="vertical-align:top;">
-                    <input type="text" class="admin-harm-input" data-codigo="${nextCode}" value="" placeholder="Digite a harmonia" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace;">
+                <td style="padding:6px; border-bottom:1px solid #eee; vertical-align:top;">
+                    <input type="text" class="admin-harm-input" data-codigo="${cod}" value="${data.harmonia}" placeholder="Digite a harmonia" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace; font-size:13px; box-sizing:border-box;">
                 </td>
-                <td style="vertical-align:top;">
-                    <button class="btn-musicas" onclick="adminToggleMusicas('${nextCode}')">
-                        <i class="fa-solid fa-music"></i> Adicionar
+                <td style="padding:6px; border-bottom:1px solid #eee; vertical-align:top;">
+                    <button class="btn-musicas" onclick="adminToggleMusicas('${cod}')" style="background:#3498db; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; white-space:nowrap;">
+                        <i class="fa-solid fa-music"></i> ${data.musicas.length > 0 ? data.musicas.length : 'Adicionar'}
                     </button>
-                    <div id="admin-musicas-div-${nextCode}" class="admin-musicas-div">
-                        <textarea class="admin-musicas-textarea" data-codigo="${nextCode}" rows="3" placeholder="Uma música por linha"></textarea>
+                    <div id="admin-musicas-div-${cod}" style="display:none; margin-top:5px; width:100%;">
+                        <textarea class="admin-musicas-textarea" data-codigo="${cod}" rows="3" placeholder="Uma música por linha" style="width:100%; padding:6px 8px; border:2px solid #ddd; border-radius:4px; font-family:monospace; font-size:13px; resize:vertical; min-height:60px; box-sizing:border-box; background:#f8f9fa;">${musicasStr}</textarea>
                     </div>
                 </td>
-                <td style="text-align:center; vertical-align:top;">
-                    <button onclick="adminExcluirLinha('${nextCode}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:16px;" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+                <td style="padding:6px; border-bottom:1px solid #eee; text-align:center; vertical-align:top;">
+                    <button onclick="adminExcluirLinha('${cod}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:16px;" title="Excluir"><i class="fa-solid fa-trash"></i></button>
                 </td>
-            `;
-            tbody.appendChild(tr);
-            
-            mostrarResultado('info', '📝 Preencha harmonia e músicas, depois clique em "Salvar".');
+            </tr>`;
+        });
+    }
+    html += `</tbody></table></div>`;
+    html += `<div style="margin-top:8px; font-size:12px; color:#7f8c8d;">Total: ${sortedCodes.length} código(s).</div>`;
+    document.getElementById('adminHarmoniesContainer').innerHTML = html;
+}
+        function adminToggleMusicas(codigo) {
+    const div = document.getElementById(`admin-musicas-div-${codigo}`);
+    if (div) {
+        if (div.style.display === 'none' || div.style.display === '') {
+            div.style.display = 'block';
+        } else {
+            div.style.display = 'none';
         }
+    }
+}
+        function adminAdicionarLinha() {
+    const prog = document.getElementById('adminSelectProg').value;
+    if (!prog) {
+        mostrarResultado('error', '❌ Selecione ou crie uma progressão primeiro.');
+        return;
+    }
+    
+    // Encontra o próximo código baseado nos códigos que têm música
+    const items = dadosPorProgressao[prog] || [];
+    const codesComMusica = [];
+    items.forEach(item => {
+        if (item.codigo && item.musica && item.musica.trim() !== '') {
+            codesComMusica.push(Number(item.codigo));
+        }
+    });
+    const nextCode = codesComMusica.length > 0 ? Math.max(...codesComMusica) + 1 : 1;
+    
+    const tbody = document.getElementById('adminHarmoniesBody');
+    if (!tbody) {
+        adminCarregarDados();
+        return;
+    }
+    const emptyMsg = tbody.querySelector('td[colspan="4"]');
+    if (emptyMsg) emptyMsg.parentElement.remove();
 
+    const tr = document.createElement('tr');
+    tr.id = `admin-row-${nextCode}`;
+    tr.innerHTML = `
+        <td style="padding:6px; border-bottom:1px solid #eee; vertical-align:top;">
+            <span class="codigo-badge">#${nextCode}</span>
+            <input type="hidden" class="admin-codigo-hidden" value="${nextCode}">
+        </td>
+        <td style="padding:6px; border-bottom:1px solid #eee; vertical-align:top;">
+            <input type="text" class="admin-harm-input" data-codigo="${nextCode}" value="" placeholder="Digite a harmonia" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace; font-size:13px; box-sizing:border-box;">
+        </td>
+        <td style="padding:6px; border-bottom:1px solid #eee; vertical-align:top;">
+            <button class="btn-musicas" onclick="adminToggleMusicas('${nextCode}')" style="background:#3498db; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px; white-space:nowrap;">
+                <i class="fa-solid fa-music"></i> Adicionar
+            </button>
+            <div id="admin-musicas-div-${nextCode}" style="display:none; margin-top:5px; width:100%;">
+                <textarea class="admin-musicas-textarea" data-codigo="${nextCode}" rows="3" placeholder="Uma música por linha" style="width:100%; padding:6px 8px; border:2px solid #ddd; border-radius:4px; font-family:monospace; font-size:13px; resize:vertical; min-height:60px; box-sizing:border-box; background:#f8f9fa;"></textarea>
+            </div>
+        </td>
+        <td style="padding:6px; border-bottom:1px solid #eee; text-align:center; vertical-align:top;">
+            <button onclick="adminExcluirLinha('${nextCode}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:16px;" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    
+    mostrarResultado('info', '📝 Preencha harmonia e músicas, depois clique em "Salvar".');
+}
         function adminExcluirLinha(codigo) {
             const row = document.getElementById(`admin-row-${codigo}`);
             if (row) row.remove();
