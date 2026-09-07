@@ -376,7 +376,6 @@
         .btn-copy-output:active { transform: scale(0.95); }
         .btn-copy-output.copied { background-color: var(--success-color); }
 
-        /* Textarea de harmonias da biblioteca */
         .harmonias-progressao-textarea {
             width: 100%;
             height: 100px;
@@ -396,7 +395,6 @@
             border-color: var(--accent-color);
         }
 
-        /* ADMIN – Tabela de gerenciamento */
         #adminHarmoniesContainer table {
             width: 100%;
             border-collapse: collapse;
@@ -451,7 +449,6 @@
             100% { background-position: 200% 0; }
         }
 
-        /* PDF Preview e ABC Modal (mantidos) */
         .pdf-preview-panel {
             display: none;
             position: fixed;
@@ -803,7 +800,7 @@
         </div>
     </div>
 
-    <!-- PAINEL ADMIN (gerencia código, harmonia e músicas) -->
+    <!-- PAINEL ADMIN -->
     <div id="adminView" class="view-section">
         <div class="container-box">
             <h2 style="color: var(--admin-color); margin-top:0;">⚙️ Gerenciar Progressões, Códigos e Músicas</h2>
@@ -838,7 +835,7 @@
         </div>
     </div>
 
-    <!-- PDF PREVIEW (mantido) -->
+    <!-- PDF PREVIEW -->
     <div class="pdf-preview-panel" id="pdfPreviewPanel">
         <div class="pdf-preview-header">
             <h3 id="pdfPreviewTitle">📄 Partitura</h3>
@@ -859,7 +856,7 @@
         </div>
     </div>
 
-    <!-- ABC MODAL (mantido) -->
+    <!-- ABC MODAL -->
     <div class="abc-modal" id="abcModal">
         <div class="abc-modal-content">
             <div class="abc-modal-header">
@@ -910,8 +907,7 @@
         // ========================================
         // CONFIGURAÇÕES
         // ========================================
-        // 🔴 ATUALIZE ESTA URL COM A DO SEU APPS SCRIPT
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwDAQO7jKWALA1IR7Hzccf71_zeeXtJhCZTdjBTFzzNmODgaYnbW8gdPIh4YiS_PYfD/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx2Rz4fUynlVOFzX3uyK1wg93Xt3a7hynLSvi-g5yW8aPV34Mp4TRY5EoMMk2RHFObn/exec";
 
         const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
         const BASE_ABC_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/abc";
@@ -1418,8 +1414,10 @@
         }
 
         // ========================================
-        // CARREGAR DADOS
+        // CARREGAR DADOS (COM DEBOUNCE PARA FILTROS)
         // ========================================
+        let timeoutFiltro = null;
+
         async function loadFromSheet(forcarRecarga = false) {
             if (isLoading) return;
             isLoading = true;
@@ -1509,13 +1507,21 @@
         }
 
         // ========================================
-        // BIBLIOTECA – RENDER PROGRESSÕES
+        // BIBLIOTECA – RENDER PROGRESSÕES (ORDENADAS POR QUANTIDADE)
         // ========================================
         function renderProgressoes() {
             const container = document.getElementById('progressaoList');
             const progs = Object.keys(dadosPorProgressao);
             if (progs.length === 0) { container.innerHTML = '<p class="placeholder-text">Nenhuma progressão encontrada.</p>'; return; }
-            progs.sort();
+            
+            // Ordenar por quantidade (maior para menor) e depois alfabeticamente
+            progs.sort((a, b) => {
+                const countA = dadosPorProgressao[a].length;
+                const countB = dadosPorProgressao[b].length;
+                if (countA !== countB) return countB - countA; // maior quantidade primeiro
+                return a.localeCompare(b); // alfabeticamente se igual
+            });
+
             container.innerHTML = '';
             progs.forEach(prog => {
                 const div = document.createElement('div');
@@ -1670,38 +1676,58 @@
         }
 
         // ========================================
-        // FILTROS
+        // FILTROS (COM DEBOUNCE)
         // ========================================
         function filterMusic() {
-            const codeQuery = searchCode.value.trim().toLowerCase();
-            const progQuery = searchProgression.value.trim().toLowerCase();
-            const harmQuery = searchHarmony.value.trim().toLowerCase();
-            const musicQuery = searchMusic.value.trim().toLowerCase();
-            if (!codeQuery && !progQuery && !harmQuery && !musicQuery) {
+            // Cancela o timeout anterior para evitar recarregamento desnecessário
+            if (timeoutFiltro) {
+                clearTimeout(timeoutFiltro);
+                timeoutFiltro = null;
+            }
+
+            // Aplica o filtro com um pequeno atraso (300ms) para não travar a interface
+            timeoutFiltro = setTimeout(() => {
+                const codeQuery = searchCode.value.trim().toLowerCase();
+                const progQuery = searchProgression.value.trim().toLowerCase();
+                const harmQuery = searchHarmony.value.trim().toLowerCase();
+                const musicQuery = searchMusic.value.trim().toLowerCase();
+
+                if (!codeQuery && !progQuery && !harmQuery && !musicQuery) {
+                    // Se todos os filtros estiverem vazios, restaura os dados originais
+                    const dadosOriginais = carregarCacheLocal();
+                    if (dadosOriginais) {
+                        processarDados(dadosOriginais);
+                    } else {
+                        recarregarDados();
+                    }
+                    return;
+                }
+
+                let filtered = allEntries;
+                if (codeQuery) filtered = filtered.filter(item => String(item.codigo).toLowerCase().includes(codeQuery));
+                if (progQuery) filtered = filtered.filter(item => item.progressao.toLowerCase().includes(progQuery));
+                if (harmQuery) filtered = filtered.filter(item => item.harmonia.toLowerCase().includes(harmQuery));
+                if (musicQuery) filtered = filtered.filter(item => item.musica.toLowerCase().includes(musicQuery));
+
+                const filteredData = {};
+                filtered.forEach(item => {
+                    if (!filteredData[item.progressao]) filteredData[item.progressao] = [];
+                    filteredData[item.progressao].push(item);
+                });
+
+                // Atualiza os dados exibidos com o resultado do filtro
+                dadosPorProgressao = filteredData;
                 renderProgressoes();
-                if (progressaoSelecionada) selecionarProgressao(progressaoSelecionada);
-                else { const progs = Object.keys(dadosPorProgressao); if (progs.length > 0) selecionarProgressao(progs[0]); }
-                return;
-            }
-            let filtered = allEntries;
-            if (codeQuery) filtered = filtered.filter(item => String(item.codigo).toLowerCase().includes(codeQuery));
-            if (progQuery) filtered = filtered.filter(item => item.progressao.toLowerCase().includes(progQuery));
-            if (harmQuery) filtered = filtered.filter(item => item.harmonia.toLowerCase().includes(harmQuery));
-            if (musicQuery) filtered = filtered.filter(item => item.musica.toLowerCase().includes(musicQuery));
-            const filteredData = {};
-            filtered.forEach(item => {
-                if (!filteredData[item.progressao]) filteredData[item.progressao] = [];
-                filteredData[item.progressao].push(item);
-            });
-            dadosPorProgressao = filteredData;
-            renderProgressoes();
-            const progs = Object.keys(dadosPorProgressao);
-            if (progs.length > 0) selecionarProgressao(progs[0]);
-            else {
-                document.getElementById('codigoListContainer').innerHTML = '<p class="placeholder-text">Nenhum resultado.</p>';
-                document.getElementById('musicaDetailContainer').innerHTML = '<p class="placeholder-text">-</p>';
-                document.getElementById('harmoniasProgressao').value = 'Nenhuma harmonia para esta busca.';
-            }
+                const progs = Object.keys(dadosPorProgressao);
+                if (progs.length > 0) {
+                    selecionarProgressao(progs[0]);
+                } else {
+                    document.getElementById('codigoListContainer').innerHTML = '<p class="placeholder-text">Nenhum resultado.</p>';
+                    document.getElementById('musicaDetailContainer').innerHTML = '<p class="placeholder-text">-</p>';
+                    document.getElementById('harmoniasProgressao').value = 'Nenhuma harmonia para esta busca.';
+                }
+                timeoutFiltro = null;
+            }, 300);
         }
 
         function escapeRegExp(string) { return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -1734,6 +1760,7 @@
                 mostrarResultado('error', '❌ Essa progressão já existe.');
                 return;
             }
+            // Adiciona no front-end
             dadosPorProgressao[nome] = [];
             adminAtualizarDropdown();
             document.getElementById('adminSelectProg').value = nome;
@@ -1816,8 +1843,10 @@
                 mostrarResultado('error', '❌ Selecione ou crie uma progressão primeiro.');
                 return;
             }
+            // Busca o maior código existente na progressão considerando TODOS os dados (não só os da tabela)
             const items = dadosPorProgressao[prog] || [];
             const codes = items.map(i => Number(i.codigo)).filter(n => !isNaN(n));
+            // O próximo código deve ser o maior + 1, ou 1 se não houver nenhum
             const nextCode = codes.length > 0 ? Math.max(...codes) + 1 : 1;
             
             const tbody = document.getElementById('adminHarmoniesBody');
