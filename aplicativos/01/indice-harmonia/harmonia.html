@@ -907,7 +907,7 @@
         // ========================================
         // CONFIGURAÇÕES
         // ========================================
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzBAaOp4LjMSjvTjlyQ6G-sp_sH_Ml3BtR2WCO1o4fXUIoeE1mZsM6h7ZuPYWLWUBFj/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxKiP5ygawaBhBO4RfPdnFo6_8cxfmy-iUVRNnybuCeJ0Ok-_TZj93fVzMHYlnXiXzT/exec";
 
         const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
         const BASE_ABC_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/abc";
@@ -1734,277 +1734,291 @@
         // ADMIN – GERENCIAR PROGRESSÕES, CÓDIGOS E MÚSICAS
         // ========================================
 
-        function adminAtualizarDropdown() {
-            const select = document.getElementById('adminSelectProg');
-            if (!select) return;
-            const progs = Object.keys(dadosPorProgressao).sort();
-            select.innerHTML = '<option value="">-- Selecione ou crie --</option>';
-            progs.forEach(p => {
-                const opt = document.createElement('option');
-                opt.value = p;
-                opt.textContent = p;
-                select.appendChild(opt);
-            });
-            if (select.value) select.value = select.value;
+        // ========================================
+// ADMIN – FUNÇÕES CORRIGIDAS
+// ========================================
+
+function adminAtualizarDropdown() {
+    const select = document.getElementById('adminSelectProg');
+    if (!select) return;
+    const progs = Object.keys(dadosPorProgressao).sort();
+    select.innerHTML = '<option value="">-- Selecione ou crie --</option>';
+    progs.forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p;
+        opt.textContent = p;
+        select.appendChild(opt);
+    });
+    if (select.value) select.value = select.value;
+}
+
+function adminCriarAba() {
+    const nome = document.getElementById('adminNewProg').value.trim();
+    if (!nome) {
+        mostrarResultado('error', '❌ Digite um nome para a nova progressão.');
+        return;
+    }
+    if (dadosPorProgressao[nome]) {
+        mostrarResultado('error', '❌ Essa progressão já existe.');
+        return;
+    }
+    dadosPorProgressao[nome] = [];
+    adminAtualizarDropdown();
+    document.getElementById('adminSelectProg').value = nome;
+    document.getElementById('adminNewProg').value = '';
+    adminCarregarDados();
+    mostrarResultado('success', '✅ Progressão "' + nome + '" criada localmente. Clique em "Salvar" para persistir.');
+}
+
+function adminCarregarDados() {
+    const select = document.getElementById('adminSelectProg');
+    const prog = select.value;
+    if (!prog) {
+        document.getElementById('adminHarmoniesContainer').innerHTML = '<p class="placeholder-text">Selecione uma progressão.</p>';
+        return;
+    }
+    const items = dadosPorProgressao[prog] || [];
+    const map = new Map();
+    items.forEach(item => {
+        const cod = String(item.codigo);
+        if (!map.has(cod)) {
+            map.set(cod, { harmonia: item.harmonia || '', musicas: [] });
         }
-
-        function adminCriarAba() {
-            const nome = document.getElementById('adminNewProg').value.trim();
-            if (!nome) {
-                mostrarResultado('error', '❌ Digite um nome para a nova progressão.');
-                return;
-            }
-            if (dadosPorProgressao[nome]) {
-                mostrarResultado('error', '❌ Essa progressão já existe.');
-                return;
-            }
-            // Adiciona no front-end
-            dadosPorProgressao[nome] = [];
-            adminAtualizarDropdown();
-            document.getElementById('adminSelectProg').value = nome;
-            document.getElementById('adminNewProg').value = '';
-            adminCarregarDados();
-            mostrarResultado('success', '✅ Progressão "' + nome + '" criada localmente. Clique em "Salvar" para persistir.');
+        if (item.musica && item.musica.trim()) {
+            map.get(cod).musicas.push(item.musica.trim());
         }
-
-        function adminCarregarDados() {
-            const select = document.getElementById('adminSelectProg');
-            const prog = select.value;
-            if (!prog) {
-                document.getElementById('adminHarmoniesContainer').innerHTML = '<p class="placeholder-text">Selecione uma progressão.</p>';
-                return;
-            }
-            const items = dadosPorProgressao[prog] || [];
-            const map = new Map();
-            items.forEach(item => {
-                const cod = String(item.codigo);
-                if (!map.has(cod)) {
-                    map.set(cod, { harmonia: item.harmonia || '', musicas: [] });
-                }
-                if (item.musica && item.musica.trim()) {
-                    map.get(cod).musicas.push(item.musica.trim());
-                }
-            });
-            const sortedCodes = Array.from(map.keys()).sort((a, b) => Number(a) - Number(b));
-            
-            let html = '<div style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:6px;">';
-            html += `<table>
-                <thead>
-                    <tr>
-                        <th style="width:80px;">Código</th>
-                        <th>Harmonia</th>
-                        <th style="width:90px; text-align:center;">Ações</th>
-                    </tr>
-                </thead>
-                <tbody id="adminHarmoniesBody">`;
-            if (sortedCodes.length === 0) {
-                html += `<tr><td colspan="3" style="padding:20px; text-align:center; color:#7f8c8d;">Nenhum dado cadastrado.</td></tr>`;
-            } else {
-                sortedCodes.forEach(cod => {
-                    const data = map.get(cod);
-                    const musicasStr = data.musicas.join('\n');
-                    html += `<tr id="admin-row-${cod}">
-                        <td style="vertical-align:top;"><span class="codigo-badge">#${cod}</span>
-                            <input type="hidden" class="admin-codigo-hidden" value="${cod}">
-                        </td>
-                        <td style="vertical-align:top;">
-                            <input type="text" class="admin-harm-input" data-codigo="${cod}" value="${data.harmonia}" placeholder="Digite a harmonia" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace;">
-                        </td>
-                        <td style="text-align:center; vertical-align:top; white-space:nowrap;">
-                            <button onclick="adminToggleMusicas('${cod}')" style="background:none; border:none; color:#2980b9; cursor:pointer; font-size:16px;" title="Gerenciar músicas"><i class="fa-solid fa-music"></i></button>
-                            <button onclick="adminExcluirLinha('${cod}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:16px;" title="Excluir"><i class="fa-solid fa-trash"></i></button>
-                        </td>
-                    </tr>
-                    <tr id="admin-musicas-row-${cod}" style="display:none;">
-                        <td colspan="3" style="padding:6px 12px; background:#f9f9f9;">
-                            <label style="font-weight:bold; font-size:12px;">Músicas (uma por linha):</label>
-                            <textarea class="admin-musicas-textarea" data-codigo="${cod}" rows="3" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace; resize:vertical;">${musicasStr}</textarea>
-                        </td>
-                    </tr>`;
-                });
-            }
-            html += `</tbody></table></div>`;
-            html += `<div style="margin-top:8px; font-size:12px; color:#7f8c8d;">Total: ${sortedCodes.length} código(s).</div>`;
-            document.getElementById('adminHarmoniesContainer').innerHTML = html;
-        }
-
-        function adminToggleMusicas(codigo) {
-            const row = document.getElementById(`admin-musicas-row-${codigo}`);
-            if (row) {
-                row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
-            }
-        }
-
-        function adminAdicionarLinha() {
-            const prog = document.getElementById('adminSelectProg').value;
-            if (!prog) {
-                mostrarResultado('error', '❌ Selecione ou crie uma progressão primeiro.');
-                return;
-            }
-            // BUSCA O MAIOR CÓDIGO DE TODA A BIBLIOTECA (não apenas da progressão atual)
-            const items = dadosPorProgressao[prog] || [];
-            const codes = items.map(i => Number(i.codigo)).filter(n => !isNaN(n));
-            // O próximo código deve ser o maior + 1 considerando TODA a biblioteca
-            // Para isso, usa o ultimoCodigo global que é calculado com todos os códigos
-            const nextCode = ultimoCodigo > 0 ? ultimoCodigo + 1 : (codes.length > 0 ? Math.max(...codes) + 1 : 1);
-            
-            const tbody = document.getElementById('adminHarmoniesBody');
-            if (!tbody) {
-                adminCarregarDados();
-                return;
-            }
-            const emptyMsg = tbody.querySelector('td[colspan="3"]');
-            if (emptyMsg) emptyMsg.parentElement.remove();
-
-            const tr = document.createElement('tr');
-            tr.id = `admin-row-${nextCode}`;
-            tr.innerHTML = `
-                <td style="vertical-align:top;"><span class="codigo-badge">#${nextCode}</span>
-                    <input type="hidden" class="admin-codigo-hidden" value="${nextCode}">
+    });
+    const sortedCodes = Array.from(map.keys()).sort((a, b) => Number(a) - Number(b));
+    
+    let html = '<div style="max-height:400px; overflow-y:auto; border:1px solid #eee; border-radius:6px;">';
+    html += `<table>
+        <thead>
+            <tr>
+                <th style="width:80px;">Código</th>
+                <th>Harmonia</th>
+                <th style="width:120px; text-align:center;">Músicas</th>
+                <th style="width:60px; text-align:center;">Ações</th>
+            </tr>
+        </thead>
+        <tbody id="adminHarmoniesBody">`;
+    if (sortedCodes.length === 0) {
+        html += `<tr><td colspan="4" style="padding:20px; text-align:center; color:#7f8c8d;">Nenhum dado cadastrado.</td></tr>`;
+    } else {
+        sortedCodes.forEach(cod => {
+            const data = map.get(cod);
+            const musicasStr = data.musicas.join('\n');
+            html += `<tr id="admin-row-${cod}">
+                <td style="vertical-align:top;"><span class="codigo-badge">#${cod}</span>
+                    <input type="hidden" class="admin-codigo-hidden" value="${cod}">
                 </td>
                 <td style="vertical-align:top;">
-                    <input type="text" class="admin-harm-input" data-codigo="${nextCode}" value="" placeholder="Digite a harmonia" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace;">
+                    <input type="text" class="admin-harm-input" data-codigo="${cod}" value="${data.harmonia}" placeholder="Digite a harmonia" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace;">
                 </td>
-                <td style="text-align:center; vertical-align:top; white-space:nowrap;">
-                    <button onclick="adminToggleMusicas('${nextCode}')" style="background:none; border:none; color:#2980b9; cursor:pointer; font-size:16px;" title="Gerenciar músicas"><i class="fa-solid fa-music"></i></button>
-                    <button onclick="adminExcluirLinha('${nextCode}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:16px;" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+                <td style="vertical-align:top;">
+                    <button onclick="adminToggleMusicas('${cod}')" style="background:#3498db; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px;">
+                        <i class="fa-solid fa-music"></i> ${data.musicas.length > 0 ? data.musicas.length : 'Adicionar'}
+                    </button>
+                    <div id="admin-musicas-div-${cod}" style="display:none; margin-top:5px;">
+                        <textarea class="admin-musicas-textarea" data-codigo="${cod}" rows="3" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace; resize:vertical;">${musicasStr}</textarea>
+                    </div>
                 </td>
-            `;
-            tbody.appendChild(tr);
-            
-            const trMusicas = document.createElement('tr');
-            trMusicas.id = `admin-musicas-row-${nextCode}`;
-            trMusicas.style.display = 'none';
-            trMusicas.innerHTML = `
-                <td colspan="3" style="padding:6px 12px; background:#f9f9f9;">
-                    <label style="font-weight:bold; font-size:12px;">Músicas (uma por linha):</label>
-                    <textarea class="admin-musicas-textarea" data-codigo="${nextCode}" rows="3" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace; resize:vertical;"></textarea>
+                <td style="text-align:center; vertical-align:top;">
+                    <button onclick="adminExcluirLinha('${cod}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:16px;" title="Excluir"><i class="fa-solid fa-trash"></i></button>
                 </td>
-            `;
-            tbody.parentElement.appendChild(trMusicas);
-            
-            mostrarResultado('info', '📝 Preencha harmonia e músicas, depois clique em "Salvar".');
+            </tr>`;
+        });
+    }
+    html += `</tbody></table></div>`;
+    html += `<div style="margin-top:8px; font-size:12px; color:#7f8c8d;">Total: ${sortedCodes.length} código(s).</div>`;
+    document.getElementById('adminHarmoniesContainer').innerHTML = html;
+}
+
+function adminToggleMusicas(codigo) {
+    const div = document.getElementById(`admin-musicas-div-${codigo}`);
+    if (div) {
+        if (div.style.display === 'none') {
+            div.style.display = 'block';
+        } else {
+            div.style.display = 'none';
         }
+    }
+}
 
-        function adminExcluirLinha(codigo) {
-            const row = document.getElementById(`admin-row-${codigo}`);
-            const rowMusicas = document.getElementById(`admin-musicas-row-${codigo}`);
-            if (row) row.remove();
-            if (rowMusicas) rowMusicas.remove();
-            const tbody = document.getElementById('adminHarmoniesBody');
-            if (tbody && tbody.children.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="3" style="padding:20px; text-align:center; color:#7f8c8d;">Nenhum dado cadastrado.</td></tr>`;
-            }
-            mostrarResultado('info', '🗑️ Linha removida localmente. Clique em "Salvar" para persistir.');
-        }
+function adminAdicionarLinha() {
+    const prog = document.getElementById('adminSelectProg').value;
+    if (!prog) {
+        mostrarResultado('error', '❌ Selecione ou crie uma progressão primeiro.');
+        return;
+    }
+    
+    // Usa ultimoCodigo global + 1
+    const nextCode = ultimoCodigo > 0 ? ultimoCodigo + 1 : 1;
+    
+    const tbody = document.getElementById('adminHarmoniesBody');
+    if (!tbody) {
+        adminCarregarDados();
+        return;
+    }
+    const emptyMsg = tbody.querySelector('td[colspan="4"]');
+    if (emptyMsg) emptyMsg.parentElement.remove();
 
-        async function adminSalvarDados() {
-            const prog = document.getElementById('adminSelectProg').value;
-            if (!prog) {
-                mostrarResultado('error', '❌ Selecione uma progressão.');
-                return;
-            }
+    const tr = document.createElement('tr');
+    tr.id = `admin-row-${nextCode}`;
+    tr.innerHTML = `
+        <td style="vertical-align:top;"><span class="codigo-badge">#${nextCode}</span>
+            <input type="hidden" class="admin-codigo-hidden" value="${nextCode}">
+        </td>
+        <td style="vertical-align:top;">
+            <input type="text" class="admin-harm-input" data-codigo="${nextCode}" value="" placeholder="Digite a harmonia" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace;">
+        </td>
+        <td style="vertical-align:top;">
+            <button onclick="adminToggleMusicas('${nextCode}')" style="background:#3498db; color:white; border:none; padding:4px 10px; border-radius:4px; cursor:pointer; font-size:12px;">
+                <i class="fa-solid fa-music"></i> Adicionar
+            </button>
+            <div id="admin-musicas-div-${nextCode}" style="display:none; margin-top:5px;">
+                <textarea class="admin-musicas-textarea" data-codigo="${nextCode}" rows="3" style="width:100%; padding:4px 6px; border:1px solid #ccc; border-radius:4px; font-family:monospace; resize:vertical;"></textarea>
+            </div>
+        </td>
+        <td style="text-align:center; vertical-align:top;">
+            <button onclick="adminExcluirLinha('${nextCode}')" style="background:none; border:none; color:#e74c3c; cursor:pointer; font-size:16px;" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+        </td>
+    `;
+    tbody.appendChild(tr);
+    
+    mostrarResultado('info', '📝 Preencha harmonia e músicas, depois clique em "Salvar".');
+}
 
-            const rows = document.querySelectorAll('#adminHarmoniesBody tr');
-            const dadosParaSalvar = [];
-            rows.forEach(row => {
-                const codInput = row.querySelector('.admin-codigo-hidden');
-                const harmInput = row.querySelector('.admin-harm-input');
-                const musicasTextarea = document.querySelector(`.admin-musicas-textarea[data-codigo="${codInput.value}"]`);
-                if (codInput && harmInput) {
-                    const cod = codInput.value.trim();
-                    const harm = harmInput.value.trim();
-                    let musicas = [];
-                    if (musicasTextarea) {
-                        musicas = musicasTextarea.value.split('\n')
-                            .map(l => l.trim())
-                            .filter(l => l !== '');
-                    }
-                    if (cod && harm) {
-                        dadosParaSalvar.push({ codigo: cod, harmonia: harm, musicas: musicas });
-                    }
+function adminExcluirLinha(codigo) {
+    const row = document.getElementById(`admin-row-${codigo}`);
+    if (row) row.remove();
+    const tbody = document.getElementById('adminHarmoniesBody');
+    if (tbody && tbody.children.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="4" style="padding:20px; text-align:center; color:#7f8c8d;">Nenhum dado cadastrado.</td></tr>`;
+    }
+    mostrarResultado('info', '🗑️ Linha removida localmente. Clique em "Salvar" para persistir.');
+}
+
+async function adminSalvarDados() {
+    const prog = document.getElementById('adminSelectProg').value;
+    if (!prog) {
+        mostrarResultado('error', '❌ Selecione uma progressão.');
+        return;
+    }
+
+    // Coleta TODOS os dados da tabela
+    const rows = document.querySelectorAll('#adminHarmoniesBody tr');
+    const dadosParaSalvar = [];
+    
+    rows.forEach(row => {
+        const codInput = row.querySelector('.admin-codigo-hidden');
+        const harmInput = row.querySelector('.admin-harm-input');
+        const musicasDiv = row.querySelector('.admin-musicas-textarea');
+        
+        if (codInput && harmInput) {
+            const cod = codInput.value.trim();
+            const harm = harmInput.value.trim();
+            let musicas = [];
+            
+            if (musicasDiv) {
+                musicas = musicasDiv.value.split('\n')
+                    .map(l => l.trim())
+                    .filter(l => l !== '');
+            } else {
+                // Tenta buscar o textarea pelo data-codigo (caso esteja em outra estrutura)
+                const textarea = document.querySelector(`.admin-musicas-textarea[data-codigo="${cod}"]`);
+                if (textarea) {
+                    musicas = textarea.value.split('\n')
+                        .map(l => l.trim())
+                        .filter(l => l !== '');
                 }
-            });
-
-            if (dadosParaSalvar.length === 0) {
-                mostrarResultado('error', '❌ Nenhum dado válido para salvar.');
-                return;
             }
-
-            mostrarResultado('info', '💾 Salvando dados...');
-
-            try {
-                const payload = {
-                    action: 'update_full_data',
-                    progressao: prog,
-                    data: dadosParaSalvar
-                };
-
-                const response = await fetch(SCRIPT_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify(payload)
+            
+            if (cod) {
+                dadosParaSalvar.push({ 
+                    codigo: cod, 
+                    harmonia: harm || '', 
+                    musicas: musicas 
                 });
-
-                const result = await response.json();
-                if (result.success) {
-                    mostrarResultado('success', '✅ ' + result.message);
-                    await loadFromSheet(true);
-                    adminAtualizarDropdown();
-                    document.getElementById('adminSelectProg').value = prog;
-                    adminCarregarDados();
-                } else {
-                    mostrarResultado('error', '❌ ' + result.message);
-                }
-            } catch (error) {
-                mostrarResultado('error', '❌ Erro: ' + error.message);
             }
         }
+    });
 
-        function adminExcluirProgressao() {
-            const prog = document.getElementById('adminSelectProg').value;
-            if (!prog) {
-                mostrarResultado('error', '❌ Selecione uma progressão.');
-                return;
-            }
-            if (!confirm(`Tem certeza que deseja excluir a progressão "${prog}"? Isso apagará todos os dados da aba.`)) return;
+    if (dadosParaSalvar.length === 0) {
+        mostrarResultado('error', '❌ Nenhum dado válido para salvar.');
+        return;
+    }
 
-            mostrarResultado('info', '🗑️ Excluindo progressão...');
-            fetch(SCRIPT_URL, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'delete_progression', progressao: prog })
-            })
-            .then(r => r.json())
-            .then(result => {
-                if (result.success) {
-                    mostrarResultado('success', '✅ ' + result.message);
-                    loadFromSheet(true);
-                    adminAtualizarDropdown();
-                    document.getElementById('adminSelectProg').value = '';
-                    document.getElementById('adminHarmoniesContainer').innerHTML = '<p class="placeholder-text">Selecione ou crie uma progressão.</p>';
-                } else {
-                    mostrarResultado('error', '❌ ' + result.message);
-                }
-            })
-            .catch(err => {
-                mostrarResultado('error', '❌ Erro: ' + err.message);
-            });
+    mostrarResultado('info', '💾 Salvando dados...');
+
+    try {
+        const payload = {
+            action: 'update_full_data',
+            progressao: prog,
+            data: dadosParaSalvar
+        };
+
+        const response = await fetch(SCRIPT_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify(payload)
+        });
+
+        const result = await response.json();
+        if (result.success) {
+            mostrarResultado('success', '✅ ' + result.message);
+            await loadFromSheet(true);
+            adminAtualizarDropdown();
+            document.getElementById('adminSelectProg').value = prog;
+            adminCarregarDados();
+        } else {
+            mostrarResultado('error', '❌ ' + result.message);
         }
+    } catch (error) {
+        mostrarResultado('error', '❌ Erro: ' + error.message);
+    }
+}
 
-        // ========================================
-        // ADMIN – MOSTRAR RESULTADO
-        // ========================================
-        function mostrarResultado(tipo, mensagem) {
-            const container = document.getElementById('adminResult');
-            container.style.display = 'block';
-            const cores = { success: '#eafaf1', error: '#fdedec', info: '#ebf5fb' };
-            const coresTexto = { success: '#27ae60', error: '#e74c3c', info: '#2980b9' };
-            container.style.background = cores[tipo] || '#f8f9fa';
-            container.style.color = coresTexto[tipo] || '#2f3640';
-            container.style.border = '1px solid ' + (coresTexto[tipo] || '#ddd');
-            container.innerHTML = mensagem;
+function adminExcluirProgressao() {
+    const prog = document.getElementById('adminSelectProg').value;
+    if (!prog) {
+        mostrarResultado('error', '❌ Selecione uma progressão.');
+        return;
+    }
+    if (!confirm(`Tem certeza que deseja excluir a progressão "${prog}"? Isso apagará todos os dados da aba.`)) return;
+
+    mostrarResultado('info', '🗑️ Excluindo progressão...');
+    fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'delete_progression', progressao: prog })
+    })
+    .then(r => r.json())
+    .then(result => {
+        if (result.success) {
+            mostrarResultado('success', '✅ ' + result.message);
+            loadFromSheet(true);
+            adminAtualizarDropdown();
+            document.getElementById('adminSelectProg').value = '';
+            document.getElementById('adminHarmoniesContainer').innerHTML = '<p class="placeholder-text">Selecione ou crie uma progressão.</p>';
+        } else {
+            mostrarResultado('error', '❌ ' + result.message);
         }
+    })
+    .catch(err => {
+        mostrarResultado('error', '❌ Erro: ' + err.message);
+    });
+}
+
+function mostrarResultado(tipo, mensagem) {
+    const container = document.getElementById('adminResult');
+    container.style.display = 'block';
+    const cores = { success: '#eafaf1', error: '#fdedec', info: '#ebf5fb' };
+    const coresTexto = { success: '#27ae60', error: '#e74c3c', info: '#2980b9' };
+    container.style.background = cores[tipo] || '#f8f9fa';
+    container.style.color = coresTexto[tipo] || '#2f3640';
+    container.style.border = '1px solid ' + (coresTexto[tipo] || '#ddd');
+    container.innerHTML = mensagem;
+}
 
         // ========================================
         // EVENTOS
