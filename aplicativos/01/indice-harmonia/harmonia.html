@@ -907,7 +907,7 @@
         // ========================================
         // CONFIGURAÇÕES
         // ========================================
-        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx2Rz4fUynlVOFzX3uyK1wg93Xt3a7hynLSvi-g5yW8aPV34Mp4TRY5EoMMk2RHFObn/exec";
+        const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzhBf1QKSE8oYgJpCFDujg_PPLsVi7FZPiktv0wZdxe2lmcvVDocCmrSuc3IGAT_pkJ/exec";
 
         const BASE_PDF_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/partituras";
         const BASE_ABC_URL = "https://raw.githubusercontent.com/musicanplay3-sudo/m-pav/main/abc";
@@ -1414,7 +1414,7 @@
         }
 
         // ========================================
-        // CARREGAR DADOS (COM DEBOUNCE PARA FILTROS)
+        // CARREGAR DADOS
         // ========================================
         let timeoutFiltro = null;
 
@@ -1507,7 +1507,7 @@
         }
 
         // ========================================
-        // BIBLIOTECA – RENDER PROGRESSÕES (ORDENADAS POR QUANTIDADE)
+        // BIBLIOTECA – RENDER PROGRESSÕES
         // ========================================
         function renderProgressoes() {
             const container = document.getElementById('progressaoList');
@@ -1518,8 +1518,8 @@
             progs.sort((a, b) => {
                 const countA = dadosPorProgressao[a].length;
                 const countB = dadosPorProgressao[b].length;
-                if (countA !== countB) return countB - countA; // maior quantidade primeiro
-                return a.localeCompare(b); // alfabeticamente se igual
+                if (countA !== countB) return countB - countA;
+                return a.localeCompare(b);
             });
 
             container.innerHTML = '';
@@ -1679,13 +1679,11 @@
         // FILTROS (COM DEBOUNCE)
         // ========================================
         function filterMusic() {
-            // Cancela o timeout anterior para evitar recarregamento desnecessário
             if (timeoutFiltro) {
                 clearTimeout(timeoutFiltro);
                 timeoutFiltro = null;
             }
 
-            // Aplica o filtro com um pequeno atraso (300ms) para não travar a interface
             timeoutFiltro = setTimeout(() => {
                 const codeQuery = searchCode.value.trim().toLowerCase();
                 const progQuery = searchProgression.value.trim().toLowerCase();
@@ -1693,13 +1691,14 @@
                 const musicQuery = searchMusic.value.trim().toLowerCase();
 
                 if (!codeQuery && !progQuery && !harmQuery && !musicQuery) {
-                    // Se todos os filtros estiverem vazios, restaura os dados originais
+                    // Restaura os dados originais do cache
                     const dadosOriginais = carregarCacheLocal();
                     if (dadosOriginais) {
                         processarDados(dadosOriginais);
                     } else {
                         recarregarDados();
                     }
+                    timeoutFiltro = null;
                     return;
                 }
 
@@ -1715,7 +1714,6 @@
                     filteredData[item.progressao].push(item);
                 });
 
-                // Atualiza os dados exibidos com o resultado do filtro
                 dadosPorProgressao = filteredData;
                 renderProgressoes();
                 const progs = Object.keys(dadosPorProgressao);
@@ -1727,7 +1725,7 @@
                     document.getElementById('harmoniasProgressao').value = 'Nenhuma harmonia para esta busca.';
                 }
                 timeoutFiltro = null;
-            }, 300);
+            }, 500);
         }
 
         function escapeRegExp(string) { return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
@@ -1843,11 +1841,12 @@
                 mostrarResultado('error', '❌ Selecione ou crie uma progressão primeiro.');
                 return;
             }
-            // Busca o maior código existente na progressão considerando TODOS os dados (não só os da tabela)
+            // BUSCA O MAIOR CÓDIGO DE TODA A BIBLIOTECA (não apenas da progressão atual)
             const items = dadosPorProgressao[prog] || [];
             const codes = items.map(i => Number(i.codigo)).filter(n => !isNaN(n));
-            // O próximo código deve ser o maior + 1, ou 1 se não houver nenhum
-            const nextCode = codes.length > 0 ? Math.max(...codes) + 1 : 1;
+            // O próximo código deve ser o maior + 1 considerando TODA a biblioteca
+            // Para isso, usa o ultimoCodigo global que é calculado com todos os códigos
+            const nextCode = ultimoCodigo > 0 ? ultimoCodigo + 1 : (codes.length > 0 ? Math.max(...codes) + 1 : 1);
             
             const tbody = document.getElementById('adminHarmoniesBody');
             if (!tbody) {
