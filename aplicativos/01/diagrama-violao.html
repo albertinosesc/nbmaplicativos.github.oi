@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -22,9 +21,20 @@
         
         .container { display: flex; flex: 1; overflow: hidden; }
         .pane { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #ddd; }
+        .pane:last-child { border-right: none; }
         .pane-header { background-color: #e9ecef; padding: 8px 15px; font-weight: bold; font-size: 0.9rem; color: #495057; border-bottom: 1px solid #ddd; }
         textarea { flex: 1; resize: none; border: none; padding: 15px; font-family: 'Courier New', Courier, monospace; font-size: 1rem; outline: none; }
         #preview { flex: 1; padding: 15px; overflow-y: auto; background-color: #fff; }
+
+        /* ===== Layout modes ===== */
+        .layout-normal .pane-editor { display: flex; }
+        .layout-normal .pane-preview { display: flex; }
+        .layout-editor .pane-editor { display: flex; flex: 1; }
+        .layout-editor .pane-preview { display: none; }
+        .layout-preview .pane-editor { display: none; }
+        .layout-preview .pane-preview { display: flex; flex: 1; }
+
+        .layout-btn.active { background-color: #28a745 !important; }
 
         .chord-modal-overlay {
             display: none;
@@ -84,13 +94,16 @@
         .toggle-generator:hover { background: #5a6268 !important; }
     </style>
 </head>
-<body>
+<body class="layout-normal">
 
     <header>
         <div class="header-left">
             <input type="text" id="filename-input" value="documento.md" placeholder="Nome do arquivo">
         </div>
         <div class="actions">
+            <button class="layout-btn active" id="btn-layout-normal" onclick="setLayout('normal')" title="Editor + Preview">◫ Normal</button>
+            <button class="layout-btn" id="btn-layout-editor" onclick="setLayout('editor')" title="Só Editor">▣ Editor</button>
+            <button class="layout-btn" id="btn-layout-preview" onclick="setLayout('preview')" title="Só Preview">◉ Preview</button>
             <button class="toggle-generator" id="open-modal-btn">Criar / Inserir Acorde</button>
             <label for="file-input">Abrir</label>
             <input type="file" id="file-input" accept=".md,.txt">
@@ -100,11 +113,11 @@
 
     <div class="main-layout">
         <div class="container">
-            <div class="pane">
+            <div class="pane pane-editor">
                 <div class="pane-header">Editor (Markdown)</div>
                 <textarea id="editor" placeholder="# Comece a digitar..."></textarea>
             </div>
-            <div class="pane">
+            <div class="pane pane-preview">
                 <div class="pane-header">Visualizador (Preview)</div>
                 <div id="preview"></div>
             </div>
@@ -118,7 +131,6 @@
                 <button class="close-modal" id="close-modal-btn">&times;</button>
             </div>
 
-            <!-- ===== NOVO: Seletor de instrumento ===== -->
             <div class="controls-grid full">
                 <div>
                     <label>Instrumento:</label>
@@ -129,7 +141,6 @@
                     </select>
                 </div>
             </div>
-            <!-- ===== FIM NOVO ===== -->
 
             <div class="controls-grid full">
                 <div>
@@ -217,14 +228,21 @@
         const closeModalBtn = document.getElementById('close-modal-btn');
         const modalHeader = document.getElementById('modalHeader');
 
-        // ===== NOVO: Configuração por instrumento =====
+        // ===== Layout (Normal / Editor / Preview) =====
+        function setLayout(mode) {
+            document.body.classList.remove('layout-normal', 'layout-editor', 'layout-preview');
+            document.body.classList.add('layout-' + mode);
+            document.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById('btn-layout-' + mode).classList.add('active');
+        }
+
+        // ===== Configuração por instrumento =====
         const INSTRUMENTS = {
             violao:      { strings: 6, stringLabels: ['6ª (E)','5ª (A)','4ª (D)','3ª (G)','2ª (B)','1ª (e)'], stringWidths: [2.2,2.0,1.8,1.6,1.4,1.2] },
             ukulele:     { strings: 4, stringLabels: ['4ª (G)','3ª (C)','2ª (E)','1ª (A)'],                  stringWidths: [1.6,1.8,1.6,1.4] },
             cavaquinho:  { strings: 4, stringLabels: ['4ª (D)','3ª (G)','2ª (B)','1ª (D)'],                  stringWidths: [1.8,1.6,1.4,1.4] }
         };
         let currentInstrument = 'violao';
-        // ===== FIM NOVO =====
 
         function updatePreview() {
             preview.innerHTML = marked.parse(editor.value);
@@ -293,7 +311,6 @@
         });
 
         // --- Lógica de Acordes ---
-        // ===== ALTERADO: stringsX agora é calculado dinamicamente =====
         let stringsX = [];
         const fretCentersY = { 0: 22, 1: 47, 2: 75, 3: 105, 4: 135 };
         let activeNotes = [];
@@ -304,7 +321,6 @@
         const fretNumberGroup = document.getElementById('fret-number-group');
         const stringLinesGroup = document.getElementById('string-lines');
 
-        // ===== NOVO: helpers =====
         function getConfig() {
             return INSTRUMENTS[currentInstrument];
         }
@@ -394,7 +410,6 @@
             updateBarreSelectors();
             renderDots();
         }
-        // ===== FIM NOVO =====
 
         function handleCellClick(stringIndex, fretIndex) {
             if (fretIndex === 0) {
@@ -523,14 +538,12 @@
                 }
             });
 
-            // ===== ALTERADO: gera as linhas das cordas dinamicamente =====
             let stringLinesHTML = '';
             for (let i = 0; i < n; i++) {
                 const x = stringsX[i];
                 const w = config.stringWidths[i] || 1.2;
                 stringLinesHTML += `<line x1="${x}" y1="30" x2="${x}" y2="150" stroke="#666" stroke-width="${w}"/>`;
             }
-            // ===== FIM ALTERADO =====
 
             let chordBody = `<div style="font:bold 20px sans-serif;color:#e94560;background:#fff;padding:0 8px;margin-bottom:-6px;text-align:center;position:relative;z-index:2;">${chordName}</div><svg width="140" height="160" viewBox="0 0 140 160"><rect x="25" y="30" width="90" height="4" fill="#333"/><path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"/>${stringLinesHTML}<g fill="#e94560" font-weight="bold" font-size="14" text-anchor="middle">${elementsHTML}</g></svg>`;
 
@@ -550,7 +563,7 @@
             chordModalOverlay.style.display = 'none';
         }
 
-        // ===== NOVO: inicialização =====
+        // Inicialização
         editor.value = "# Meu Guia de Cifras\n\nProblema do botão 'X' resolvido!\n\n";
         currentInstrument = 'violao';
         renderStringLines();
