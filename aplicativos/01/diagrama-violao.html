@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -117,6 +118,19 @@
                 <button class="close-modal" id="close-modal-btn">&times;</button>
             </div>
 
+            <!-- ===== NOVO: Seletor de instrumento ===== -->
+            <div class="controls-grid full">
+                <div>
+                    <label>Instrumento:</label>
+                    <select id="instrumentSelect" onchange="changeInstrument()">
+                        <option value="violao" selected>Violão (6 cordas)</option>
+                        <option value="ukulele">Ukulele (4 cordas)</option>
+                        <option value="cavaquinho">Cavaquinho (4 cordas)</option>
+                    </select>
+                </div>
+            </div>
+            <!-- ===== FIM NOVO ===== -->
+
             <div class="controls-grid full">
                 <div>
                     <label>Nome do Acorde:</label>
@@ -169,22 +183,8 @@
                         <option value="3">Traste 3</option>
                         <option value="4">Traste 4</option>
                     </select>
-                    <select id="barreStart" title="Corda Inicial">
-                        <option value="0">6ª (E)</option>
-                        <option value="1" selected>5ª (A)</option>
-                        <option value="2">4ª (D)</option>
-                        <option value="3">3ª (G)</option>
-                        <option value="4">2ª (B)</option>
-                        <option value="5">1ª (e)</option>
-                    </select>
-                    <select id="barreEnd" title="Corda Final">
-                        <option value="0">6ª (E)</option>
-                        <option value="1">5ª (A)</option>
-                        <option value="2">4ª (D)</option>
-                        <option value="3">3ª (G)</option>
-                        <option value="4">2ª (B)</option>
-                        <option value="5" selected>1ª (e)</option>
-                    </select>
+                    <select id="barreStart" title="Corda Inicial"></select>
+                    <select id="barreEnd" title="Corda Final"></select>
                     <button type="button" onclick="toggleBarre()" style="background:#333; color:white; border:none; padding:5px 8px; border-radius:4px; font-size:11px; cursor:pointer;">Aplicar</button>
                 </div>
             </div>
@@ -193,7 +193,7 @@
                 <svg id="fretboard" width="140" height="160" viewBox="0 0 140 160">
                     <rect id="nut-rect" x="25" y="30" width="90" height="4" fill="#333"></rect>
                     <path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"></path>
-                    <path d="M25 30v120M43 30v120M61 30v120M79 30v120M97 30v120M115 30v120" stroke="#666" stroke-width="1.2"></path>
+                    <g id="string-lines"></g>
                     <g id="fret-number-group"></g>
                     <g id="interactive-grid"></g>
                     <g id="finger-dots"></g>
@@ -216,6 +216,15 @@
         const openModalBtn = document.getElementById('open-modal-btn');
         const closeModalBtn = document.getElementById('close-modal-btn');
         const modalHeader = document.getElementById('modalHeader');
+
+        // ===== NOVO: Configuração por instrumento =====
+        const INSTRUMENTS = {
+            violao:      { strings: 6, stringLabels: ['6ª (E)','5ª (A)','4ª (D)','3ª (G)','2ª (B)','1ª (e)'], stringWidths: [2.2,2.0,1.8,1.6,1.4,1.2] },
+            ukulele:     { strings: 4, stringLabels: ['4ª (G)','3ª (C)','2ª (E)','1ª (A)'],                  stringWidths: [1.6,1.8,1.6,1.4] },
+            cavaquinho:  { strings: 4, stringLabels: ['4ª (D)','3ª (G)','2ª (B)','1ª (D)'],                  stringWidths: [1.8,1.6,1.4,1.4] }
+        };
+        let currentInstrument = 'violao';
+        // ===== FIM NOVO =====
 
         function updatePreview() {
             preview.innerHTML = marked.parse(editor.value);
@@ -250,7 +259,6 @@
 
         openModalBtn.addEventListener('click', () => { chordModalOverlay.style.display = 'block'; });
         
-        // CORREÇÃO: Adicionando stopPropagation para garantir que o clique no X seja processado
         closeModalBtn.addEventListener('click', (e) => { 
             e.stopPropagation(); 
             chordModalOverlay.style.display = 'none'; 
@@ -260,17 +268,13 @@
         let isDragging = false, startX, startY, initialX, initialY;
 
         modalHeader.addEventListener('pointerdown', (e) => {
-            // Se clicar no botão de fechar, não iniciar arraste
             if (e.target.classList.contains('close-modal')) return;
-            
             isDragging = true;
             startX = e.clientX;
             startY = e.clientY;
-            
             const rect = chordModal.getBoundingClientRect();
             initialX = rect.left;
             initialY = rect.top;
-            
             modalHeader.setPointerCapture(e.pointerId);
             e.preventDefault();
         });
@@ -289,7 +293,8 @@
         });
 
         // --- Lógica de Acordes ---
-        const stringsX = [25, 43, 61, 79, 97, 115];
+        // ===== ALTERADO: stringsX agora é calculado dinamicamente =====
+        let stringsX = [];
         const fretCentersY = { 0: 22, 1: 47, 2: 75, 3: 105, 4: 135 };
         let activeNotes = [];
         let activeBarres = [];
@@ -297,25 +302,99 @@
         const gridGroup = document.getElementById('interactive-grid');
         const dotsGroup = document.getElementById('finger-dots');
         const fretNumberGroup = document.getElementById('fret-number-group');
+        const stringLinesGroup = document.getElementById('string-lines');
 
-        for (let s = 0; s < 6; s++) {
-            for (let f = 0; f <= 4; f++) {
-                let cx = stringsX[s];
-                let rectWidth = (s < 5) ? (stringsX[s+1] - stringsX[s]) : 15;
-                let rectX = cx - rectWidth/2;
-                let rectY = (f === 0) ? 5 : (f === 1 ? 34 : (f === 2 ? 61 : (f === 3 ? 91 : 121)));
-                let rectHeight = (f === 0) ? 23 : 28;
+        // ===== NOVO: helpers =====
+        function getConfig() {
+            return INSTRUMENTS[currentInstrument];
+        }
 
-                let hitBox = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                hitBox.setAttribute("x", rectX);
-                hitBox.setAttribute("y", rectY);
-                hitBox.setAttribute("width", rectWidth);
-                hitBox.setAttribute("height", rectHeight);
-                hitBox.setAttribute("class", "clickable-area");
-                hitBox.onclick = () => handleCellClick(s, f);
-                gridGroup.appendChild(hitBox);
+        function calculateStringsX() {
+            const n = getConfig().strings;
+            const startX = 25, totalWidth = 90, positions = [];
+            if (n === 1) positions.push(startX + totalWidth / 2);
+            else {
+                const step = totalWidth / (n - 1);
+                for (let i = 0; i < n; i++) positions.push(startX + step * i);
+            }
+            return positions;
+        }
+
+        function renderStringLines() {
+            const config = getConfig();
+            stringsX = calculateStringsX();
+            let html = '';
+            for (let i = 0; i < config.strings; i++) {
+                const x = stringsX[i];
+                const w = config.stringWidths[i] || 1.2;
+                html += `<line x1="${x}" y1="30" x2="${x}" y2="150" stroke="#666" stroke-width="${w}"/>`;
+            }
+            stringLinesGroup.innerHTML = html;
+        }
+
+        function buildInteractiveGrid() {
+            gridGroup.innerHTML = '';
+            const n = getConfig().strings;
+            stringsX = calculateStringsX();
+
+            for (let s = 0; s < n; s++) {
+                for (let f = 0; f <= 4; f++) {
+                    const cx = stringsX[s];
+                    let rectWidth;
+                    if (n === 1) rectWidth = 30;
+                    else if (s === 0) rectWidth = stringsX[1] - stringsX[0];
+                    else if (s === n - 1) rectWidth = stringsX[n-1] - stringsX[n-2];
+                    else rectWidth = Math.min(stringsX[s] - stringsX[s-1], stringsX[s+1] - stringsX[s]);
+                    const rectX = cx - rectWidth / 2;
+
+                    let rectY, rectHeight;
+                    if (f === 0) { rectY = 5; rectHeight = 23; }
+                    else {
+                        const tops = {1:34,2:61,3:91,4:121}, bots = {1:60,2:90,3:120,4:150};
+                        rectY = tops[f]; rectHeight = bots[f] - tops[f];
+                    }
+
+                    const hitBox = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    hitBox.setAttribute("x", rectX);
+                    hitBox.setAttribute("y", rectY);
+                    hitBox.setAttribute("width", rectWidth);
+                    hitBox.setAttribute("height", rectHeight);
+                    hitBox.setAttribute("class", "clickable-area");
+                    hitBox.onclick = () => handleCellClick(s, f);
+                    gridGroup.appendChild(hitBox);
+                }
             }
         }
+
+        function updateBarreSelectors() {
+            const config = getConfig();
+            const startSel = document.getElementById('barreStart');
+            const endSel = document.getElementById('barreEnd');
+            const prevStart = startSel.value, prevEnd = endSel.value;
+            startSel.innerHTML = '';
+            endSel.innerHTML = '';
+            config.stringLabels.forEach((label, i) => {
+                const o1 = document.createElement('option');
+                o1.value = i; o1.textContent = label;
+                startSel.appendChild(o1);
+                const o2 = document.createElement('option');
+                o2.value = i; o2.textContent = label;
+                endSel.appendChild(o2);
+            });
+            startSel.value = (parseInt(prevStart) < config.strings) ? prevStart : 0;
+            endSel.value = (parseInt(prevEnd) < config.strings) ? prevEnd : (config.strings - 1);
+        }
+
+        function changeInstrument() {
+            currentInstrument = document.getElementById('instrumentSelect').value;
+            activeNotes = [];
+            activeBarres = [];
+            renderStringLines();
+            buildInteractiveGrid();
+            updateBarreSelectors();
+            renderDots();
+        }
+        // ===== FIM NOVO =====
 
         function handleCellClick(stringIndex, fretIndex) {
             if (fretIndex === 0) {
@@ -417,6 +496,10 @@
             let textAlign = document.getElementById('textAlignSelect').value;
             let insertMode = document.getElementById('insertModeSelect').value;
             let startFret = parseInt(document.getElementById('startFretSelect').value);
+            const config = getConfig();
+            const n = config.strings;
+            stringsX = calculateStringsX();
+
             let elementsHTML = '';
 
             if (startFret > 1) {
@@ -440,7 +523,16 @@
                 }
             });
 
-            let chordBody = `<div style="font:bold 20px sans-serif;color:#e94560;background:#fff;padding:0 8px;margin-bottom:-6px;text-align:center;position:relative;z-index:2;">${chordName}</div><svg width="140" height="160" viewBox="0 0 140 160"><rect x="25" y="30" width="90" height="4" fill="#333"/><path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"/><path d="M25 30v120M43 30v120M61 30v120M79 30v120M97 30v120M115 30v120" stroke="#666" stroke-width="1.2"/><g fill="#e94560" font-weight="bold" font-size="14" text-anchor="middle">${elementsHTML}</g></svg>`;
+            // ===== ALTERADO: gera as linhas das cordas dinamicamente =====
+            let stringLinesHTML = '';
+            for (let i = 0; i < n; i++) {
+                const x = stringsX[i];
+                const w = config.stringWidths[i] || 1.2;
+                stringLinesHTML += `<line x1="${x}" y1="30" x2="${x}" y2="150" stroke="#666" stroke-width="${w}"/>`;
+            }
+            // ===== FIM ALTERADO =====
+
+            let chordBody = `<div style="font:bold 20px sans-serif;color:#e94560;background:#fff;padding:0 8px;margin-bottom:-6px;text-align:center;position:relative;z-index:2;">${chordName}</div><svg width="140" height="160" viewBox="0 0 140 160"><rect x="25" y="30" width="90" height="4" fill="#333"/><path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"/>${stringLinesHTML}<g fill="#e94560" font-weight="bold" font-size="14" text-anchor="middle">${elementsHTML}</g></svg>`;
 
             let finalOutput = '';
             if (insertMode === 'inline') {
@@ -458,7 +550,12 @@
             chordModalOverlay.style.display = 'none';
         }
 
+        // ===== NOVO: inicialização =====
         editor.value = "# Meu Guia de Cifras\n\nProblema do botão 'X' resolvido!\n\n";
+        currentInstrument = 'violao';
+        renderStringLines();
+        buildInteractiveGrid();
+        updateBarreSelectors();
         renderDots();
         updatePreview();
     </script>
