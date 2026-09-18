@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -5,20 +6,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Editor Markdown & Gerador de Acordes</title>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.6.0/dist/abcjs-basic-min.js"></script>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; display: flex; flex-direction: column; height: 100vh; background-color: #f4f4f9; }
         
-        header { background-color: #333; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; }
+        header { background-color: #333; color: #fff; padding: 10px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px; }
         .header-left { display: flex; align-items: center; gap: 10px; }
-        input[type="text"] { padding: 6px; border-radius: 4px; border: none; width: 200px; }
+        input[type="text"] { padding: 6px; border-radius: 4px; border: none; width: 180px; }
         
-        .actions button, .actions label { background-color: #007bff; color: white; border: none; padding: 8px 12px; margin-left: 10px; border-radius: 4px; cursor: pointer; font-size: 0.9rem; }
+        .actions button, .actions label { background-color: #007bff; color: white; border: none; padding: 8px 12px; margin-left: 6px; border-radius: 4px; cursor: pointer; font-size: 0.85rem; }
         .actions button:hover, .actions label:hover { background-color: #0056b3; }
         .actions input[type="file"] { display: none; }
 
         .main-layout { display: flex; flex: 1; overflow: hidden; position: relative; }
-        
         .container { display: flex; flex: 1; overflow: hidden; }
         .pane { flex: 1; display: flex; flex-direction: column; border-right: 1px solid #ddd; }
         .pane:last-child { border-right: none; }
@@ -26,54 +27,56 @@
         textarea { flex: 1; resize: none; border: none; padding: 15px; font-family: 'Courier New', Courier, monospace; font-size: 1rem; outline: none; }
         #preview { flex: 1; padding: 15px; overflow-y: auto; background-color: #fff; }
 
-        /* ===== CORREÇÃO: restaura o estilo padrão das listas do Markdown ===== */
         #preview ul, #preview ol { padding-left: 28px; margin: 8px 0; }
         #preview li { margin: 4px 0; }
         #preview h1, #preview h2, #preview h3 { margin: 12px 0 6px; }
         #preview p { margin: 6px 0; }
 
-        /* ===== Layout modes ===== */
-        .layout-normal .pane-editor { display: flex; }
-        .layout-normal .pane-preview { display: flex; }
-        .layout-editor .pane-editor { display: flex; flex: 1; }
-        .layout-editor .pane-preview { display: none; }
-        .layout-preview .pane-editor { display: none; }
-        .layout-preview .pane-preview { display: flex; flex: 1; }
+        #preview .abc-render {
+            margin: 12px 0; padding: 10px; background: #fafafa;
+            border-radius: 6px; border: 1px solid #eee; overflow-x: auto;
+        }
+        #preview .abc-render svg { background: #fff; }
+        #preview .abc-controls { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+        #preview .abc-play-btn {
+            background: #e94560; color: white; border: none; padding: 6px 14px;
+            border-radius: 4px; cursor: pointer; font-size: 13px; font-weight: bold;
+        }
+        #preview .abc-play-btn:hover { background: #d0344f; }
+        #preview .abc-play-btn.playing { background: #28a745; }
+        #preview .abc-tempo { font-size: 11px; color: #666; font-family: monospace; }
 
-        .layout-btn.active { background-color: #28a745 !important; }
+        /* ===== Classes dos diagramas gerados ===== */
+        .keyboard-diagram {
+            display: inline-block;
+            text-align: center;
+            vertical-align: top;
+            margin: 10px 14px -4px 14px;   /* top right bottom left — teclado: -4px embaixo */
+        }
+        .chord-diagram {
+            display: inline-block;
+            text-align: center;
+            vertical-align: top;
+            margin: 10px 14px -18px 14px;  /* top right bottom left — cordas: -18px embaixo */
+        }
 
         .chord-modal-overlay {
-            display: none;
-            position: fixed;
-            top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.2);
-            z-index: 1000;
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.2); z-index: 1000;
         }
         .chord-modal {
-            background: white;
-            width: 380px;
-            border-radius: 8px;
+            background: white; width: 440px; border-radius: 8px;
             box-shadow: 0 5px 25px rgba(0,0,0,0.3);
-            display: flex;
-            flex-direction: column;
-            position: absolute;
-            top: 60px;
-            left: 50px;
-            padding: 20px;
-            border: 1px solid #ddd;
-            touch-action: none;
-            max-height: 90vh;
-            overflow-y: auto;
+            display: flex; flex-direction: column; position: absolute;
+            top: 60px; left: 50px; padding: 20px; border: 1px solid #ddd;
+            touch-action: none; max-height: 90vh; overflow-y: auto;
         }
+        #keyboardModal { width: 640px; }
+
         .modal-header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 10px;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 8px;
-            cursor: move;
-            user-select: none;
+            display: flex; justify-content: space-between; align-items: center;
+            margin-bottom: 10px; border-bottom: 1px solid #eee;
+            padding-bottom: 8px; cursor: move; user-select: none;
         }
         .modal-header h3 { font-size: 1.1rem; color: #333; }
         .close-modal { background: none; border: none; font-size: 1.5rem; cursor: pointer; color: #777; padding: 0 5px; }
@@ -81,33 +84,95 @@
 
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 10px; text-align: left; }
         .controls-grid.full { grid-template-columns: 1fr; }
+        .controls-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+        .controls-grid.four { grid-template-columns: 1fr 1fr 1fr 1fr; }
         .controls-grid label { font-size: 11px; font-weight: bold; color: #555; display: block; margin-bottom: 2px; }
         .controls-grid input, .controls-grid select { width: 100%; padding: 5px; border: 1px solid #ccc; border-radius: 4px; font-size: 12px; }
-        .chord-name-input { font-size: 15px; font-weight: bold; color: #e94560; border: 2px dashed #ccc; border-radius: 5px; text-align: center; width: 100%; padding: 5px; }
-        
-        .barre-section { background: #f8f9fa; padding: 8px; border-radius: 6px; border: 1px solid #e9ecef; margin-bottom: 10px; }
-        .barre-row { display: flex; gap: 5px; align-items: center; }
+        .chord-name-input { font-size: 15px; font-weight: bold; color: #6f42c1; border: 2px dashed #ccc; border-radius: 5px; text-align: center; width: 100%; padding: 5px; }
 
-        .chord-box { text-align: center; margin: 5px 0; }
-        svg { background: #fff; border-radius: 5px; box-shadow: inset 0 0 5px rgba(0,0,0,0.05); }
+        .barre-section { background: #f8f9fa; padding: 8px; border-radius: 6px; border: 1px solid #e9ecef; margin-bottom: 10px; }
+        .barre-row { display: flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+
+        .chord-box { text-align: center; margin: 5px 0; overflow-x: auto; }
+        svg { background: #fff; border-radius: 5px; }
         .clickable-area { fill: transparent; cursor: pointer; }
         .clickable-area:hover { fill: rgba(233, 69, 96, 0.15); }
 
         .btn-chord { background: #e94560; color: white; border: none; padding: 9px; font-size: 14px; border-radius: 4px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 5px; }
         .btn-chord:hover { background: #d0344f; }
-        
+
         .toggle-generator { background: #6c757d !important; }
         .toggle-generator:hover { background: #5a6268 !important; }
+        .toggle-keyboard { background: #6f42c1 !important; }
+        .toggle-keyboard:hover { background: #5a32a3 !important; }
 
-        /* ===== Seletor de dedo (números) ===== */
-        .finger-picker { display: flex; gap: 4px; align-items: center; }
+        .finger-picker { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
         .finger-picker button {
-            width: 28px; height: 28px; border-radius: 50%;
+            width: 30px; height: 30px; border-radius: 50%;
             border: 2px solid #ccc; background: #fff; color: #555;
             font-weight: bold; cursor: pointer; font-size: 13px; transition: all 0.15s;
         }
-        .finger-picker button.active { background: #e94560; color: #fff; border-color: #e94560; }
         .finger-picker button:hover { border-color: #e94560; }
+        .finger-picker.hand-left button.active { background: #007bff; color: #fff; border-color: #007bff; }
+        .finger-picker.hand-right button.active { background: #dc3545; color: #fff; border-color: #dc3545; }
+
+        .hand-toggle { display: flex; gap: 6px; margin-bottom: 6px; }
+        .hand-toggle button {
+            flex: 1; padding: 6px; border-radius: 4px; border: 2px solid #ccc;
+            background: #fff; cursor: pointer; font-weight: bold; font-size: 12px;
+        }
+        .hand-toggle button.active[data-hand="left"] { background: #007bff; color: #fff; border-color: #007bff; }
+        .hand-toggle button.active[data-hand="right"] { background: #dc3545; color: #fff; border-color: #dc3545; }
+
+        .layout-normal .pane-editor { display: flex; }
+        .layout-normal .pane-preview { display: flex; }
+        .layout-editor .pane-editor { display: flex; flex: 1; }
+        .layout-editor .pane-preview { display: none; }
+        .layout-preview .pane-editor { display: none; }
+        .layout-preview .pane-preview { display: flex; flex: 1; }
+        .layout-btn.active { background-color: #28a745 !important; }
+
+        .tutorial-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 2000;
+        }
+        .tutorial-modal {
+            background: white; max-width: 800px; width: 90%; max-height: 90vh;
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            border-radius: 10px; box-shadow: 0 10px 40px rgba(0,0,0,0.4);
+            display: flex; flex-direction: column;
+        }
+        .tutorial-header {
+            background: #333; color: #fff; padding: 15px 20px; border-radius: 10px 10px 0 0;
+            display: flex; justify-content: space-between; align-items: center;
+        }
+        .tutorial-header h2 { font-size: 1.2rem; }
+        .tutorial-close { background: none; border: none; color: #fff; font-size: 1.8rem; cursor: pointer; line-height: 1; padding: 0 8px; }
+        .tutorial-close:hover { color: #e94560; }
+        .tutorial-body { padding: 20px 30px; overflow-y: auto; line-height: 1.6; }
+        .tutorial-body h3 { color: #e94560; margin: 18px 0 8px; font-size: 1.05rem; }
+        .tutorial-body p, .tutorial-body li { font-size: 0.9rem; color: #444; }
+        .tutorial-body ul { padding-left: 22px; margin: 6px 0; }
+        .tutorial-body code { background: #f4f4f9; padding: 2px 6px; border-radius: 3px; font-family: 'Courier New', monospace; font-size: 0.85rem; color: #e94560; }
+        .tutorial-body pre { background: #2d2d2d; color: #f8f8f2; padding: 12px 15px; border-radius: 6px; overflow-x: auto; font-size: 0.82rem; margin: 8px 0; line-height: 1.4; }
+        .tutorial-body pre code { background: none; color: inherit; padding: 0; }
+        .tutorial-body table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.85rem; }
+        .tutorial-body th, .tutorial-body td { border: 1px solid #ddd; padding: 6px 10px; text-align: left; }
+        .tutorial-body th { background: #f4f4f9; font-weight: bold; }
+
+        @media print {
+            header, .actions, .chord-modal-overlay, .tutorial-overlay,
+            .pane-editor, .pane-header, .layout-btn, .toggle-generator, .toggle-keyboard {
+                display: none !important;
+            }
+            body { height: auto; background: #fff; display: block; }
+            .main-layout, .container { display: block; overflow: visible; }
+            .pane.pane-preview { display: block !important; border: none; width: 100%; }
+            #preview { padding: 0; overflow: visible; background: #fff; }
+            #preview .abc-controls { display: none !important; }
+            #preview .abc-render { page-break-inside: avoid; background: #fff; border: none; padding: 0; }
+            #preview * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
     </style>
 </head>
 <body class="layout-normal">
@@ -117,10 +182,12 @@
             <input type="text" id="filename-input" value="documento.md" placeholder="Nome do arquivo">
         </div>
         <div class="actions">
-            <button class="layout-btn active" id="btn-layout-normal" onclick="setLayout('normal')" title="Editor + Preview">◫ Normal</button>
-            <button class="layout-btn" id="btn-layout-editor" onclick="setLayout('editor')" title="Só Editor">▣ Editor</button>
-            <button class="layout-btn" id="btn-layout-preview" onclick="setLayout('preview')" title="Só Preview">◉ Preview</button>
-            <button class="toggle-generator" id="open-modal-btn">Criar / Inserir Acorde</button>
+            <button class="layout-btn active" id="btn-layout-normal" onclick="setLayout('normal')">◫ Normal</button>
+            <button class="layout-btn" id="btn-layout-editor" onclick="setLayout('editor')">▣ Editor</button>
+            <button class="layout-btn" id="btn-layout-preview" onclick="setLayout('preview')">◉ Preview</button>
+            <button class="toggle-generator" id="open-modal-btn">🎸 Criar Acorde</button>
+            <button class="toggle-keyboard" id="open-keyboard-btn">🎹 Criar Teclado</button>
+            <button class="toggle-generator" id="open-tutorial-btn" style="background:#17a2b8 !important;">📖 Tutorial ABC</button>
             <label for="file-input">Abrir</label>
             <input type="file" id="file-input" accept=".md,.txt">
             <button id="save-btn">Salvar</button>
@@ -140,13 +207,136 @@
         </div>
     </div>
 
+
+
+
+
+   <!-- Tutorial -->
+<div class="tutorial-overlay" id="tutorialOverlay">
+    <div class="tutorial-modal">
+        <div class="tutorial-header">
+            <h2>📖 Tutorial</h2>
+            <button class="tutorial-close" onclick="closeTutorial()">&times;</button>
+        </div>
+        <div class="tutorial-body">
+
+            <p>Este editor suporta <strong>notação ABC</strong> — um formato de texto simples para escrever partituras. Basta envolver o código ABC com <code>[ABC]</code> e <code>[/ABC]</code>.</p>
+
+            <h3>1. Estrutura básica</h3>
+            <pre><code>[ABC]
+X:1
+T: Nome da música
+M:4/4
+L:1/8
+K:C
+C DEF | GAB c |]
+[/ABC]</code></pre>
+            <p>O bloco <code>[ABC]...[/ABC]</code> pode conter várias linhas de diretrizes (<code>X:</code>, <code>T:</code>, <code>M:</code>, etc.) seguidas das notas musicais.</p>
+
+            <h3>2. Diretrizes avançadas (<code>%%</code>)</h3>
+            <table>
+                <tr><th>Diretriz</th><th>O que faz</th><th>Exemplo</th></tr>
+                <tr><td><code>%%transpose=N</code></td><td>Transpõe a partitura em N semitons</td><td><code>%%transpose=2</code></td></tr>
+                <tr><td><code>%%staffwidth=N</code></td><td>Largura da pauta em pixels</td><td><code>%%staffwidth900</code></td></tr>
+                <tr><td><code>stafflines=N</code></td><td>Número de linhas da pauta (após K:)</td><td><code>K:D stafflines=1</code></td></tr>
+            </table>
+
+            <h3>3. Estilo isolado por bloco</h3>
+            <p>Envolva o bloco com <code>&lt;div&gt;</code> e <code>&lt;style&gt;</code> para escopar o CSS. Cada bloco pode ter seu próprio estilo:</p>
+            <pre><code>&lt;div class="meu-estilo"&gt;
+&lt;style&gt;
+.abcjs-chord { fill: red !important; font-size: 24px !important; }
+&lt;/style&gt;
+
+[ABC]
+X:1
+T: Exemplo
+M:4/4
+L:1/8
+K:C
+"C"C DEF | "G"GAB c |]
+[/ABC]
+&lt;/div&gt;</code></pre>
+
+            <h3>4. Entendendo a regra CSS dos acordes</h3>
+            <p>A regra abaixo estiliza os acordes (D, Bm, G, A...) da partitura:</p>
+            <pre><code>.abcjs-container svg .abcjs-chord {
+    font-size: 24px !important;
+    font-weight: bold !important;
+    fill: red !important;
+    transform: translateX(5px) translateY(24px);
+}</code></pre>
+            <ul>
+                <li><code>.abcjs-container svg .abcjs-chord</code> — seleciona todos os acordes dentro da partitura ABC. A classe <code>.abcjs-chord</code> é aplicada automaticamente pelo ABCJS em cada acorde.</li>
+                <li><code>font-size: 24px</code> — tamanho da fonte dos acordes.</li>
+                <li><code>font-weight: bold</code> — deixa o texto em negrito.</li>
+                <li><code>fill: red</code> — como o ABCJS gera SVG, a cor do texto é definida por <code>fill</code> (não por <code>color</code>).</li>
+                <li><code>transform: translateX(5px) translateY(24px)</code> — desloca o acorde 5px para a direita e 24px para baixo.</li>
+                <li><code>!important</code> — força a regra a sobrescrever o CSS interno do ABCJS.</li>
+            </ul>
+
+            <h3>5. Classes CSS úteis do ABCJS</h3>
+            <ul>
+                <li><code>.abcjs-chord</code> — acordes (C, G, Am...)</li>
+                <li><code>.abcjs-note</code> — notas musicais</li>
+                <li><code>.abcjs-staff</code> — pauta (pentagrama)</li>
+                <li><code>.abcjs-bar</code> — barras de compasso</li>
+            </ul>
+
+            <h3>6. Informações sobre a <code>&lt;div&gt;</code></h3>
+            <p>A <code>&lt;div&gt;</code> é usada para <strong>agrupar</strong> elementos e <strong>controlar o tamanho</strong> dos diagramas.</p>
+
+            <h4>6.1 Redimensionar</h4>
+            <p>Envolva um diagrama numa <code>&lt;div&gt;</code> com largura fixa:</p>
+            <pre><code>&lt;div style="width: 500px;"&gt;
+  [cole o diagrama aqui]
+&lt;/div&gt;</code></pre>
+
+            <h4>6.2 Agrupar acordes com propriedades comuns (DRY)</h4>
+            <p>O CSS vai <strong>uma vez só</strong> no <code>&lt;style&gt;</code> do grupo. Cada acorde adicional custa apenas ~90 caracteres:</p>
+            <pre><code>&lt;div class="cg" style="--c:#e94560; --s:20px; --w:140px; --mb:-18px;"&gt;
+  &lt;style&gt;
+  .cg { display: block; text-align: var(--ta, center); margin: 12px 0; }
+  .cg .c { display: inline-block; vertical-align: top; margin: 8px 14px; text-align: center; width: var(--w, 140px); max-width: 100%; box-sizing: border-box; }
+  .cg .c .cn { font: bold var(--s, 20px) sans-serif; color: var(--c, #e94560); margin-bottom: var(--mb, -18px); }
+  .cg .c svg { display: block; margin: 0 auto; width: 100%; height: auto; }
+  &lt;/style&gt;
+  &lt;div class="c"&gt;&lt;div class="cn"&gt;C&lt;/div&gt;&lt;svg&gt;...&lt;/svg&gt;&lt;/div&gt;
+  &lt;div class="c"&gt;&lt;div class="cn"&gt;G&lt;/div&gt;&lt;svg&gt;...&lt;/svg&gt;&lt;/div&gt;
+&lt;/div&gt;</code></pre>
+
+            <p><strong>Variáveis disponíveis:</strong></p>
+            <table>
+                <tr><th>Variável</th><th>O que controla</th></tr>
+                <tr><td><code>--c</code></td><td>Cor da cifra</td></tr>
+                <tr><td><code>--s</code></td><td>Tamanho da fonte da cifra</td></tr>
+                <tr><td><code>--w</code></td><td>Largura de cada acorde</td></tr>
+                <tr><td><code>--mb</code></td><td>Margem inferior (negativa aproxima os acordes)</td></tr>
+                <tr><td><code>--ta</code></td><td>Alinhamento (center, left, right)</td></tr>
+            </table>
+
+            <h4>6.3 Fluxo dos acordes</h4>
+            <p>Os acordes ficam <strong>lado a lado</strong> automaticamente e <strong>quebram linha</strong> só quando não couberem no espaço disponível. Isso funciona <strong>dentro de qualquer <code>&lt;div&gt;</code></strong> — se a div tiver 500px, os acordes quebram quando passarem de 500px.</p>
+
+        </div>
+    </div>
+</div>
+
+
+
+
+
+
+
+
+
+    <!-- Modal Cordas -->
     <div class="chord-modal-overlay" id="chordModalOverlay">
         <div class="chord-modal" id="chordModal">
             <div class="modal-header" id="modalHeader">
-                <h3>Gerador de Acordes</h3>
+                <h3>🎸 Gerador de Acordes</h3>
                 <button class="close-modal" id="close-modal-btn">&times;</button>
             </div>
-
             <div class="controls-grid full">
                 <div>
                     <label>Instrumento:</label>
@@ -157,17 +347,15 @@
                     </select>
                 </div>
             </div>
-
             <div class="controls-grid full">
                 <div>
                     <label>Nome do Acorde:</label>
                     <input type="text" id="chordNameInput" class="chord-name-input" value="Bm">
                 </div>
             </div>
-
-            <div class="controls-grid">
+            <div class="controls-grid three">
                 <div>
-                    <label>Casa Inicial (Traste):</label>
+                    <label>Casa Inicial:</label>
                     <select id="startFretSelect" onchange="renderDots()">
                         <option value="1">1ª Casa</option>
                         <option value="2" selected>2ª Casa</option>
@@ -182,52 +370,71 @@
                     </select>
                 </div>
                 <div>
-                    <label>Modo de Inserção:</label>
+                    <label>Modo:</label>
                     <select id="insertModeSelect">
-                        <option value="stack">Vertical (Empilhado)</option>
-                        <option value="inline">Horizontal (Lado a lado)</option>
+                        <option value="stack">Vertical (empilhado)</option>
+                        <option value="inline" selected>Fluxo (texto)</option>
                     </select>
                 </div>
-            </div>
-
-            <div class="controls-grid full">
                 <div>
-                    <label>Alinhamento do Acorde:</label>
+                    <label>Alinhamento:</label>
                     <select id="textAlignSelect">
-                        <option value="center">Centralizado</option>
+                        <option value="center">Centro</option>
                         <option value="left">Esquerda</option>
                         <option value="right">Direita</option>
                     </select>
                 </div>
             </div>
+           <div class="controls-grid four">
+    <div>
+        <label>Tamanho da Cifra (px):</label>
+        <input type="number" id="chordNameSizeInput" value="20" min="8" max="72">
+    </div>
+    <div>
+        <label>Cor da Cifra:</label>
+        <select id="chordNameColorInput">
+            <option value="#e94560" selected>Vermelho</option>
+            <option value="#007bff">Azul</option>
+            <option value="#000000">Preto</option>
+        </select>
+    </div>
+    <div>
+        <label>Cor das Bolinhas:</label>
+        <select id="noteColorInput">
+            <option value="#e94560" selected>Vermelho</option>
+            <option value="#007bff">Azul</option>
+            <option value="#000000">Preto</option>
+        </select>
+    </div>
+    <div>
+        <label>Estilo:</label>
+        <select id="noteStyleSelect" onchange="changeNoteStyle()">
+            <option value="dots" selected>Bolinhas</option>
+            <option value="numbers">Números</option>
+        </select>
+    </div>
+</div>
 
-            <!-- ===== NOVO: Estilo das notas ===== -->
-            <div class="controls-grid full">
-                <div>
-                    <label>Estilo das Notas:</label>
-                    <select id="noteStyleSelect" onchange="changeNoteStyle()">
-                        <option value="dots" selected>Bolinhas</option>
-                        <option value="numbers">Números (dedos)</option>
-                    </select>
-                </div>
-            </div>
-
+<div class="controls-grid full">
+    <div>
+        <label>Largura do Diagrama (px):</label>
+        <input type="number" id="chordWidthInput" value="140" min="60" max="600">
+    </div>
+</div>
             <div class="controls-grid full" id="fingerPickerContainer" style="display:none;">
                 <div>
-                    <label>Dedo a ser inserido ao clicar:</label>
+                    <label>Dedo:</label>
                     <div class="finger-picker" id="fingerPicker">
                         <button type="button" data-finger="1" onclick="selectFinger(1)">1</button>
                         <button type="button" data-finger="2" onclick="selectFinger(2)">2</button>
                         <button type="button" data-finger="3" onclick="selectFinger(3)">3</button>
                         <button type="button" data-finger="4" onclick="selectFinger(4)">4</button>
-                        <button type="button" data-finger="T" onclick="selectFinger('T')" title="Polegar (T)">T</button>
+                        <button type="button" data-finger="T" onclick="selectFinger('T')">T</button>
                     </div>
                 </div>
             </div>
-            <!-- ===== FIM NOVO ===== -->
-
             <div class="barre-section">
-                <label>Adicionar / Remover Pestana:</label>
+                <label>Pestana:</label>
                 <div class="barre-row">
                     <select id="barreFret">
                         <option value="1">Traste 1</option>
@@ -235,12 +442,11 @@
                         <option value="3">Traste 3</option>
                         <option value="4">Traste 4</option>
                     </select>
-                    <select id="barreStart" title="Corda Inicial"></select>
-                    <select id="barreEnd" title="Corda Final"></select>
+                    <select id="barreStart"></select>
+                    <select id="barreEnd"></select>
                     <button type="button" onclick="toggleBarre()" style="background:#333; color:white; border:none; padding:5px 8px; border-radius:4px; font-size:11px; cursor:pointer;">Aplicar</button>
                 </div>
             </div>
-
             <div class="chord-box">
                 <svg id="fretboard" width="140" height="160" viewBox="0 0 140 160">
                     <rect id="nut-rect" x="25" y="30" width="90" height="4" fill="#333"></rect>
@@ -251,8 +457,110 @@
                     <g id="finger-dots"></g>
                 </svg>
             </div>
-
             <button class="btn-chord" onclick="insertChordIntoEditor()">Inserir no Texto</button>
+        </div>
+    </div>
+
+    <!-- Modal Teclado -->
+    <div class="chord-modal-overlay" id="keyboardModalOverlay">
+        <div class="chord-modal" id="keyboardModal">
+            <div class="modal-header" id="keyboardModalHeader">
+                <h3>🎹 Gerador de Diagrama de Teclado</h3>
+                <button class="close-modal" id="close-keyboard-modal-btn">&times;</button>
+            </div>
+
+            <div class="controls-grid three">
+                <div>
+                    <label>Nome / Cifra (ex: Cm, Bb7, Am7):</label>
+                    <input type="text" id="kbChordNameInput" class="chord-name-input" value="C">
+                </div>
+                <div>
+                    <label>Cor da Cifra:</label>
+                    <select id="kbChordColorInput">
+                        <option value="#6f42c1">Roxo</option>
+                        <option value="#e94560" selected>Vermelho</option>
+                        <option value="#007bff">Azul</option>
+                        <option value="#000000">Preto</option>
+                    </select>
+                </div>
+                <div>
+    <label>Cor das Bolinhas (brancas):</label>
+    <select id="kbNoteColorInput">
+        <option value="padrao" selected>Padrão (mão: azul/vermelho)</option>
+        <option value="#007bff">Azul</option>
+        <option value="#e94560">Vermelho</option>
+        <option value="#000000">Preto</option>
+    </select>
+</div>
+            </div>
+
+            <div class="controls-grid three">
+                <div>
+                    <label>Tecla Inicial:</label>
+                    <select id="keyStartSelect" onchange="rebuildKeyboard()"></select>
+                </div>
+                <div>
+                    <label>Tecla Final:</label>
+                    <select id="keyEndSelect" onchange="rebuildKeyboard()"></select>
+                </div>
+                <div>
+                    <label>Tamanho da Cifra (px):</label>
+                    <input type="number" id="kbChordSizeInput" value="18" min="8" max="72">
+                </div>
+            </div>
+
+            <div class="controls-grid four">
+                <div>
+                    <label>Modo:</label>
+                    <select id="kbInsertModeSelect">
+                        <option value="stack">Vertical (empilhado)</option>
+                        <option value="inline" selected>Fluxo (texto)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Alinhamento:</label>
+                    <select id="kbTextAlignSelect">
+                        <option value="center">Centro</option>
+                        <option value="left">Esquerda</option>
+                        <option value="right">Direita</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Tamanho das Teclas:</label>
+                    <select id="kbScaleSelect">
+                        <option value="100">100% (padrão)</option>
+                        <option value="80">80% (pequeno)</option>
+                        <option value="60">60% (mini)</option>
+                        <option value="120">120% (grande)</option>
+                        <option value="150">150% (extra)</option>
+                    </select>
+                </div>
+                <div>
+                    <label>Ações:</label>
+                    <button type="button" onclick="clearKeyboard()" style="width:100%; background:#6c757d; color:white; border:none; padding:5px; border-radius:4px; font-size:11px; cursor:pointer;">🗑 Limpar</button>
+                </div>
+            </div>
+
+            <div class="barre-section">
+                <label>Mão e Dedo:</label>
+                <div class="hand-toggle" id="handToggle">
+                    <button type="button" data-hand="left" class="active" onclick="selectHand('left')">🤚 Esquerda (azul)</button>
+                    <button type="button" data-hand="right" onclick="selectHand('right')">✋ Direita (vermelho)</button>
+                </div>
+                <div class="finger-picker hand-left" id="kbFingerPicker">
+                    <button type="button" data-finger="1" onclick="selectKbFinger(1)">1</button>
+                    <button type="button" data-finger="2" onclick="selectKbFinger(2)">2</button>
+                    <button type="button" data-finger="3" onclick="selectKbFinger(3)">3</button>
+                    <button type="button" data-finger="4" onclick="selectKbFinger(4)">4</button>
+                    <button type="button" data-finger="5" onclick="selectKbFinger(5)">5</button>
+                </div>
+            </div>
+
+            <div class="chord-box" style="overflow-x:auto;">
+                <svg id="keyboardSvg" width="800" height="140" viewBox="0 0 800 140"></svg>
+            </div>
+
+            <button class="btn-chord" onclick="insertKeyboardIntoEditor()">Inserir no Texto</button>
         </div>
     </div>
 
@@ -262,14 +570,25 @@
         const saveBtn = document.getElementById('save-btn');
         const fileInput = document.getElementById('file-input');
         const filenameInput = document.getElementById('filename-input');
-        
+
         const chordModalOverlay = document.getElementById('chordModalOverlay');
         const chordModal = document.getElementById('chordModal');
         const openModalBtn = document.getElementById('open-modal-btn');
         const closeModalBtn = document.getElementById('close-modal-btn');
         const modalHeader = document.getElementById('modalHeader');
 
-        // ===== Layout (Normal / Editor / Preview) =====
+        const keyboardModalOverlay = document.getElementById('keyboardModalOverlay');
+        const keyboardModal = document.getElementById('keyboardModal');
+        const openKeyboardBtn = document.getElementById('open-keyboard-btn');
+        const closeKeyboardModalBtn = document.getElementById('close-keyboard-modal-btn');
+        const keyboardModalHeader = document.getElementById('keyboardModalHeader');
+
+        const tutorialOverlay = document.getElementById('tutorialOverlay');
+        const openTutorialBtn = document.getElementById('open-tutorial-btn');
+        openTutorialBtn.addEventListener('click', () => tutorialOverlay.style.display = 'block');
+        function closeTutorial() { tutorialOverlay.style.display = 'none'; }
+        tutorialOverlay.addEventListener('click', (e) => { if (e.target === tutorialOverlay) closeTutorial(); });
+
         function setLayout(mode) {
             document.body.classList.remove('layout-normal', 'layout-editor', 'layout-preview');
             document.body.classList.add('layout-' + mode);
@@ -277,7 +596,6 @@
             document.getElementById('btn-layout-' + mode).classList.add('active');
         }
 
-        // ===== Configuração por instrumento =====
         const INSTRUMENTS = {
             violao:      { strings: 6, stringLabels: ['6ª (E)','5ª (A)','4ª (D)','3ª (G)','2ª (B)','1ª (e)'], stringWidths: [2.2,2.0,1.8,1.6,1.4,1.2] },
             ukulele:     { strings: 4, stringLabels: ['4ª (G)','3ª (C)','2ª (E)','1ª (A)'],                  stringWidths: [1.6,1.8,1.6,1.4] },
@@ -287,8 +605,140 @@
         let noteStyle = 'dots';
         let selectedFinger = 1;
 
+        let activePlayers = [];
+        let scopeCounter = 0;
+
+        function scopeInlineStyles(html) {
+            const temp = document.createElement('div');
+            temp.innerHTML = html;
+            const styleTags = temp.querySelectorAll('div > style, div style');
+            styleTags.forEach(styleTag => {
+                const parentDiv = styleTag.closest('div');
+                if (!parentDiv) return;
+                if (!parentDiv.id) {
+                    scopeCounter++;
+                    parentDiv.id = 'scope-' + scopeCounter + '-' + Date.now();
+                }
+                const rawCSS = styleTag.textContent;
+                const scopedCSS = rawCSS.replace(/([^{}]+)\{/g, (match, selectors) => {
+                    const parts = selectors.split(',').map(s => s.trim()).filter(Boolean);
+                    const prefixed = parts.map(s => `#${parentDiv.id} ${s}`).join(', ');
+                    return prefixed + ' {';
+                });
+                const headStyle = document.createElement('style');
+                headStyle.textContent = scopedCSS;
+                document.head.appendChild(headStyle);
+                styleTag.remove();
+            });
+            return temp.innerHTML;
+        }
+
         function updatePreview() {
-            preview.innerHTML = marked.parse(editor.value);
+            activePlayers.forEach(p => { if (p.synth) { try { p.synth.stop(); } catch(e){} } });
+            activePlayers = [];
+            let html = marked.parse(editor.value);
+            html = scopeInlineStyles(html);
+            preview.innerHTML = html;
+
+            const candidates = preview.querySelectorAll('p, code, pre');
+            candidates.forEach(el => {
+                const text = el.textContent || '';
+                if (!text.includes('[ABC]') || !text.includes('[/ABC]')) return;
+                const start = text.indexOf('[ABC]');
+                const end = text.indexOf('[/ABC]');
+                if (start === -1 || end === -1 || end <= start) return;
+                const abcNotation = text.substring(start + 5, end).trim();
+                let transposeSemitones = 0;
+                const match = abcNotation.match(/%%transpose\s*=\s*(-?\d+)/i);
+                if (match) transposeSemitones = parseInt(match[1], 10) || 0;
+                const qMatch = abcNotation.match(/Q:\s*1\/\d+=(\d+)/);
+                const tempo = qMatch ? parseInt(qMatch[1], 10) : 120;
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'abc-render';
+                const controls = document.createElement('div');
+                controls.className = 'abc-controls';
+                const playBtn = document.createElement('button');
+                playBtn.className = 'abc-play-btn';
+                playBtn.innerHTML = '▶ Play';
+                controls.appendChild(playBtn);
+                const tempoInfo = document.createElement('span');
+                tempoInfo.className = 'abc-tempo';
+                tempoInfo.textContent = '♩ = ' + tempo + (transposeSemitones !== 0 ? '  |  🎵 +' + transposeSemitones + ' semitons' : '');
+                controls.appendChild(tempoInfo);
+                wrapper.appendChild(controls);
+                const scoreDiv = document.createElement('div');
+                wrapper.appendChild(scoreDiv);
+                el.parentNode.replaceChild(wrapper, el);
+
+                let visualObj;
+                try {
+                    visualObj = ABCJS.renderAbc(scoreDiv, abcNotation, {
+                        responsive: 'resize', staffwidth: 700,
+                        visualTranspose: transposeSemitones, add_classes: true
+                    });
+                } catch (err) {
+                    wrapper.textContent = 'Erro: ' + err.message;
+                    return;
+                }
+                const player = { playBtn, visualObj: visualObj ? visualObj[0] : null, synth: null, isPlaying: false, abc: abcNotation, transpose: transposeSemitones, loading: false };
+                activePlayers.push(player);
+                playBtn.addEventListener('click', () => handlePlayClick(player));
+            });
+        }
+
+        async function handlePlayClick(player) {
+            const btn = player.playBtn;
+            if (player.isPlaying && player.synth) {
+                try { player.synth.stop(); } catch(e){}
+                player.isPlaying = false;
+                btn.innerHTML = '▶ Play';
+                btn.classList.remove('playing');
+                return;
+            }
+            if (!player.synth) {
+                if (player.loading) return;
+                player.loading = true;
+                btn.innerHTML = '⏳ Carregando...';
+                try {
+                    const AudioContext = window.AudioContext || window.webkitAudioContext;
+                    const audioContext = new AudioContext();
+                    await audioContext.resume();
+                    const synth = new ABCJS.synth.CreateSynth();
+                    await synth.init({ audioContext, visualObj: player.visualObj });
+                    await synth.prime();
+                    player.synth = synth;
+                    player.loading = false;
+                    btn.innerHTML = '▶ Play';
+                } catch (err) {
+                    console.error('Erro no áudio:', err);
+                    btn.innerHTML = '▶ Play';
+                    player.loading = false;
+                    alert('Erro: ' + err.message);
+                    return;
+                }
+            }
+            try {
+                player.synth.stop();
+                await player.synth.start();
+                player.isPlaying = true;
+                btn.innerHTML = '⏸ Stop';
+                btn.classList.add('playing');
+                const duration = player.synth.getTotalTime ? player.synth.getTotalTime() : 0;
+                if (duration > 0) {
+                    setTimeout(() => {
+                        if (player.isPlaying) {
+                            player.isPlaying = false;
+                            btn.innerHTML = '▶ Play';
+                            btn.classList.remove('playing');
+                        }
+                    }, duration * 1000 + 300);
+                }
+            } catch (err) {
+                console.error(err);
+                btn.innerHTML = '▶ Play';
+                player.isPlaying = false;
+            }
         }
 
         editor.addEventListener('input', updatePreview);
@@ -306,8 +756,7 @@
         });
 
         saveBtn.addEventListener('click', () => {
-            const markdownText = editor.value;
-            const blob = new Blob([markdownText], { type: 'text/markdown;charset=utf-8' });
+            const blob = new Blob([editor.value], { type: 'text/markdown;charset=utf-8' });
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = url;
@@ -319,41 +768,37 @@
         });
 
         openModalBtn.addEventListener('click', () => { chordModalOverlay.style.display = 'block'; });
-        
-        closeModalBtn.addEventListener('click', (e) => { 
-            e.stopPropagation(); 
-            chordModalOverlay.style.display = 'none'; 
-        });
+        closeModalBtn.addEventListener('click', (e) => { e.stopPropagation(); chordModalOverlay.style.display = 'none'; });
+        openKeyboardBtn.addEventListener('click', () => { keyboardModalOverlay.style.display = 'block'; });
+        closeKeyboardModalBtn.addEventListener('click', (e) => { e.stopPropagation(); keyboardModalOverlay.style.display = 'none'; });
 
-        // --- Arrastar Modal ---
-        let isDragging = false, startX, startY, initialX, initialY;
+        function makeDraggable(headerEl, modalEl) {
+            let dragging = false, sx, sy, ix, iy;
+            headerEl.addEventListener('pointerdown', (e) => {
+                if (e.target.classList.contains('close-modal')) return;
+                dragging = true;
+                sx = e.clientX; sy = e.clientY;
+                const rect = modalEl.getBoundingClientRect();
+                ix = rect.left; iy = rect.top;
+                headerEl.setPointerCapture(e.pointerId);
+                e.preventDefault();
+            });
+            headerEl.addEventListener('pointermove', (e) => {
+                if (!dragging) return;
+                modalEl.style.left = (ix + e.clientX - sx) + 'px';
+                modalEl.style.top  = (iy + e.clientY - sy) + 'px';
+            });
+            headerEl.addEventListener('pointerup', (e) => {
+                dragging = false;
+                try { headerEl.releasePointerCapture(e.pointerId); } catch (err) {}
+            });
+        }
+        makeDraggable(modalHeader, chordModal);
+        makeDraggable(keyboardModalHeader, keyboardModal);
 
-        modalHeader.addEventListener('pointerdown', (e) => {
-            if (e.target.classList.contains('close-modal')) return;
-            isDragging = true;
-            startX = e.clientX;
-            startY = e.clientY;
-            const rect = chordModal.getBoundingClientRect();
-            initialX = rect.left;
-            initialY = rect.top;
-            modalHeader.setPointerCapture(e.pointerId);
-            e.preventDefault();
-        });
-
-        modalHeader.addEventListener('pointermove', (e) => {
-            if (!isDragging) return;
-            const dx = e.clientX - startX;
-            const dy = e.clientY - startY;
-            chordModal.style.left = (initialX + dx) + 'px';
-            chordModal.style.top = (initialY + dy) + 'px';
-        });
-
-        modalHeader.addEventListener('pointerup', (e) => {
-            isDragging = false;
-            try { modalHeader.releasePointerCapture(e.pointerId); } catch (err) {}
-        });
-
-        // --- Lógica de Acordes ---
+        // ==========================================
+        // ===== CORDAS =====
+        // ==========================================
         let stringsX = [];
         const fretCentersY = { 0: 22, 1: 47, 2: 75, 3: 105, 4: 135 };
         let activeNotes = [];
@@ -365,9 +810,7 @@
         const stringLinesGroup = document.getElementById('string-lines');
         const fingerPickerContainer = document.getElementById('fingerPickerContainer');
 
-        function getConfig() {
-            return INSTRUMENTS[currentInstrument];
-        }
+        function getConfig() { return INSTRUMENTS[currentInstrument]; }
 
         function calculateStringsX() {
             const n = getConfig().strings;
@@ -380,7 +823,6 @@
             return positions;
         }
 
-        // ===== NOVO: troca estilo das notas =====
         function changeNoteStyle() {
             noteStyle = document.getElementById('noteStyleSelect').value;
             fingerPickerContainer.style.display = (noteStyle === 'numbers') ? 'block' : 'none';
@@ -394,7 +836,6 @@
             });
         }
         selectFinger(1);
-        // ===== FIM NOVO =====
 
         function renderStringLines() {
             const config = getConfig();
@@ -412,7 +853,6 @@
             gridGroup.innerHTML = '';
             const n = getConfig().strings;
             stringsX = calculateStringsX();
-
             for (let s = 0; s < n; s++) {
                 for (let f = 0; f <= 4; f++) {
                     const cx = stringsX[s];
@@ -422,22 +862,18 @@
                     else if (s === n - 1) rectWidth = stringsX[n-1] - stringsX[n-2];
                     else rectWidth = Math.min(stringsX[s] - stringsX[s-1], stringsX[s+1] - stringsX[s]);
                     const rectX = cx - rectWidth / 2;
-
                     let rectY, rectHeight;
                     if (f === 0) { rectY = 5; rectHeight = 23; }
                     else {
                         const tops = {1:34,2:61,3:91,4:121}, bots = {1:60,2:90,3:120,4:150};
                         rectY = tops[f]; rectHeight = bots[f] - tops[f];
                     }
-
-                    const hitBox = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                    hitBox.setAttribute("x", rectX);
-                    hitBox.setAttribute("y", rectY);
-                    hitBox.setAttribute("width", rectWidth);
-                    hitBox.setAttribute("height", rectHeight);
-                    hitBox.setAttribute("class", "clickable-area");
-                    hitBox.onclick = () => handleCellClick(s, f);
-                    gridGroup.appendChild(hitBox);
+                    const hb = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                    hb.setAttribute("x", rectX); hb.setAttribute("y", rectY);
+                    hb.setAttribute("width", rectWidth); hb.setAttribute("height", rectHeight);
+                    hb.setAttribute("class", "clickable-area");
+                    hb.onclick = () => handleCellClick(s, f);
+                    gridGroup.appendChild(hb);
                 }
             }
         }
@@ -447,15 +883,11 @@
             const startSel = document.getElementById('barreStart');
             const endSel = document.getElementById('barreEnd');
             const prevStart = startSel.value, prevEnd = endSel.value;
-            startSel.innerHTML = '';
-            endSel.innerHTML = '';
+            startSel.innerHTML = ''; endSel.innerHTML = '';
             config.stringLabels.forEach((label, i) => {
-                const o1 = document.createElement('option');
-                o1.value = i; o1.textContent = label;
-                startSel.appendChild(o1);
-                const o2 = document.createElement('option');
-                o2.value = i; o2.textContent = label;
-                endSel.appendChild(o2);
+                const o1 = document.createElement('option'); o1.value = i; o1.textContent = label;
+                const o2 = document.createElement('option'); o2.value = i; o2.textContent = label;
+                startSel.appendChild(o1); endSel.appendChild(o2);
             });
             startSel.value = (parseInt(prevStart) < config.strings) ? prevStart : 0;
             endSel.value = (parseInt(prevEnd) < config.strings) ? prevEnd : (config.strings - 1);
@@ -463,12 +895,8 @@
 
         function changeInstrument() {
             currentInstrument = document.getElementById('instrumentSelect').value;
-            activeNotes = [];
-            activeBarres = [];
-            renderStringLines();
-            buildInteractiveGrid();
-            updateBarreSelectors();
-            renderDots();
+            activeNotes = []; activeBarres = [];
+            renderStringLines(); buildInteractiveGrid(); updateBarreSelectors(); renderDots();
         }
 
         function handleCellClick(stringIndex, fretIndex) {
@@ -482,19 +910,15 @@
                     activeNotes = activeNotes.filter(n => !(n.string === stringIndex && n.fret === 0));
                 }
             } else {
-                let index = activeNotes.findIndex(n => n.string === stringIndex && n.fret === fretIndex);
-                if (index > -1) {
-                    activeNotes.splice(index, 1);
-                } else {
+                let idx = activeNotes.findIndex(n => n.string === stringIndex && n.fret === fretIndex);
+                if (idx > -1) activeNotes.splice(idx, 1);
+                else {
                     activeNotes = activeNotes.filter(n => n.string !== stringIndex);
-                    // ===== ALTERADO: tipo depende do estilo =====
                     activeNotes.push({
-                        string: stringIndex,
-                        fret: fretIndex,
+                        string: stringIndex, fret: fretIndex,
                         type: noteStyle === 'numbers' ? 'number' : 'dot',
                         value: selectedFinger
                     });
-                    // ===== FIM ALTERADO =====
                 }
             }
             renderDots();
@@ -504,135 +928,489 @@
             let fret = parseInt(document.getElementById('barreFret').value);
             let s1 = parseInt(document.getElementById('barreStart').value);
             let s2 = parseInt(document.getElementById('barreEnd').value);
-            let minStr = Math.min(s1, s2);
-            let maxStr = Math.max(s1, s2);
-
-            let index = activeBarres.findIndex(b => b.fret === fret);
-            if (index > -1) {
-                activeBarres.splice(index, 1);
-            } else {
-                activeBarres.push({ fret, minStr, maxStr });
-            }
+            let minStr = Math.min(s1, s2), maxStr = Math.max(s1, s2);
+            let idx = activeBarres.findIndex(b => b.fret === fret);
+            if (idx > -1) activeBarres.splice(idx, 1);
+            else activeBarres.push({ fret, minStr, maxStr });
             renderDots();
         }
 
-        // ===== NOVO: gera SVG de nota (bolinha ou número) =====
-        function noteSVG(note, cx, cy) {
-            if (note.type === 'dot') return `<circle cx="${cx}" cy="${cy}" r="6"/>`;
-            if (note.type === 'number')
-                return `<circle cx="${cx}" cy="${cy}" r="8" fill="#e94560"/><text x="${cx}" y="${cy}" fill="#fff" font-weight="bold" font-size="11" text-anchor="middle" dominant-baseline="central">${note.value}</text>`;
-            if (note.type === 'text')
-                return `<text x="${cx}" y="${cy}" fill="#e94560" font-weight="bold" font-size="14" text-anchor="middle" dominant-baseline="central">${note.value}</text>`;
-            return '';
+        function noteSVG(note, cx, cy, noteColor) {
+    const color = noteColor || '#e94560';
+    if (note.type === 'dot') return `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}"/>`;
+    if (note.type === 'number')
+        return `<circle cx="${cx}" cy="${cy}" r="8" fill="${color}"/><text x="${cx}" y="${cy}" fill="#fff" font-weight="bold" font-size="11" text-anchor="middle" dominant-baseline="central">${note.value}</text>`;
+    if (note.type === 'text')
+        return `<text x="${cx}" y="${cy}" fill="${color}" font-weight="bold" font-size="14" text-anchor="middle" dominant-baseline="central">${note.value}</text>`;
+    return '';
+}
+function renderDots() {
+    dotsGroup.innerHTML = ''; fretNumberGroup.innerHTML = '';
+    let startFret = parseInt(document.getElementById('startFretSelect').value);
+    const noteColor = (document.getElementById('noteColorInput') || {}).value || '#e94560';
+
+    if (startFret > 1) {
+        const t = document.createElementNS("http://www.w3.org/2000/svg", "text");
+        t.setAttribute("x", "12"); t.setAttribute("y", "50");
+        t.setAttribute("fill", "#333"); t.setAttribute("font-weight", "bold");
+        t.setAttribute("font-size", "13"); t.setAttribute("text-anchor", "middle");
+        t.textContent = startFret + "ª";
+        fretNumberGroup.appendChild(t);
+    }
+
+    // Pestanas com a cor escolhida
+    activeBarres.forEach(b => {
+        const x1 = stringsX[b.minStr], x2 = stringsX[b.maxStr], cy = fretCentersY[b.fret];
+        const r = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+        r.setAttribute("x", x1 - 6); r.setAttribute("y", cy - 6);
+        r.setAttribute("width", (x2 - x1) + 12); r.setAttribute("height", "12");
+        r.setAttribute("rx", "6"); r.setAttribute("fill", noteColor);
+        dotsGroup.appendChild(r);
+    });
+
+    // Notas: bolinha OU número
+    activeNotes.forEach(note => {
+        const cx = stringsX[note.string], cy = fretCentersY[note.fret];
+        const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+
+        if (note.type === 'dot') {
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", cx); circle.setAttribute("cy", cy);
+            circle.setAttribute("r", "6");
+            circle.setAttribute("fill", noteColor);
+            g.appendChild(circle);
+        } else if (note.type === 'number') {
+            const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+            circle.setAttribute("cx", cx); circle.setAttribute("cy", cy);
+            circle.setAttribute("r", "8");
+            circle.setAttribute("fill", noteColor);
+            g.appendChild(circle);
+
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", cx); text.setAttribute("y", cy);
+            text.setAttribute("fill", "#fff");
+            text.setAttribute("font-weight", "bold");
+            text.setAttribute("font-size", "11");
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("dominant-baseline", "central");
+            text.textContent = note.value;
+            g.appendChild(text);
+        } else if (note.type === 'text') {
+            const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+            text.setAttribute("x", cx); text.setAttribute("y", cy);
+            text.setAttribute("fill", noteColor);
+            text.setAttribute("font-weight", "bold");
+            text.setAttribute("font-size", "14");
+            text.setAttribute("text-anchor", "middle");
+            text.setAttribute("dominant-baseline", "central");
+            text.textContent = note.value;
+            g.appendChild(text);
         }
-        // ===== FIM NOVO =====
+        dotsGroup.appendChild(g);
+    });
+}
+function insertChordIntoEditor() {
+    let chordName = document.getElementById('chordNameInput').value || 'Bm';
+    let textAlign = document.getElementById('textAlignSelect').value;
+    let insertMode = document.getElementById('insertModeSelect').value;
+    let startFret = parseInt(document.getElementById('startFretSelect').value);
+    let nameSize = parseInt(document.getElementById('chordNameSizeInput').value) || 20;
+    let nameColor = document.getElementById('chordNameColorInput').value || '#e94560';
+    let noteColor = document.getElementById('noteColorInput').value || '#e94560';
+    let baseWidth = parseInt(document.getElementById('chordWidthInput').value) || 140;
+    const config = getConfig();
+    const n = config.strings;
+    stringsX = calculateStringsX();
 
-        function renderDots() {
-            dotsGroup.innerHTML = '';
-            fretNumberGroup.innerHTML = '';
+    let inner = '';
+    if (startFret > 1) inner += `<text x="12" y="50" fill="#333" font-weight="bold" font-size="13" text-anchor="middle">${startFret}ª</text>`;
+    activeBarres.forEach(b => {
+        const x1 = stringsX[b.minStr], x2 = stringsX[b.maxStr], cy = fretCentersY[b.fret];
+        inner += `<rect x="${x1-6}" y="${cy-6}" width="${(x2-x1)+12}" height="12" rx="6" fill="${noteColor}"/>`;
+    });
+    activeNotes.forEach(note => {
+        const cx = stringsX[note.string], cy = fretCentersY[note.fret];
+        inner += noteSVG(note, cx, cy, noteColor);
+    });
 
-            let startFret = parseInt(document.getElementById('startFretSelect').value);
+    let stringsHTML = '';
+    for (let i = 0; i < n; i++) {
+        const x = stringsX[i], w = config.stringWidths[i] || 1.2;
+        stringsHTML += `<line x1="${x}" y1="30" x2="${x}" y2="150" stroke="#666" stroke-width="${w}"/>`;
+    }
 
-            if (startFret > 1) {
-                let text = document.createElementNS("http://www.w3.org/2000/svg", "text");
-                text.setAttribute("x", "12");
-                text.setAttribute("y", "50");
-                text.setAttribute("fill", "#333");
-                text.setAttribute("font-weight", "bold");
-                text.setAttribute("font-size", "13");
-                text.setAttribute("text-anchor", "middle");
-                text.textContent = startFret + "ª";
-                fretNumberGroup.appendChild(text);
+    const chordBody = `<div class="chord-diagram" style="display:inline-block; vertical-align:top; width:${baseWidth}px; max-width:100%; box-sizing:border-box; margin:10px 14px -18px 14px;">
+        <div style="font:bold ${nameSize}px sans-serif; color:${nameColor}; text-align:center; margin-bottom:-18px;">${chordName}</div>
+        <svg viewBox="0 0 140 160" preserveAspectRatio="xMidYMid meet" style="display:block; margin:0 auto; width:100%; height:auto;">
+            <rect x="25" y="30" width="90" height="4" fill="#333"/>
+            <path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"/>
+            ${stringsHTML}
+            <g font-weight="bold" font-size="14" text-anchor="middle">${inner}</g>
+        </svg>
+    </div>`;
+
+    let finalOutput;
+    if (insertMode === 'inline') {
+        finalOutput = `<span style="display:inline-block; vertical-align:top; text-align:${textAlign};">${chordBody}</span>`;
+    } else {
+        finalOutput = `\n<div style="display:block; text-align:${textAlign}; margin: 8px 0;">${chordBody}</div>\n`;
+    }
+
+    const startPos = editor.selectionStart, endPos = editor.selectionEnd;
+    editor.value = editor.value.substring(0, startPos) + finalOutput + editor.value.substring(endPos);
+    updatePreview();
+    chordModalOverlay.style.display = 'none';
+}
+
+// ==========================================
+
+
+        // ===== TECLADO =====
+        // ==========================================
+        const NOTE_NAMES = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+        const IS_BLACK = [false,true,false,true,false,false,true,false,true,false,true,false];
+
+        function buildNoteOptions() {
+            const startSel = document.getElementById('keyStartSelect');
+            const endSel = document.getElementById('keyEndSelect');
+            const opts = [];
+            for (let oct = 2; oct <= 6; oct++) {
+                for (let n = 0; n < 12; n++) opts.push(NOTE_NAMES[n] + oct);
             }
+            const filtered = opts.filter(o => {
+                const oct = parseInt(o.slice(-1));
+                if (oct === 6) return ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'].includes(o.slice(0, -1));
+                return oct < 6;
+            });
+            startSel.innerHTML = ''; endSel.innerHTML = '';
+            filtered.forEach((o) => {
+                const opt1 = document.createElement('option'); opt1.value = o; opt1.textContent = o;
+                const opt2 = document.createElement('option'); opt2.value = o; opt2.textContent = o;
+                startSel.appendChild(opt1); endSel.appendChild(opt2);
+            });
+            startSel.value = 'C3';
+            endSel.value = 'C5';
+        }
+        buildNoteOptions();
 
-            activeBarres.forEach(barre => {
-                let x1 = stringsX[barre.minStr];
-                let x2 = stringsX[barre.maxStr];
-                let cy = fretCentersY[barre.fret];
-                let rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-                rect.setAttribute("x", x1 - 6);
-                rect.setAttribute("y", cy - 6);
-                rect.setAttribute("width", (x2 - x1) + 12);
-                rect.setAttribute("height", "12");
-                rect.setAttribute("rx", "6");
-                rect.setAttribute("fill", "#e94560");
-                dotsGroup.appendChild(rect);
+        function noteToIndex(noteName) {
+            const m = noteName.match(/^([A-G]#?)(\d)$/);
+            if (!m) return 0;
+            const baseName = m[1];
+            const oct = parseInt(m[2]);
+            let semitone = NOTE_NAMES.indexOf(baseName);
+            if (semitone === -1) return 0;
+            return oct * 12 + semitone;
+        }
+
+        function isBlack(noteName) { return noteName.includes('#'); }
+
+        function getRangeNotes(startName, endName) {
+            const startIdx = noteToIndex(startName);
+            const endIdx = noteToIndex(endName);
+            const whites = [];
+            const blacks = [];
+            let whiteCount = 0;
+            for (let i = startIdx; i <= endIdx; i++) {
+                const oct = Math.floor(i / 12);
+                const semi = i % 12;
+                const noteName = NOTE_NAMES[semi] + oct;
+                if (IS_BLACK[semi]) {
+                    blacks.push({ noteName, afterWhiteIndex: whiteCount - 1 });
+                } else {
+                    whites.push({ noteName, oct, semi });
+                    whiteCount++;
+                }
+            }
+            return { whites, blacks };
+        }
+
+        let keyboardStart = 'C3';
+        let keyboardEnd = 'C5';
+        let kbActiveNotes = [];
+        let kbHand = 'left';
+        let kbFinger = 1;
+
+        function selectHand(hand) {
+            kbHand = hand;
+            document.querySelectorAll('#handToggle button').forEach(b => {
+                b.classList.toggle('active', b.dataset.hand === hand);
+            });
+            const picker = document.getElementById('kbFingerPicker');
+            picker.classList.remove('hand-left', 'hand-right');
+            picker.classList.add('hand-' + hand);
+        }
+
+        function selectKbFinger(f) {
+            kbFinger = f;
+            document.querySelectorAll('#kbFingerPicker button').forEach(b => {
+                b.classList.toggle('active', b.dataset.finger == f);
+            });
+        }
+        selectHand('left');
+        selectKbFinger(1);
+
+        function rebuildKeyboard() {
+            keyboardStart = document.getElementById('keyStartSelect').value;
+            keyboardEnd = document.getElementById('keyEndSelect').value;
+            if (noteToIndex(keyboardStart) > noteToIndex(keyboardEnd)) {
+                [keyboardStart, keyboardEnd] = [keyboardEnd, keyboardStart];
+                document.getElementById('keyStartSelect').value = keyboardStart;
+                document.getElementById('keyEndSelect').value = keyboardEnd;
+            }
+            const startIdx = noteToIndex(keyboardStart);
+            const endIdx = noteToIndex(keyboardEnd);
+            kbActiveNotes = kbActiveNotes.filter(n => {
+                const idx = noteToIndex(n.noteName);
+                return idx >= startIdx && idx <= endIdx;
+            });
+            renderKeyboard();
+        }
+
+        function clearKeyboard() {
+            kbActiveNotes = [];
+            renderKeyboard();
+        }
+
+        function renderKeyboard() {
+            const svg = document.getElementById('keyboardSvg');
+            svg.innerHTML = '';
+            const { whites, blacks } = getRangeNotes(keyboardStart, keyboardEnd);
+            if (whites.length === 0) return;
+
+            const whiteW = 30, whiteH = 120, blackW = 18, blackH = 75;
+            const paddingX = 10, paddingY = 10;
+            const totalW = whites.length * whiteW + paddingX * 2;
+            const totalH = whiteH + paddingY * 2;
+
+            svg.setAttribute('width', totalW);
+            svg.setAttribute('height', totalH);
+            svg.setAttribute('viewBox', `0 0 ${totalW} ${totalH}`);
+
+            whites.forEach((w, i) => {
+                const x = paddingX + i * whiteW;
+                const y = paddingY;
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", x); rect.setAttribute("y", y);
+                rect.setAttribute("width", whiteW); rect.setAttribute("height", whiteH);
+                rect.setAttribute("fill", "#fff");
+                rect.setAttribute("stroke", "#333");
+                rect.setAttribute("stroke-width", "1.5");
+                rect.setAttribute("rx", "3");
+                svg.appendChild(rect);
+
+                const hit = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                hit.setAttribute("x", x); hit.setAttribute("y", y);
+                hit.setAttribute("width", whiteW); hit.setAttribute("height", whiteH);
+                hit.setAttribute("fill", "transparent");
+                hit.setAttribute("style", "cursor:pointer;");
+                hit.onclick = () => toggleKeyNote(w.noteName);
+                svg.appendChild(hit);
+
+                const active = kbActiveNotes.find(n => n.noteName === w.noteName);
+                if (active) {
+                    const cx = x + whiteW / 2;
+                    const cy = y + whiteH - 25;
+                    const color = active.hand === 'left' ? '#007bff' : '#dc3545';
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", cx); circle.setAttribute("cy", cy);
+                    circle.setAttribute("r", "11");
+                    circle.setAttribute("fill", color);
+                    svg.appendChild(circle);
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", cx); text.setAttribute("y", cy);
+                    text.setAttribute("fill", "#fff");
+                    text.setAttribute("font-weight", "bold");
+                    text.setAttribute("font-size", "13");
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("dominant-baseline", "central");
+                    text.textContent = active.finger;
+                    svg.appendChild(text);
+                }
             });
 
-            activeNotes.forEach(note => {
-                let cx = stringsX[note.string];
-                let cy = fretCentersY[note.fret];
-                // ===== ALTERADO: usa noteSVG (aceita bolinha, número ou O/X) =====
-                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
-                g.innerHTML = noteSVG(note, cx, cy);
-                dotsGroup.appendChild(g);
-                // ===== FIM ALTERADO =====
+            blacks.forEach(b => {
+                if (b.afterWhiteIndex < 0 || b.afterWhiteIndex >= whites.length - 1) return;
+                const xLeftWhite = paddingX + b.afterWhiteIndex * whiteW;
+                const x = xLeftWhite + whiteW - blackW / 2;
+                const y = paddingY;
+                const rect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                rect.setAttribute("x", x); rect.setAttribute("y", y);
+                rect.setAttribute("width", blackW); rect.setAttribute("height", blackH);
+                rect.setAttribute("fill", "#222");
+                rect.setAttribute("stroke", "#000");
+                rect.setAttribute("stroke-width", "1");
+                rect.setAttribute("rx", "2");
+                svg.appendChild(rect);
+
+                const hit = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+                hit.setAttribute("x", x); hit.setAttribute("y", y);
+                hit.setAttribute("width", blackW); hit.setAttribute("height", blackH);
+                hit.setAttribute("fill", "transparent");
+                hit.setAttribute("style", "cursor:pointer;");
+                hit.onclick = () => toggleKeyNote(b.noteName);
+                svg.appendChild(hit);
+
+                const active = kbActiveNotes.find(n => n.noteName === b.noteName);
+                if (active) {
+                    const cx = x + blackW / 2;
+                    const cy = y + blackH - 20;
+                    const color = active.hand === 'left' ? '#007bff' : '#dc3545';
+                    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                    circle.setAttribute("cx", cx); circle.setAttribute("cy", cy);
+                    circle.setAttribute("r", "10");
+                    circle.setAttribute("fill", color);
+                    svg.appendChild(circle);
+                    const text = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                    text.setAttribute("x", cx); text.setAttribute("y", cy);
+                    text.setAttribute("fill", "#fff");
+                    text.setAttribute("font-weight", "bold");
+                    text.setAttribute("font-size", "12");
+                    text.setAttribute("text-anchor", "middle");
+                    text.setAttribute("dominant-baseline", "central");
+                    text.textContent = active.finger;
+                    svg.appendChild(text);
+                }
             });
         }
 
-        function insertChordIntoEditor() {
-            let chordName = document.getElementById('chordNameInput').value || 'Bm';
-            let textAlign = document.getElementById('textAlignSelect').value;
-            let insertMode = document.getElementById('insertModeSelect').value;
-            let startFret = parseInt(document.getElementById('startFretSelect').value);
-            const config = getConfig();
-            const n = config.strings;
-            stringsX = calculateStringsX();
-
-            let elementsHTML = '';
-
-            if (startFret > 1) {
-                elementsHTML += `<text x="12" y="50" fill="#333" font-weight="bold" font-size="13" text-anchor="middle">${startFret}ª</text>`;
-            }
-
-            activeBarres.forEach(barre => {
-                let x1 = stringsX[barre.minStr];
-                let x2 = stringsX[barre.maxStr];
-                let cy = fretCentersY[barre.fret];
-                elementsHTML += `<rect x="${x1 - 6}" y="${cy - 6}" width="${(x2 - x1) + 12}" height="12" rx="6"/>`;
-            });
-
-            // ===== ALTERADO: usa noteSVG para gerar bolinhas OU números =====
-            activeNotes.forEach(note => {
-                let cx = stringsX[note.string];
-                let cy = fretCentersY[note.fret];
-                elementsHTML += noteSVG(note, cx, cy);
-            });
-            // ===== FIM ALTERADO =====
-
-            let stringLinesHTML = '';
-            for (let i = 0; i < n; i++) {
-                const x = stringsX[i];
-                const w = config.stringWidths[i] || 1.2;
-                stringLinesHTML += `<line x1="${x}" y1="30" x2="${x}" y2="150" stroke="#666" stroke-width="${w}"/>`;
-            }
-
-            let chordBody = `<div style="font:bold 20px sans-serif;color:#e94560;background:#fff;padding:0 8px;margin-bottom:-17px;text-align:center;position:relative;z-index:2;">${chordName}</div><svg width="140" height="160" viewBox="0 0 140 160"><rect x="25" y="30" width="90" height="4" fill="#333"/><path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"/>${stringLinesHTML}<g fill="#e94560" font-weight="bold" font-size="14" text-anchor="middle">${elementsHTML}</g></svg>`;
-
-            let finalOutput = '';
-            if (insertMode === 'inline') {
-                finalOutput = `<div style="display:inline-block; margin: 5px 10px; text-align:${textAlign};">${chordBody}</div>`;
+        function toggleKeyNote(noteName) {
+            const idx = kbActiveNotes.findIndex(n => n.noteName === noteName);
+            if (idx > -1) {
+                kbActiveNotes.splice(idx, 1);
             } else {
-                finalOutput = `<div style="text-align:${textAlign}; margin: 20px 0;"><div style="display:inline-block;">${chordBody}</div></div>`;
+                kbActiveNotes.push({ noteName, hand: kbHand, finger: kbFinger });
             }
-
-            const startPos = editor.selectionStart;
-            const endPos = editor.selectionEnd;
-            
-            editor.value = editor.value.substring(0, startPos) + "\n" + finalOutput + "\n" + editor.value.substring(endPos);
-            updatePreview();
-            
-            chordModalOverlay.style.display = 'none';
+            renderKeyboard();
         }
 
-        // Inicialização
-        editor.value = "# Meu Guia de Cifras\n\nProblema do botão 'X' resolvido!\n\n";
+function insertKeyboardIntoEditor() {
+    const textAlign = document.getElementById('kbTextAlignSelect').value;
+    const insertMode = document.getElementById('kbInsertModeSelect').value;
+    const chordName = document.getElementById('kbChordNameInput').value || '';
+    const chordColor = document.getElementById('kbChordColorInput').value || '#6f42c1';
+    const noteColorOpt = document.getElementById('kbNoteColorInput').value || 'padrao';
+    const nameSize = parseInt(document.getElementById('kbChordSizeInput').value) || 18;
+    const scalePercent = parseInt(document.getElementById('kbScaleSelect').value) || 100;
+
+    if (kbActiveNotes.length === 0) {
+        alert('Clique em pelo menos uma tecla antes de inserir.');
+        return;
+    }
+
+    const { whites, blacks } = getRangeNotes(keyboardStart, keyboardEnd);
+    const whiteW = 30, whiteH = 120, blackW = 18, blackH = 75;
+    const paddingX = 10, paddingY = 10;
+    const totalW = whites.length * whiteW + paddingX * 2;
+    const totalH = whiteH + paddingY * 2;
+
+    let svgInner = '';
+
+    whites.forEach((w, i) => {
+        const x = paddingX + i * whiteW;
+        const y = paddingY;
+        svgInner += `<rect x="${x}" y="${y}" width="${whiteW}" height="${whiteH}" fill="#fff" stroke="#333" stroke-width="1.5" rx="3"/>`;
+    });
+
+    blacks.forEach(b => {
+        if (b.afterWhiteIndex < 0 || b.afterWhiteIndex >= whites.length - 1) return;
+        const xLeftWhite = paddingX + b.afterWhiteIndex * whiteW;
+        const x = xLeftWhite + whiteW - blackW / 2;
+        const y = paddingY;
+        svgInner += `<rect x="${x}" y="${y}" width="${blackW}" height="${blackH}" fill="#222" stroke="#000" stroke-width="1" rx="2"/>`;
+    });
+
+    kbActiveNotes.forEach(n => {
+        const isBlackNote = isBlack(n.noteName);
+
+        // Define a cor da bolinha base:
+        // - Se for "padrao": azul para mão esquerda, vermelho para direita
+        // - Senão: usa a cor fixa escolhida
+        let color;
+        if (noteColorOpt === 'padrao') {
+            color = n.hand === 'left' ? '#007bff' : '#dc3545';
+        } else {
+            color = noteColorOpt;
+        }
+
+        // ===== TECLA PRETA =====
+        if (isBlackNote) {
+            const b = blacks.find(x => x.noteName === n.noteName);
+            if (!b) return;
+            const xLeftWhite = paddingX + b.afterWhiteIndex * whiteW;
+            const x = xLeftWhite + whiteW - blackW / 2;
+            const cx = x + blackW / 2;
+            const cy = paddingY + blackH - 20;
+
+            // Se a cor escolhida for PRETA, inverte: bolinha branca com número preto
+            let blackKeyColor = color;
+            let blackKeyTextColor = '#fff';
+            if (noteColorOpt === '#000000') {
+                blackKeyColor = '#fff';
+                blackKeyTextColor = '#000';
+            }
+
+            svgInner += `<circle cx="${cx}" cy="${cy}" r="10" fill="${blackKeyColor}" stroke="${blackKeyTextColor === '#000' ? '#000' : 'none'}" stroke-width="1"/>`;
+            svgInner += `<text x="${cx}" y="${cy}" fill="${blackKeyTextColor}" font-weight="bold" font-size="12" text-anchor="middle" dominant-baseline="central">${n.finger}</text>`;
+        }
+        // ===== TECLA BRANCA =====
+        else {
+            const i = whites.findIndex(w => w.noteName === n.noteName);
+            if (i === -1) return;
+            const x = paddingX + i * whiteW;
+            const cx = x + whiteW / 2;
+            const cy = paddingY + whiteH - 25;
+            svgInner += `<circle cx="${cx}" cy="${cy}" r="11" fill="${color}"/>`;
+            svgInner += `<text x="${cx}" y="${cy}" fill="#fff" font-weight="bold" font-size="13" text-anchor="middle" dominant-baseline="central">${n.finger}</text>`;
+        }
+    });
+
+    const nameLabel = chordName
+        ? `<div style="font:bold ${nameSize}px sans-serif; color:${chordColor}; text-align:center; margin-bottom:-4px;">${chordName}</div>`
+        : '';
+
+    const baseWidth = Math.round(totalW * scalePercent / 100);
+
+    const keyboardBody = `<div class="keyboard-diagram" style="display:inline-block; vertical-align:top; width:${baseWidth}px; max-width:100%; box-sizing:border-box; margin:10px 14px -4px 14px;">
+        ${nameLabel}
+        <svg viewBox="0 0 ${totalW} ${totalH}" preserveAspectRatio="xMidYMid meet" style="display:block; margin:0 auto; width:100%; height:auto;">${svgInner}</svg>
+    </div>`;
+
+    let finalOutput;
+    if (insertMode === 'inline') {
+        finalOutput = `<span style="display:inline-block; vertical-align:top; text-align:${textAlign};">${keyboardBody}</span>`;
+    } else {
+        finalOutput = `\n<div style="display:block; text-align:${textAlign}; margin: 8px 0;">${keyboardBody}</div>\n`;
+    }
+
+    const startPos = editor.selectionStart, endPos = editor.selectionEnd;
+    editor.value = editor.value.substring(0, startPos) + finalOutput + editor.value.substring(endPos);
+    updatePreview();
+    keyboardModalOverlay.style.display = 'none';
+}
+
+const noteColorInput = document.getElementById('noteColorInput');
+if (noteColorInput) {
+    noteColorInput.addEventListener('change', renderDots);
+}
+// ===
+// == Inicialização =====
+        editor.value = `# Meu Guia de Cifras
+
+## Exemplo
+
+Use **🎹 Criar Teclado** e **🎸 Criar Acorde** para gerar diagramas.
+
+Modo **Fluxo**: diagramas ficam lado a lado.
+Modo **Vertical**: cada diagrama numa linha própria.
+`;
         currentInstrument = 'violao';
         renderStringLines();
         buildInteractiveGrid();
         updateBarreSelectors();
         renderDots();
         updatePreview();
+        rebuildKeyboard();
     </script>
 </body>
 </html>
