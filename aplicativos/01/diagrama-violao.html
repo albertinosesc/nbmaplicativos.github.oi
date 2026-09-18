@@ -173,6 +173,45 @@
             #preview .abc-render { page-break-inside: avoid; background: #fff; border: none; padding: 0; }
             #preview * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
+
+        /* ===== Responsivo para celular/tablet ===== */
+@media (max-width: 768px) {
+    header { flex-direction: column; align-items: stretch; }
+    .header-left { width: 100%; }
+    .header-left input { width: 100%; }
+    .actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+    .actions button, .actions label { margin-left: 0; font-size: 0.75rem; padding: 6px 8px; }
+
+    /* Editor/Preview empilhados no celular */
+    .container { flex-direction: column; }
+    .pane { border-right: none; border-bottom: 1px solid #ddd; }
+    .layout-normal .pane-editor,
+    .layout-normal .pane-preview { min-height: 40vh; }
+
+    /* Modais ocupam a tela toda */
+    .chord-modal { width: calc(100% - 20px) !important; left: 10px !important; top: 10px !important; max-height: 95vh; }
+    .tutorial-modal { width: 95%; max-height: 95vh; }
+
+    /* Grid vira 2 colunas */
+    .controls-grid.four { grid-template-columns: 1fr 1fr; }
+    .controls-grid.three { grid-template-columns: 1fr 1fr; }
+
+    /* Batch panel ocupa a largura toda */
+    #batchPanel { left: 10px; right: 10px; max-width: none; }
+
+    /* Fontes menores no tutorial */
+    .tutorial-body { padding: 15px; }
+    .tutorial-body h3 { font-size: 0.95rem; }
+    .tutorial-body p, .tutorial-body li { font-size: 0.85rem; }
+    .tutorial-body pre { font-size: 0.75rem; padding: 10px; }
+}
+
+@media (max-width: 480px) {
+    .controls-grid.three,
+    .controls-grid.four { grid-template-columns: 1fr; }
+    .actions button, .actions label { font-size: 0.7rem; padding: 5px 6px; }
+    .layout-btn { padding: 5px 6px !important; }
+}
     </style>
 </head>
 <body class="layout-normal">
@@ -209,7 +248,15 @@
 
 
 
-
+<!-- Painel do Lote -->
+<div id="batchPanel" style="display:none; position: fixed; bottom: 20px; right: 20px; background: white; border: 2px solid #28a745; border-radius: 10px; padding: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.2); z-index: 1500; max-width: 320px; max-height: 70vh; overflow-y: auto;">
+    <div style="font-weight: bold; color: #28a745; margin-bottom: 6px; display: flex; justify-content: space-between; align-items: center;">
+        <span>📦 Lote atual <span id="batchCount">(0)</span></span>
+        <button onclick="clearBatch()" style="background: #dc3545; color: white; border: none; border-radius: 4px; padding: 2px 8px; font-size: 11px; cursor: pointer;">Limpar</button>
+    </div>
+    <div id="batchList" style="font-size: 12px; max-height: 200px; overflow-y: auto; margin-bottom: 8px;"></div>
+    <button onclick="insertBatchIntoEditor()" class="btn-chord" style="background: #28a745; font-size: 13px; padding: 6px;">📥 Inserir Lote no Texto</button>
+</div>
 
    <!-- Tutorial -->
 <div class="tutorial-overlay" id="tutorialOverlay">
@@ -457,7 +504,10 @@ K:C
                     <g id="finger-dots"></g>
                 </svg>
             </div>
-            <button class="btn-chord" onclick="insertChordIntoEditor()">Inserir no Texto</button>
+            <div style="display: flex; gap: 8px; margin-top: 6px;">
+    <button class="btn-chord" style="background: #6c757d; flex: 1;" onclick="insertChordIntoEditor()">Inserir Direto</button>
+    <button class="btn-chord" style="background: #28a745; flex: 1;" onclick="addChordToBatch()">➕ Adicionar ao Lote</button>
+</div>
         </div>
     </div>
 
@@ -560,7 +610,10 @@ K:C
                 <svg id="keyboardSvg" width="800" height="140" viewBox="0 0 800 140"></svg>
             </div>
 
-            <button class="btn-chord" onclick="insertKeyboardIntoEditor()">Inserir no Texto</button>
+            <div style="display: flex; gap: 8px; margin-top: 6px;">
+    <button class="btn-chord" style="background: #6c757d; flex: 1;" onclick="insertKeyboardIntoEditor()">Inserir Direto</button>
+    <button class="btn-chord" style="background: #28a745; flex: 1;" onclick="addKeyboardToBatch()">➕ Adicionar ao Lote</button>
+</div>
         </div>
     </div>
 
@@ -1039,8 +1092,9 @@ function insertChordIntoEditor() {
         stringsHTML += `<line x1="${x}" y1="30" x2="${x}" y2="150" stroke="#666" stroke-width="${w}"/>`;
     }
 
+    // ✅ margin-bottom POSITIVO (2px) na cifra — ela fica FORA do SVG, acima dele
     const chordBody = `<div class="chord-diagram" style="display:inline-block; vertical-align:top; width:${baseWidth}px; max-width:100%; box-sizing:border-box; margin:10px 14px -18px 14px;">
-        <div style="font:bold ${nameSize}px sans-serif; color:${nameColor}; text-align:center; margin-bottom:-18px;">${chordName}</div>
+        <div style="font:bold ${nameSize}px sans-serif; color:${nameColor}; text-align:center; margin-bottom:2px;">${chordName}</div>
         <svg viewBox="0 0 140 160" preserveAspectRatio="xMidYMid meet" style="display:block; margin:0 auto; width:100%; height:auto;">
             <rect x="25" y="30" width="90" height="4" fill="#333"/>
             <path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"/>
@@ -1061,7 +1115,6 @@ function insertChordIntoEditor() {
     updatePreview();
     chordModalOverlay.style.display = 'none';
 }
-
 // ==========================================
 
 
@@ -1322,10 +1375,6 @@ function insertKeyboardIntoEditor() {
 
     kbActiveNotes.forEach(n => {
         const isBlackNote = isBlack(n.noteName);
-
-        // Define a cor da bolinha base:
-        // - Se for "padrao": azul para mão esquerda, vermelho para direita
-        // - Senão: usa a cor fixa escolhida
         let color;
         if (noteColorOpt === 'padrao') {
             color = n.hand === 'left' ? '#007bff' : '#dc3545';
@@ -1333,7 +1382,6 @@ function insertKeyboardIntoEditor() {
             color = noteColorOpt;
         }
 
-        // ===== TECLA PRETA =====
         if (isBlackNote) {
             const b = blacks.find(x => x.noteName === n.noteName);
             if (!b) return;
@@ -1341,20 +1389,11 @@ function insertKeyboardIntoEditor() {
             const x = xLeftWhite + whiteW - blackW / 2;
             const cx = x + blackW / 2;
             const cy = paddingY + blackH - 20;
-
-            // Se a cor escolhida for PRETA, inverte: bolinha branca com número preto
-            let blackKeyColor = color;
-            let blackKeyTextColor = '#fff';
-            if (noteColorOpt === '#000000') {
-                blackKeyColor = '#fff';
-                blackKeyTextColor = '#000';
-            }
-
-            svgInner += `<circle cx="${cx}" cy="${cy}" r="10" fill="${blackKeyColor}" stroke="${blackKeyTextColor === '#000' ? '#000' : 'none'}" stroke-width="1"/>`;
-            svgInner += `<text x="${cx}" y="${cy}" fill="${blackKeyTextColor}" font-weight="bold" font-size="12" text-anchor="middle" dominant-baseline="central">${n.finger}</text>`;
-        }
-        // ===== TECLA BRANCA =====
-        else {
+            let bg = color, fg = '#fff';
+            if (noteColorOpt === '#000000') { bg = '#fff'; fg = '#000'; }
+            svgInner += `<circle cx="${cx}" cy="${cy}" r="10" fill="${bg}" stroke="${fg === '#000' ? '#000' : 'none'}" stroke-width="1"/>`;
+            svgInner += `<text x="${cx}" y="${cy}" fill="${fg}" font-weight="bold" font-size="12" text-anchor="middle" dominant-baseline="central">${n.finger}</text>`;
+        } else {
             const i = whites.findIndex(w => w.noteName === n.noteName);
             if (i === -1) return;
             const x = paddingX + i * whiteW;
@@ -1365,13 +1404,15 @@ function insertKeyboardIntoEditor() {
         }
     });
 
+    // ✅ margin-bottom POSITIVO (2px) na cifra
     const nameLabel = chordName
-        ? `<div style="font:bold ${nameSize}px sans-serif; color:${chordColor}; text-align:center; margin-bottom:-4px;">${chordName}</div>`
+        ? `<div style="font:bold ${nameSize}px sans-serif; color:${chordColor}; text-align:center; margin-bottom:2px;">${chordName}</div>`
         : '';
 
     const baseWidth = Math.round(totalW * scalePercent / 100);
 
-    const keyboardBody = `<div class="keyboard-diagram" style="display:inline-block; vertical-align:top; width:${baseWidth}px; max-width:100%; box-sizing:border-box; margin:10px 14px -4px 14px;">
+  const keyboardBody = `<div class="keyboard-diagram" style="display:inline-block; vertical-align:top; width:${baseWidth}px; max-width:100%; box-sizing:border-box; margin:10px 14px -4px 14px;">
+    
         ${nameLabel}
         <svg viewBox="0 0 ${totalW} ${totalH}" preserveAspectRatio="xMidYMid meet" style="display:block; margin:0 auto; width:100%; height:auto;">${svgInner}</svg>
     </div>`;
@@ -1388,10 +1429,215 @@ function insertKeyboardIntoEditor() {
     updatePreview();
     keyboardModalOverlay.style.display = 'none';
 }
-
 const noteColorInput = document.getElementById('noteColorInput');
 if (noteColorInput) {
     noteColorInput.addEventListener('change', renderDots);
+}
+
+// ==========================================
+// ===== SISTEMA DE LOTE =====
+// ==========================================
+let batch = [];
+
+function updateBatchPanel() {
+    const panel = document.getElementById('batchPanel');
+    const list = document.getElementById('batchList');
+    const count = document.getElementById('batchCount');
+
+    count.textContent = '(' + batch.length + ')';
+    if (batch.length === 0) { panel.style.display = 'none'; return; }
+    panel.style.display = 'block';
+    list.innerHTML = '';
+    batch.forEach((item, i) => {
+        const div = document.createElement('div');
+        div.style.display = 'flex';
+        div.style.justifyContent = 'space-between';
+        div.style.alignItems = 'center';
+        div.style.gap = '6px';
+        div.style.padding = '4px 6px';
+        div.style.margin = '2px 0';
+        div.style.borderRadius = '4px';
+        div.style.background = item.type === 'chord' ? '#ffe0e6' : '#ede0ff';
+        div.style.border = '1px solid ' + (item.type === 'chord' ? '#e94560' : '#6f42c1');
+        div.innerHTML = `<span><b>${item.type === 'chord' ? '🎸' : '🎹'} ${item.name}</b></span>
+            <button onclick="removeBatchItem(${i})" style="background:#dc3545;color:white;border:none;border-radius:3px;padding:1px 6px;font-size:11px;cursor:pointer;">✕</button>`;
+        list.appendChild(div);
+    });
+}
+
+function removeBatchItem(i) { batch.splice(i, 1); updateBatchPanel(); }
+function clearBatch() {
+    if (batch.length === 0) return;
+    if (!confirm('Limpar todo o lote?')) return;
+    batch = [];
+    updateBatchPanel();
+}
+
+function addChordToBatch() {
+    const chordName = document.getElementById('chordNameInput').value || 'Acorde';
+    const nameSize = parseInt(document.getElementById('chordNameSizeInput').value) || 20;
+    const nameColor = document.getElementById('chordNameColorInput').value || '#e94560';
+    const noteColor = document.getElementById('noteColorInput').value || '#e94560';
+    const baseWidth = parseInt(document.getElementById('chordWidthInput').value) || 140;
+    const startFret = parseInt(document.getElementById('startFretSelect').value);
+    const config = getConfig();
+    const n = config.strings;
+    stringsX = calculateStringsX();
+
+    let inner = '';
+    if (startFret > 1) inner += `<text x="12" y="50" fill="#333" font-weight="bold" font-size="13" text-anchor="middle">${startFret}ª</text>`;
+    activeBarres.forEach(b => {
+        const x1 = stringsX[b.minStr], x2 = stringsX[b.maxStr], cy = fretCentersY[b.fret];
+        inner += `<rect x="${x1-6}" y="${cy-6}" width="${(x2-x1)+12}" height="12" rx="6" fill="${noteColor}"/>`;
+    });
+    activeNotes.forEach(note => {
+        const cx = stringsX[note.string], cy = fretCentersY[note.fret];
+        inner += noteSVG(note, cx, cy, noteColor);
+    });
+
+    let stringsHTML = '';
+    for (let i = 0; i < n; i++) {
+        const x = stringsX[i], w = config.stringWidths[i] || 1.2;
+        stringsHTML += `<line x1="${x}" y1="30" x2="${x}" y2="150" stroke="#666" stroke-width="${w}"/>`;
+    }
+
+    batch.push({
+        type: 'chord',
+        name: chordName,
+        svg: `<rect x="25" y="30" width="90" height="4" fill="#333"/><path d="M25 60h90M25 90h90M25 120h90M25 150h90" stroke="#888" stroke-width="2"/>${stringsHTML}<g font-weight="bold" font-size="14" text-anchor="middle">${inner}</g>`,
+        color: nameColor,
+        size: nameSize,
+        width: baseWidth,
+        viewBox: '0 0 140 160'
+    });
+    updateBatchPanel();
+    event.target.innerHTML = '✓ Adicionado!';
+    setTimeout(() => { event.target.innerHTML = '➕ Adicionar ao Lote'; }, 800);
+}
+function addKeyboardToBatch() {
+    if (kbActiveNotes.length === 0) {
+        alert('Clique em pelo menos uma tecla antes de adicionar.');
+        return;
+    }
+    const chordName = document.getElementById('kbChordNameInput').value || 'Teclado';
+    const chordColor = document.getElementById('kbChordColorInput').value || '#6f42c1';
+    const noteColorOpt = document.getElementById('kbNoteColorInput').value || 'padrao';
+    const nameSize = parseInt(document.getElementById('kbChordSizeInput').value) || 18;
+    const scalePercent = parseInt(document.getElementById('kbScaleSelect').value) || 100;
+
+    const { whites, blacks } = getRangeNotes(keyboardStart, keyboardEnd);
+    const whiteW = 30, whiteH = 120, blackW = 18, blackH = 75;
+    const paddingX = 10, paddingY = 10;
+    const totalW = whites.length * whiteW + paddingX * 2;
+    const totalH = whiteH + paddingY * 2;
+
+    let svgInner = '';
+    whites.forEach((w, i) => {
+        const x = paddingX + i * whiteW;
+        svgInner += `<rect x="${x}" y="${paddingY}" width="${whiteW}" height="${whiteH}" fill="#fff" stroke="#333" stroke-width="1.5" rx="3"/>`;
+    });
+    blacks.forEach(b => {
+        if (b.afterWhiteIndex < 0 || b.afterWhiteIndex >= whites.length - 1) return;
+        const xLeftWhite = paddingX + b.afterWhiteIndex * whiteW;
+        const x = xLeftWhite + whiteW - blackW / 2;
+        svgInner += `<rect x="${x}" y="${paddingY}" width="${blackW}" height="${blackH}" fill="#222" stroke="#000" stroke-width="1" rx="2"/>`;
+    });
+    kbActiveNotes.forEach(n => {
+        const isBlackNote = isBlack(n.noteName);
+        let color = noteColorOpt === 'padrao' ? (n.hand === 'left' ? '#007bff' : '#dc3545') : noteColorOpt;
+        if (isBlackNote) {
+            const b = blacks.find(x => x.noteName === n.noteName);
+            if (!b) return;
+            const xLeftWhite = paddingX + b.afterWhiteIndex * whiteW;
+            const x = xLeftWhite + whiteW - blackW / 2;
+            const cx = x + blackW / 2;
+            const cy = paddingY + blackH - 20;
+            let bg = color, fg = '#fff';
+            if (noteColorOpt === '#000000') { bg = '#fff'; fg = '#000'; }
+            svgInner += `<circle cx="${cx}" cy="${cy}" r="10" fill="${bg}" stroke="${fg === '#000' ? '#000' : 'none'}" stroke-width="1"/>`;
+            svgInner += `<text x="${cx}" y="${cy}" fill="${fg}" font-weight="bold" font-size="12" text-anchor="middle" dominant-baseline="central">${n.finger}</text>`;
+        } else {
+            const i = whites.findIndex(w => w.noteName === n.noteName);
+            if (i === -1) return;
+            const x = paddingX + i * whiteW;
+            const cx = x + whiteW / 2;
+            const cy = paddingY + whiteH - 25;
+            svgInner += `<circle cx="${cx}" cy="${cy}" r="11" fill="${color}"/>`;
+            svgInner += `<text x="${cx}" y="${cy}" fill="#fff" font-weight="bold" font-size="13" text-anchor="middle" dominant-baseline="central">${n.finger}</text>`;
+        }
+    });
+
+    const baseWidth = Math.round(totalW * scalePercent / 100);
+    batch.push({
+        type: 'keyboard',
+        name: chordName,
+        svg: svgInner,
+        color: chordColor,
+        size: nameSize,
+        width: baseWidth,
+        viewBox: `0 0 ${totalW} ${totalH}`
+    });
+    updateBatchPanel();
+    event.target.innerHTML = '✓ Adicionado!';
+    setTimeout(() => { event.target.innerHTML = '➕ Adicionar ao Lote'; }, 800);
+}
+function insertBatchIntoEditor() {
+    if (batch.length === 0) return;
+
+    let html = '';
+    batch.forEach(item => {
+        if (item.type === 'chord') {
+            html += `<div class="chord-diagram" style="display:inline-block; vertical-align:top; width:${item.width}px; max-width:100%; box-sizing:border-box; margin:10px 14px -18px 14px;">` +
+                `<div style="font:bold ${item.size}px sans-serif; color:${item.color}; text-align:center; margin-bottom:-18px; position:relative; z-index:2;">${item.name}</div>` +
+                `<svg viewBox="${item.viewBox}" preserveAspectRatio="xMidYMid meet" style="display:block; margin:0 auto; width:100%; height:auto;">${item.svg}</svg>` +
+            `</div>`;
+        } else {
+            html += `<div class="keyboard-diagram" style="display:inline-block; vertical-align:top; width:${item.width}px; max-width:100%; box-sizing:border-box; margin:10px 14px -4px 14px;">` +
+                `<div style="font:bold ${item.size}px sans-serif; color:${item.color}; text-align:center; margin-bottom:-4px; position:relative; z-index:2;">${item.name}</div>` +
+                `<svg viewBox="${item.viewBox}" preserveAspectRatio="xMidYMid meet" style="display:block; margin:0 auto; width:100%; height:auto;">${item.svg}</svg>` +
+            `</div>`;
+        }
+    });
+
+    const startPos = editor.selectionStart, endPos = editor.selectionEnd;
+    editor.value = editor.value.substring(0, startPos) + '\n' + html + '\n' + editor.value.substring(endPos);
+    updatePreview();
+    batch = [];
+    updateBatchPanel();
+    chordModalOverlay.style.display = 'none';
+    keyboardModalOverlay.style.display = 'none';
+}
+function buildGroupHTML(items) {
+    const first = items[0];
+    const sameColor = items.every(i => i.color === first.color);
+    const sameSize = items.every(i => i.size === first.size);
+
+    // Variáveis comuns (só cor e tamanho da cifra)
+    let varsCSS = '';
+    if (sameColor) varsCSS += `--c:${first.color};`;
+    if (sameSize) varsCSS += `--s:${first.size}px;`;
+
+    // CSS do grupo:
+    // - .cg é block (só agrupa)
+    // - .c é inline-block (flui lado a lado) com width definida por style inline
+    // - .cn é a cifra (block, acima do svg, com margem pequena)
+    // - svg ocupa 100% do .c
+    const groupCSS = `.cg{display:block;text-align:center;margin:12px 0;}
+.cg .c{display:inline-block;vertical-align:top;margin:8px 14px 4px 14px;text-align:center;box-sizing:border-box;}
+.cg .c .cn{font:bold var(--s,20px) sans-serif;color:var(--c,#e94560);text-align:center;margin-bottom:2px;display:block;}
+.cg .c svg{display:block;margin:0 auto;width:100%;height:auto;}`;
+
+    let itemsHTML = '';
+    items.forEach(item => {
+        // ✅ width sempre inline (individual por item)
+        let inlineStyle = `width:${item.width}px;`;
+        if (!sameColor) inlineStyle += `--c:${item.color};`;
+        if (!sameSize) inlineStyle += `--s:${item.size}px;`;
+
+        itemsHTML += `<div class="c" style="${inlineStyle}"><div class="cn">${item.name}</div><svg viewBox="${item.viewBox}" preserveAspectRatio="xMidYMid meet">${item.svg}</svg></div>`;
+    });
+
+    return `<div class="cg" style="${varsCSS}"><style>${groupCSS}</style>${itemsHTML}</div>`;
 }
 // ===
 // == Inicialização =====
