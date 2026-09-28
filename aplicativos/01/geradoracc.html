@@ -1,0 +1,626 @@
+
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Gerador de Acompanhamento</title>
+<script src="https://cdn.jsdelivr.net/npm/abcjs@6/dist/abcjs-basic-min.js"></script>
+<style>
+  body { font-family: Arial, sans-serif; max-width: 1100px; margin: 20px auto; padding: 20px; background: #f5f5f5; }
+  h1 { color: #333; margin-bottom: 5px; }
+  .subtitulo { color: #666; margin-top: 0; font-size: 14px; }
+  label { display: block; margin-top: 15px; font-weight: bold; font-size: 14px; }
+  input, textarea, select { width: 100%; padding: 8px; margin-top: 5px; font-family: monospace; font-size: 14px; box-sizing: border-box; }
+  textarea { height: 120px; }
+  button.gerar { margin-top: 20px; padding: 12px 24px; font-size: 16px; background: #0066cc; color: white; border: none; border-radius: 5px; cursor: pointer; }
+  button.gerar:hover { background: #0055aa; }
+  #partitura { margin-top: 30px; background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+  #erro { color: red; margin-top: 15px; font-weight: bold; }
+  .ajuda { background: #fffbe6; border-left: 4px solid #ffcc00; padding: 10px 15px; margin-top: 10px; font-size: 13px; }
+  .ajuda code { background: #eee; padding: 2px 5px; border-radius: 3px; }
+  .linha-3 { display: flex; gap: 15px; }
+  .linha-3 > div { flex: 1; }
+  .secao { background: white; padding: 20px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-top: 20px; }
+  .secao h2 { margin-top: 0; color: #0066cc; font-size: 16px; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+  #abcEditavel { height: 220px; background: #1e1e1e; color: #d4d4d4; border: 2px solid #0066cc; border-radius: 5px; padding: 15px; font-size: 13px; }
+  .label-abc { margin-top: 25px; color: #0066cc; }
+  .barra-botoes { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+  .barra-botoes button { padding: 10px 18px; font-size: 14px; border: none; border-radius: 5px; cursor: pointer; color: white; font-weight: bold; }
+  .btn-abc    { background: #009966; } .btn-abc:hover    { background: #007744; }
+  .btn-txt    { background: #996600; } .btn-txt:hover    { background: #775500; }
+  .btn-copiar { background: #663399; } .btn-copiar:hover { background: #552288; }
+  .btn-play   { background: #0099cc; } .btn-play:hover   { background: #0077aa; }
+  .btn-pause  { background: #cc6600; } .btn-pause:hover  { background: #aa5500; }
+  .btn-stop   { background: #cc3333; } .btn-stop:hover   { background: #aa2222; }
+  .btn-render { background: #0066cc; } .btn-render:hover { background: #0055aa; }
+  .controles { margin-top: 15px; padding: 15px; background: #f0f8ff; border-radius: 5px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .controles label { margin: 0 8px 0 0; display: inline-block; font-weight: bold; font-size: 13px; color: #333; }
+  .controles input[type=number] { width: 70px; padding: 5px; }
+  #audio { margin-top: 15px; }
+</style>
+</head>
+<body>
+
+<h1>Gerador de Acompanhamento</h1>
+<p class="subtitulo">Defina os acordes, a harmonia e a variação rítmica.</p>
+
+<div class="secao">
+  <h2>1. Definição dos acordes</h2>
+  <p style="font-size:13px; color:#666; margin-top:0;">
+    Uma linha por acorde. Formato: <code>CIFRA = [notas direita] / nota esquerda</code><br>
+    As notas da direita devem estar em ordem (grave → aguda). Ex: <code>[E G]</code>, <code>[E A c]</code>.
+  </p>
+  <textarea id="acordesDef">C = [E G] / C
+G7 = [F G] / B,
+Am = [E A c] / A,
+F = [F A] / C</textarea>
+</div>
+
+<div class="secao">
+  <h2>2. Harmonia</h2>
+  <p style="font-size:13px; color:#666; margin-top:0;">
+    Cifras separadas por vírgula. O ponto <code>.</code> repete o acorde anterior.<br>
+    Ex: <code>C, G7, ., ., C, ., G7, C</code>
+  </p>
+  <input type="text" id="harmonia" value="C, G7, ., ., C, ., G7, C" />
+</div>
+
+<div class="secao">
+  <h2>3. Variação rítmica</h2>
+  <div class="linha-3">
+    <div>
+      <label for="compasso">Compasso:</label>
+      <select id="compasso">
+        <option value="3/4">3/4</option>
+        <option value="4/4">4/4</option>
+        <option value="2/4">2/4</option>
+        <option value="6/8">6/8</option>
+      </select>
+    </div>
+    <div>
+      <label for="varDireita">Mão direita (variação):</label>
+      <input type="text" id="varDireita" value="z E G" />
+    </div>
+    <div>
+      <label for="varEsquerda">Mão esquerda (variação):</label>
+      <input type="text" id="varEsquerda" value="C z z" />
+    </div>
+  </div>
+  <div class="ajuda">
+    <b>Notas consecutivas sem pausa viram acorde</b> (mesmo tempo). Pausa separa eventos.<br>
+    <b>Ou use colchetes</b> para forçar acorde explícito: <code>[CEG]</code>, <code>[E G]</code>.<br>
+    • <code>z E G</code> → pausa + acorde <code>EG</code><br>
+    • <code>z [EG]</code> → pausa + acorde <code>EG</code> (explícito)<br>
+    • <code>E z G</code> → nota E + pausa + nota G
+  </div>
+</div>
+
+<div class="secao">
+  <h2>4. Identificação</h2>
+  <div class="linha-3">
+    <div>
+      <label for="titulo">Título:</label>
+      <input type="text" id="titulo" value="Musica 1" />
+    </div>
+    <div>
+      <label for="numero">Número (X:):</label>
+      <input type="number" id="numero" value="1" />
+    </div>
+    <div>
+      <label for="tom">Tom (K:):</label>
+      <select id="tom">
+        <option value="C">C maior</option>
+        <option value="G">G maior</option>
+        <option value="F">F maior</option>
+        <option value="D">D maior</option>
+        <option value="Bb">Bb maior</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<button class="gerar" onclick="gerar()">Gerar Partitura</button>
+
+<div id="erro"></div>
+
+<label class="label-abc" for="abcEditavel">📝 ABC gerado (editável — altere e clique em Renderizar):</label>
+<textarea id="abcEditavel"></textarea>
+
+<div class="barra-botoes">
+  <button class="btn-render" onclick="renderizarABC()">🔄 Renderizar ABC editado</button>
+  <button class="btn-abc" onclick="exportarABC()">💾 Exportar ABC</button>
+  <button class="btn-txt" onclick="exportarTXT()">📄 Exportar TXT</button>
+  <button class="btn-copiar" id="btnCopiar" onclick="copiarABC()">📋 Copiar ABC</button>
+</div>
+
+<div class="controles">
+  <label for="bpm">BPM:</label>
+  <input type="number" id="bpm" value="90" min="30" max="240" />
+  <label for="instrumento">Instrumento:</label>
+  <select id="instrumento">
+    <option value="0">Piano (0)</option>
+    <option value="1">Piano brilhante (1)</option>
+    <option value="4">Piano elétrico (4)</option>
+    <option value="24">Violão nylon (24)</option>
+    <option value="25">Violão aço (25)</option>
+    <option value="32">Baixo acústico (32)</option>
+    <option value="41">Violino (41)</option>
+    <option value="73">Flauta (73)</option>
+  </select>
+  <button class="btn-play" onclick="tocar()">▶️ Play</button>
+  <button class="btn-pause" onclick="pausar()">⏸️ Pause</button>
+  <button class="btn-stop" onclick="parar()">⏹️ Stop</button>
+</div>
+
+<div id="partitura"></div>
+<div id="audio"></div>
+
+<script>
+// ==================== PARSER DE ACORDES ====================
+function parseAcordes(texto) {
+  const linhas = texto.split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  const acordes = {};
+  for (let i = 0; i < linhas.length; i++) {
+    const linha = linhas[i];
+    const match = linha.match(/^(.+?)\s*=\s*\[([^\]]+)\]\s*\/\s*(.+)$/);
+    if (!match) throw new Error(`Linha ${i + 1} de acordes inválida: "${linha}". Use: CIFRA = [notas] / baixo`);
+    const cifra = match[1].trim();
+    const notas = match[2].trim().split(/[\s,]+/).filter(s => s.length > 0);
+    const baixo = match[3].trim();
+    acordes[cifra] = { notas, baixo };
+  }
+  return acordes;
+}
+
+// ==================== PARSER DA HARMONIA ====================
+function parseHarmonia(texto) {
+  const partes = texto.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  const resultado = [];
+  let ultimo = null;
+  for (const p of partes) {
+    if (p === '.') {
+      if (ultimo === null) throw new Error('A harmonia começa com "." mas não há acorde anterior.');
+      resultado.push(ultimo);
+    } else {
+      ultimo = p;
+      resultado.push(p);
+    }
+  }
+  return resultado;
+}
+
+// ==================== ALTURA DAS NOTAS ====================
+const ALTURA = { 'C': 0, 'D': 1, 'E': 2, 'F': 3, 'G': 4, 'A': 5, 'B': 6 };
+function alturaDaNota(letra) {
+  const upper = letra.toUpperCase();
+  return ALTURA[upper] !== undefined ? ALTURA[upper] : 99;
+}
+
+// ==================== AGRUPAMENTO EM EVENTOS ====================
+function parseEventos(padrao) {
+  const partes = [];
+  const regex = /\[([^\]]*)\]|([^\s\[]+)/g;
+  let m;
+  while ((m = regex.exec(padrao)) !== null) {
+    if (m[1] !== undefined) {
+      partes.push({ tipo: 'grupo', valor: m[1].trim().replace(/\s+/g, '') });
+    } else {
+      partes.push({ tipo: 'texto', valor: m[2] });
+    }
+  }
+
+  const eventos = [];
+  let acumulandoNotas = false;
+
+  for (const parte of partes) {
+    if (parte.tipo === 'grupo') {
+      eventos.push({ tipo: 'notas', valor: parte.valor, explicito: true });
+      acumulandoNotas = false;
+    } else {
+      const token = parte.valor;
+      if (/^[zZx]+$/.test(token)) {
+        eventos.push({ tipo: 'pausa', valor: token });
+        acumulandoNotas = false;
+      } else {
+        if (acumulandoNotas && eventos.length > 0 && eventos[eventos.length - 1].tipo === 'notas') {
+          eventos[eventos.length - 1].valor += token;
+        } else {
+          eventos.push({ tipo: 'notas', valor: token, explicito: false });
+          acumulandoNotas = true;
+        }
+      }
+    }
+  }
+  return eventos;
+}
+
+// ==================== APLICAÇÃO DA VARIAÇÃO ====================
+function aplicarVariacao(varDireita, varEsquerda, acorde) {
+  const eventosDir = parseEventos(varDireita);
+
+  const eventosDirTraduzidos = eventosDir.map(ev => {
+    if (ev.tipo === 'pausa') return ev.valor;
+
+    const notasEvento = [];
+    let i = 0;
+    while (i < ev.valor.length) {
+      const c = ev.valor[i];
+      if (/[A-Ga-g]/.test(c)) {
+        let notaCompleta = c;
+        let j = i + 1;
+        while (j < ev.valor.length && /[\^_=,'\'0-9\/]/.test(ev.valor[j])) {
+          notaCompleta += ev.valor[j];
+          j++;
+        }
+        notasEvento.push({ letra: c, completa: notaCompleta });
+        i = j;
+      } else {
+        i++;
+      }
+    }
+
+    if (notasEvento.length === 0) return ev.valor;
+
+    const ordenadas = notasEvento
+      .map((n, idx) => ({ ...n, idxOriginal: idx, altura: alturaDaNota(n.letra) }))
+      .sort((a, b) => a.altura - b.altura);
+
+    const posicoes = {};
+    let contadorPos = 0;
+    const alturasUsadas = new Set();
+    for (const n of ordenadas) {
+      if (alturasUsadas.has(n.altura)) {
+        posicoes[n.idxOriginal] = 1;
+      } else {
+        contadorPos++;
+        alturasUsadas.add(n.altura);
+        posicoes[n.idxOriginal] = contadorPos;
+      }
+    }
+
+    let resultado = '';
+    for (let k = 0; k < notasEvento.length; k++) {
+      const nota = notasEvento[k];
+      const pos = posicoes[k];
+      const idx = pos - 1;
+      let novaNota;
+      if (idx >= acorde.notas.length) {
+        novaNota = acorde.notas[acorde.notas.length - 1];
+      } else {
+        novaNota = acorde.notas[idx];
+      }
+      const sufixos = nota.completa.slice(1);
+      resultado += novaNota + sufixos;
+    }
+
+    if (ev.explicito && notasEvento.length > 1) {
+      return '[' + resultado + ']';
+    }
+    return resultado;
+  });
+
+  const eventosEsq = parseEventos(varEsquerda);
+  const eventosEsqTraduzidos = eventosEsq.map(ev => {
+    if (ev.tipo === 'pausa') return ev.valor;
+    let resultado = '';
+    let i = 0;
+    while (i < ev.valor.length) {
+      const c = ev.valor[i];
+      if (/[A-Ga-g]/.test(c)) {
+        let notaCompleta = c;
+        let j = i + 1;
+        while (j < ev.valor.length && /[\^_=,'\'0-9\/]/.test(ev.valor[j])) {
+          notaCompleta += ev.valor[j];
+          j++;
+        }
+        const sufixos = notaCompleta.slice(1);
+        resultado += acorde.baixo + sufixos;
+        i = j;
+      } else {
+        resultado += c;
+        i++;
+      }
+    }
+    return resultado;
+  });
+
+  return {
+    direita: eventosDirTraduzidos.join(' '),
+    esquerda: eventosEsqTraduzidos.join(' ')
+  };
+}
+
+// ==================== GERAÇÃO ====================
+function gerar() {
+  const erro = document.getElementById('erro');
+  erro.textContent = '';
+
+  try {
+    const compasso = document.getElementById('compasso').value;
+    const acordesTexto = document.getElementById('acordesDef').value;
+    const harmoniaTexto = document.getElementById('harmonia').value;
+    const varDireita = document.getElementById('varDireita').value.trim();
+    const varEsquerda = document.getElementById('varEsquerda').value.trim();
+    const titulo = document.getElementById('titulo').value.trim();
+    const numero = document.getElementById('numero').value;
+    const tom = document.getElementById('tom').value;
+
+    if (!varDireita || !varEsquerda) throw new Error('Preencha as variações da mão direita e esquerda.');
+
+    const acordes = parseAcordes(acordesTexto);
+    const harmonia = parseHarmonia(harmoniaTexto);
+
+    const compassosDireita = [];
+    const compassosEsquerda = [];
+
+    for (let i = 0; i < harmonia.length; i++) {
+      const cifra = harmonia[i];
+      const acorde = acordes[cifra];
+      if (!acorde) throw new Error(`Acorde "${cifra}" não está definido na lista de acordes.`);
+
+      const resultado = aplicarVariacao(varDireita, varEsquerda, acorde);
+
+      const cifraAnterior = i > 0 ? harmonia[i - 1] : null;
+      const mostrarCifra = (cifra !== cifraAnterior);
+
+      if (mostrarCifra) {
+        compassosDireita.push(`"${cifra}"${resultado.direita}`);
+      } else {
+        compassosDireita.push(resultado.direita);
+      }
+      compassosEsquerda.push(resultado.esquerda);
+    }
+
+    const abc = `X:${numero}
+T:${titulo}
+M:${compasso}
+L:1/4
+Q:1/4=${document.getElementById('bpm').value}
+K:${tom}
+V:1
+${compassosDireita.join(' | ')} |]
+V:2 bass
+${compassosEsquerda.join(' | ')} |]`;
+
+    document.getElementById('abcEditavel').value = abc;
+
+    // Para qualquer áudio em andamento ao regenerar
+    pararSilencioso();
+
+    renderizarABC();
+
+  } catch (e) {
+    erro.textContent = 'Erro: ' + e.message;
+  }
+}
+
+// ==================== RENDERIZAÇÃO ====================
+function renderizarABC() {
+  const erro = document.getElementById('erro');
+  erro.textContent = '';
+  const abc = document.getElementById('abcEditavel').value;
+  if (!abc.trim()) {
+    erro.textContent = 'O campo ABC está vazio.';
+    return;
+  }
+  try {
+    ABCJS.renderAbc('partitura', abc, {
+      responsive: 'resize',
+      staffwidth: 1000,
+      scale: 1.2
+    });
+  } catch (e) {
+    erro.textContent = 'Erro ao renderizar: ' + e.message;
+  }
+}
+
+// ==================== EXPORTAR ABC ====================
+function exportarABC() {
+  const abc = document.getElementById('abcEditavel').value;
+  if (!abc.trim()) { alert('Nada para exportar.'); return; }
+  const blob = new Blob([abc], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (document.getElementById('titulo').value || 'musica') + '.abc';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ==================== EXPORTAR TXT ====================
+function exportarTXT() {
+  const abc = document.getElementById('abcEditavel').value;
+  if (!abc.trim()) { alert('Nada para exportar.'); return; }
+  const titulo = document.getElementById('titulo').value || 'Musica';
+  const cabecalho = `========================================
+${titulo}
+Gerado pelo Gerador de Acompanhamento
+========================================
+
+`;
+  const conteudo = cabecalho + abc + '\n';
+  const blob = new Blob([conteudo], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (document.getElementById('titulo').value || 'musica') + '.txt';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+// ==================== COPIAR ABC ====================
+async function copiarABC() {
+  const abc = document.getElementById('abcEditavel').value;
+  if (!abc.trim()) { alert('Nada para copiar.'); return; }
+
+  const btn = document.getElementById('btnCopiar');
+  const textoOriginal = btn.textContent;
+
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(abc);
+    } else {
+      // Fallback para navegadores antigos
+      const ta = document.getElementById('abcEditavel');
+      ta.select();
+      document.execCommand('copy');
+      window.getSelection().removeAllRanges();
+    }
+    btn.textContent = '✅ Copiado!';
+    setTimeout(() => { btn.textContent = textoOriginal; }, 1500);
+  } catch (e) {
+    alert('Não foi possível copiar: ' + e.message);
+  }
+}
+
+// ==================== ÁUDIO ====================
+let currentSynth = null;
+let currentSynthControl = null;
+let currentHash = '';
+
+function hashAtual() {
+  const abc = document.getElementById('abcEditavel').value;
+  const inst = document.getElementById('instrumento').value;
+  return abc + '||' + inst;
+}
+
+// Para o áudio sem mexer na UI (usado internamente ao regenerar)
+function pararSilencioso() {
+  if (currentSynthControl) {
+    try { currentSynthControl.stop(); } catch (e) {}
+  }
+  if (currentSynth) {
+    try { currentSynth.stop(); } catch (e) {}
+  }
+  currentSynthControl = null;
+  currentSynth = null;
+  currentHash = '';
+  document.getElementById('audio').innerHTML = '';
+}
+
+async function limparSynth() {
+  pararSilencioso();
+  // Pequeno delay para o Web Audio API liberar os nós antigos
+  await new Promise(r => setTimeout(r, 120));
+}
+
+async function tocar() {
+  const erro = document.getElementById('erro');
+  erro.textContent = '';
+
+  try {
+    const hash = hashAtual();
+
+    // Se nada mudou e já temos um synth ativo → apenas resume (retoma de onde parou)
+    if (currentSynthControl && hash === currentHash) {
+      try {
+        currentSynthControl.play();
+        return;
+      } catch (e) {
+        // Se falhar, cai no fluxo de recriação abaixo
+      }
+    }
+
+    // Mudou algo (ABC ou instrumento) → destrói o antigo e cria um novo
+    await limparSynth();
+
+    const abc = document.getElementById('abcEditavel').value;
+    if (!abc.trim()) {
+      erro.textContent = 'O campo ABC está vazio.';
+      return;
+    }
+
+    const visualObj = ABCJS.renderAbc('partitura', abc, {
+      responsive: 'resize',
+      staffwidth: 1000,
+      scale: 1.2
+    });
+
+    if (!visualObj || visualObj.length === 0) {
+      erro.textContent = 'Não foi possível processar o ABC.';
+      return;
+    }
+
+    if (ABCJS.synth.supportsAudio && !ABCJS.synth.supportsAudio()) {
+      erro.textContent = 'Navegador não suporta áudio.';
+      return;
+    }
+
+    const instrumento = parseInt(document.getElementById('instrumento').value) || 0;
+
+    const synth = new ABCJS.synth.CreateSynth();
+    await synth.init({
+      visualObj: visualObj[0],
+      options: { program: instrumento }
+    });
+
+    const synthControl = new ABCJS.synth.SynthController();
+    synthControl.load('#audio', null, {
+      displayLoop: false,
+      displayRestart: false,
+      displayPlay: false,
+      displayProgress: true,
+      displayWarp: false
+    });
+
+    await synthControl.setTune(visualObj[0], false, {
+      program: instrumento
+    });
+
+    currentSynth = synth;
+    currentSynthControl = synthControl;
+    currentHash = hash;
+
+    synthControl.play();
+
+  } catch (e) {
+    erro.textContent = 'Erro no áudio: ' + e.message;
+  }
+}
+
+function pausar() {
+  if (currentSynthControl) {
+    try {
+      currentSynthControl.pause();
+    } catch (e) {
+      document.getElementById('erro').textContent = 'Erro ao pausar: ' + e.message;
+    }
+  }
+}
+
+async function parar() {
+  const erro = document.getElementById('erro');
+  erro.textContent = '';
+  try {
+    await limparSynth();
+    // Redesenha a partitura (limpa qualquer estado visual do áudio)
+    renderizarABC();
+  } catch (e) {
+    erro.textContent = 'Erro ao parar: ' + e.message;
+  }
+}
+
+// Atualiza o Q: quando mudar BPM
+document.addEventListener('DOMContentLoaded', () => {
+  const bpmInput = document.getElementById('bpm');
+  if (bpmInput) {
+    bpmInput.addEventListener('change', () => {
+      const abc = document.getElementById('abcEditavel').value;
+      const novoBpm = bpmInput.value;
+      const abcAtualizado = abc.replace(/^Q:.*$/m, `Q:1/4=${novoBpm}`);
+      if (abcAtualizado !== abc) {
+        document.getElementById('abcEditavel').value = abcAtualizado;
+      }
+    });
+  }
+});
+
+window.onload = gerar;
+</script>
+
+</body>
+</html>
