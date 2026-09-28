@@ -227,6 +227,9 @@
             <button class="toggle-generator" id="open-modal-btn">🎸 Criar Acorde</button>
             <button class="toggle-keyboard" id="open-keyboard-btn">🎹 Criar Teclado</button>
             <button class="toggle-generator" id="open-tutorial-btn" style="background:#17a2b8 !important;">📖 Tutorial ABC</button>
+            <button id="drive-save-btn" style="background:#0f9d58 !important;">☁ Salvar no Drive</button>
+            <button id="drive-list-btn" style="background:#4285f4 !important;">📂 Meus Arquivos</button>
+            <span id="drive-status" style="color:#fff; font-size:0.78rem; margin-left:8px;"></span>
             <label for="file-input">Abrir</label>
             <input type="file" id="file-input" accept=".md,.txt">
             <button id="save-btn">Salvar</button>
@@ -369,13 +372,30 @@ K:C
     </div>
 </div>
 
+    <!-- Modal Drive -->
+    <div class="chord-modal-overlay" id="driveModalOverlay">
+        <div class="chord-modal" id="driveModal" style="width:540px;">
+            <div class="modal-header" id="driveModalHeader">
+                <h3>📂 Arquivos no Google Drive</h3>
+                <button class="close-modal" id="close-drive-modal-btn">&times;</button>
+            </div>
 
+            <div style="display:flex;gap:6px;margin-bottom:8px;">
+                <input type="text" id="driveSearchInput" placeholder="🔍 Buscar..."
+                       style="flex:1;padding:8px;border:1px solid #ccc;border-radius:4px;">
+                <button id="driveRefreshBtn" style="background:#4285f4;color:white;border:none;border-radius:4px;padding:8px 12px;cursor:pointer;">↻</button>
+            </div>
 
+            <div id="driveCurrentFile" style="font-size:12px;color:#555;padding:6px 8px;background:#f0f0f0;border-radius:4px;margin-bottom:8px;">
+                Nenhum arquivo aberto
+            </div>
 
-
-
-
-
+            <div id="driveFileList"
+                 style="max-height:420px;overflow-y:auto;border:1px solid #eee;border-radius:6px;padding:8px;background:#fafafa;">
+                <p style="color:#777;font-size:0.85rem;">⏳ Carregando...</p>
+            </div>
+        </div>
+    </div>
 
     <!-- Modal Cordas -->
     <div class="chord-modal-overlay" id="chordModalOverlay">
@@ -1639,6 +1659,183 @@ function buildGroupHTML(items) {
 
     return `<div class="cg" style="${varsCSS}"><style>${groupCSS}</style>${itemsHTML}</div>`;
 }
+
+// ==========================================
+// ===== GOOGLE DRIVE via Apps Script =====
+// ==========================================
+const DRIVE_API = 'https://script.google.com/macros/s/AKfycbw6SWmaPt6SLv64P1HQlr5HGEDIAAfevJ1iaBW0vj-8Ehx-WuaLNXYMZG52QYD854wH/exec';
+
+let driveFiles = [];
+let currentFileId = null;
+let currentFileName = null;
+
+const driveModalOverlay = document.getElementById('driveModalOverlay');
+const driveModal        = document.getElementById('driveModal');
+const driveModalHeader  = document.getElementById('driveModalHeader');
+const driveFileList     = document.getElementById('driveFileList');
+const driveSearchInput  = document.getElementById('driveSearchInput');
+const driveSaveBtn      = document.getElementById('drive-save-btn');
+const driveListBtn      = document.getElementById('drive-list-btn');
+const driveStatus       = document.getElementById('drive-status');
+const driveCurrentFile  = document.getElementById('driveCurrentFile');
+
+makeDraggable(driveModalHeader, driveModal);
+
+document.getElementById('close-drive-modal-btn').onclick = () =>
+    driveModalOverlay.style.display = 'none';
+
+document.getElementById('driveRefreshBtn').onclick = () => listDriveFiles();
+driveSearchInput.addEventListener('input', renderDriveFileList);
+
+driveListBtn.addEventListener('click', () => {
+    driveModalOverlay.style.display = 'block';
+    listDriveFiles();
+    updateCurrentFileLabel();
+});
+
+driveSaveBtn.addEventListener('click', () => saveToDrive());
+
+async function callDriveAPI(action, params = {}) {
+    const res = await fetch(DRIVE_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action, ...params })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Erro desconhecido');
+    return data;
+}
+
+async function listDriveFiles() {
+    driveFileList.innerHTML = '<p style="color:#777;">⏳ Carregando...</p>';
+    try {
+        const data = await callDriveAPI('list');
+        driveFiles = data.files || [];
+        renderDriveFileList();
+    } catch (err) {
+        driveFileList.innerHTML = '<p style="color:#c00;">Erro: ' + err.message + '</p>';
+    }
+}
+
+function renderDriveFileList() {
+    const term = (driveSearchInput.value || '').toLowerCase();
+    const filtered = driveFiles.filter(f => f.name.toLowerCase().includes(term));
+
+    if (filtered.length === 0) {
+        driveFileList.innerHTML = '<p style="color:#777;">Nenhum arquivo encontrado.</p>';
+        return;
+    }
+
+    driveFileList.innerHTML = '';
+    filtered.forEach(f => {
+        const isCurrent = f.id === currentFileId;
+        const row = document.createElement('div');
+        row.style.cssText = 'display:flex;justify-content:space-between;align-items:center;padding:8px;border-bottom:1px solid #eee;gap:8px;' +
+                            (isCurrent ? 'background:#e6f7e6;border-radius:4px;' : '');
+        const modified = f.modified ? new Date(f.modified).toLocaleString('pt-BR') : '';
+        const sizeKB = f.size ? (f.size / 1024).toFixed(1) + ' KB' : '';
+
+        const info = document.createElement('div');
+        info.style.cssText = 'flex:1;cursor:pointer;';
+        info.innerHTML = `<div style="font-weight:bold;color:#333;font-size:0.9rem;">📄 ${escapeHtml(f.name)}</div>
+                          <div style="font-size:0.72rem;color:#888;">${modified} · ${sizeKB}</div>`;
+        info.onclick = () => openDriveFile(f.id, f.name);
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '🗑';
+        delBtn.style.cssText = 'background:#dc3545;color:white;border:none;border-radius:4px;padding:4px 8px;font-size:11px;cursor:pointer;';
+        delBtn.onclick = (e) => { e.stopPropagation(); deleteDriveFile(f.id); };
+
+        row.appendChild(info);
+        row.appendChild(delBtn);
+        driveFileList.appendChild(row);
+    });
+}
+
+async function openDriveFile(id, name) {
+    try {
+        const data = await callDriveAPI('read', { id });
+        editor.value = data.content || '';
+        filenameInput.value = name;
+        currentFileId = id;
+        currentFileName = name;
+        updatePreview();
+        updateCurrentFileLabel();
+        driveModalOverlay.style.display = 'none';
+        flashMessage('📂 ' + name + ' aberto');
+    } catch (err) {
+        alert('Erro ao abrir: ' + err.message);
+    }
+}
+
+async function saveToDrive() {
+    const name = filenameInput.value || 'documento.md';
+    const content = editor.value;
+
+    let idToUse = currentFileId;
+    if (currentFileId && currentFileName !== name) idToUse = null;
+
+    driveSaveBtn.textContent = '⏳ Salvando...';
+    try {
+        const data = await callDriveAPI('save', { id: idToUse, name, content });
+        currentFileId = data.id;
+        currentFileName = data.name;
+        updateCurrentFileLabel();
+        flashMessage('☁ Salvo no Drive');
+        if (driveModalOverlay.style.display === 'block') listDriveFiles();
+    } catch (err) {
+        alert('Erro ao salvar: ' + err.message);
+    } finally {
+        driveSaveBtn.textContent = '☁ Salvar no Drive';
+    }
+}
+
+async function deleteDriveFile(id) {
+    if (!confirm('Excluir este arquivo do Drive?')) return;
+    try {
+        await callDriveAPI('delete', { id });
+        if (currentFileId === id) {
+            currentFileId = null;
+            currentFileName = null;
+            updateCurrentFileLabel();
+        }
+        listDriveFiles();
+    } catch (err) {
+        alert('Erro ao excluir: ' + err.message);
+    }
+}
+
+function updateCurrentFileLabel() {
+    if (!driveCurrentFile) return;
+    driveCurrentFile.innerHTML = currentFileId
+        ? `📄 Aberto: <b>${escapeHtml(currentFileName)}</b>`
+        : 'Nenhum arquivo aberto';
+}
+
+function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, c => ({
+        '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    })[c]);
+}
+
+function flashMessage(msg) {
+    const el = document.createElement('div');
+    el.textContent = msg;
+    el.style.cssText = 'position:fixed;bottom:20px;left:50%;transform:translateX(-50%);' +
+        'background:#0f9d58;color:#fff;padding:10px 20px;border-radius:6px;z-index:9999;' +
+        'font-weight:bold;box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2000);
+}
+
+// Ctrl+S salva no Drive
+document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        saveToDrive();
+    }
+});
+
 // ===
 // == Inicialização =====
         editor.value = `# Meu Guia de Cifras
