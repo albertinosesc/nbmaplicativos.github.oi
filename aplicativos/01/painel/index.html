@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Acervo de Partituras - NBM</title>
+    <title>Acervo de Partituras & Admin - NBM</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
     <!-- FontAwesome para Ícones -->
@@ -11,17 +11,29 @@
 </head>
 <body class="h-full bg-slate-100 flex flex-col font-sans text-slate-800">
 
-    <!-- CABEÇALHO -->
+    <!-- CABEÇALHO COM ABAS DE NAVEGAÇÃO -->
     <header class="bg-indigo-900 text-white shadow-md p-4 flex flex-col md:flex-row justify-between items-center gap-4">
-        <div>
-            <h1 class="text-xl font-bold flex items-center gap-2">
-                <i class="fa-solid fa-music text-indigo-400"></i> Acervo de Partituras & Partes
-            </h1>
-            <p id="total-catalogadas" class="text-xs text-indigo-200">Carregando acervo do GitHub...</p>
+        <div class="flex items-center gap-4">
+            <div>
+                <h1 class="text-xl font-bold flex items-center gap-2">
+                    <i class="fa-solid fa-music text-indigo-400"></i> Acervo de Partituras & Partes
+                </h1>
+                <p id="total-catalogadas" class="text-xs text-indigo-200">Carregando acervo do GitHub...</p>
+            </div>
+
+            <!-- BOTÕES DAS ABAS -->
+            <div class="flex bg-indigo-950 p-1 rounded-lg border border-indigo-700 ml-2">
+                <button id="btn-aba-acervo" onclick="trocarAba('acervo')" class="px-3 py-1.5 rounded-md text-xs font-semibold bg-indigo-600 text-white transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-folder-open"></i> Acervo
+                </button>
+                <button id="btn-aba-admin" onclick="trocarAba('admin')" class="px-3 py-1.5 rounded-md text-xs font-semibold text-indigo-300 hover:text-white transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-sliders"></i> Admin
+                </button>
+            </div>
         </div>
 
-        <!-- BARRA DE BUSCA AVANÇADA -->
-        <div class="flex flex-wrap items-center gap-2 w-full md:w-auto">
+        <!-- BARRA DE BUSCA (Apenas visível na aba Acervo) -->
+        <div id="container-busca" class="flex flex-wrap items-center gap-2 w-full md:w-auto">
             <div class="relative flex-1 md:w-80">
                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
                     <i class="fa-solid fa-magnifying-glass"></i>
@@ -39,8 +51,8 @@
         </div>
     </header>
 
-    <!-- CONTEÚDO PRINCIPAL -->
-    <div class="flex-1 flex overflow-hidden">
+    <!-- CONTEÚDO PRINCIPAL: ABA ACERVO -->
+    <div id="aba-acervo" class="flex-1 flex overflow-hidden">
         
         <!-- PAINEL LATERAL: LISTA DE ARQUIVOS -->
         <aside class="w-full md:w-96 bg-white border-r border-slate-200 flex flex-col shadow-sm">
@@ -62,18 +74,119 @@
         </aside>
 
         <!-- VISUALIZADOR DE PDF -->
-        <main class="flex-1 bg-slate-200 flex flex-col hidden md:flex">
+        <main class="flex-1 bg-slate-200 flex flex-col hidden md:flex relative">
             <div id="painel-vazio" class="flex-1 flex flex-col items-center justify-center text-slate-400 p-6 text-center">
                 <i class="fa-regular fa-file-pdf text-6xl mb-3 text-slate-300"></i>
                 <h3 class="text-lg font-medium text-slate-600">Nenhuma partitura selecionada</h3>
-                <p class="text-sm max-w-sm mt-1">Selecione um item na lista ao lado ou digite o número/nome na busca para visualizar o PDF diretamente do GitHub.</p>
+                <p class="text-sm max-w-sm mt-1">Selecione um item na lista ao lado ou digite o número/nome na busca para visualizar o PDF diretamente na tela.</p>
             </div>
             
             <iframe id="visualizador-pdf" class="w-full h-full hidden border-0" src=""></iframe>
         </main>
     </div>
 
-    <!-- SCRIPT DE INTEGRAÇÃO COM O GITHUB -->
+    <!-- CONTEÚDO PRINCIPAL: ABA ADMIN -->
+    <div id="aba-admin" class="flex-1 overflow-y-auto p-4 md:p-8 hidden">
+        <div class="max-w-6xl mx-auto space-y-6">
+            
+            <div class="bg-indigo-900 text-white p-4 rounded-xl shadow flex justify-between items-center">
+                <div>
+                    <h2 class="text-lg font-bold">Painel de Gerenciamento do Acervo</h2>
+                    <p class="text-xs text-indigo-200">Cadastre novas partituras para atualizar o arquivo index.json do GitHub.</p>
+                </div>
+                <div class="flex gap-2">
+                    <label class="bg-indigo-800 hover:bg-indigo-700 text-white text-xs font-semibold px-3 py-2 rounded-lg cursor-pointer transition flex items-center gap-2 border border-indigo-700">
+                        <i class="fa-solid fa-file-import"></i> Importar index.json
+                        <input type="file" accept=".json" class="hidden" onchange="importarArquivoJson(event)">
+                    </label>
+                    <button onclick="limparTudoAdmin()" class="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition flex items-center gap-1">
+                        <i class="fa-solid fa-trash"></i> Limpar
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                <!-- FORMULÁRIO -->
+                <div class="lg:col-span-5 bg-white p-6 rounded-xl shadow-sm border border-slate-200 space-y-4">
+                    <h3 class="text-base font-bold text-slate-800 border-b border-slate-100 pb-2 flex justify-between items-center">
+                        <span><i class="fa-solid fa-plus-circle text-indigo-600"></i> Adicionar / Editar Item</span>
+                        <span id="contador-itens-admin" class="text-xs bg-indigo-100 text-indigo-800 px-2.5 py-0.5 rounded-full font-semibold">0 itens</span>
+                    </h3>
+
+                    <form id="form-partitura" onsubmit="salvarItemAdmin(event)" class="space-y-3">
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">ID (Número do arquivo no GitHub ex: 1.pdf)</label>
+                            <input type="number" id="field-id" required min="1" placeholder="Ex: 1" 
+                                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-bold text-slate-600 mb-1">Título da Música</label>
+                            <input type="text" id="field-titulo" required placeholder="Ex: Asa Branca" 
+                                class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Nome do Aluno</label>
+                                <input type="text" id="field-aluno" placeholder="Ex: João Silva" 
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Instrumento</label>
+                                <input type="text" id="field-instrumento" placeholder="Ex: Teclado" 
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-2 gap-3">
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Turma</label>
+                                <input type="text" id="field-turma" placeholder="Ex: Turma A" 
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-bold text-slate-600 mb-1">Instituição</label>
+                                <input type="text" id="field-instituicao" value="NBM - Escola de Música" placeholder="Ex: NBM - Escola de Música" 
+                                    class="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                            </div>
+                        </div>
+
+                        <div class="pt-2 flex gap-2">
+                            <button type="submit" id="btn-salvar" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-4 rounded-lg text-sm transition shadow-sm">
+                                <i class="fa-solid fa-plus"></i> Adicionar Item
+                            </button>
+                            <button type="button" onclick="limparFormularioAdmin()" class="bg-slate-200 hover:bg-slate-300 text-slate-700 font-semibold py-2.5 px-3 rounded-lg text-sm transition">
+                                Limpar
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <!-- SAÍDA JSON FORMATADO -->
+                <div class="lg:col-span-7 bg-white p-6 rounded-xl shadow-sm border border-slate-200 flex flex-col space-y-4">
+                    <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                        <h3 class="text-base font-bold text-slate-800">
+                            <i class="fa-solid fa-code text-indigo-600"></i> Saída do JSON (1 Linha por ID)
+                        </h3>
+                        <div class="flex gap-2">
+                            <button onclick="copiarJsonAdmin()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                                <i class="fa-regular fa-copy"></i> Copiar
+                            </button>
+                            <button onclick="baixarJsonAdmin()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3 py-1.5 rounded-lg transition flex items-center gap-1">
+                                <i class="fa-solid fa-download"></i> Baixar index.json
+                            </button>
+                        </div>
+                    </div>
+
+                    <textarea id="json-output" readonly placeholder="Os dados no formato JSON aparecerão aqui..." 
+                        class="w-full flex-1 min-h-[360px] p-4 bg-slate-900 text-emerald-400 font-mono text-xs rounded-lg focus:outline-none overflow-x-auto whitespace-pre leading-relaxed"></textarea>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SCRIPT DE INTEGRAÇÃO COM O GITHUB E ADMIN -->
     <script>
         // URLs do seu repositório no GitHub (Raw)
         const URL_INDEX_JSON = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/painel/index.json";
@@ -82,7 +195,32 @@
         let acervoPartituras = [];
         let tagAtual = 'todos';
 
-        // Carregar o arquivo index.json do GitHub ao iniciar
+        // ALTERNÂNCIA DE ABAS
+        function trocarAba(aba) {
+            const containerBusca = document.getElementById('container-busca');
+            const abaAcervo = document.getElementById('aba-acervo');
+            const abaAdmin = document.getElementById('aba-admin');
+            const btnAcervo = document.getElementById('btn-aba-acervo');
+            const btnAdmin = document.getElementById('btn-aba-admin');
+
+            if (aba === 'acervo') {
+                abaAcervo.classList.remove('hidden');
+                abaAdmin.classList.add('hidden');
+                containerBusca.classList.remove('hidden');
+                
+                btnAcervo.className = "px-3 py-1.5 rounded-md text-xs font-semibold bg-indigo-600 text-white transition flex items-center gap-1.5";
+                btnAdmin.className = "px-3 py-1.5 rounded-md text-xs font-semibold text-indigo-300 hover:text-white transition flex items-center gap-1.5";
+            } else {
+                abaAcervo.classList.add('hidden');
+                abaAdmin.classList.remove('hidden');
+                containerBusca.classList.add('hidden');
+
+                btnAdmin.className = "px-3 py-1.5 rounded-md text-xs font-semibold bg-indigo-600 text-white transition flex items-center gap-1.5";
+                btnAcervo.className = "px-3 py-1.5 rounded-md text-xs font-semibold text-indigo-300 hover:text-white transition flex items-center gap-1.5";
+            }
+        }
+
+        // CARREGAR ÍNDICE DO GITHUB
         async function carregarAcervo() {
             try {
                 const resposta = await fetch(URL_INDEX_JSON);
@@ -91,6 +229,7 @@
                 acervoPartituras = await resposta.json();
                 atualizarContador(acervoPartituras.length);
                 renderizarLista(acervoPartituras);
+                atualizarSaidaAdmin(); // Sincroniza com a aba admin
             } catch (erro) {
                 console.error(erro);
                 document.getElementById('lista-arquivos').innerHTML = `
@@ -107,7 +246,7 @@
             document.getElementById('total-catalogadas').innerText = `${total} partituras catalogadas`;
         }
 
-        // Renderizar a lista lateral de arquivos
+        // RENDERIZAR A LISTA DE ARQUIVOS
         function renderizarLista(itens) {
             const container = document.getElementById('lista-arquivos');
             container.innerHTML = '';
@@ -117,7 +256,6 @@
                 return;
             }
 
-            // Otimização para grandes listas: renderiza os primeiros 100 para não travar o navegador
             const itensLimitados = itens.slice(0, 100);
 
             itensLimitados.forEach(item => {
@@ -150,22 +288,22 @@
             }
         }
 
-        // Abrir o PDF correspondente no iframe
+        // ABRIR O PDF NO IFRAME (USANDO EMBEDDED VIEWER DO GOOGLE PARA NÃO BAIXAR)
         function abrirPdf(id, elementoHtml) {
-            // Remove seleção anterior
             document.querySelectorAll('#lista-arquivos > div').forEach(el => el.classList.remove('bg-indigo-100/60'));
             if(elementoHtml) elementoHtml.classList.add('bg-indigo-100/60');
 
-            // Exibe iframe e oculta painel vazio
             document.getElementById('painel-vazio').classList.add('hidden');
             const iframe = document.getElementById('visualizador-pdf');
             iframe.classList.remove('hidden');
 
-            // URL do PDF direto do GitHub (ex: .../pdfs/1.pdf)
-            iframe.src = `${URL_BASE_PDFS}${id}.pdf`;
+            const pdfRawUrl = `${URL_BASE_PDFS}${id}.pdf`;
+            
+            // Usa o leitor do Google Docs para abrir o PDF incorporado no navegador sem forçar download
+            iframe.src = `https://docs.google.com/viewer?url=${encodeURIComponent(pdfRawUrl)}&embedded=true`;
         }
 
-        // Sistema de busca avançada
+        // BUSCA AVANÇADA
         const campoBusca = document.getElementById('campo-busca');
         const tipoBusca = document.getElementById('tipo-busca');
 
@@ -174,7 +312,6 @@
             const tipo = tipoBusca.value;
 
             const filtrados = acervoPartituras.filter(item => {
-                // Filtro por tag rápida se ativo
                 const matchTag = tagAtual === 'todos' || 
                     (item.turma && item.turma.toLowerCase().includes(tagAtual.toLowerCase())) ||
                     (item.instrumento && item.instrumento.toLowerCase().includes(tagAtual.toLowerCase()));
@@ -194,7 +331,6 @@
                 } else if (tipo === 'texto') {
                     return strTitulo.includes(termo) || strAluno.includes(termo) || strTurma.includes(termo) || strInst.includes(termo);
                 } else {
-                    // Todos os campos
                     return strId.includes(termo) || strTitulo.includes(termo) || strAluno.includes(termo) || strTurma.includes(termo) || strInst.includes(termo) || strInstituicao.includes(termo);
                 }
             });
@@ -205,7 +341,6 @@
         campoBusca.addEventListener('input', executarBusca);
         tipoBusca.addEventListener('change', executarBusca);
 
-        // Filtro por tag rápida nos botões superiores
         function filtrarTag(tag) {
             tagAtual = tag;
             document.querySelectorAll('.tag-btn').forEach(btn => {
@@ -217,7 +352,115 @@
             executarBusca();
         }
 
-        // Inicializar aplicação baixando os dados do GitHub
+        // ==================== LÓGICA DO ADMIN ==================== //
+
+        function salvarItemAdmin(e) {
+            e.preventDefault();
+
+            const id = parseInt(document.getElementById('field-id').value);
+            const titulo = document.getElementById('field-titulo').value.trim();
+            const aluno = document.getElementById('field-aluno').value.trim();
+            const instrumento = document.getElementById('field-instrumento').value.trim();
+            const turma = document.getElementById('field-turma').value.trim();
+            const instituicao = document.getElementById('field-instituicao').value.trim();
+
+            const novoItem = { id, titulo, aluno, instrumento, turma, instituicao };
+
+            const indexExistente = acervoPartituras.findIndex(item => item.id === id);
+
+            if (indexExistente !== -1) {
+                acervoPartituras[indexExistente] = novoItem;
+            } else {
+                acervoPartituras.push(novoItem);
+                acervoPartituras.sort((a, b) => a.id - b.id);
+            }
+
+            atualizarSaidaAdmin();
+            renderizarLista(acervoPartituras);
+            atualizarContador(acervoPartituras.length);
+            limparFormularioAdmin();
+
+            document.getElementById('field-id').value = id + 1;
+        }
+
+        function atualizarSaidaAdmin() {
+            const linhas = acervoPartituras.map(item => {
+                return `  { "id": ${item.id}, "titulo": "${item.titulo || ''}", "aluno": "${item.aluno || ''}", "instrumento": "${item.instrumento || ''}", "turma": "${item.turma || ''}", "instituicao": "${item.instituicao || ''}" }`;
+            });
+
+            const jsonFinal = `[\n${linhas.join(",\n")}\n]`;
+
+            document.getElementById('json-output').value = jsonFinal;
+            document.getElementById('contador-itens-admin').innerText = `${acervoPartituras.length} itens`;
+        }
+
+        function limparFormularioAdmin() {
+            document.getElementById('form-partitura').reset();
+            document.getElementById('field-instituicao').value = "NBM - Escola de Música";
+            
+            const proximoId = acervoPartituras.length > 0 ? Math.max(...acervoPartituras.map(d => d.id)) + 1 : 1;
+            document.getElementById('field-id').value = proximoId;
+        }
+
+        function copiarJsonAdmin() {
+            const textarea = document.getElementById('json-output');
+            if (!textarea.value) return;
+            
+            textarea.select();
+            navigator.clipboard.writeText(textarea.value);
+            alert("JSON copiado com sucesso!");
+        }
+
+        function baixarJsonAdmin() {
+            const conteudo = document.getElementById('json-output').value;
+            if (!conteudo) return alert("Não há dados para baixar.");
+
+            const blob = new Blob([conteudo], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "index.json";
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function importarArquivoJson(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const dados = JSON.parse(e.target.result);
+                    if (Array.isArray(dados)) {
+                        acervoPartituras = dados;
+                        acervoPartituras.sort((a, b) => a.id - b.id);
+                        atualizarSaidaAdmin();
+                        renderizarLista(acervoPartituras);
+                        atualizarContador(acervoPartituras.length);
+                        limparFormularioAdmin();
+                        alert(`Importados ${dados.length} itens com sucesso!`);
+                    } else {
+                        alert("O arquivo selecionado não contém uma lista válida (Array JSON).");
+                    }
+                } catch (err) {
+                    alert("Erro ao ler o arquivo JSON. Verifique se a sintaxe está correta.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function limparTudoAdmin() {
+            if (confirm("Tem certeza que deseja apagar todos os itens da tela?")) {
+                acervoPartituras = [];
+                atualizarSaidaAdmin();
+                renderizarLista(acervoPartituras);
+                atualizarContador(0);
+                limparFormularioAdmin();
+            }
+        }
+
+        // Inicializar
         carregarAcervo();
     </script>
 </body>
