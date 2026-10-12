@@ -107,7 +107,15 @@
                 <p class="text-sm max-w-sm mt-1">Selecione um item na lista ao lado ou digite o número/nome na busca para visualizar o PDF diretamente na tela.</p>
             </div>
             
-            <iframe id="visualizador-pdf" class="w-full h-full hidden border-0" src=""></iframe>
+            <!-- BARRA SUPERIOR DO VISUALIZADOR COM BOTÃO DE DOWNLOAD -->
+            <div id="barra-pdf" class="hidden bg-slate-800 text-white px-4 py-2 flex justify-between items-center shadow-md">
+                <span id="titulo-pdf-atual" class="text-xs font-semibold truncate max-w-md">Partitura</span>
+                <a id="btn-download-pdf" href="#" target="_blank" download class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-1.5 rounded transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-download"></i> Baixar PDF
+                </a>
+            </div>
+
+            <iframe id="visualizador-pdf" class="w-full h-full hidden border-0 flex-1" src=""></iframe>
         </main>
     </div>
 
@@ -121,7 +129,6 @@
                     <p class="text-xs text-indigo-200">Cadastre novos painéis para atualizar o arquivo index.json do GitHub.</p>
                 </div>
                 <div class="flex flex-wrap gap-2">
-                    <!-- NOVO BOTÃO ADICIONADO: VER TABELA ESTILO EXCEL -->
                     <button onclick="abrirModalTabela()" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3 py-2 rounded-lg transition flex items-center gap-1.5">
                         <i class="fa-solid fa-table"></i> Ver Lista / Tabela
                     </button>
@@ -216,10 +223,9 @@
         </div>
     </div>
 
-    <!-- MODAL DE TABELA (ESTILO EXCEL) ADICIONADO AO ADMIN -->
+    <!-- MODAL DE TABELA (ESTILO EXCEL) -->
     <div id="modal-tabela" class="fixed inset-0 bg-black/60 z-50 hidden flex items-center justify-center p-4">
         <div class="bg-white w-full max-w-5xl h-[85vh] rounded-xl shadow-2xl flex flex-col overflow-hidden">
-            <!-- Cabeçalho do Modal -->
             <div class="bg-indigo-900 text-white p-4 flex justify-between items-center">
                 <h3 class="font-bold text-base flex items-center gap-2">
                     <i class="fa-solid fa-table-cells text-indigo-400"></i> Lista Completa do Acervo (Estilo Excel)
@@ -229,7 +235,6 @@
                 </button>
             </div>
 
-            <!-- Barra de Busca da Tabela -->
             <div class="p-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center gap-4">
                 <div class="relative flex-1 max-w-md">
                     <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400">
@@ -241,7 +246,6 @@
                 <div id="contador-tabela" class="text-xs text-slate-500 font-semibold">Exibindo todos os itens</div>
             </div>
 
-            <!-- Corpo da Tabela -->
             <div class="flex-1 overflow-auto p-0">
                 <table class="w-full border-collapse text-left text-xs">
                     <thead class="bg-slate-100 text-slate-700 sticky top-0 border-b border-slate-200">
@@ -256,12 +260,10 @@
                         </tr>
                     </thead>
                     <tbody id="corpo-tabela-admin" class="divide-y divide-slate-100 bg-white">
-                        <!-- Itens carregados via script -->
                     </tbody>
                 </table>
             </div>
 
-            <!-- Rodapé do Modal -->
             <div class="p-3 bg-slate-50 border-t border-slate-200 flex justify-end">
                 <button onclick="fecharModalTabela()" class="bg-slate-700 hover:bg-slate-800 text-white text-xs font-semibold px-4 py-2 rounded-lg transition">
                     Fechar
@@ -270,7 +272,7 @@
         </div>
     </div>
 
-    <!-- SCRIPT DE INTEGRAÇÃO COM O GITHUB E NOVAS FUNÇÕES DA TABELA -->
+    <!-- SCRIPT DE INTEGRAÇÃO COM O GITHUB -->
     <script>
         const URL_INDEX_JSON = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/painel/index.json";
         const URL_BASE_PDFS = "https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/painel/pdfs/";
@@ -394,7 +396,7 @@
             itensLimitados.forEach(item => {
                 const div = document.createElement('div');
                 div.className = "p-3 hover:bg-indigo-50 cursor-pointer transition flex items-center justify-between group border-b border-slate-100";
-                div.onclick = () => abrirPdf(item.id, div);
+                div.onclick = () => abrirPdf(item, div);
 
                 div.innerHTML = `
                     <div class="flex items-start gap-3 overflow-hidden">
@@ -421,20 +423,32 @@
             }
         }
 
-        // ABRIR PDF NO IFRAME (EMBEDDED)
-        function abrirPdf(id, elementoHtml) {
+        // ABRIR PDF NO IFRAME E CONFIGURAR O BOTÃO DE DOWNLOAD
+        function abrirPdf(item, elementoHtml) {
             document.querySelectorAll('#lista-arquivos > div').forEach(el => el.classList.remove('bg-indigo-100/60'));
             if(elementoHtml) elementoHtml.classList.add('bg-indigo-100/60');
 
             document.getElementById('painel-vazio').classList.add('hidden');
             const iframe = document.getElementById('visualizador-pdf');
-            iframe.classList.remove('hidden');
+            const barraPdf = document.getElementById('barra-pdf');
+            const btnDownload = document.getElementById('btn-download-pdf');
+            const tituloPdfAtual = document.getElementById('titulo-pdf-atual');
 
-            const pdfRawUrl = `${URL_BASE_PDFS}${id}.pdf`;
+            iframe.classList.remove('hidden');
+            barraPdf.classList.remove('hidden');
+
+            const pdfRawUrl = `${URL_BASE_PDFS}${item.id}.pdf`;
+            
+            // Configura o título e o link de download direto do GitHub
+            tituloPdfAtual.innerText = `#${item.id} - ${item.titulo || 'Partitura'}`;
+            btnDownload.href = pdfRawUrl;
+            btnDownload.download = `${item.id}-${(item.titulo || 'partitura').replace(/[^a-z0-9]/gi, '_')}.pdf`;
+
+            // Carrega no leitor do Google Docs para abrir integrado no navegador
             iframe.src = `https://docs.google.com/viewer?url=${encodeURIComponent(pdfRawUrl)}&embedded=true`;
         }
 
-        // BUSCA AVANÇADA COM TAGS AUTOMÁTICAS
+        // BUSCA AVANÇADA
         const campoBusca = document.getElementById('campo-busca');
         const tipoBusca = document.getElementById('tipo-busca');
 
