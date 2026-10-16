@@ -60,9 +60,10 @@
             <option value="Pandeiro">23 - Pandeiro</option>
             <option value="Trompete">24 - Trompete</option>
             <option value="Trombone">25 - Trombone</option>
+            <option value="Analisado">26 - Analisado</option>
         </select>
 
-        <!-- Seleção de aluno existente -->
+        <!-- Seleção de aluno existente (filtrado pelo instrumento) -->
         <select id="selectAluno" onchange="usarAlunoSelecionado()">
             <option value="">-- Selecione um aluno --</option>
         </select>
@@ -99,7 +100,7 @@
 </div>
 
 <script>
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxH3gibZH_VD7dxk1pynlwnxlzKhsJTlr85TZYOE6JRHfGpu1Yf-342jljgur9WfRTC/exec";
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwOJZT9KuwSXoAIDTUYSgZAKtvqjfVbSkh8H0JRyciyrj0em_n1tIkV-aIPT_5HXNvl/exec";
 
     let todasMusicas = []; 
     let musicasConcluidasAluno = new Set(); 
@@ -110,10 +111,8 @@
 
     async function mudarInstrumento() {
         document.getElementById('painel').style.display = 'none';
+        document.getElementById('nomeAluno').value = ''; // Limpa o input ao trocar de instrumento
         await carregarMusicasEAlunos();
-        if (document.getElementById('nomeAluno').value.trim()) {
-            carregarDadosAluno();
-        }
     }
 
     async function carregarMusicasEAlunos() {
@@ -121,19 +120,20 @@
             document.getElementById('loading').style.display = 'block';
             const instrumentoAtual = document.getElementById('selectInstrumento').value;
             
+            // Busca músicas do instrumento selecionado
             const resMusicas = await fetch(`${WEB_APP_URL}?action=getMusicas&instrumento=${instrumentoAtual}`);
             todasMusicas = await resMusicas.json();
 
-            const resAlunos = await fetch(`${WEB_APP_URL}?action=getAlunos`);
+            // Busca lista de alunos APENAS para este instrumento
+            const resAlunos = await fetch(`${WEB_APP_URL}?action=getAlunos&instrumento=${instrumentoAtual}`);
             const listaAlunos = await resAlunos.json();
 
             const select = document.getElementById('selectAluno');
             select.innerHTML = '<option value="">-- Selecione um aluno --</option>';
-            listaAlunos.forEach(alunoClean => {
-                let nomeBase = alunoClean.includes("_") ? alunoClean.split("_")[0] : alunoClean;
+            listaAlunos.forEach(nomeAluno => {
                 const opt = document.createElement('option');
-                opt.value = nomeBase;
-                opt.textContent = nomeBase;
+                opt.value = nomeAluno;
+                opt.textContent = nomeAluno;
                 select.appendChild(opt);
             });
 
@@ -148,6 +148,7 @@
         const select = document.getElementById('selectAluno');
         if (select.value) {
             document.getElementById('nomeAluno').value = select.value;
+            carregarDadosAluno(); // Carrega automaticamente ao selecionar na lista
         }
     }
 
@@ -155,10 +156,7 @@
         const nome = document.getElementById('nomeAluno').value.trim();
         const instrumento = document.getElementById('selectInstrumento').value;
 
-        if (!nome) {
-            alert("Por favor, selecione ou digite o nome do aluno.");
-            return;
-        }
+        if (!nome) return;
 
         document.getElementById('loading').innerText = "Carregando progresso...";
         document.getElementById('loading').style.display = 'block';
@@ -193,7 +191,6 @@
         let concluidasCount = 0;
 
         todasMusicas.forEach(musica => {
-            // musica[0] = ID/Número (Coluna A) | musica[1] = Nome da Música (Coluna B)
             const idMusica = String(musica[0] || ''); 
             const nomeMusica = String(musica[1] || ''); 
             
@@ -202,7 +199,6 @@
                 concluidasCount++;
             }
 
-            // Exibe de forma limpa sem duplicar o nome
             const textoExibicao = nomeMusica ? `${idMusica} - ${nomeMusica}` : idMusica;
 
             if (termoBusca && !idMusica.toLowerCase().includes(termoBusca) && !nomeMusica.toLowerCase().includes(termoBusca)) {
