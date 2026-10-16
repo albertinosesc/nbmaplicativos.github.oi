@@ -24,6 +24,7 @@
         .btn-remover { background-color: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer; }
         .btn-remover:hover { background-color: #c0392b; }
         #loading { text-align: center; font-style: italic; color: #666; display: none; margin-bottom: 15px; }
+        .busca-container { margin-bottom: 15px; }
     </style>
 </head>
 <body>
@@ -32,7 +33,7 @@
     <h1>Controle de Repertório dos Alunos</h1>
     
     <div class="form-group">
-        <!-- Lista de alunos já salvos na planilha -->
+        <!-- Lista de abas/alunos existentes -->
         <select id="selectAluno" onchange="usarAlunoSelecionado()">
             <option value="">-- Selecione um aluno existente --</option>
         </select>
@@ -42,13 +43,18 @@
         <button onclick="carregarDadosAluno()">Carregar Aluno</button>
     </div>
 
-    <div id="loading">Carregando dados... Por favor, aguarde.</div>
+    <div id="loading">Carregando dados da planilha... Por favor, aguarde.</div>
 
     <div id="painel" style="display:none;">
         <div class="stats">
             <div>Total de Músicas: <span id="totalMusicas">0</span></div>
             <div>Concluídas: <span id="qtdConcluidas">0</span></div>
             <div>Faltantes: <span id="qtdFaltantes">0</span></div>
+        </div>
+
+        <!-- Campo de busca de músicas em ordem alfabética -->
+        <div class="busca-container">
+            <input type="text" id="filtroMusica" placeholder="Pesquisar música por título..." oninput="atualizarInterface()">
         </div>
 
         <div class="grid">
@@ -65,31 +71,26 @@
 </div>
 
 <script>
-    // COLE AQUI A URL DO SEU GOOGLE APPS SCRIPT
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxDNv4Q5zLxN0xgodtMq99YAAlHOqUtTg9l9AADeVGxzsIkMLgSEuYKAi7ojmzeD5s8/exec";
+    // COLE AQUI A SUA URL DO WEB APP ATUALIZADA (que termina em /exec)
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbzl-yMT-OZ_Y6ABv6OVfxd26fFnQhH8UIDDFe85e0OQIt45ur774nbgg_dQ1DTaFtVj/exec";
 
     let todasMusicas = []; 
     let musicasConcluidasAluno = new Set(); 
-    let alunosCadastrados = new Set();
 
-    // Assim que a página abre, busca a lista de músicas e de alunos já salvos
     window.onload = async function() {
         try {
             document.getElementById('loading').style.display = 'block';
             
-            // Busca músicas e progresso inicial
+            // Busca a lista geral de músicas (já ordenadas alfabeticamente pelo script)
             const resMusicas = await fetch(`${WEB_APP_URL}?action=getMusicas`);
             todasMusicas = await resMusicas.json();
 
-            const resProgresso = await fetch(`${WEB_APP_URL}?action=getAlunos`);
-            const progressoData = await resProgresso.json();
+            // Busca a lista de alunos (baseada nas abas da planilha)
+            const resAlunos = await fetch(`${WEB_APP_URL}?action=getAlunos`);
+            const listaAlunos = await resAlunos.json();
 
             const select = document.getElementById('selectAluno');
-            progressoData.forEach(row => {
-                if (row[0]) alunosCadastrados.add(row[0]);
-            });
-
-            alunosCadastrados.forEach(aluno => {
+            listaAlunos.forEach(aluno => {
                 const opt = document.createElement('option');
                 opt.value = aluno;
                 opt.textContent = aluno;
@@ -99,7 +100,7 @@
             document.getElementById('loading').style.display = 'none';
         } catch (e) {
             console.error(e);
-            document.getElementById('loading').innerText = "Erro ao carregar dados iniciais da planilha.";
+            document.getElementById('loading').innerText = "Erro ao carregar dados iniciais da planilha. Verifique a URL.";
         }
     };
 
@@ -122,15 +123,12 @@
         document.getElementById('painel').style.display = 'none';
 
         try {
-            const resProgresso = await fetch(`${WEB_APP_URL}?action=getAlunos`);
-            const progressoData = await resProgresso.json();
+            // Busca o progresso específico da aba deste aluno
+            const resProgresso = await fetch(`${WEB_APP_URL}?action=getProgressoAluno&aluno=${encodeURIComponent(nome)}`);
+            const idsConcluidos = await resProgresso.json();
 
             musicasConcluidasAluno.clear();
-            progressoData.forEach(row => {
-                if (row[0] === nome) {
-                    musicasConcluidasAluno.add(String(row[1])); 
-                }
-            });
+            idsConcluidos.forEach(id => musicasConcluidasAluno.add(String(id)));
 
             atualizarInterface();
             document.getElementById('loading').style.display = 'none';
@@ -146,6 +144,8 @@
     function atualizarInterface() {
         const listaFaltantes = document.getElementById('listaFaltantes');
         const listaConcluidas = document.getElementById('listaConcluidas');
+        const termoBusca = (document.getElementById('filtroMusica')?.value || '').toLowerCase();
+
         listaFaltantes.innerHTML = '';
         listaConcluidas.innerHTML = '';
 
@@ -153,11 +153,21 @@
 
         todasMusicas.forEach(musica => {
             const idMusica = String(musica[0]); 
-            const nomeMusica = musica[1]; 
+            const nomeMusica = String(musica[1] || musica[0]); 
+            
+            const concluida = musicasConcluidasAluno.has(idMusica);
+            if (concluida) {
+                concluidasCount++;
+            }
+
+            // Aplica filtro de pesquisa por texto
+            if (termoBusca && !nomeMusica.toLowerCase().includes(termoBusca)) {
+                return;
+            }
+
             const li = document.createElement('li');
 
-            if (musicasConcluidasAluno.has(idMusica)) {
-                concluidasCount++;
+            if (concluida) {
                 li.innerHTML = `${nomeMusica} <button class="btn-remover" onclick="alterarStatus('${idMusica}', false)">Desfazer</button>`;
                 listaConcluidas.appendChild(li);
             } else {
@@ -173,6 +183,7 @@
 
     async function alterarStatus(musicaId, status) {
         const nome = document.getElementById('nomeAluno').value.trim();
+        if (!nome) return;
         
         if (status) {
             musicasConcluidasAluno.add(musicaId);
@@ -182,6 +193,7 @@
 
         atualizarInterface();
 
+        // Salva na aba individual do aluno no Google Sheets
         await fetch(WEB_APP_URL, {
             method: 'POST',
             body: JSON.stringify({ aluno: nome, musicaId: musicaId, status: status })
