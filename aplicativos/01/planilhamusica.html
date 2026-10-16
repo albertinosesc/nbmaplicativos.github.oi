@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gerenciador de Repertório - Alunos</title>
+    <title>Gerenciador de Repertório - Alunos e Instrumentos</title>
     <style>
         body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
-        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .container { max-width: 950px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
         h1 { color: #2c3e50; text-align: center; }
         .form-group { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
-        input, select { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; min-width: 200px; }
+        input, select { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; min-width: 180px; }
         button { padding: 10px 20px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
         button:hover { background-color: #2980b9; }
         .stats { display: flex; justify-content: space-around; background: #ecf0f1; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; }
@@ -30,20 +30,28 @@
 <body>
 
 <div class="container">
-    <h1>Controle de Repertório dos Alunos</h1>
+    <h1>Controle de Repertório por Instrumento</h1>
     
     <div class="form-group">
-        <!-- Lista de abas/alunos existentes -->
+        <!-- Escolha do Instrumento -->
+        <select id="selectInstrumento" onchange="mudarInstrumento()">
+            <option value="Piano">Piano</option>
+            <option value="Violao">Violão</option>
+            <option value="Violino">Violino</option>
+            <option value="Saxofone">Saxofone</option>
+        </select>
+
+        <!-- Seleção de aluno existente -->
         <select id="selectAluno" onchange="usarAlunoSelecionado()">
-            <option value="">-- Selecione um aluno existente --</option>
+            <option value="">-- Selecione um aluno --</option>
         </select>
         
-        <!-- Ou digite um novo aluno -->
-        <input type="text" id="nomeAluno" placeholder="Ou digite o nome de um novo aluno...">
-        <button onclick="carregarDadosAluno()">Carregar Aluno</button>
+        <!-- Digitar novo aluno -->
+        <input type="text" id="nomeAluno" placeholder="Ou digite o nome do aluno...">
+        <button onclick="carregarDadosAluno()">Carregar</button>
     </div>
 
-    <div id="loading">Carregando dados da planilha... Por favor, aguarde.</div>
+    <div id="loading">Carregando dados... Por favor, aguarde.</div>
 
     <div id="painel" style="display:none;">
         <div class="stats">
@@ -52,9 +60,8 @@
             <div>Faltantes: <span id="qtdFaltantes">0</span></div>
         </div>
 
-        <!-- Campo de busca de músicas em ordem alfabética -->
         <div class="busca-container">
-            <input type="text" id="filtroMusica" placeholder="Pesquisar música por título..." oninput="atualizarInterface()">
+            <input type="text" id="filtroMusica" placeholder="Pesquisar música por título ou número..." oninput="atualizarInterface()">
         </div>
 
         <div class="grid">
@@ -71,38 +78,55 @@
 </div>
 
 <script>
-    // COLE AQUI A SUA URL DO WEB APP ATUALIZADA (que termina em /exec)
-    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbwwwp2kR5OZvuj1kccv-Nx8NXQmgLdv_t3rn-MEn6VLcVFAQZfYc0LTJF_PShdi6nRJ/exec";
+    // COLE AQUI A SUA URL DO WEB APP (que termina em /exec)
+    const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbyIyZ8uOdPy6BGG6hkbsEM-g_o5KUJbTuEmfUQLSbLdq2exQSrStWSt5UXOXTiqDpdk/exec";
 
     let todasMusicas = []; 
     let musicasConcluidasAluno = new Set(); 
 
     window.onload = async function() {
+        await carregarMusicasEAlunos();
+    };
+
+    async function mudarInstrumento() {
+        document.getElementById('painel').style.display = 'none';
+        await carregarMusicasEAlunos();
+        // Se já houver um aluno digitado/selecionado, recarrega o progresso dele para o novo instrumento
+        if (document.getElementById('nomeAluno').value.trim()) {
+            carregarDadosAluno();
+        }
+    }
+
+    async function carregarMusicasEAlunos() {
         try {
             document.getElementById('loading').style.display = 'block';
+            const instrumentoAtual = document.getElementById('selectInstrumento').value;
             
-            // Busca a lista geral de músicas (já ordenadas alfabeticamente pelo script)
-            const resMusicas = await fetch(`${WEB_APP_URL}?action=getMusicas`);
+            // Busca músicas do instrumento selecionado
+            const resMusicas = await fetch(`${WEB_APP_URL}?action=getMusicas&instrumento=${instrumentoAtual}`);
             todasMusicas = await resMusicas.json();
 
-            // Busca a lista de alunos (baseada nas abas da planilha)
+            // Busca lista de alunos cadastrados
             const resAlunos = await fetch(`${WEB_APP_URL}?action=getAlunos`);
             const listaAlunos = await resAlunos.json();
 
             const select = document.getElementById('selectAluno');
-            listaAlunos.forEach(aluno => {
+            select.innerHTML = '<option value="">-- Selecione um aluno --</option>';
+            listaAlunos.forEach(alunoClean => {
+                // Remove o sufixo do instrumento se vier limpo ou exibe o nome base
+                let nomeBase = alunoClean.includes("_") ? alunoClean.split("_")[0] : alunoClean;
                 const opt = document.createElement('option');
-                opt.value = aluno;
-                opt.textContent = aluno;
+                opt.value = nomeBase;
+                opt.textContent = nomeBase;
                 select.appendChild(opt);
             });
 
             document.getElementById('loading').style.display = 'none';
         } catch (e) {
             console.error(e);
-            document.getElementById('loading').innerText = "Erro ao carregar dados iniciais da planilha. Verifique a URL.";
+            document.getElementById('loading').innerText = "Erro ao carregar dados da planilha.";
         }
-    };
+    }
 
     function usarAlunoSelecionado() {
         const select = document.getElementById('selectAluno');
@@ -113,18 +137,19 @@
 
     async function carregarDadosAluno() {
         const nome = document.getElementById('nomeAluno').value.trim();
+        const instrumento = document.getElementById('selectInstrumento').value;
+
         if (!nome) {
             alert("Por favor, selecione ou digite o nome do aluno.");
             return;
         }
 
-        document.getElementById('loading').innerText = "Carregando progresso do aluno...";
+        document.getElementById('loading').innerText = "Carregando progresso...";
         document.getElementById('loading').style.display = 'block';
         document.getElementById('painel').style.display = 'none';
 
         try {
-            // Busca o progresso específico da aba deste aluno
-            const resProgresso = await fetch(`${WEB_APP_URL}?action=getProgressoAluno&aluno=${encodeURIComponent(nome)}`);
+            const resProgresso = await fetch(`${WEB_APP_URL}?action=getProgressoAluno&aluno=${encodeURIComponent(nome)}&instrumento=${encodeURIComponent(instrumento)}`);
             const idsConcluidos = await resProgresso.json();
 
             musicasConcluidasAluno.clear();
@@ -160,18 +185,17 @@
                 concluidasCount++;
             }
 
-            // Aplica filtro de pesquisa por texto
-            if (termoBusca && !nomeMusica.toLowerCase().includes(termoBusca)) {
+            if (termoBusca && !idMusica.toLowerCase().includes(termoBusca) && !nomeMusica.toLowerCase().includes(termoBusca)) {
                 return;
             }
 
             const li = document.createElement('li');
 
             if (concluida) {
-                li.innerHTML = `${nomeMusica} <button class="btn-remover" onclick="alterarStatus('${idMusica}', false)">Desfazer</button>`;
+                li.innerHTML = `${idMusica} - ${nomeMusica} <button class="btn-remover" onclick="alterarStatus('${idMusica}', false)">Desfazer</button>`;
                 listaConcluidas.appendChild(li);
             } else {
-                li.innerHTML = `${nomeMusica} <button class="btn-concluir" onclick="alterarStatus('${idMusica}', true)">Concluir</button>`;
+                li.innerHTML = `${idMusica} - ${nomeMusica} <button class="btn-concluir" onclick="alterarStatus('${idMusica}', true)">Concluir</button>`;
                 listaFaltantes.appendChild(li);
             }
         });
@@ -183,6 +207,7 @@
 
     async function alterarStatus(musicaId, status) {
         const nome = document.getElementById('nomeAluno').value.trim();
+        const instrumento = document.getElementById('selectInstrumento').value;
         if (!nome) return;
         
         if (status) {
@@ -193,10 +218,9 @@
 
         atualizarInterface();
 
-        // Salva na aba individual do aluno no Google Sheets
         await fetch(WEB_APP_URL, {
             method: 'POST',
-            body: JSON.stringify({ aluno: nome, musicaId: musicaId, status: status })
+            body: JSON.stringify({ aluno: nome, instrumento: instrumento, musicaId: musicaId, status: status })
         });
     }
 </script>
