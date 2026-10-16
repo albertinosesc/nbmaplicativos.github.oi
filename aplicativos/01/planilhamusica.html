@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gerenciador de Repertório - Alunos</title>
+    <style>
+        body { font-family: Arial, sans-serif; background-color: #f4f6f9; margin: 0; padding: 20px; color: #333; }
+        .container { max-width: 900px; margin: auto; background: white; padding: 25px; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        h1 { color: #2c3e50; text-align: center; }
+        .form-group { margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; }
+        input, select { flex: 1; padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; min-width: 200px; }
+        button { padding: 10px 20px; background-color: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; }
+        button:hover { background-color: #2980b9; }
+        .stats { display: flex; justify-content: space-around; background: #ecf0f1; padding: 15px; border-radius: 6px; margin-bottom: 20px; font-weight: bold; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .box { background: #fff; border: 1px solid #ddd; padding: 15px; border-radius: 6px; max-height: 400px; overflow-y: auto; }
+        .box h3 { margin-top: 0; border-bottom: 2px solid #eee; padding-bottom: 8px; }
+        ul { list-style: none; padding: 0; }
+        li { padding: 8px 0; border-bottom: 1px solid #f9f9f9; display: flex; justify-content: space-between; align-items: center; }
+        li button { padding: 3px 8px; font-size: 12px; }
+        .btn-concluir { background-color: #2ecc71; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .btn-concluir:hover { background-color: #27ae60; }
+        .btn-remover { background-color: #e74c3c; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        .btn-remover:hover { background-color: #c0392b; }
+        #loading { text-align: center; font-style: italic; color: #666; display: none; margin-bottom: 15px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Controle de Repertório dos Alunos</h1>
+    
+    <div class="form-group">
+        <!-- Lista de alunos já salvos na planilha -->
+        <select id="selectAluno" onchange="usarAlunoSelecionado()">
+            <option value="">-- Selecione um aluno existente --</option>
+        </select>
+        
+        <!-- Ou digite um novo aluno -->
+        <input type="text" id="nomeAluno" placeholder="Ou digite o nome de um novo aluno...">
+        <button onclick="carregarDadosAluno()">Carregar Aluno</button>
+    </div>
+
+    <div id="loading">Carregando dados... Por favor, aguarde.</div>
+
+    <div id="painel" style="display:none;">
+        <div class="stats">
+            <div>Total de Músicas: <span id="totalMusicas">0</span></div>
+            <div>Concluídas: <span id="qtdConcluidas">0</span></div>
+            <div>Faltantes: <span id="qtdFaltantes">0</span></div>
+        </div>
+
+        <div class="grid">
+            <div class="box">
+                <h3>Músicas Faltantes</h3>
+                <ul id="listaFaltantes"></ul>
+            </div>
+            <div class="box">
+                <h3>Músicas Concluídas</h3>
+                <ul id="listaConcluidas"></ul>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // COLE AQUI A URL DO SEU GOOGLE APPS SCRIPT
+    const WEB_APP_URL = "https://script.google.com/macros/library/d/1n4fF5ii3pdYdj9WmGfCMeyWQLpfvOH0lboPowEZLUV59WFJhPcrKqkPX/1";
+
+    let todasMusicas = []; 
+    let musicasConcluidasAluno = new Set(); 
+    let alunosCadastrados = new Set();
+
+    // Assim que a página abre, busca a lista de músicas e de alunos já salvos
+    window.onload = async function() {
+        try {
+            document.getElementById('loading').style.display = 'block';
+            
+            // Busca músicas e progresso inicial
+            const resMusicas = await fetch(`${WEB_APP_URL}?action=getMusicas`);
+            todasMusicas = await resMusicas.json();
+
+            const resProgresso = await fetch(`${WEB_APP_URL}?action=getAlunos`);
+            const progressoData = await resProgresso.json();
+
+            const select = document.getElementById('selectAluno');
+            progressoData.forEach(row => {
+                if (row[0]) alunosCadastrados.add(row[0]);
+            });
+
+            alunosCadastrados.forEach(aluno => {
+                const opt = document.createElement('option');
+                opt.value = aluno;
+                opt.textContent = aluno;
+                select.appendChild(opt);
+            });
+
+            document.getElementById('loading').style.display = 'none';
+        } catch (e) {
+            console.error(e);
+            document.getElementById('loading').innerText = "Erro ao carregar dados iniciais da planilha.";
+        }
+    };
+
+    function usarAlunoSelecionado() {
+        const select = document.getElementById('selectAluno');
+        if (select.value) {
+            document.getElementById('nomeAluno').value = select.value;
+        }
+    }
+
+    async function carregarDadosAluno() {
+        const nome = document.getElementById('nomeAluno').value.trim();
+        if (!nome) {
+            alert("Por favor, selecione ou digite o nome do aluno.");
+            return;
+        }
+
+        document.getElementById('loading').innerText = "Carregando progresso do aluno...";
+        document.getElementById('loading').style.display = 'block';
+        document.getElementById('painel').style.display = 'none';
+
+        try {
+            const resProgresso = await fetch(`${WEB_APP_URL}?action=getAlunos`);
+            const progressoData = await resProgresso.json();
+
+            musicasConcluidasAluno.clear();
+            progressoData.forEach(row => {
+                if (row[0] === nome) {
+                    musicasConcluidasAluno.add(String(row[1])); 
+                }
+            });
+
+            atualizarInterface();
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('painel').style.display = 'block';
+
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao carregar dados do aluno.");
+            document.getElementById('loading').style.display = 'none';
+        }
+    }
+
+    function atualizarInterface() {
+        const listaFaltantes = document.getElementById('listaFaltantes');
+        const listaConcluidas = document.getElementById('listaConcluidas');
+        listaFaltantes.innerHTML = '';
+        listaConcluidas.innerHTML = '';
+
+        let concluidasCount = 0;
+
+        todasMusicas.forEach(musica => {
+            const idMusica = String(musica[0]); 
+            const nomeMusica = musica[1]; 
+            const li = document.createElement('li');
+
+            if (musicasConcluidasAluno.has(idMusica)) {
+                concluidasCount++;
+                li.innerHTML = `${nomeMusica} <button class="btn-remover" onclick="alterarStatus('${idMusica}', false)">Desfazer</button>`;
+                listaConcluidas.appendChild(li);
+            } else {
+                li.innerHTML = `${nomeMusica} <button class="btn-concluir" onclick="alterarStatus('${idMusica}', true)">Concluir</button>`;
+                listaFaltantes.appendChild(li);
+            }
+        });
+
+        document.getElementById('totalMusicas').innerText = todasMusicas.length;
+        document.getElementById('qtdConcluidas').innerText = concluidasCount;
+        document.getElementById('qtdFaltantes').innerText = todasMusicas.length - concluidasCount;
+    }
+
+    async function alterarStatus(musicaId, status) {
+        const nome = document.getElementById('nomeAluno').value.trim();
+        
+        if (status) {
+            musicasConcluidasAluno.add(musicaId);
+        } else {
+            musicasConcluidasAluno.delete(musicaId);
+        }
+
+        atualizarInterface();
+
+        await fetch(WEB_APP_URL, {
+            method: 'POST',
+            body: JSON.stringify({ aluno: nome, musicaId: musicaId, status: status })
+        });
+    }
+</script>
+
+</body>
+</html>
