@@ -170,6 +170,47 @@
             <!-- Status do Upload Múltiplo -->
             <div id="status-upload-multiplo" class="hidden bg-slate-900 text-emerald-400 p-3 rounded-lg text-xs font-mono shadow-inner border border-slate-800"></div>
 
+            <!-- CAIXA DE IMPORTAR DADOS DE PLANILHA (COLAR DO EXCEL) -->
+            <div class="bg-sky-900 text-white p-5 rounded-xl shadow border border-sky-700 space-y-3">
+                <h3 class="text-sm font-bold flex items-center gap-2 text-sky-200">
+                    <i class="fa-solid fa-file-excel"></i> Importar Dados em Lote (Colar do Excel / Planilha)
+                </h3>
+                <p class="text-xs text-sky-200">Cole abaixo as linhas copiadas da sua planilha na ordem: <code class="bg-sky-950 px-1 py-0.5 rounded">ID | Título | Aluno | Instrumento | Turma | Instituição</code> (cada linha um item).</p>
+                <textarea id="input-planilha-lote" placeholder="Cole os dados da planilha aqui..." 
+                    class="w-full h-32 p-3 bg-sky-950 text-white font-mono text-xs rounded-lg border border-sky-700 focus:outline-none focus:ring-2 focus:ring-sky-400"></textarea>
+                <div class="flex justify-end">
+                    <button onclick="processarPlanilhaLote()" class="bg-sky-600 hover:bg-sky-700 text-white text-xs font-bold px-4 py-2 rounded-lg transition flex items-center gap-1.5 shadow">
+                        <i class="fa-solid fa-wand-magic-sparkles"></i> Processar e Gerar JSON
+                    </button>
+                </div>
+            </div>
+
+            <!-- NOVA CAIXA OCULTA: EXPORTAR PARA PLANILHA (TXT / TABELADO) -->
+            <div class="bg-amber-900 text-white p-5 rounded-xl shadow border border-amber-700 space-y-3">
+                <div class="flex justify-between items-center">
+                    <h3 class="text-sm font-bold flex items-center gap-2 text-amber-200">
+                        <i class="fa-solid fa-table-list"></i> Exportador para Planilha (Formato TXT / Colunas)
+                    </h3>
+                    <button onclick="togglePainelExportacao()" id="btn-toggle-export" class="bg-amber-800 hover:bg-amber-700 text-white text-xs font-semibold px-3 py-1.5 rounded transition flex items-center gap-1.5 border border-amber-600">
+                        <i class="fa-solid fa-eye"></i> Mostrar Exportador
+                    </button>
+                </div>
+                
+                <div id="painel-exportacao-oculto" class="hidden space-y-3 pt-2 border-t border-amber-800">
+                    <p class="text-xs text-amber-200">Clique em "Gerar Texto para Planilha" para converter o JSON atual em colunas prontas para colar no Excel ou Sheets.</p>
+                    <div class="flex gap-2">
+                        <button onclick="gerarTextoPlanilha()" class="bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold px-3 py-2 rounded transition flex items-center gap-1.5 shadow">
+                            <i class="fa-solid fa-rotate"></i> Gerar Texto para Planilha
+                        </button>
+                        <button onclick="copiarTextoPlanilha()" class="bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-3 py-2 rounded transition flex items-center gap-1.5">
+                            <i class="fa-regular fa-copy"></i> Copiar Texto
+                        </button>
+                    </div>
+                    <textarea id="output-planilha-txt" readonly placeholder="O texto formatado para planilha aparecerá aqui..." 
+                        class="w-full h-32 p-3 bg-slate-900 text-amber-300 font-mono text-xs rounded-lg border border-slate-700 focus:outline-none"></textarea>
+                </div>
+            </div>
+
             <div class="bg-indigo-900 text-white p-4 rounded-xl shadow flex flex-col md:flex-row justify-between items-center gap-4">
                 <div>
                     <h2 class="text-lg font-bold">Painel de Gerenciamento do Acervo</h2>
@@ -331,7 +372,7 @@
 
         window.addEventListener('DOMContentLoaded', () => {
             if(localStorage.getItem('gh_repo')) document.getElementById('gh-repo').value = localStorage.getItem('gh_repo');
-            if(localStorage.getItem('gh_path')) document.getElementById('gh-path').value = localStorage.getItem('gh_path');
+            if(localStorage.getItem('gh_path')) document.getElementById('gh_path').value = localStorage.getItem('gh_path');
             if(localStorage.getItem('gh_token')) document.getElementById('gh-token').value = localStorage.getItem('gh_token');
         });
 
@@ -374,6 +415,41 @@
             const icone = document.getElementById('icone-seta-tags');
             painel.classList.toggle('hidden');
             icone.className = painel.classList.contains('hidden') ? "fa-solid fa-chevron-down text-[10px] ml-1" : "fa-solid fa-chevron-up text-[10px] ml-1";
+        }
+
+        // MOSTRAR/OCULTAR EXPORTADOR PARA PLANILHA
+        function togglePainelExportacao() {
+            const painel = document.getElementById('painel-exportacao-oculto');
+            const btn = document.getElementById('btn-toggle-export');
+            painel.classList.toggle('hidden');
+            if (painel.classList.contains('hidden')) {
+                btn.innerHTML = `<i class="fa-solid fa-eye"></i> Mostrar Exportador`;
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-eye-slash"></i> Ocultar Exportador`;
+                gerarTextoPlanilha(); // Gera automático ao abrir
+            }
+        }
+
+        function gerarTextoPlanilha() {
+            if (acervoPartituras.length === 0) {
+                document.getElementById('output-planilha-txt').value = "Nenhum dado no acervo para exportar.";
+                return;
+            }
+
+            // Cria as linhas separadas por tabulação (\t) para colar direto no Excel
+            const linhas = acervoPartituras.map(item => {
+                return `${item.id}\t${item.titulo || ''}\t${item.aluno || ''}\t${item.instrumento || ''}\t${item.turma || ''}\t${item.instituicao || ''}`;
+            });
+
+            document.getElementById('output-planilha-txt').value = linhas.join('\n');
+        }
+
+        function copiarTextoPlanilha() {
+            const textarea = document.getElementById('output-planilha-txt');
+            if (!textarea.value) return;
+            textarea.select();
+            navigator.clipboard.writeText(textarea.value);
+            alert("Texto copiado para a área de transferência! Agora basta colar na sua planilha.");
         }
 
         function popularTagsAutomaticas() {
@@ -573,6 +649,55 @@
             document.getElementById('field-id').value = id + 1;
         }
 
+        // ==================== PROCESSAR DADOS DE PLANILHA EM LOTE ==================== //
+        function processarPlanilhaLote() {
+            const textoBruto = document.getElementById('input-planilha-lote').value.trim();
+            if (!textoBruto) {
+                alert("Por favor, cole os dados da planilha na caixa de texto.");
+                return;
+            }
+
+            const linhas = textoBruto.split('\n');
+            let adicionados = 0;
+
+            linhas.forEach(linha => {
+                const colunas = linha.split(/\t|,/).map(c => c.trim()).filter(c => c !== "");
+
+                if (colunas.length >= 2) {
+                    const id = parseInt(colunas[0]);
+                    if (!isNaN(id)) {
+                        const titulo = colunas[1] || "";
+                        const aluno = colunas[2] || "";
+                        const instrumento = colunas[3] || "";
+                        const turma = colunas[4] || "";
+                        const instituicao = colunas[5] || "NBM - Escola de Música";
+
+                        const novoItem = { id, titulo, aluno, instrumento, turma, instituicao };
+                        const indexExistente = acervoPartituras.findIndex(item => item.id === id);
+
+                        if (indexExistente !== -1) {
+                            acervoPartituras[indexExistente] = novoItem;
+                        } else {
+                            acervoPartituras.push(novoItem);
+                        }
+                        adicionados++;
+                    }
+                }
+            });
+
+            if (adicionados > 0) {
+                acervoPartituras.sort((a, b) => a.id - b.id);
+                atualizarSaidaAdmin();
+                popularTagsAutomaticas();
+                renderizarLista(acervoPartituras);
+                atualizarContador(acervoPartituras.length);
+                document.getElementById('input-planilha-lote').value = "";
+                alert(`Sucesso! ${adicionados} registro(s) processado(s) e adicionado(s) ao JSON.`);
+            } else {
+                alert("Não foi possível identificar os dados. Certifique-se de copiar as colunas do Excel corretamente.");
+            }
+        }
+
         function atualizarSaidaAdmin() {
             const linhas = acervoPartituras.map(item => {
                 return `  { "id": ${item.id}, "titulo": "${item.titulo || ''}", "aluno": "${item.aluno || ''}", "instrumento": "${item.instrumento || ''}", "turma": "${item.turma || ''}", "instituicao": "${item.instituicao || ''}" }`;
@@ -634,7 +759,6 @@
 
             for (let i = 0; i < files.length; i++) {
                 const file = files[i];
-                // Extrai apenas os números do nome do arquivo (ex: "12.pdf" vira "12")
                 const matchId = file.name.match(/\d+/);
                 
                 if (!matchId) {
@@ -649,7 +773,6 @@
                 statusDiv.innerHTML += `⏳ Enviando PDF #${idPdf} (${file.name})...<br>`;
 
                 try {
-                    // Lê o arquivo como Base64
                     const base64Content = await new Promise((resolve, reject) => {
                         const reader = new FileReader();
                         reader.readAsDataURL(file);
@@ -657,7 +780,6 @@
                         reader.onerror = error => reject(error);
                     });
 
-                    // Verifica se o arquivo já existe para obter o SHA
                     const resGet = await fetch(urlApi, {
                         headers: { "Authorization": `token ${token}` }
                     });
@@ -668,7 +790,6 @@
                         sha = fileData.sha;
                     }
 
-                    // Faz o upload para o GitHub
                     const resPut = await fetch(urlApi, {
                         method: "PUT",
                         headers: {
