@@ -30,7 +30,7 @@
   <!-- FontAwesome Icons -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 
-  <!-- ABCJS Basic Bundle -->
+  <!-- ABCJS Standard Bundle -->
   <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/plugin/abcjs-audio.css">
 
@@ -212,8 +212,10 @@
           </div>
         </div>
 
-        <!-- SYNTH AUDIO CONTROL PANEL -->
-        <div id="audio-player-container" class="mt-1"></div>
+        <!-- SYNTH AUDIO CONTROL STATUS -->
+        <div id="audio-player-container" class="mt-1 text-xs text-slate-400">
+          <span>Pronto para reprodução</span>
+        </div>
       </div>
 
       <!-- ABC CODE EDITOR PANEL -->
@@ -260,11 +262,11 @@
           <input type="text" id="gh-owner" value="albertinosesc" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none">
         </div>
         <div>
-          <label class="block font-medium text-slate-300 mb-1">Nome do Repositório:</label>
+          <label class="text-xs text-slate-300 mb-1 block">Repositório:</label>
           <input type="text" id="gh-repo" value="nbmaplicativos.github.oi" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none">
         </div>
         <div>
-          <label class="block font-medium text-slate-300 mb-1">Caminho da Pasta dos Ritmos:</label>
+          <label class="text-xs text-slate-300 mb-1 block">Caminho da Pasta:</label>
           <input type="text" id="gh-path" value="aplicativos/01/ritmo/ritmos" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none">
         </div>
       </div>
@@ -285,24 +287,28 @@
     let currentCategoryName = '';
     let currentFile = null; 
     let database = { bateria: [], teclado: [], baixo: [], violao: [] };
-    let synthControl = null;
-    let synth = null;
+    
+    // Globais de Áudio
+    let visualObjGlobal = null;
+    let midiBuffer = null;
+    let audioInitialized = false;
+    let isInitializing = false;
+
+    // Estado da árvore de pastas (Sanfona / Collapsible)
+    let openCategories = {};
 
     window.addEventListener('DOMContentLoaded', () => {
-      initGitHubCredentials();
+      localStorage.setItem('gh_owner', 'albertinosesc');
+      localStorage.setItem('gh_repo', 'nbmaplicativos.github.oi');
+      localStorage.setItem('gh_path', 'aplicativos/01/ritmo/ritmos');
+
       switchInstrument('violao');
     });
 
-    function initGitHubCredentials() {
-      if (!localStorage.getItem('gh_owner')) localStorage.setItem('gh_owner', 'albertinosesc');
-      if (!localStorage.getItem('gh_repo')) localStorage.setItem('gh_repo', 'nbmaplicativos.github.oi');
-      if (!localStorage.getItem('gh_path')) localStorage.setItem('gh_path', 'aplicativos/01/ritmo/ritmos');
-    }
-
     async function fetchGitHubRepositoryTree() {
-      const owner = localStorage.getItem('gh_owner') || 'albertinosesc';
-      const repo = localStorage.getItem('gh_repo') || 'nbmaplicativos.github.oi';
-      const basePath = localStorage.getItem('gh_path') || 'aplicativos/01/ritmo/ritmos';
+      const owner = 'albertinosesc';
+      const repo = 'nbmaplicativos.github.oi';
+      const basePath = 'aplicativos/01/ritmo/ritmos';
       const token = localStorage.getItem('gh_token');
 
       const statusEl = document.getElementById('sync-status');
@@ -313,12 +319,14 @@
 
       try {
         const instPath = `${basePath}/${currentInstrument}`;
-        const res = await fetch(`https://api.github.com/repos/${owner}/${repo}/contents/${instPath}`, { headers });
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${instPath}`;
+        
+        const res = await fetch(url, { headers });
 
         if (res.status === 404) {
           database[currentInstrument] = [];
           renderTree();
-          statusEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500 mr-1"></i> Pasta '${currentInstrument}' não encontrada`;
+          statusEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation text-amber-500 mr-1"></i> Pasta '${currentInstrument}' vazia ou não criada`;
           return;
         }
 
@@ -352,13 +360,13 @@
         database[currentInstrument] = loadedCategories;
         renderTree();
 
-        statusEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> Conectado (${repo})`;
-        showToast('Sincronizado', 'Lista de ritmos atualizada do GitHub!', 'success');
+        statusEl.innerHTML = `<i class="fa-solid fa-circle-check text-emerald-500 mr-1"></i> Conectado ao Repositório`;
+        showToast('Sincronizado', 'Lista de ritmos atualizada!', 'success');
 
       } catch (err) {
         console.error(err);
         statusEl.innerHTML = `<i class="fa-solid fa-circle-xmark text-rose-500 mr-1"></i> Erro ao conectar`;
-        showToast('Erro de Conexão', 'Não foi possível carregar do GitHub.', 'warning');
+        showToast('Erro de Conexão', 'Não foi possível carregar os dados do GitHub.', 'warning');
       }
     }
 
@@ -426,23 +434,29 @@
           cat.categoryName.toLowerCase().includes(filterQuery.toLowerCase())
         );
 
-        if (filterQuery && filteredFiles.length === 0) return;
+        const matchesCat = cat.categoryName.toLowerCase().includes(filterQuery.toLowerCase());
+        if (filterQuery && filteredFiles.length === 0 && !matchesCat) return;
+
+        const filesToDisplay = filterQuery ? filteredFiles : cat.files;
+        const isOpen = filterQuery ? true : !!openCategories[cat.folderName];
 
         const catDiv = document.createElement('div');
         catDiv.className = 'space-y-1 mb-2';
 
         catDiv.innerHTML = `
-          <div class="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-slate-800/60 cursor-pointer text-xs font-semibold text-slate-300 transition">
-            <span class="flex items-center gap-2">
-              <i class="fa-solid fa-folder-open text-indigo-400"></i>
-              <span>${cat.categoryName}</span>
+          <div onclick="toggleCategory('${cat.folderName}')" class="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-slate-800/60 cursor-pointer text-xs font-semibold text-slate-300 transition select-none">
+            <span class="flex items-center gap-2 truncate">
+              <i class="fa-solid fa-chevron-right text-[10px] text-slate-500 transition-transform duration-200 ${isOpen ? 'rotate-90' : ''}"></i>
+              <i class="fa-solid ${isOpen ? 'fa-folder-open text-indigo-400' : 'fa-folder text-slate-500'}"></i>
+              <span class="truncate">${cat.categoryName}</span>
+              <span class="text-[10px] bg-slate-800 text-slate-400 px-1.5 py-0.2 rounded-full font-normal">(${cat.files.length})</span>
             </span>
             <button onclick="event.stopPropagation(); addNewVariationPrompt('${cat.folderName}', '${cat.categoryName}')" title="Adicionar variação" class="text-slate-500 hover:text-indigo-400 p-1">
               <i class="fa-solid fa-plus"></i>
             </button>
           </div>
-          <div class="pl-4 space-y-1 border-l border-slate-800 ml-2">
-            ${filteredFiles.map(f => {
+          <div class="pl-4 space-y-1 border-l border-slate-800 ml-3 overflow-hidden transition-all duration-200 ${isOpen ? 'block' : 'hidden'}">
+            ${filesToDisplay.map(f => {
               const isActive = currentFile && currentFile.path === f.path;
               return `
                 <div onclick='loadABCFileFromGitHub(${JSON.stringify(f)}, "${cat.categoryName}")' class="px-2 py-1.5 rounded-lg text-xs cursor-pointer flex items-center justify-between transition group ${isActive ? 'bg-indigo-600/20 text-indigo-300 font-medium border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'}">
@@ -460,6 +474,11 @@
       });
     }
 
+    function toggleCategory(folderName) {
+      openCategories[folderName] = !openCategories[folderName];
+      renderTree(document.getElementById('search-input').value);
+    }
+
     function filterRhythmTree() {
       const q = document.getElementById('search-input').value;
       renderTree(q);
@@ -468,40 +487,93 @@
     function renderABCScore(abcString) {
       if (!abcString || !abcString.trim()) return;
 
-      ABCJS.renderAbc("paper", abcString, {
+      const visualObjArray = ABCJS.renderAbc("paper", abcString, {
         responsive: "resize",
-        paddingtop: 10,
-        paddingbottom: 10,
-        paddingright: 10,
-        paddingleft: 10,
+        paddingtop: 10, paddingbottom: 10, paddingright: 10, paddingleft: 10,
         add_classes: true
       });
+
+      if (visualObjArray && visualObjArray.length > 0) {
+        visualObjGlobal = visualObjArray[0];
+      } else {
+        visualObjGlobal = null;
+        return;
+      }
 
       const bpmMatch = abcString.match(/Q:\s*1\/4\s*=\s*(\d+)/i) || abcString.match(/Q:\s*(\d+)/i);
       if (bpmMatch && bpmMatch[1]) {
         document.getElementById('bpm-input').value = bpmMatch[1];
       }
 
-      if (ABCJS.synth.isSupported()) {
-        try {
-          const visualObj = ABCJS.renderAbc("paper", abcString)[0];
-          synthControl = new ABCJS.synth.SynthController();
-          synthControl.load("#audio-player-container", null, {
-            displayLoop: true,
-            displayRestart: true,
-            displayPlay: true,
-            displayProgress: true,
-            displayWarp: true
-          });
+      resetAudioState();
+      document.getElementById('audio-player-container').innerHTML = 
+        `<span class="text-slate-500">Clique em "Tocar" para carregar o áudio.</span>`;
+    }
 
-          synth = new ABCJS.synth.CreateSynth();
-          synth.init({ visualObj: visualObj }).then(function () {
-            synthControl.setTune(visualObj, false, {}).then(function () {});
-          }).catch(function (error) {
-            console.warn("Audio Synth Error:", error);
-          });
+    function resetAudioState() {
+      if (midiBuffer) {
+        try { midiBuffer.stop(); } catch(e) {}
+        midiBuffer = null;
+      }
+      audioInitialized = false;
+      isInitializing = false;
+    }
+
+    async function playAudioSynth() {
+      if (audioInitialized && midiBuffer) {
+        try {
+          midiBuffer.stop();
+          await midiBuffer.start();
+          showToast('Reproduzindo', 'Áudio iniciado.', 'info');
         } catch(e) {
-          console.warn("Synth initialization warning:", e);
+          console.error("Falha ao reproduzir:", e);
+          alert("Falha ao reproduzir, tente recarregar a página.");
+        }
+        return;
+      }
+
+      if (isInitializing) return;
+      if (!visualObjGlobal) {
+        alert("Selecione ou crie um ritmo primeiro.");
+        return;
+      }
+
+      isInitializing = true;
+      const container = document.getElementById('audio-player-container');
+      container.innerHTML = `<span class="text-indigo-400"><i class="fa-solid fa-circle-notch fa-spin"></i> Carregando samples de áudio...</span>`;
+
+      try {
+        if (ABCJS.synth.activeAudioContext) {
+          const ctx = ABCJS.synth.activeAudioContext();
+          if (ctx && ctx.state === 'suspended') await ctx.resume();
+        }
+
+        midiBuffer = new ABCJS.synth.CreateSynth();
+        await midiBuffer.init({ visualObj: visualObjGlobal });
+        await midiBuffer.prime();
+
+        audioInitialized = true;
+        container.innerHTML = `<span class="text-emerald-400"><i class="fa-solid fa-check"></i> Áudio pronto</span>`;
+
+        await midiBuffer.start();
+        showToast('Reproduzindo', 'Áudio carregado e iniciado.', 'success');
+      } catch (err) {
+        console.error("Falha na inicialização do áudio:", err);
+        container.innerHTML = `<span class="text-rose-400">Falha no carregamento do áudio</span>`;
+        alert("Falha no carregamento do áudio: " + err.message);
+        resetAudioState();
+      } finally {
+        isInitializing = false;
+      }
+    }
+
+    function stopAudioSynth() {
+      if (midiBuffer) {
+        try {
+          midiBuffer.stop();
+          showToast('Parado', 'Áudio interrompido.', 'info');
+        } catch(e) {
+          console.warn("Erro ao parar:", e);
         }
       }
     }
@@ -522,24 +594,11 @@
       renderABCScore(code);
     }
 
-    function playAudioSynth() {
-      if (synthControl) {
-        const playBtn = document.querySelector('.abcjs-inline-audio .abcjs-btn');
-        if (playBtn) playBtn.click();
-      }
-    }
-
-    function stopAudioSynth() {
-      if (synthControl) {
-        synthControl.pause();
-      }
-    }
-
     async function saveToGitHubCurrent() {
       const token = localStorage.getItem('gh_token');
-      const owner = localStorage.getItem('gh_owner') || 'albertinosesc';
-      const repo = localStorage.getItem('gh_repo') || 'nbmaplicativos.github.oi';
-      const basePath = localStorage.getItem('gh_path') || 'aplicativos/01/ritmo/ritmos';
+      const owner = 'albertinosesc';
+      const repo = 'nbmaplicativos.github.oi';
+      const basePath = 'aplicativos/01/ritmo/ritmos';
 
       if (!token) {
         alert('É necessário configurar o Personal Access Token (PAT) do GitHub para salvar alterações.');
@@ -665,9 +724,9 @@
 
     function openGitHubModal() {
       document.getElementById('gh-token').value = localStorage.getItem('gh_token') || '';
-      document.getElementById('gh-owner').value = localStorage.getItem('gh_owner') || 'albertinosesc';
-      document.getElementById('gh-repo').value = localStorage.getItem('gh_repo') || 'nbmaplicativos.github.oi';
-      document.getElementById('gh-path').value = localStorage.getItem('gh_path') || 'aplicativos/01/ritmo/ritmos';
+      document.getElementById('gh-owner').value = 'albertinosesc';
+      document.getElementById('gh-repo').value = 'nbmaplicativos.github.oi';
+      document.getElementById('gh-path').value = 'aplicativos/01/ritmo/ritmos';
       document.getElementById('github-modal').classList.remove('hidden');
     }
 
@@ -677,10 +736,6 @@
 
     function saveGitHubSettings() {
       localStorage.setItem('gh_token', document.getElementById('gh-token').value.trim());
-      localStorage.setItem('gh_owner', document.getElementById('gh-owner').value.trim());
-      localStorage.setItem('gh_repo', document.getElementById('gh-repo').value.trim());
-      localStorage.setItem('gh_path', document.getElementById('gh-path').value.trim());
-
       closeGitHubModal();
       fetchGitHubRepositoryTree();
     }
