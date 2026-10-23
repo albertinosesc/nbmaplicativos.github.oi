@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerenciador e Biblioteca de Ritmos Musicais (ABC)</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              500: '#6366f1',
+              600: '#4f46e5',
+              700: '#4338ca',
+              900: '#312e81',
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- ABCJS Basic Bundle -->
+  <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/plugin/abcjs-audio.css">
+
+  <style>
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0f172a;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #334155;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #475569;
+    }
+
+    /* ABCJS Score Styling Customization */
+    #paper svg {
+      background-color: #ffffff;
+      border-radius: 0.75rem;
+      padding: 1.25rem;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+      width: 100% !important;
+      height: auto !important;
+    }
+
+    /* Synth Controls customization override */
+    .abcjs-inline-audio {
+      max-width: 100%;
+      border-radius: 0.5rem;
+      background-color: #1e293b !important;
+      border: 1px solid #334155 !important;
+      padding: 8px 16px !important;
+    }
+    .abcjs-btn {
+      fill: #a5b4fc !important;
+    }
+    .abcjs-btn:hover {
+      fill: #ffffff !important;
+    }
+  </style>
+</head>
+<body class="h-full font-sans antialiased flex flex-col bg-slate-950 text-slate-100 overflow-hidden">
+
+  <!-- TOP HEADER & INSTRUMENT NAVIGATION -->
+  <header class="bg-slate-900 border-b border-slate-800 shrink-0 px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+    <div class="flex items-center space-x-3">
+      <div class="bg-indigo-600/20 border border-indigo-500/40 p-2 rounded-xl text-indigo-400 flex items-center justify-center">
+        <i class="fa-solid fa-drum-steelpan text-xl"></i>
+      </div>
+      <div>
+        <h1 class="font-bold text-lg leading-tight text-white flex items-center gap-2">
+          RitmoHub <span class="text-xs font-medium px-2 py-0.5 rounded-full bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">ABC Score Editor</span>
+        </h1>
+        <p class="text-xs text-slate-400">Biblioteca e Gerenciador Multi-Instrumento</p>
+      </div>
+    </div>
+
+    <!-- TAB INSTRUMENT SELECTOR -->
+    <nav class="flex items-center space-x-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-sm font-medium">
+      <button onclick="switchInstrument('bateria')" id="tab-bateria" class="tab-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-drum"></i> <span>Bateria</span>
+      </button>
+      <button onclick="switchInstrument('teclado')" id="tab-teclado" class="tab-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-keyboard"></i> <span>Teclado / Piano</span>
+      </button>
+      <button onclick="switchInstrument('baixo')" id="tab-baixo" class="tab-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-guitar text-emerald-400"></i> <span>Baixo</span>
+      </button>
+      <button onclick="switchInstrument('violao')" id="tab-violao" class="tab-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 text-slate-400 hover:text-white">
+        <i class="fa-solid fa-music"></i> <span>Violão</span>
+      </button>
+    </nav>
+
+    <!-- RIGHT ACTION BUTTONS -->
+    <div class="flex items-center gap-2">
+      <button onclick="openGitHubModal()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition flex items-center gap-2">
+        <i class="fa-brands fa-github text-sm"></i>
+        <span class="hidden sm:inline">Configurar GitHub</span>
+      </button>
+      <button onclick="toggleFullScreenMode()" title="Modo Leitura / Tela Cheia" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 rounded-lg text-xs font-medium transition">
+        <i class="fa-solid fa-expand"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- MAIN APP WORKSPACE -->
+  <div class="flex-1 flex overflow-hidden relative">
+
+    <!-- LEFT SIDEBAR: TREE LIBRARY -->
+    <aside id="sidebar-container" class="w-80 bg-slate-900/90 border-r border-slate-800 flex flex-col shrink-0 transition-all duration-300 z-10">
+      
+      <!-- SEARCH & ADD HEADER -->
+      <div class="p-3 border-b border-slate-800 space-y-2">
+        <div class="flex items-center justify-between">
+          <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+            <i class="fa-solid fa-folder-tree"></i> Ritmos e Variações
+          </span>
+          <button onclick="addNewRhythmPrompt()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1 rounded-md transition font-medium flex items-center gap-1 shadow">
+            <i class="fa-solid fa-plus"></i> Novo Ritmo
+          </button>
+        </div>
+
+        <div class="relative">
+          <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-500"></i>
+          <input type="text" id="search-input" oninput="filterRhythmTree()" placeholder="Buscar ritmo ou variação..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition">
+        </div>
+      </div>
+
+      <!-- TREE LIST CONTAINER -->
+      <div id="tree-container" class="flex-1 overflow-y-auto p-2 space-y-1">
+        <!-- Dynamic Category and Subcategory Items will be rendered here -->
+      </div>
+
+      <!-- FOOTER STATS & SYNC -->
+      <div class="p-3 border-t border-slate-800 bg-slate-950/60 text-xs text-slate-400 flex items-center justify-between">
+        <span id="sync-status"><i class="fa-solid fa-hard-drive text-amber-500 mr-1"></i> Modo Local (offline)</span>
+        <button onclick="syncWithGitHub()" class="text-indigo-400 hover:text-indigo-300 transition" title="Sincronizar do Repositório">
+          <i class="fa-solid fa-rotate"></i>
+        </button>
+      </div>
+    </aside>
+
+    <!-- MAIN CENTER DISPLAY: SCORE, PLAYER & EDITOR -->
+    <main class="flex-1 flex flex-col overflow-y-auto bg-slate-950 p-4 space-y-4">
+      
+      <!-- RHYTHM HEADER & ACTIONS -->
+      <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3 shadow-lg">
+        <div>
+          <div class="flex items-center gap-2 text-xs text-indigo-400 font-medium mb-0.5">
+            <span id="current-instrument-label" class="capitalize">Bateria</span> &bull; 
+            <span id="current-category-label">Samba</span>
+          </div>
+          <h2 id="current-title-display" class="text-xl font-bold text-white flex items-center gap-2">
+            Samba - Variação 1 (Básico)
+          </h2>
+        </div>
+
+        <!-- CONTROLS & DOWNLOAD -->
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="downloadABCFile()" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-medium transition flex items-center gap-1.5">
+            <i class="fa-solid fa-download"></i> Baixar .ABC
+          </button>
+          <button onclick="saveCurrentRhythm()" class="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition shadow flex items-center gap-1.5">
+            <i class="fa-solid fa-floppy-disk"></i> Salvar Alterações
+          </button>
+          <button onclick="saveToGitHubCurrent()" class="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-medium transition shadow flex items-center gap-1.5">
+            <i class="fa-brands fa-github"></i> Push p/ GitHub
+          </button>
+        </div>
+      </div>
+
+      <!-- VISUALIZER PANEL & SYNTH AUDIO PLAYER -->
+      <div id="score-section" class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex flex-col gap-4">
+        
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
+          <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-music text-indigo-400"></i> Partitura Visual
+          </span>
+
+          <!-- BPM / TEMPO & SYNTH CONTROLS -->
+          <div class="flex items-center gap-4 bg-slate-950 px-3 py-1.5 rounded-lg border border-slate-800">
+            <div class="flex items-center gap-2">
+              <label for="bpm-input" class="text-xs font-medium text-slate-400">BPM:</label>
+              <input type="number" id="bpm-input" value="100" min="30" max="280" onchange="updateBPM(this.value)" class="w-16 bg-slate-900 border border-slate-700 rounded text-center text-xs text-white py-1 font-bold focus:outline-none focus:border-indigo-500">
+            </div>
+            <div class="flex items-center gap-2">
+              <button onclick="playAudioSynth()" class="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-play"></i> Tocar
+              </button>
+              <button onclick="stopAudioSynth()" class="px-3 py-1 bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold rounded flex items-center gap-1.5 transition">
+                <i class="fa-solid fa-stop"></i> Parar
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- ABC RENDER CANVAS CONTAINER -->
+        <div class="overflow-x-auto min-h-[160px] flex items-center justify-center bg-slate-950/50 p-2 rounded-xl border border-slate-800/80">
+          <div id="paper" class="w-full max-w-4xl"></div>
+        </div>
+
+        <!-- SYNTH AUDIO CONTROL PANEL -->
+        <div id="audio-player-container" class="mt-1"></div>
+      </div>
+
+      <!-- ABC CODE EDITOR PANEL -->
+      <div id="editor-section" class="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg flex-1 flex flex-col min-h-[280px]">
+        <div class="flex items-center justify-between border-b border-slate-800 pb-3 mb-3">
+          <span class="text-xs font-semibold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+            <i class="fa-solid fa-code text-indigo-400"></i> Editor de Código ABC
+          </span>
+          <div class="flex items-center gap-2 text-xs text-slate-400">
+            <i class="fa-solid fa-bolt text-amber-400"></i> Atualização em Tempo Real (Live Preview)
+          </div>
+        </div>
+
+        <textarea id="abc-editor" oninput="onEditorInput()" spellcheck="false" class="w-full flex-1 bg-slate-950 font-mono text-xs sm:text-sm text-indigo-200 border border-slate-800 rounded-xl p-3 focus:outline-none focus:border-indigo-500 leading-relaxed resize-none"></textarea>
+      </div>
+
+    </main>
+  </div>
+
+  <!-- GITHUB CONFIGURATION MODAL -->
+  <div id="github-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-6 shadow-2xl relative space-y-4">
+      <button onclick="closeGitHubModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white text-sm">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+
+      <div class="flex items-center space-x-3">
+        <div class="p-3 bg-slate-800 rounded-xl text-white border border-slate-700">
+          <i class="fa-brands fa-github text-2xl"></i>
+        </div>
+        <div>
+          <h3 class="text-base font-bold text-white">Conexão com GitHub</h3>
+          <p class="text-xs text-slate-400">Sincronize arquivos `.abc` no seu repositório</p>
+        </div>
+      </div>
+
+      <div class="space-y-3 text-xs">
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Personal Access Token (PAT):</label>
+          <input type="password" id="gh-token" placeholder="ghp_xxxxxxxxxxxxxxxxx" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none">
+          <p class="text-[10px] text-slate-500 mt-1">Requer permissão de 'repo' ou 'contents'.</p>
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Usuário / Organização:</label>
+          <input type="text" id="gh-owner" placeholder="seu-usuario" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Nome do Repositório:</label>
+          <input type="text" id="gh-repo" placeholder="biblioteca-ritmos" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none">
+        </div>
+
+        <div>
+          <label class="block font-medium text-slate-300 mb-1">Caminho da Pasta no Repositório:</label>
+          <input type="text" id="gh-path" placeholder="ritmos" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 focus:border-indigo-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end space-x-2 pt-2">
+        <button onclick="closeGitHubModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-medium transition">Cancelar</button>
+        <button onclick="saveGitHubSettings()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-medium transition shadow">Salvar Conexão</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST NOTIFICATION CONTAINER -->
+  <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col space-y-2 pointer-events-none"></div>
+
+  <!-- JAVASCRIPT APPLICATION LOGIC -->
+  <script>
+    /* ===================================================================
+       DEMO INITIAL DATA (ABC NOTATION PER INSTRUMENT & SUB-VARIATIONS)
+       =================================================================== */
+    const INITIAL_DATABASE = {
+      bateria: [
+        {
+          id: 'cat_bat_samba',
+          categoryName: 'Samba',
+          variations: [
+            {
+              id: 'bat_samba_1',
+              title: 'Samba 1 (Padrão Básico Percussivo)',
+              abc: `X:1\nT:Samba 1 (Padrão Básico Percussivo)\nM:2/4\nL:1/16\nQ:1/4=100\nK:C clef=perc\n%%MIDI channel 10\n|: c2F2 c2F2 | c2F2 c2F2 :|`
+            },
+            {
+              id: 'bat_samba_2',
+              title: 'Samba 2 (Com Condução de Sincopa)',
+              abc: `X:2\nT:Samba 2 (Com Condução de Sincopa)\nM:2/4\nL:1/16\nQ:1/4=105\nK:C clef=perc\n%%MIDI channel 10\n|: F2c2 F2c2 | c2F2 c2F2 :|`
+            }
+          ]
+        },
+        {
+          id: 'cat_bat_bossa',
+          categoryName: 'Bossa Nova',
+          variations: [
+            {
+              id: 'bat_bossa_1',
+              title: 'Bossa Nova 1 (Condução Clássica)',
+              abc: `X:3\nT:Bossa Nova 1 (Condução Clássica)\nM:2/4\nL:1/16\nQ:1/4=80\nK:C clef=perc\n%%MIDI channel 10\n|: c2F2 c2F2 | F2c2 c2F2 :|`
+            }
+          ]
+        },
+        {
+          id: 'cat_bat_baiao',
+          categoryName: 'Baião',
+          variations: [
+            {
+              id: 'bat_baiao_1',
+              title: 'Baião 1 (Zabumba & Bumbo)',
+              abc: `X:4\nT:Baião 1 (Zabumba & Bumbo)\nM:2/4\nL:1/16\nQ:1/4=110\nK:C clef=perc\n%%MIDI channel 10\n|: c2z2 c2z2 | c3c c2z2 :|`
+            }
+          ]
+        }
+      ],
+      teclado: [
+        {
+          id: 'cat_tec_samba',
+          categoryName: 'Samba',
+          variations: [
+            {
+              id: 'tec_samba_1',
+              title: 'Samba 1 (Harmonização em Bloco)',
+              abc: `X:1\nT:Samba 1 (Harmonização em Bloco)\nM:2/4\nL:1/16\nQ:1/4=96\nK:C\n|: [CEG]2z2 [CEG]2z2 | z2[CEG]2 [CEG]2z2 :|`
+            },
+            {
+              id: 'tec_samba_2',
+              title: 'Samba 2 (Groove de Terceiras e Sétimas)',
+              abc: `X:2\nT:Samba 2 (Groove Sincopado)\nM:2/4\nL:1/16\nQ:1/4=100\nK:C\n|: z2[EG]2 z2[EG]2 | [EG]2z2 [FA]4 :|`
+            }
+          ]
+        },
+        {
+          id: 'cat_tec_pop',
+          categoryName: 'Pop / Rock',
+          variations: [
+            {
+              id: 'tec_pop_1',
+              title: 'Pop 1 (Arpejo Padrão C - G - Am - F)',
+              abc: `X:3\nT:Pop 1 (Arpejo Padrão C - G - Am - F)\nM:4/4\nL:1/8\nQ:1/4=110\nK:C\n| C E G E G D B, D | A, C E C F, A, C A, |`
+            }
+          ]
+        }
+      ],
+      baixo: [
+        {
+          id: 'cat_bx_samba',
+          categoryName: 'Samba',
+          variations: [
+            {
+              id: 'bx_samba_1',
+              title: 'Baixo Samba 1 (Levada Surdo na Baixaria)',
+              abc: `X:1\nT:Baixo Samba 1 (Levada Surdo na Baixaria)\nM:2/4\nL:1/16\nQ:1/4=98\nK:C clef=bass\n|: C3E G2G2 | C3E G2G2 :|`
+            }
+          ]
+        },
+        {
+          id: 'cat_bx_reggae',
+          categoryName: 'Reggae',
+          variations: [
+            {
+              id: 'bx_reggae_1',
+              title: 'Reggae 1 (One Drop Low Groove)',
+              abc: `X:2\nT:Reggae 1 (One Drop Low Groove)\nM:4/4\nL:1/8\nQ:1/4=75\nK:C clef=bass\n|: z2 C2 z E G2 | z2 D2 z F A2 :|`
+            }
+          ]
+        }
+      ],
+      violao: [
+        {
+          id: 'cat_vio_samba',
+          categoryName: 'Samba',
+          variations: [
+            {
+              id: 'vio_samba_1',
+              title: 'Violão Samba 1 (Levada Bossa/Samba Batida)',
+              abc: `X:1\nT:Violão Samba 1 (Levada Bossa/Samba Batida)\nM:2/4\nL:1/16\nQ:1/4=90\nK:C\n|: [C,E,G,B,]2z2 [CEG]2z2 | z2[CEG]2 [CEG]2z2 :|`
+            }
+          ]
+        },
+        {
+          id: 'cat_vio_baiao',
+          categoryName: 'Baião',
+          variations: [
+            {
+              id: 'vio_baiao_1',
+              title: 'Violão Baião 1 (Batida de Polegar e Dedos)',
+              abc: `X:2\nT:Violão Baião 1 (Batida de Polegar e Dedos)\nM:2/4\nL:1/16\nQ:1/4=105\nK:C\n|: [C,G,]3[CEG] [CEG]2z2 | [C,G,]3[CEG] [CEG]2z2 :|`
+            }
+          ]
+        }
+      ]
+    };
+
+    /* ===================================================================
+       APPLICATION STATE
+       =================================================================== */
+    let currentInstrument = 'bateria';
+    let currentCategoryId = 'cat_bat_samba';
+    let currentVariationId = 'bat_samba_1';
+    let database = null;
+    let synthControl = null;
+    let synth = null;
+
+    /* ===================================================================
+       INITIALIZATION
+       =================================================================== */
+    window.addEventListener('DOMContentLoaded', () => {
+      loadDatabaseFromStorage();
+      renderInstrumentTabs();
+      renderTree();
+      loadActiveRhythm();
+    });
+
+    function loadDatabaseFromStorage() {
+      const stored = localStorage.getItem('ritmohub_db');
+      if (stored) {
+        try {
+          database = JSON.parse(stored);
+        } catch(e) {
+          database = INITIAL_DATABASE;
+        }
+      } else {
+        database = INITIAL_DATABASE;
+        saveDatabaseToStorage();
+      }
+    }
+
+    function saveDatabaseToStorage() {
+      localStorage.setItem('ritmohub_db', JSON.stringify(database));
+    }
+
+    /* ===================================================================
+       NAVIGATION & TREE RENDERING
+       =================================================================== */
+    function switchInstrument(inst) {
+      currentInstrument = inst;
+      renderInstrumentTabs();
+
+      // Find first available category/variation for this instrument
+      const categories = database[inst] || [];
+      if (categories.length > 0) {
+        currentCategoryId = categories[0].id;
+        if (categories[0].variations && categories[0].variations.length > 0) {
+          currentVariationId = categories[0].variations[0].id;
+        }
+      }
+
+      renderTree();
+      loadActiveRhythm();
+    }
+
+    function renderInstrumentTabs() {
+      const tabs = ['bateria', 'teclado', 'baixo', 'violao'];
+      tabs.forEach(tab => {
+        const btn = document.getElementById(`tab-${tab}`);
+        if (!btn) return;
+        if (tab === currentInstrument) {
+          btn.className = "tab-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 bg-indigo-600 text-white font-semibold shadow-md border border-indigo-500/50";
+        } else {
+          btn.className = "tab-btn px-3 py-1.5 rounded-lg transition-all flex items-center gap-2 text-slate-400 hover:text-white hover:bg-slate-900";
+        }
+      });
+
+      document.getElementById('current-instrument-label').textContent = currentInstrument;
+    }
+
+    function renderTree(filterQuery = '') {
+      const container = document.getElementById('tree-container');
+      container.innerHTML = '';
+
+      const categories = database[currentInstrument] || [];
+
+      categories.forEach(cat => {
+        const filteredVariations = cat.variations.filter(v => 
+          v.title.toLowerCase().includes(filterQuery.toLowerCase()) || 
+          cat.categoryName.toLowerCase().includes(filterQuery.toLowerCase())
+        );
+
+        if (filterQuery && filteredVariations.length === 0) return;
+
+        const catDiv = document.createElement('div');
+        catDiv.className = 'space-y-1 mb-2';
+
+        const isCurrentCat = cat.id === currentCategoryId;
+
+        catDiv.innerHTML = `
+          <div class="flex items-center justify-between px-2 py-1.5 rounded-md hover:bg-slate-800/60 cursor-pointer text-xs font-semibold text-slate-300 transition" onclick="toggleCategoryExpand('${cat.id}')">
+            <span class="flex items-center gap-2">
+              <i class="fa-solid ${isCurrentCat ? 'fa-folder-open text-indigo-400' : 'fa-folder text-slate-500'}"></i>
+              <span>${cat.categoryName}</span>
+            </span>
+            <button onclick="event.stopPropagation(); addNewVariationPrompt('${cat.id}')" title="Adicionar variação" class="text-slate-500 hover:text-indigo-400 p-1">
+              <i class="fa-solid fa-plus"></i>
+            </button>
+          </div>
+          <div id="cat-children-${cat.id}" class="pl-4 space-y-1 border-l border-slate-800 ml-2">
+            ${filteredVariations.map(v => {
+              const isActive = v.id === currentVariationId;
+              return `
+                <div onclick="selectVariation('${cat.id}', '${v.id}')" class="px-2 py-1.5 rounded-lg text-xs cursor-pointer flex items-center justify-between transition group ${isActive ? 'bg-indigo-600/20 text-indigo-300 font-medium border border-indigo-500/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-slate-200'}">
+                  <span class="truncate flex items-center gap-1.5">
+                    <i class="fa-solid fa-music text-[10px] ${isActive ? 'text-indigo-400' : 'text-slate-600'}"></i>
+                    ${v.title}
+                  </span>
+                  <button onclick="event.stopPropagation(); deleteVariation('${cat.id}', '${v.id}')" title="Excluir" class="opacity-0 group-hover:opacity-100 text-slate-500 hover:text-rose-400 transition">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `;
+
+        container.appendChild(catDiv);
+      });
+    }
+
+    function filterRhythmTree() {
+      const q = document.getElementById('search-input').value;
+      renderTree(q);
+    }
+
+    function toggleCategoryExpand(catId) {
+      currentCategoryId = catId;
+      renderTree();
+    }
+
+    function selectVariation(catId, varId) {
+      currentCategoryId = catId;
+      currentVariationId = varId;
+      renderTree();
+      loadActiveRhythm();
+    }
+
+    /* ===================================================================
+       LOAD & RENDER RHYTHM SCORE / SYNTH AUDIO
+       =================================================================== */
+    function getActiveVariation() {
+      const categories = database[currentInstrument] || [];
+      const cat = categories.find(c => c.id === currentCategoryId);
+      if (!cat) return null;
+      const variation = cat.variations.find(v => v.id === currentVariationId);
+      return { category: cat, variation };
+    }
+
+    function loadActiveRhythm() {
+      const data = getActiveVariation();
+      if (!data || !data.variation) return;
+
+      document.getElementById('current-category-label').textContent = data.category.categoryName;
+      document.getElementById('current-title-display').textContent = data.variation.title;
+      document.getElementById('abc-editor').value = data.variation.abc;
+
+      renderABCScore(data.variation.abc);
+    }
+
+    function renderABCScore(abcString) {
+      // 1. Render Visual Score
+      ABCJS.renderAbc("paper", abcString, {
+        responsive: "resize",
+        paddingtop: 10,
+        paddingbottom: 10,
+        paddingright: 10,
+        paddingleft: 10,
+        add_classes: true
+      });
+
+      // 2. Extract BPM if available
+      const bpmMatch = abcString.match(/Q:\s*1\/4\s*=\s*(\d+)/i) || abcString.match(/Q:\s*(\d+)/i);
+      if (bpmMatch && bpmMatch[1]) {
+        document.getElementById('bpm-input').value = bpmMatch[1];
+      }
+
+      // 3. Prepare Synth Audio
+      if (ABCJS.synth.isSupported()) {
+        try {
+          const visualObj = ABCJS.renderAbc("paper", abcString)[0];
+          synthControl = new ABCJS.synth.SynthController();
+          synthControl.load("#audio-player-container", null, {
+            displayLoop: true,
+            displayRestart: true,
+            displayPlay: true,
+            displayProgress: true,
+            displayWarp: true
+          });
+
+          synth = new ABCJS.synth.CreateSynth();
+          synth.init({ visualObj: visualObj }).then(function () {
+            synthControl.setTune(visualObj, false, {}).then(function () {
+              // Audio synth ready
+            });
+          }).catch(function (error) {
+            console.warn("Audio Synth Error:", error);
+          });
+        } catch(e) {
+          console.warn("Synth initialization warning:", e);
+        }
+      }
+    }
+
+    function onEditorInput() {
+      const code = document.getElementById('abc-editor').value;
+      renderABCScore(code);
+    }
+
+    function updateBPM(newBpm) {
+      let code = document.getElementById('abc-editor').value;
+      if (code.includes('Q:')) {
+        code = code.replace(/Q:.*$/m, `Q:1/4=${newBpm}`);
+      } else {
+        code = `Q:1/4=${newBpm}\n` + code;
+      }
+      document.getElementById('abc-editor').value = code;
+      renderABCScore(code);
+    }
+
+    function playAudioSynth() {
+      if (synthControl) {
+        const playBtn = document.querySelector('.abcjs-inline-audio .abcjs-btn');
+        if (playBtn) playBtn.click();
+      }
+    }
+
+    function stopAudioSynth() {
+      if (synthControl) {
+        synthControl.pause();
+      }
+    }
+
+    /* ===================================================================
+       CREATE, EDIT & DELETE RHYTHM VARIATIONS
+       =================================================================== */
+    function saveCurrentRhythm() {
+      const data = getActiveVariation();
+      if (!data || !data.variation) return;
+
+      const newAbc = document.getElementById('abc-editor').value;
+      data.variation.abc = newAbc;
+
+      // Update title if header line changed in ABC string
+      const titleMatch = newAbc.match(/T:\s*(.+)$/m);
+      if (titleMatch && titleMatch[1]) {
+        data.variation.title = titleMatch[1].trim();
+      }
+
+      saveDatabaseToStorage();
+      renderTree();
+      document.getElementById('current-title-display').textContent = data.variation.title;
+      showToast('Sucesso', 'Ritmo salvo com sucesso no armazenamento local!', 'success');
+    }
+
+    function addNewRhythmPrompt() {
+      const categoryName = prompt("Nome da Nova Categoria/Estilo (Ex: Reggae, Rock, Pagode):");
+      if (!categoryName) return;
+
+      const varTitle = prompt("Nome da Variação 1 (Ex: Padrão Básico):", "Variação 1");
+      if (!varTitle) return;
+
+      const catId = 'cat_' + Date.now();
+      const varId = 'var_' + Date.now();
+
+      const defaultAbc = `X:1\nT:${categoryName} - ${varTitle}\nM:4/4\nL:1/8\nQ:1/4=100\nK:C\n| C2 D2 E2 F2 | G2 A2 B2 c2 |`;
+
+      const newCategory = {
+        id: catId,
+        categoryName: categoryName,
+        variations: [
+          {
+            id: varId,
+            title: `${categoryName} - ${varTitle}`,
+            abc: defaultAbc
+          }
+        ]
+      };
+
+      if (!database[currentInstrument]) database[currentInstrument] = [];
+      database[currentInstrument].push(newCategory);
+
+      currentCategoryId = catId;
+      currentVariationId = varId;
+
+      saveDatabaseToStorage();
+      renderTree();
+      loadActiveRhythm();
+      showToast('Novo Ritmo Criado', `Categoria ${categoryName} adicionada!`, 'info');
+    }
+
+    function addNewVariationPrompt(catId) {
+      const varTitle = prompt("Nome da Nova Variação (Ex: Variação 2 - Sincopada):");
+      if (!varTitle) return;
+
+      const categories = database[currentInstrument] || [];
+      const cat = categories.find(c => c.id === catId);
+      if (!cat) return;
+
+      const varId = 'var_' + Date.now();
+      const defaultAbc = `X:1\nT:${cat.categoryName} - ${varTitle}\nM:2/4\nL:1/16\nQ:1/4=100\nK:C\n|: c2z2 c2z2 :|`;
+
+      cat.variations.push({
+        id: varId,
+        title: `${cat.categoryName} - ${varTitle}`,
+        abc: defaultAbc
+      });
+
+      currentCategoryId = catId;
+      currentVariationId = varId;
+
+      saveDatabaseToStorage();
+      renderTree();
+      loadActiveRhythm();
+      showToast('Variação Adicionada', `Nova variação criada em ${cat.categoryName}`, 'info');
+    }
+
+    function deleteVariation(catId, varId) {
+      if (!confirm("Tem certeza que deseja excluir esta variação?")) return;
+
+      const categories = database[currentInstrument] || [];
+      const cat = categories.find(c => c.id === catId);
+      if (!cat) return;
+
+      cat.variations = cat.variations.filter(v => v.id !== varId);
+
+      // If category is now empty, remove category
+      if (cat.variations.length === 0) {
+        database[currentInstrument] = database[currentInstrument].filter(c => c.id !== catId);
+      }
+
+      saveDatabaseToStorage();
+      
+      // Select another rhythm if deleted active one
+      if (varId === currentVariationId) {
+        switchInstrument(currentInstrument);
+      } else {
+        renderTree();
+      }
+
+      showToast('Excluído', 'Variação removida!', 'warning');
+    }
+
+    /* ===================================================================
+       FILE EXPORT / DOWNLOAD
+       =================================================================== */
+    function downloadABCFile() {
+      const data = getActiveVariation();
+      if (!data || !data.variation) return;
+
+      const abcContent = document.getElementById('abc-editor').value;
+      const fileName = `${data.variation.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.abc`;
+
+      const blob = new Blob([abcContent], { type: 'text/plain;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      showToast('Download Concluído', `Arquivo ${fileName} baixado!`, 'success');
+    }
+
+    /* ===================================================================
+       GITHUB REST API INTEGRATION
+       =================================================================== */
+    function openGitHubModal() {
+      document.getElementById('gh-token').value = localStorage.getItem('gh_token') || '';
+      document.getElementById('gh-owner').value = localStorage.getItem('gh_owner') || '';
+      document.getElementById('gh-repo').value = localStorage.getItem('gh_repo') || '';
+      document.getElementById('gh-path').value = localStorage.getItem('gh_path') || 'ritmos';
+
+      document.getElementById('github-modal').classList.remove('hidden');
+    }
+
+    function closeGitHubModal() {
+      document.getElementById('github-modal').classList.add('hidden');
+    }
+
+    function saveGitHubSettings() {
+      const token = document.getElementById('gh-token').value.trim();
+      const owner = document.getElementById('gh-owner').value.trim();
+      const repo = document.getElementById('gh-repo').value.trim();
+      const path = document.getElementById('gh-path').value.trim();
+
+      localStorage.setItem('gh_token', token);
+      localStorage.setItem('gh_owner', owner);
+      localStorage.setItem('gh_repo', repo);
+      localStorage.setItem('gh_path', path);
+
+      updateSyncBadge();
+      closeGitHubModal();
+      showToast('GitHub Configurado', 'Credenciais salvas com sucesso!', 'success');
+    }
+
+    function updateSyncBadge() {
+      const token = localStorage.getItem('gh_token');
+      const badge = document.getElementById('sync-status');
+      if (token) {
+        badge.innerHTML = `<i class="fa-brands fa-github text-emerald-400 mr-1"></i> Conectado ao GitHub`;
+      } else {
+        badge.innerHTML = `<i class="fa-solid fa-hard-drive text-amber-500 mr-1"></i> Modo Local (offline)`;
+      }
+    }
+
+    async function saveToGitHubCurrent() {
+      const token = localStorage.getItem('gh_token');
+      const owner = localStorage.getItem('gh_owner');
+      const repo = localStorage.getItem('gh_repo');
+      const basePath = localStorage.getItem('gh_path') || 'ritmos';
+
+      if (!token || !owner || !repo) {
+        openGitHubModal();
+        showToast('Atenção', 'Por favor, configure suas credenciais do GitHub primeiro.', 'warning');
+        return;
+      }
+
+      const data = getActiveVariation();
+      if (!data || !data.variation) return;
+
+      const content = document.getElementById('abc-editor').value;
+      const fileName = `${data.variation.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.abc`;
+      const filePath = `${basePath}/${currentInstrument}/${fileName}`;
+      const url = `https://api.github.com/repos/${owner}/${repo}/contents/${filePath}`;
+
+      showToast('Enviando...', 'Enviando arquivo para o GitHub...', 'info');
+
+      try {
+        // 1. Check if file exists to get SHA
+        let sha = null;
+        const getRes = await fetch(url, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+        if (getRes.ok) {
+          const fileInfo = await getRes.json();
+          sha = fileInfo.sha;
+        }
+
+        // 2. Commit file via PUT
+        const body = {
+          message: `Update rhythm score: ${data.variation.title}`,
+          content: btoa(unescape(encodeURIComponent(content))),
+          ...(sha && { sha })
+        };
+
+        const putRes = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Authorization': `token ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(body)
+        });
+
+        if (putRes.ok) {
+          showToast('Sucesso GitHub', `Arquivo ${fileName} salvo no repositório!`, 'success');
+        } else {
+          const err = await putRes.json();
+          showToast('Erro GitHub', err.message || 'Erro ao enviar commit.', 'danger');
+        }
+      } catch (e) {
+        showToast('Erro de Conexão', e.message, 'danger');
+      }
+    }
+
+    async function syncWithGitHub() {
+      const token = localStorage.getItem('gh_token');
+      const owner = localStorage.getItem('gh_owner');
+      const repo = localStorage.getItem('gh_repo');
+      const basePath = localStorage.getItem('gh_path') || 'ritmos';
+
+      if (!token || !owner || !repo) {
+        showToast('Não Conectado', 'Configure o GitHub para realizar sincronização.', 'warning');
+        return;
+      }
+
+      showToast('Buscando...', 'Buscando arquivos do repositório...', 'info');
+
+      try {
+        const url = `https://api.github.com/repos/${owner}/${repo}/contents/${basePath}/${currentInstrument}`;
+        const res = await fetch(url, {
+          headers: { 'Authorization': `token ${token}` }
+        });
+
+        if (res.ok) {
+          const files = await res.json();
+          showToast('Sincronizado', `${files.length} arquivos encontrados na pasta do instrumento.`, 'success');
+        } else {
+          showToast('Info GitHub', 'Diretório não encontrado no repositório.', 'warning');
+        }
+      } catch(e) {
+        showToast('Erro Sync', e.message, 'danger');
+      }
+    }
+
+    /* ===================================================================
+       FULL SCREEN TOGGLE & TOAST NOTIFICATIONS
+       =================================================================== */
+    function toggleFullScreenMode() {
+      const sidebar = document.getElementById('sidebar-container');
+      const editorSection = document.getElementById('editor-section');
+
+      sidebar.classList.toggle('hidden');
+      editorSection.classList.toggle('hidden');
+      
+      // Re-render ABC score size
+      setTimeout(() => {
+        const code = document.getElementById('abc-editor').value;
+        renderABCScore(code);
+      }, 200);
+    }
+
+    function showToast(title, message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+
+      const colors = {
+        success: 'bg-emerald-900/90 border-emerald-500 text-emerald-200',
+        danger: 'bg-rose-900/90 border-rose-500 text-rose-200',
+        warning: 'bg-amber-900/90 border-amber-500 text-amber-200',
+        info: 'bg-indigo-900/90 border-indigo-500 text-indigo-200'
+      };
+
+      toast.className = `pointer-events-auto border rounded-xl p-3 shadow-xl backdrop-blur-md flex items-start gap-3 w-80 text-xs transition-all duration-300 transform translate-y-2 opacity-0 ${colors[type] || colors.info}`;
+      
+      toast.innerHTML = `
+        <div class="mt-0.5">
+          <i class="fa-solid ${type === 'success' ? 'fa-circle-check' : type === 'danger' ? 'fa-triangle-exclamation' : 'fa-circle-info'}"></i>
+        </div>
+        <div class="flex-1">
+          <div class="font-bold text-white">${title}</div>
+          <div class="mt-0.5">${message}</div>
+        </div>
+        <button onclick="this.parentElement.remove()" class="text-slate-400 hover:text-white">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      `;
+
+      container.appendChild(toast);
+
+      setTimeout(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      }, 10);
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0');
+        setTimeout(() => toast.remove(), 300);
+      }, 4000);
+    }
+  </script>
+</body>
+</html>
