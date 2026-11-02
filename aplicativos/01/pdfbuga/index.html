@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Catálogo Pedagógico &bull; Figuras, Intervalos & Acordes</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- ABCjs para renderizar partituras -->
+    <script src="https://cdn.jsdelivr.net/npm/abcjs@6.2.2/dist/abcjs-basic-min.js"></script>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col font-sans">
+
+    <!-- Cabeçalho -->
+    <header class="bg-indigo-700 text-white shadow-md py-5 px-4">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div>
+                <h1 class="text-2xl font-bold flex items-center gap-2">🎵 Catálogo Pedagógico &bull; Figuras, Intervalos & Acordes</h1>
+                <p class="text-indigo-200 text-xs mt-1">Sincronizado com Google Sheets & Repositórios GitHub de PDFs</p>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+                <button onclick="forcarAtualizacaoCache()" class="bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-2 rounded-lg text-xs font-medium border border-indigo-400 transition shadow flex items-center gap-1">
+                    🔄 Atualizar Cache do Acervo
+                </button>
+                <a href="https://docs.google.com/spreadsheets/d/1gz2THaLBg7HANwiKwY1uDqf1hYgpQFEvFaS4MsXbx7A/edit" target="_blank" class="bg-indigo-800 hover:bg-indigo-900 text-indigo-100 px-3 py-2 rounded-lg text-xs font-medium border border-indigo-600 transition">
+                    📊 Abrir Planilha
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <!-- Conteúdo Principal -->
+    <main class="max-w-7xl mx-auto w-full p-4 flex-grow grid grid-cols-1 md:grid-cols-4 gap-6 mt-2">
+        
+        <!-- Painel Lateral: Filtros -->
+        <section class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 md:col-span-1 flex flex-col space-y-4">
+            <div class="flex items-center justify-between">
+                <h2 class="text-sm font-bold text-slate-800">Filtros de Busca</h2>
+                <button onclick="limparFiltros()" class="text-xs text-indigo-600 hover:text-indigo-800 font-medium underline">Limpar Tudo</button>
+            </div>
+
+            <!-- Busca por Código (Linha) -->
+            <div class="border border-indigo-100 rounded-lg p-2.5 bg-indigo-50/30">
+                <label class="block text-xs font-semibold text-indigo-900 mb-1">🔍 Buscar por Código (Linha):</label>
+                <input type="number" id="input-busca-codigo" min="2" placeholder="Ex: 547" oninput="filtrarMusicas()" class="w-full border border-indigo-200 rounded-lg p-1.5 text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white">
+            </div>
+            
+            <!-- Seção Figuras -->
+            <div class="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
+                <button onclick="toggleSecao('figuras-container', 'arrow-fig')" class="w-full flex justify-between items-center text-xs font-semibold text-slate-700 py-1">
+                    <span>🥁 Figuras Musicais (1 a 9)</span>
+                    <span id="arrow-fig" class="text-slate-400 text-[10px]">▲</span>
+                </button>
+                <div id="figuras-container" class="grid grid-cols-3 gap-1.5 mt-2 hidden"></div>
+            </div>
+
+            <!-- Seção Intervalos -->
+            <div class="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
+                <button onclick="toggleSecao('intervalos-container', 'arrow-int')" class="w-full flex justify-between items-center text-xs font-semibold text-slate-700 py-1">
+                    <span>🎹 Intervalos (3 Oitavas)</span>
+                    <span id="arrow-int" class="text-slate-400 text-[10px]">▲</span>
+                </button>
+                <div id="intervalos-container" class="grid grid-cols-3 gap-1 max-h-36 overflow-y-auto pr-1 mt-2 hidden"></div>
+            </div>
+
+            <!-- Seção Acordes -->
+            <div class="border border-slate-100 rounded-lg p-2 bg-slate-50/50">
+                <button onclick="toggleSecao('acordes-container', 'arrow-chord')" class="w-full flex justify-between items-center text-xs font-semibold text-slate-700 py-1">
+                    <span>🎸 Acordes (Graus & Qualidades)</span>
+                    <span id="arrow-chord" class="text-slate-400 text-[10px]">▲</span>
+                </button>
+                <div id="acordes-container" class="grid grid-cols-3 gap-1 max-h-40 overflow-y-auto pr-1 mt-2 hidden"></div>
+            </div>
+
+            <div class="mt-auto pt-3 border-t border-slate-100 space-y-2">
+                <button onclick="abrirModalNovaMusica()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-2 px-3 rounded-lg text-xs transition flex items-center justify-center gap-1 shadow-sm">
+                    ➕ Adicionar Nova Música
+                </button>
+                <div id="status-sync" class="text-[11px] text-center text-slate-400 italic mt-1">Pronto. Selecione filtros.</div>
+            </div>
+        </section>
+
+        <!-- Painel Central/Direito: Resultados e Visualizador -->
+        <section class="md:col-span-3 space-y-6">
+            
+            <!-- Lista de Músicas Filtradas -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-base font-bold text-slate-800">Músicas Encontradas</h2>
+                    <span id="badge-contador" class="text-xs font-semibold bg-indigo-100 text-indigo-700 px-2.5 py-0.5 rounded-full">0 músicas</span>
+                </div>
+                <p id="status-filtro" class="text-xs text-slate-500 mb-3">Digite um código ou selecione filtros à esquerda para iniciar a busca.</p>
+                
+                <div id="lista-musicas" class="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    <div class="text-slate-400 text-xs italic p-4 text-center bg-slate-50 rounded-lg">Aguardando busca...</div>
+                </div>
+            </div>
+
+            <!-- Visualizador de Partitura ABC & Análise -->
+            <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-base font-bold text-slate-800">Visualizador & Análise Teórica</h2>
+                </div>
+                <div id="detalhe-titulo" class="text-sm font-bold text-indigo-600 mb-1">Nenhuma música selecionada</div>
+                <div id="detalhe-intervalos" class="text-xs text-slate-500 mb-3 flex flex-wrap gap-1"></div>
+                <div id="detalhe-acordes" class="text-xs text-slate-500 mb-3 flex flex-wrap gap-1"></div>
+                
+                <div id="paper" class="bg-slate-50 border border-slate-200 rounded-lg p-4 min-h-[180px] flex items-center justify-center overflow-x-auto">
+                    <span class="text-slate-400 text-xs italic">Clique no botão "ABC" de uma música para visualizar a partitura.</span>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- Modal para Cadastrar / Editar Música -->
+    <div id="modal-musica" class="fixed inset-0 bg-slate-900/40 backdrop-blur-sm hidden flex items-center justify-center p-4 z-50">
+        <div class="bg-white rounded-xl shadow-xl border border-slate-200 max-w-2xl w-full p-6 space-y-4 max-h-[90vh] overflow-y-auto">
+            <h3 id="modal-titulo-cabecalho" class="text-lg font-bold text-slate-800">Cadastrar / Atualizar Música na Planilha</h3>
+            
+            <form id="form-musica" onsubmit="salvarMusicaGoogleSheets(event)" class="space-y-4">
+                <div class="grid grid-cols-3 gap-3">
+                    <div class="col-span-2">
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Título (Coluna A)</label>
+                        <input type="text" id="input-titulo" required class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" placeholder="Nome exato da música">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-700 mb-1">Nº da Linha</label>
+                        <input type="number" id="input-linha" min="2" placeholder="Ex: 3" required class="w-full border border-slate-300 rounded-lg p-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-700 mb-1">Notação ABC (Coluna B)</label>
+                    <textarea id="input-notacao" rows="3" required placeholder="X:1&#10;T:Título&#10;M:4/4&#10;K:C&#10;C D E F |" class="w-full border border-slate-300 rounded-lg p-2 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+                </div>
+
+                <!-- Figuras no Modal -->
+                <div class="border border-slate-200 rounded-lg p-2">
+                    <button type="button" onclick="toggleSecao('modal-figuras-checkboxes', 'arrow-modal-fig')" class="w-full flex justify-between items-center text-xs font-semibold text-slate-700 py-1">
+                        <span>Figuras Musicais (1 a 9)</span>
+                        <span id="arrow-modal-fig" class="text-slate-400 text-[10px]">▲</span>
+                    </button>
+                    <div id="modal-figuras-checkboxes" class="grid grid-cols-3 gap-2 mt-2 hidden"></div>
+                </div>
+
+                <!-- Intervalos no Modal -->
+                <div class="border border-slate-200 rounded-lg p-2">
+                    <button type="button" onclick="toggleSecao('modal-intervalos-checkboxes', 'arrow-modal-int')" class="w-full flex justify-between items-center text-xs font-semibold text-slate-700 py-1">
+                        <span>Intervalos Musicais (3 Oitavas)</span>
+                        <span id="arrow-modal-int" class="text-slate-400 text-[10px]">▲</span>
+                    </button>
+                    <div id="modal-intervalos-checkboxes" class="grid grid-cols-4 gap-1 max-h-28 overflow-y-auto p-1 mt-2 hidden"></div>
+                </div>
+
+                <!-- Acordes no Modal -->
+                <div class="border border-slate-200 rounded-lg p-2">
+                    <button type="button" onclick="toggleSecao('modal-acordes-checkboxes', 'arrow-modal-chord')" class="w-full flex justify-between items-center text-xs font-semibold text-slate-700 py-1">
+                        <span>Acordes (Graus & Qualidades)</span>
+                        <span id="arrow-modal-chord" class="text-slate-400 text-[10px]">▲</span>
+                    </button>
+                    <div id="modal-acordes-checkboxes" class="grid grid-cols-4 gap-1 max-h-32 overflow-y-auto p-1 mt-2 hidden"></div>
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button type="button" onclick="fecharModalMusica()" class="px-4 py-2 bg-slate-100 text-slate-700 rounded-lg text-xs font-medium hover:bg-slate-200">Cancelar</button>
+                    <button type="submit" id="btn-salvar" class="px-4 py-2 bg-indigo-600 text-white rounded-lg text-xs font-medium hover:bg-indigo-700 shadow-sm">Salvar na Planilha</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <footer class="bg-white border-t border-slate-200 py-3 text-center text-xs text-slate-400 mt-auto">
+        Catálogo Pedagógico &bull; Google Sheets API &bull; GitHub PDFs
+    </footer>
+
+    <script>
+        const WEB_APP_URL = "https://script.google.com/macros/s/AKfycbxP9nUjjd4bvYoAWb9WD62__asZodb3FZZUPEl52JkNjyVfckE7HLebiR9IAEgz0g7j/exec";
+        const GITHUB_PDF_BASE_URL = "https://albertinosesc.github.io/nbmaplicativos.github.oi/aplicativos/01/pdf/";
+        const GITHUB_PDF2_BASE_URL = "https://musicanplay3-sudo.github.io/m-pav/partituras/";
+
+        const LISTA_INTERVALOS_39 = [
+            "-1J", "-2m", "-2M", "-3m", "-3M", "-4J", "-4A/5D", "-5J", "-6m", "-6M", "-7m", "-7M", "-8J",
+            "1J", "2m", "2M", "3m", "3M", "4J", "4A/5D", "5J", "6m", "6M", "7m", "7M", "8J",
+            "1J+", "2m+", "2M+", "3m+", "3M+", "4J+", "4A/5D+", "5J+", "6m+", "6M+", "7m+", "7M+", "8J+"
+        ];
+
+        const NOTAS_GRAUS = ["1", "b2", "2", "b3", "3", "4", "4#", "5", "b6", "6", "b7", "7"];
+        const QUALIDADES_ACORDES = ["M", "m", "D", "A", "s2", "s4"];
+        
+        let LISTA_ACORDES = [];
+        NOTAS_GRAUS.forEach(nota => {
+            QUALIDADES_ACORDES.forEach(qualidade => {
+                LISTA_ACORDES.push(nota + qualidade);
+            });
+        });
+
+        let musicasData = [];
+        let figurasSelecionadas = new Set();
+        let intervalosSelecionados = new Set();
+        let acordesSelecionados = new Set();
+        let musicaSelecionadaIndex = -1;
+        let dadosCarregados = false;
+
+        function toggleSecao(containerId, arrowId) {
+            const container = document.getElementById(containerId);
+            const arrow = document.getElementById(arrowId);
+            if (container.classList.contains('hidden')) {
+                container.classList.remove('hidden');
+                if (arrow) arrow.innerText = '▼';
+            } else {
+                container.classList.add('hidden');
+                if (arrow) arrow.innerText = '▲';
+            }
+        }
+
+        function inicializarBotoesFiltros() {
+            const containerFig = document.getElementById('figuras-container');
+            const containerModalFig = document.getElementById('modal-figuras-checkboxes');
+            containerFig.innerHTML = '';
+            containerModalFig.innerHTML = '';
+
+            for (let i = 1; i <= 9; i++) {
+                const btn = document.createElement('button');
+                btn.className = "figura-btn flex flex-col items-center justify-center p-1.5 rounded border border-slate-200 hover:border-indigo-400 bg-white transition text-slate-700 font-bold text-xs min-h-[50px]";
+                btn.innerHTML = `
+                    <img src="figuras/${i}.png" alt="${i}" onerror="this.style.display='none'" class="w-7 h-7 object-contain mb-0.5">
+                    <span>Fig ${i}</span>
+                `;
+                btn.onclick = () => alternarFiguraFiltro(i, btn);
+                containerFig.appendChild(btn);
+
+                const labelModal = document.createElement('label');
+                labelModal.className = "flex items-center gap-1.5 text-xs text-slate-700 border border-slate-200 rounded p-1.5 cursor-pointer hover:bg-white bg-slate-50";
+                labelModal.innerHTML = `
+                    <input type="checkbox" id="modal-fig-${i}" class="rounded text-indigo-600 focus:ring-indigo-500">
+                    <img src="figuras/${i}.png" alt="${i}" onerror="this.style.display='none'" class="w-5 h-5 object-contain">
+                    <span>Fig ${i}</span>
+                `;
+                containerModalFig.appendChild(labelModal);
+            }
+
+            const containerInt = document.getElementById('intervalos-container');
+            const containerModalInt = document.getElementById('modal-intervalos-checkboxes');
+            containerInt.innerHTML = '';
+            containerModalInt.innerHTML = '';
+
+            LISTA_INTERVALOS_39.forEach((intervalo, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "intervalo-btn flex items-center justify-center p-1 rounded border border-slate-200 hover:border-indigo-400 bg-white transition text-slate-700 font-semibold text-[10px]";
+                btn.innerText = intervalo;
+                btn.onclick = () => alternarIntervaloFiltro(intervalo, btn);
+                containerInt.appendChild(btn);
+
+                const labelModal = document.createElement('label');
+                labelModal.className = "flex items-center gap-1 text-[10px] text-slate-700 border border-slate-200 bg-white rounded p-1 cursor-pointer hover:bg-slate-100";
+                labelModal.innerHTML = `
+                    <input type="checkbox" id="modal-int-${idx}" class="rounded text-indigo-600 focus:ring-indigo-500">
+                    <span class="font-semibold">${intervalo}</span>
+                `;
+                containerModalInt.appendChild(labelModal);
+            });
+
+            const containerChord = document.getElementById('acordes-container');
+            const containerModalChord = document.getElementById('modal-acordes-checkboxes');
+            containerChord.innerHTML = '';
+            containerModalChord.innerHTML = '';
+
+            LISTA_ACORDES.forEach((acorde, idx) => {
+                const btn = document.createElement('button');
+                btn.className = "acorde-btn flex items-center justify-center p-1 rounded border border-slate-200 hover:border-indigo-400 bg-white transition text-slate-700 font-semibold text-[10px]";
+                btn.innerText = acorde;
+                btn.onclick = () => alternarAcordeFiltro(acorde, btn);
+                containerChord.appendChild(btn);
+
+                const labelModal = document.createElement('label');
+                labelModal.className = "flex items-center gap-1 text-[10px] text-slate-700 border border-slate-200 bg-white rounded p-1 cursor-pointer hover:bg-slate-100";
+                labelModal.innerHTML = `
+                    <input type="checkbox" id="modal-chord-${idx}" class="rounded text-indigo-600 focus:ring-indigo-500">
+                    <span class="font-semibold">${acorde}</span>
+                `;
+                containerModalChord.appendChild(labelModal);
+            });
+        }
+
+        async function alternarFiguraFiltro(num, elemento) {
+            if (figurasSelecionadas.has(num)) {
+                figurasSelecionadas.delete(num);
+                elemento.classList.remove('border-indigo-600', 'bg-indigo-50', 'text-indigo-700');
+                elemento.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
+            } else {
+                figurasSelecionadas.add(num);
+                elemento.classList.add('border-indigo-600', 'bg-indigo-50', 'text-indigo-700');
+                elemento.classList.remove('border-slate-200', 'bg-white', 'text-slate-700');
+            }
+            verificarCarregamentoEFiltrar();
+        }
+
+        async function alternarIntervaloFiltro(intervalo, elemento) {
+            if (intervalosSelecionados.has(intervalo)) {
+                intervalosSelecionados.delete(intervalo);
+                elemento.classList.remove('border-indigo-600', 'bg-indigo-50', 'text-indigo-700');
+                elemento.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
+            } else {
+                intervalosSelecionados.add(intervalo);
+                elemento.classList.add('border-indigo-600', 'bg-indigo-50', 'text-indigo-700');
+                elemento.classList.remove('border-slate-200', 'bg-white', 'text-slate-700');
+            }
+            verificarCarregamentoEFiltrar();
+        }
+
+        async function alternarAcordeFiltro(acorde, elemento) {
+            if (acordesSelecionados.has(acorde)) {
+                acordesSelecionados.delete(acorde);
+                elemento.classList.remove('border-indigo-600', 'bg-indigo-50', 'text-indigo-700');
+                elemento.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
+            } else {
+                acordesSelecionados.add(acorde);
+                elemento.classList.add('border-indigo-600', 'bg-indigo-50', 'text-indigo-700');
+                elemento.classList.remove('border-slate-200', 'bg-white', 'text-slate-700');
+            }
+            verificarCarregamentoEFiltrar();
+        }
+
+        async function verificarCarregamentoEFiltrar() {
+            const codigoDigitado = document.getElementById('input-busca-codigo').value.trim();
+            if ((codigoDigitado !== "" || figurasSelecionadas.size > 0 || intervalosSelecionados.size > 0 || acordesSelecionados.size > 0) && !dadosCarregados) {
+                await carregarMusicasDaPlanilha();
+            } else {
+                filtrarMusicas();
+            }
+        }
+
+        function limparFiltros() {
+            document.getElementById('input-busca-codigo').value = "";
+            figurasSelecionadas.clear();
+            intervalosSelecionados.clear();
+            acordesSelecionados.clear();
+            document.querySelectorAll('.figura-btn, .intervalo-btn, .acorde-btn').forEach(btn => {
+                btn.classList.remove('border-indigo-600', 'bg-indigo-50', 'text-indigo-700');
+                btn.classList.add('border-slate-200', 'bg-white', 'text-slate-700');
+            });
+            filtrarMusicas();
+        }
+
+        async function carregarMusicasDaPlanilha(forcarRefresh = false) {
+            const statusSync = document.getElementById('status-sync');
+            const listaDiv = document.getElementById('lista-musicas');
+            
+            const cacheLocal = localStorage.getItem('acervo_musicas_cache_v7');
+            if (cacheLocal && !forcarRefresh) {
+                musicasData = JSON.parse(cacheLocal);
+                dadosCarregados = true;
+                filtrarMusicas();
+                return;
+            }
+
+            statusSync.innerText = "Baixando acervo completo...";
+            listaDiv.innerHTML = '<div class="text-slate-400 text-xs italic p-4 text-center">Buscando dados sob demanda...</div>';
+
+            try {
+                const response = await fetch(WEB_APP_URL, { mode: 'cors' });
+                if (!response.ok) throw new Error("Erro na rede");
+                
+                const data = await response.json();
+                musicasData = data;
+                dadosCarregados = true;
+                
+                localStorage.setItem('acervo_musicas_cache_v7', JSON.stringify(musicasData));
+                
+                statusSync.innerText = "Acervo sincronizado!";
+                filtrarMusicas();
+            } catch (error) {
+                console.error("Erro ao carregar:", error);
+                statusSync.innerText = "Erro ao carregar acervo.";
+                listaDiv.innerHTML = '<div class="text-red-500 text-xs p-4 text-center">Erro ao conectar com a planilha.</div>';
+            }
+        }
+
+        function forcarAtualizacaoCache() {
+            localStorage.removeItem('acervo_musicas_cache_v7');
+            dadosCarregados = false;
+            alert("Cache limpo! Na próxima busca, os dados serão baixados novamente da planilha.");
+        }
+
+        function filtrarMusicas() {
+            const listaDiv = document.getElementById('lista-musicas');
+            const statusP = document.getElementById('status-filtro');
+            const badge = document.getElementById('badge-contador');
+            const codigoDigitado = document.getElementById('input-busca-codigo').value.trim();
+
+            if (!dadosCarregados && (codigoDigitado !== "" || figurasSelecionadas.size > 0 || intervalosSelecionados.size > 0 || acordesSelecionados.size > 0)) {
+                carregarMusicasDaPlanilha();
+                return;
+            }
+
+            if (!dadosCarregados || (codigoDigitado === "" && figurasSelecionadas.size === 0 && intervalosSelecionados.size === 0 && acordesSelecionados.size === 0)) {
+                badge.innerText = `0 músicas`;
+                statusP.innerText = `Digite um código ou selecione filtros à esquerda para iniciar a busca.`;
+                listaDiv.innerHTML = '<div class="text-slate-400 text-xs italic p-4 text-center bg-slate-50 rounded-lg">Aguardando busca...</div>';
+                return;
+            }
+
+            const filtradas = musicasData.map((m, idx) => ({ ...m, originalIndex: idx })).filter(m => {
+                // Filtro por Código (Linha)
+                if (codigoDigitado !== "") {
+                    if (String(m.linhaPlanilha) !== codigoDigitado) return false;
+                }
+                // Filtros por Figuras
+                for (let fig of figurasSelecionadas) {
+                    if (!m.figuras[fig]) return false;
+                }
+                // Filtros por Intervalos
+                for (let interv of intervalosSelecionados) {
+                    if (!m.intervalos || !m.intervalos[interv]) return false;
+                }
+                // Filtros por Acordes
+                for (let chord of acordesSelecionados) {
+                    if (!m.acordes || !m.acordes[chord]) return false;
+                }
+                return true;
+            });
+
+            badge.innerText = `${filtradas.length} músicas`;
+            statusP.innerText = `Exibindo músicas filtradas com base na busca.`;
+
+            if (filtradas.length === 0) {
+                listaDiv.innerHTML = '<div class="text-slate-400 text-xs italic p-4 text-center bg-slate-50 rounded-lg">Nenhuma música encontrada com esses critérios.</div>';
+                return;
+            }
+
+            listaDiv.innerHTML = '';
+            filtradas.forEach((musica) => {
+                const item = document.createElement('div');
+                const isSelected = musica.originalIndex === musicaSelecionadaIndex;
+                item.className = `p-3 rounded-lg border transition flex items-center justify-between ${
+                    isSelected ? 'border-indigo-500 bg-indigo-50' : 'border-slate-200 hover:bg-slate-50'
+                }`;
+                
+                const pdfUrl = `${GITHUB_PDF_BASE_URL}${musica.linhaPlanilha}.pdf`;
+                const pdf2Url = `${GITHUB_PDF2_BASE_URL}${musica.linhaPlanilha}.pdf`;
+
+                item.innerHTML = `
+                    <span class="font-semibold text-xs text-slate-800 truncate mr-2">${musica.titulo} <span class="text-[10px] text-indigo-600 font-normal">(Cód: ${musica.linhaPlanilha})</span></span>
+                    <div class="flex items-center gap-1 flex-shrink-0">
+                        <button onclick="verABC(${musica.originalIndex})" class="px-2 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded text-[10px] font-semibold transition shadow-sm">
+                            ABC
+                        </button>
+                        <button onclick="abrirModalEditarMusica(${musica.originalIndex})" class="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[10px] font-semibold transition shadow-sm">
+                            ✏️ Editar
+                        </button>
+                        <a href="${pdfUrl}" target="_blank" class="px-2 py-1 bg-rose-600 hover:bg-rose-700 text-white rounded text-[10px] font-semibold transition shadow-sm inline-block">
+                            PDF
+                        </a>
+                        <a href="${pdf2Url}" target="_blank" class="px-2 py-1 bg-violet-600 hover:bg-violet-700 text-white rounded text-[10px] font-semibold transition shadow-sm inline-block">
+                            PDF 2
+                        </a>
+                    </div>
+                `;
+                listaDiv.appendChild(item);
+            });
+        }
+
+        function verABC(index) {
+            musicaSelecionadaIndex = index;
+            const musica = musicasData[index];
+
+            document.getElementById('detalhe-titulo').innerText = `Música: ${musica.titulo} (Código: ${musica.linhaPlanilha})`;
+            
+            const containerIntervalos = document.getElementById('detalhe-intervalos');
+            containerIntervalos.innerHTML = '<span class="font-semibold text-slate-700 mr-1">Intervalos:</span>';
+            let temIntervalos = false;
+            if (musica.intervalos) {
+                for (let [intervalo, presente] of Object.entries(musica.intervalos)) {
+                    if (presente) {
+                        temIntervalos = true;
+                        const span = document.createElement('span');
+                        span.className = "bg-indigo-50 text-indigo-700 border border-indigo-200 px-1.5 py-0.5 rounded text-[10px] font-bold";
+                        span.innerText = intervalo;
+                        containerIntervalos.appendChild(span);
+                    }
+                }
+            }
+            if (!temIntervalos) containerIntervalos.innerHTML += '<span class="text-slate-400 italic text-[11px]">Nenhum</span>';
+
+            const containerAcordes = document.getElementById('detalhe-acordes');
+            containerAcordes.innerHTML = '<span class="font-semibold text-slate-700 mr-1">Acordes:</span>';
+            let temAcordes = false;
+            if (musica.acordes) {
+                for (let [acorde, presente] of Object.entries(musica.acordes)) {
+                    if (presente) {
+                        temAcordes = true;
+                        const span = document.createElement('span');
+                        span.className = "bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded text-[10px] font-bold";
+                        span.innerText = acorde;
+                        containerAcordes.appendChild(span);
+                    }
+                }
+            }
+            if (!temAcordes) containerAcordes.innerHTML += '<span class="text-slate-400 italic text-[11px]">Nenhum</span>';
+
+            const paperDiv = document.getElementById('paper');
+            paperDiv.innerHTML = '';
+
+            try {
+                ABCJS.renderAbc("paper", musica.notacao, {
+                    responsive: "resize",
+                    scale: 1.1
+                });
+            } catch (e) {
+                paperDiv.innerHTML = `<span class="text-red-500 text-xs">Erro na notação ABC: ${e.message}</span>`;
+            }
+
+            filtrarMusicas();
+        }
+
+        function abrirModalNovaMusica() {
+            document.getElementById('modal-titulo-cabecalho').innerText = "Cadastrar Nova Música na Planilha";
+            document.getElementById('input-titulo').value = "";
+            document.getElementById('input-linha').value = "";
+            document.getElementById('input-notacao').value = "";
+            
+            for (let i = 1; i <= 9; i++) {
+                document.getElementById(`modal-fig-${i}`).checked = false;
+            }
+            LISTA_INTERVALOS_39.forEach((_, idx) => {
+                document.getElementById(`modal-int-${idx}`).checked = false;
+            });
+            LISTA_ACORDES.forEach((_, idx) => {
+                document.getElementById(`modal-chord-${idx}`).checked = false;
+            });
+
+            document.getElementById('modal-musica').classList.remove('hidden');
+        }
+
+        function abrirModalEditarMusica(index) {
+            const musica = musicasData[index];
+            document.getElementById('modal-titulo-cabecalho').innerText = `Editar Música: ${musica.titulo}`;
+            document.getElementById('input-titulo').value = musica.titulo;
+            document.getElementById('input-linha').value = musica.linhaPlanilha;
+            document.getElementById('input-notacao').value = musica.notacao;
+
+            for (let i = 1; i <= 9; i++) {
+                document.getElementById(`modal-fig-${i}`).checked = !!(musica.figuras && musica.figuras[i]);
+            }
+
+            LISTA_INTERVALOS_39.forEach((intervalo, idx) => {
+                document.getElementById(`modal-int-${idx}`).checked = !!(musica.intervalos && musica.intervalos[intervalo]);
+            });
+
+            LISTA_ACORDES.forEach((acorde, idx) => {
+                document.getElementById(`modal-chord-${idx}`).checked = !!(musica.acordes && musica.acordes[acorde]);
+            });
+
+            document.getElementById('modal-musica').classList.remove('hidden');
+        }
+
+        function fecharModalMusica() {
+            document.getElementById('modal-musica').classList.add('hidden');
+        }
+
+        async function salvarMusicaGoogleSheets(event) {
+            event.preventDefault();
+            const btnSalvar = document.getElementById('btn-salvar');
+            btnSalvar.innerText = "Salvando na planilha...";
+            btnSalvar.disabled = true;
+
+            const titulo = document.getElementById('input-titulo').value.trim();
+            const linha = document.getElementById('input-linha').value.trim();
+            const notacao = document.getElementById('input-notacao').value.trim();
+            
+            const figuras = {};
+            for (let i = 1; i <= 9; i++) {
+                figuras[i] = document.getElementById(`modal-fig-${i}`).checked;
+            }
+
+            const intervalos = {};
+            LISTA_INTERVALOS_39.forEach((intervalo, idx) => {
+                intervalos[intervalo] = document.getElementById(`modal-int-${idx}`).checked;
+            });
+
+            const acordes = {};
+            LISTA_ACORDES.forEach((acorde, idx) => {
+                acordes[acorde] = document.getElementById(`modal-chord-${idx}`).checked;
+            });
+
+            const novaMusicaPayload = { tipo: "completo", titulo, linha, notacao, figuras, intervalos, acordes };
+
+            try {
+                await fetch(WEB_APP_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    body: JSON.stringify(novaMusicaPayload)
+                });
+                
+                fecharModalMusica();
+                alert(`Música atualizada/salva com sucesso na linha ${linha} da planilha!`);
+                
+                localStorage.removeItem('acervo_musicas_cache_v7');
+                dadosCarregados = false;
+            } catch (error) {
+                console.error("Erro:", error);
+                alert("Erro de conexão ao salvar.");
+            } finally {
+                btnSalvar.innerText = "Salvar na Planilha";
+                btnSalvar.disabled = false;
+            }
+        }
+
+        window.onload = () => {
+            inicializarBotoesFiltros();
+        };
+    </script>
+</body>
+</html>
