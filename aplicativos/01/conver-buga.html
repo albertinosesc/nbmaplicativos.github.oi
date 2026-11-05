@@ -58,6 +58,8 @@
     button.btn-github:hover { background-color: #0366d6; }
     button.btn-preset { background-color: #4a5568; padding: 4px 8px; font-size: 0.75rem; }
     button.btn-preset:hover { background-color: #2d3748; }
+    button.btn-clear-hand { background-color: #e53e3e; padding: 4px 8px; font-size: 0.75rem; }
+    button.btn-clear-hand:hover { background-color: #c53030; }
     
     #paper { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 15px; margin-top: 15px; overflow-x: auto; min-height: 120px; }
     
@@ -140,7 +142,7 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
   <div class="btn-bar">    
     <button type="button" onclick="loadDefaultPreset()">Carregar Exemplo (C a d)</button>    
     <button type="button" onclick="loadExtendedPreset()">Carregar Exemplo (B, a g - 13 Notas)</button>    
-    <button type="button" class="btn-clear" onclick="clearMapping()">Limpar Campos</button>    
+    <button type="button" class="btn-clear" onclick="clearMapping()">Limpar Todos os Campos</button>    
     <button type="button" class="btn-preview" onclick="openPreviewSingle()">👁️ Visualizar Partitura Atual</button>
     <button type="button" class="btn-print" onclick="printScore()">🖨️ Imprimir Esta Partitura</button>  
   </div>
@@ -317,7 +319,13 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
   }
 
   function applyRightPreset(type) {
-    if (type === 1) {
+    if (type === 0) {
+      // Novo preset solicitado: C=1, D=2, E=3, F=4, G=5
+      rightHandFields = [
+        { note: 'C', finger: '1' }, { note: 'D', finger: '2' }, { note: 'E', finger: '3' },
+        { note: 'F', finger: '4' }, { note: 'G', finger: '5' }
+      ];
+    } else if (type === 1) {
       rightHandFields = [
         { note: 'D', finger: '1' }, { note: 'E', finger: '2' }, { note: 'F', finger: '3' },
         { note: 'G', finger: '4' }, { note: 'A', finger: '5' }
@@ -343,6 +351,19 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
         { note: 'd', finger: '4' }, { note: 'e', finger: '5' }
       ];
     }
+    renderMappingUI();
+    convertABC();
+  }
+
+  // --- LIMPAR CAMPOS INDIVIDUAIS POR MÃO ---
+  function clearLeftHand() {
+    leftHandFields.forEach(f => { f.note = ''; f.finger = ''; });
+    renderMappingUI();
+    convertABC();
+  }
+
+  function clearRightHand() {
+    rightHandFields.forEach(f => { f.note = ''; f.finger = ''; });
     renderMappingUI();
     convertABC();
   }
@@ -554,7 +575,6 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
     }
   }
 
-  // --- ATUALIZAÇÃO DIRETA DE UM ARQUIVO EXISTENTE NO GITHUB ---
   async function overwriteJsonToGitHub(fileName) {
     if (playlist.length === 0) {
       alert('A fila está vazia. Adicione músicas antes de atualizar.');
@@ -585,7 +605,6 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
     };
 
     try {
-      // 1. Busca o SHA atual do arquivo no GitHub (obrigatório para atualizar arquivos existentes)
       let sha = null;
       const checkRes = await fetch(url, { headers });
       if (checkRes.ok) {
@@ -595,7 +614,6 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
         throw new Error('Arquivo não encontrado no GitHub para substituição.');
       }
 
-      // 2. Faz o PUT enviando o SHA para atualizar
       const bodyData = {
         message: `Atualizando arquivo ${fileName} via conversor web`,
         content: base64Content,
@@ -615,7 +633,6 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
     }
   }
 
-  // --- SALVAR OU ATUALIZAR AUTOMÁTICO PELO NOME ---
   async function savePlaylistToGitHub() {
     if (playlist.length === 0) {
       alert('A fila está vazia. Adicione músicas antes de salvar.');
@@ -652,7 +669,7 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
       const checkRes = await fetch(url, { headers });
       if (checkRes.ok) {
         const fileData = await checkRes.json();
-        sha = fileData.sha; // Se o arquivo já existe, pega o SHA para atualizar automaticamente
+        sha = fileData.sha;
       }
 
       const bodyData = {
@@ -702,12 +719,13 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
       html += `
         <div class="hand-title left">
           <span>Mão Esquerda (Azul / b)</span>
-          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
             <button type="button" class="btn-preset" onclick="applyLeftPreset(1)">F,=5..C=1</button>
             <button type="button" class="btn-preset" onclick="applyLeftPreset(2)">G,=5..D=1</button>
             <button type="button" class="btn-preset" onclick="applyLeftPreset(3)">A,=1..E=1</button>
             <button type="button" class="btn-preset" onclick="applyLeftPreset(4)">B,=5..F=1</button>
             <button type="button" class="btn-preset" onclick="applyLeftPreset(5)">C=5..G=1</button>
+            <button type="button" class="btn-clear-hand" onclick="clearLeftHand()">🗑️ Limpar Esquerda</button>
           </div>
         </div>
         <div class="hand-grid" style="margin-bottom: 20px;">
@@ -724,12 +742,14 @@ CDEF | GABc | cBAG | FEDC |]</textarea>
         </div>
         <div class="hand-title right">
           <span>Mão Direita (Vermelho / r)</span>
-          <div style="display:flex; gap:4px; flex-wrap:wrap;">
+          <div style="display:flex; gap:4px; flex-wrap:wrap; align-items:center;">
+            <button type="button" class="btn-preset" onclick="applyRightPreset(0)">C=1..G=5</button>
             <button type="button" class="btn-preset" onclick="applyRightPreset(1)">D=1..A=5</button>
             <button type="button" class="btn-preset" onclick="applyRightPreset(2)">E=1..B=5</button>
             <button type="button" class="btn-preset" onclick="applyRightPreset(3)">F=1..c=5</button>
             <button type="button" class="btn-preset" onclick="applyRightPreset(4)">G=1..d=5</button>
             <button type="button" class="btn-preset" onclick="applyRightPreset(5)">A=1..e=5</button>
+            <button type="button" class="btn-clear-hand" onclick="clearRightHand()">🗑️ Limpar Direita</button>
           </div>
         </div>
         <div class="hand-grid">
