@@ -1,0 +1,751 @@
+<!DOCTYPE html>
+<html lang="pt-BR" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biblioteca Musical NBM - GitHub Integration</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f7ff',
+                            100: '#e0effe',
+                            500: '#3b82f6',
+                            600: '#2563eb',
+                            700: '#1d4ed8',
+                            800: '#1e40af',
+                            900: '#1e3a8a',
+                            950: '#0f172a',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col antialiased selection:bg-blue-600 selection:text-white">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-blue-600/20 text-blue-400 rounded-lg border border-blue-500/30">
+                    <i class="fa-solid fa-book-bookmark text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-base sm:text-lg leading-tight tracking-wide text-white">Biblioteca Musical NBM</h1>
+                    <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                        <i class="fa-brands fa-github text-slate-300"></i>
+                        <a href="https://github.com/albertinosesc/nbmaplicativos.github.oi/tree/main/aplicativos/01/biblioteca-in/dados-json" target="_blank" rel="noopener noreferrer" class="hover:text-blue-400 underline truncate max-w-[200px] sm:max-w-md">
+                            .../biblioteca-in/dados-json/biblioteca.json
+                        </a>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Global Action Header Buttons -->
+            <div class="flex items-center gap-2">
+                <button id="btn-fetch-github" class="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold rounded-lg transition-all shadow-sm active:scale-95" title="Buscar dados direto do GitHub">
+                    <i class="fa-solid fa-cloud-arrow-down"></i>
+                    <span class="hidden sm:inline">Carregar do GitHub</span>
+                </button>
+                <button id="btn-open-text-modal" class="flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-lg transition-all shadow-sm active:scale-95">
+                    <i class="fa-solid fa-pen-to-square"></i>
+                    <span class="hidden sm:inline">Editor Lote</span>
+                </button>
+                <button id="btn-export-json" class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold rounded-lg transition-all active:scale-95">
+                    <i class="fa-solid fa-download"></i>
+                    <span class="hidden sm:inline">Baixar JSON</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Notification Toast Container -->
+    <div id="toast-container" class="fixed bottom-4 right-4 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- Main Workspace Container -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 flex flex-col gap-6">
+
+        <!-- Interactive Statistics Dashboard Buttons -->
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <!-- LIVROS BUTTON -->
+            <button id="nav-btn-books" class="nav-stat-btn group bg-slate-900 hover:bg-slate-800/80 border border-blue-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition-all shadow-lg active:scale-[0.99] ring-2 ring-blue-500/40">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-blue-500/10 group-hover:bg-blue-500/20 text-blue-400 rounded-xl border border-blue-500/20 transition-all">
+                        <i class="fa-solid fa-book text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Ver por</p>
+                        <h3 class="text-base font-bold text-white group-hover:text-blue-400 transition-colors">LIVROS</h3>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span id="stat-total-books" class="text-2xl font-black text-blue-400">0</span>
+                    <p class="text-[10px] text-slate-500">Cadastrados</p>
+                </div>
+            </button>
+
+            <!-- MÚSICAS BUTTON -->
+            <button id="nav-btn-songs" class="nav-stat-btn group bg-slate-900 hover:bg-slate-800/80 border border-slate-800 hover:border-emerald-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition-all shadow-lg active:scale-[0.99]">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-emerald-500/10 group-hover:bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/20 transition-all">
+                        <i class="fa-solid fa-music text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Ver todas</p>
+                        <h3 class="text-base font-bold text-white group-hover:text-emerald-400 transition-colors">MÚSICAS</h3>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span id="stat-total-songs" class="text-2xl font-black text-emerald-400">0</span>
+                    <p class="text-[10px] text-slate-500">Faixas</p>
+                </div>
+            </button>
+
+            <!-- INSTRUMENTOS BUTTON -->
+            <button id="nav-btn-instruments" class="nav-stat-btn group bg-slate-900 hover:bg-slate-800/80 border border-slate-800 hover:border-purple-500/50 rounded-2xl p-4 flex items-center justify-between text-left transition-all shadow-lg active:scale-[0.99]">
+                <div class="flex items-center gap-4">
+                    <div class="p-3 bg-purple-500/10 group-hover:bg-purple-500/20 text-purple-400 rounded-xl border border-purple-500/20 transition-all">
+                        <i class="fa-solid fa-guitar text-2xl"></i>
+                    </div>
+                    <div>
+                        <p class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Filtrar por</p>
+                        <h3 class="text-base font-bold text-white group-hover:text-purple-400 transition-colors">INSTRUMENTOS</h3>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span id="stat-total-instruments" class="text-2xl font-black text-purple-400">0</span>
+                    <p class="text-[10px] text-slate-500">Categorias</p>
+                </div>
+            </button>
+        </div>
+
+        <!-- Filter & View Selector Bar -->
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 shadow-xl">
+            <!-- Search Input -->
+            <div class="relative flex-1">
+                <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500 text-xs"></i>
+                <input 
+                    type="text" 
+                    id="search-input" 
+                    placeholder="Buscar por código, título, autor ou instrumento em tempo real..." 
+                    class="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl pl-9 pr-4 py-2.5 text-xs text-slate-200 outline-none transition-all placeholder:text-slate-500"
+                />
+            </div>
+            
+            <!-- View Mode Tabs (Visual, Tabela, JSON) -->
+            <div class="flex items-center gap-2 self-end sm:self-auto">
+                <div class="bg-slate-950 p-1 rounded-xl border border-slate-800 flex items-center gap-1">
+                    <button id="tab-visual" class="px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition-all">
+                        <i class="fa-solid fa-layer-group mr-1.5"></i> Visual
+                    </button>
+                    <button id="tab-table" class="px-3.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white rounded-lg transition-all">
+                        <i class="fa-solid fa-table-list mr-1.5"></i> Tabela
+                    </button>
+                    <button id="tab-json" class="px-3.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white rounded-lg transition-all">
+                        <i class="fa-solid fa-code mr-1.5"></i> JSON
+                    </button>
+                </div>
+                <button id="btn-copy-json" class="p-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl border border-slate-700 transition-all active:scale-95" title="Copiar JSON Bruto">
+                    <i class="fa-regular fa-copy"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Breadcrumb / Location Bar -->
+        <div id="breadcrumb-bar" class="bg-slate-900/60 border border-slate-800 px-4 py-2.5 rounded-xl text-xs flex items-center justify-between text-slate-400">
+            <div class="flex items-center gap-2">
+                <span class="text-slate-500">Localização:</span>
+                <span id="breadcrumb-content" class="font-medium text-blue-400 flex items-center gap-1.5">
+                    <i class="fa-solid fa-book"></i> Todos os Livros
+                </span>
+            </div>
+            <div id="active-tab-indicator" class="text-[11px] text-slate-500 font-mono uppercase tracking-wider">
+                Modo: <span class="text-slate-300 font-bold">Visual</span>
+            </div>
+        </div>
+
+        <!-- CONTENT PANELS -->
+        <div class="flex-1">
+
+            <!-- PANEL 1: VISUAL VIEW -->
+            <div id="view-container-visual" class="space-y-4">
+                <!-- Populated via JS -->
+            </div>
+
+            <!-- PANEL 2: TABLE VIEW -->
+            <div id="view-container-table" class="hidden bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-xs text-slate-300">
+                        <thead class="bg-slate-950 text-slate-400 uppercase font-mono text-[11px] border-b border-slate-800">
+                            <tr>
+                                <th class="py-3 px-4">Cód. Livro</th>
+                                <th class="py-3 px-4">Livro / Partitura</th>
+                                <th class="py-3 px-4">Instrumento</th>
+                                <th class="py-3 px-4">Autor</th>
+                                <th class="py-3 px-4">Cód. Música</th>
+                                <th class="py-3 px-4">Título da Música</th>
+                                <th class="py-3 px-4">Compositor</th>
+                                <th class="py-3 px-4 text-center">Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody id="table-view-body" class="divide-y divide-slate-800/60">
+                            <!-- Populated via JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- PANEL 3: JSON VIEW -->
+            <div id="view-container-json" class="hidden bg-slate-900 border border-slate-800 rounded-2xl p-4 shadow-xl space-y-3">
+                <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                    <span class="text-xs text-slate-400 font-mono"><i class="fa-solid fa-code text-emerald-400 mr-1.5"></i>Estrutura JSON Pronta para Exportar</span>
+                    <button id="btn-copy-json-inside" class="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition-all flex items-center gap-1.5">
+                        <i class="fa-regular fa-copy"></i> Copiar Código JSON
+                    </button>
+                </div>
+                <pre id="json-code-block" class="bg-slate-950 border border-slate-800 rounded-xl p-4 text-xs font-mono text-emerald-400 overflow-x-auto max-h-[600px] leading-relaxed"></pre>
+            </div>
+
+        </div>
+    </main>
+
+    <!-- MODAL: Batch Text Editor -->
+    <div id="text-modal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-purple-400"></i>
+                    <h3 class="text-base font-bold text-white">Editor em Lote (Texto)</h3>
+                </div>
+                <button class="close-text-modal text-slate-400 hover:text-white text-lg"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            
+            <div class="space-y-2">
+                <div class="flex items-center justify-between">
+                    <label for="raw-input" class="text-xs text-slate-400 block">Cole ou edite seu catálogo em formato texto simples:</label>
+                    <button id="btn-load-sample" class="text-xs text-purple-400 hover:text-purple-300 transition-colors underline">Carregar Exemplo</button>
+                </div>
+                <textarea 
+                    id="raw-input" 
+                    rows="12" 
+                    class="w-full bg-slate-950 border border-slate-800 focus:border-purple-500 focus:ring-1 focus:ring-purple-500 rounded-xl p-3 text-xs text-slate-200 font-mono leading-relaxed resize-y outline-none transition-all placeholder:text-slate-600"
+                    placeholder="4090 - PDF - PIANO - Trinity Guildhall - Piano Initial - 2009-2011&#10;12 - bola - Carlos Alberto"
+                ></textarea>
+            </div>
+
+            <div class="flex items-center justify-between gap-2 pt-3 border-t border-slate-800">
+                <button id="btn-generate-text-from-json" type="button" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold rounded-xl border border-slate-700 transition-all flex items-center gap-1.5">
+                    <i class="fa-solid fa-rotate-left text-blue-400"></i> Preencher com Biblioteca Atual
+                </button>
+                <div class="flex items-center gap-2">
+                    <button type="button" class="close-text-modal px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl">Cancelar</button>
+                    <button id="btn-process-text" type="button" class="px-4 py-2 bg-purple-600 hover:bg-purple-500 text-white text-xs font-semibold rounded-xl shadow-md transition-all flex items-center gap-1.5">
+                        <i class="fa-solid fa-bolt"></i> Processar e Aplicar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application JavaScript Logic -->
+    <script>
+        let libraryData = [];
+        let currentVisualMode = 'BOOKS';
+        let currentTabMode = 'VISUAL';
+        let selectedInstrumentFilter = null;
+        let focusedBookCode = null;
+
+        // URL RAW exatamente como no seu repositório no GitHub (.github.oi)
+        const GITHUB_JSON_URL = 'https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/biblioteca-in/dados-json/biblioteca.json';
+
+        const sampleText = `4090 - PDF - PIANO - Trinity Guildhall - Piano Initial - 2009-2011
+12 - bola - Carlos Alberto
+13 - dedo - Carlos Alberto
+14 - cama - Carlos Alberto
+15 - panela - Carlos Alberto
+16 - moto - Carlos Alberto
+
+4091 - PDF - VIOLÃO - Suzuki Method - Guitar School Vol 1 - 2015
+01 - Prelúdio - J. S. Bach
+02 - Minueto em Sol - L. V. Beethoven
+03 - Estudo em Mi Menor - F. Tarrega`;
+
+        // DOM References
+        const rawInput = document.getElementById('raw-input');
+        const textModal = document.getElementById('text-modal');
+        const btnOpenTextModal = document.getElementById('btn-open-text-modal');
+        const btnProcessText = document.getElementById('btn-process-text');
+        const btnGenerateTextFromJson = document.getElementById('btn-generate-text-from-json');
+        const btnLoadSample = document.getElementById('btn-load-sample');
+        const btnFetchGithub = document.getElementById('btn-fetch-github');
+        
+        const btnExportJson = document.getElementById('btn-export-json');
+        const btnCopyJson = document.getElementById('btn-copy-json');
+        const btnCopyJsonInside = document.getElementById('btn-copy-json-inside');
+        const searchInput = document.getElementById('search-input');
+
+        const navBtnBooks = document.getElementById('nav-btn-books');
+        const navBtnSongs = document.getElementById('nav-btn-songs');
+        const navBtnInstruments = document.getElementById('nav-btn-instruments');
+
+        const tabVisual = document.getElementById('tab-visual');
+        const tabTable = document.getElementById('tab-table');
+        const tabJson = document.getElementById('tab-json');
+
+        const viewContainerVisual = document.getElementById('view-container-visual');
+        const viewContainerTable = document.getElementById('view-container-table');
+        const viewContainerJson = document.getElementById('view-container-json');
+        const tableViewBody = document.getElementById('table-view-body');
+        const jsonCodeBlock = document.getElementById('json-code-block');
+
+        const breadcrumbContent = document.getElementById('breadcrumb-content');
+        const activeTabIndicator = document.getElementById('active-tab-indicator');
+
+        const statTotalBooks = document.getElementById('stat-total-books');
+        const statTotalSongs = document.getElementById('stat-total-songs');
+        const statTotalInstruments = document.getElementById('stat-total-instruments');
+
+        function escapeHTML(str) {
+            if (!str) return '';
+            return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function showToast(message, type = 'info') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const bgClass = type === 'success' ? 'bg-emerald-600' : type === 'error' ? 'bg-red-600' : 'bg-blue-600';
+            const iconClass = type === 'success' ? 'fa-circle-check' : type === 'error' ? 'fa-triangle-exclamation' : 'fa-circle-info';
+
+            toast.className = `pointer-events-auto flex items-center gap-2.5 px-4 py-3 rounded-xl shadow-lg ${bgClass} text-white text-xs font-semibold transition-all transform translate-y-2 opacity-0 duration-200`;
+            toast.innerHTML = `<i class="fa-solid ${iconClass}"></i> <span>${message}</span>`;
+            
+            container.appendChild(toast);
+            setTimeout(() => toast.classList.remove('translate-y-2', 'opacity-0'), 10);
+            setTimeout(() => {
+                toast.classList.add('opacity-0', 'translate-y-2');
+                setTimeout(() => toast.remove(), 300);
+            }, 3000);
+        }
+
+        async function fetchFromGitHub() {
+            showToast('Buscando biblioteca no GitHub...', 'info');
+            try {
+                const response = await fetch(GITHUB_JSON_URL + '?t=' + new Date().getTime());
+                if (!response.ok) throw new Error('Arquivo biblioteca.json não encontrado no caminho indicado.');
+                const data = await response.json();
+                if (Array.isArray(data)) {
+                    libraryData = data;
+                    renderUI();
+                    showToast('Biblioteca carregada com sucesso do GitHub!', 'success');
+                } else {
+                    showToast('Estrutura de arquivo inválida.', 'error');
+                }
+            } catch (err) {
+                console.warn('Erro ao carregar do GitHub:', err);
+                showToast('Arquivo não encontrado no GitHub. Usando dados de exemplo.', 'error');
+                libraryData = parseTextToJSON(sampleText);
+                renderUI();
+            }
+        }
+
+        function parseTextToJSON(text) {
+            const lines = text.split('\n');
+            const books = [];
+            let currentBook = null;
+
+            lines.forEach((lineRaw) => {
+                const line = lineRaw.trim();
+                if (!line) return;
+                const parts = line.split('-').map(p => p.trim());
+
+                if (parts.length >= 5) {
+                    currentBook = {
+                        codigo: parts[0] || '',
+                        formato: parts[1] || 'PDF',
+                        instrumento: (parts[2] || 'OUTROS').toUpperCase(),
+                        autor: parts[3] || '',
+                        nome: parts[4] || '',
+                        ano: parts[5] || '',
+                        musicas: []
+                    };
+                    books.push(currentBook);
+                } else if (parts.length >= 2 && currentBook) {
+                    currentBook.musicas.push({
+                        codigo: parts[0] || '',
+                        titulo: parts[1] || '',
+                        compositor: parts[2] || ''
+                    });
+                }
+            });
+            return books;
+        }
+
+        function convertJSONToText(data) {
+            let output = [];
+            data.forEach(book => {
+                output.push(`${book.codigo} - ${book.formato} - ${book.instrumento} - ${book.autor} - ${book.nome} - ${book.ano}`);
+                (book.musicas || []).forEach(song => {
+                    output.push(`${song.codigo} - ${song.titulo} - ${song.compositor}`);
+                });
+                output.push('');
+            });
+            return output.join('\n').trim();
+        }
+
+        function updateStats() {
+            statTotalBooks.textContent = libraryData.length;
+            let totalSongs = 0;
+            const instruments = new Set();
+            libraryData.forEach(book => {
+                totalSongs += (book.musicas ? book.musicas.length : 0);
+                if (book.instrumento) instruments.add(book.instrumento.trim().toUpperCase());
+            });
+            statTotalSongs.textContent = totalSongs;
+            statTotalInstruments.textContent = instruments.size;
+        }
+
+        function updateActiveNavButtons() {
+            const btns = [
+                { id: navBtnBooks, mode: 'BOOKS' },
+                { id: navBtnSongs, mode: 'SONGS' },
+                { id: navBtnInstruments, mode: 'INSTRUMENTS' }
+            ];
+            btns.forEach(b => {
+                if (currentVisualMode === b.mode && !selectedInstrumentFilter && !focusedBookCode) {
+                    b.id.className = `nav-stat-btn group bg-slate-950 border border-blue-500/50 ring-2 ring-blue-500/40 rounded-2xl p-4 flex items-center justify-between text-left transition-all shadow-lg`;
+                } else {
+                    b.id.className = `nav-stat-btn group bg-slate-900 hover:bg-slate-800/80 border border-slate-800 rounded-2xl p-4 flex items-center justify-between text-left transition-all shadow-lg`;
+                }
+            });
+        }
+
+        function setTabMode(mode) {
+            currentTabMode = mode;
+            viewContainerVisual.classList.add('hidden');
+            viewContainerTable.classList.add('hidden');
+            viewContainerJson.classList.add('hidden');
+
+            tabVisual.className = 'px-3.5 py-1.5 text-xs font-semibold rounded-lg text-slate-400 hover:text-white transition-all';
+            tabTable.className = 'px-3.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-all';
+            tabJson.className = 'px-3.5 py-1.5 text-xs font-semibold text-slate-400 hover:text-white transition-all';
+
+            if (mode === 'VISUAL') {
+                viewContainerVisual.classList.remove('hidden');
+                tabVisual.className = 'px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition-all';
+                activeTabIndicator.innerHTML = 'Modo: <span class="text-slate-300 font-bold">Visual</span>';
+            } else if (mode === 'TABLE') {
+                viewContainerTable.classList.remove('hidden');
+                tabTable.className = 'px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition-all';
+                activeTabIndicator.innerHTML = 'Modo: <span class="text-slate-300 font-bold">Tabela</span>';
+            } else if (mode === 'JSON') {
+                viewContainerJson.classList.remove('hidden');
+                tabJson.className = 'px-3.5 py-1.5 text-xs font-semibold rounded-lg bg-blue-600 text-white transition-all';
+                activeTabIndicator.innerHTML = 'Modo: <span class="text-slate-300 font-bold">JSON</span>';
+                jsonCodeBlock.textContent = JSON.stringify(libraryData, null, 2);
+            }
+            renderUI();
+        }
+
+        function updateBreadcrumb() {
+            let html = '';
+            if (focusedBookCode) {
+                const book = libraryData.find(b => b.codigo === focusedBookCode);
+                html = `<span class="cursor-pointer hover:underline text-slate-400" onclick="clearFocusBook()">Livros</span> <i class="fa-solid fa-chevron-right text-[10px] mx-1"></i> <span class="text-blue-400 font-bold">${book ? book.nome : focusedBookCode}</span>`;
+            } else if (currentVisualMode === 'BOOKS') {
+                html = `<i class="fa-solid fa-book"></i> Todos os Livros (${libraryData.length})`;
+            } else if (currentVisualMode === 'SONGS') {
+                let totalS = libraryData.reduce((acc, b) => acc + (b.musicas ? b.musicas.length : 0), 0);
+                html = `<i class="fa-solid fa-music"></i> Todas as Músicas (${totalS})`;
+            } else if (currentVisualMode === 'INSTRUMENTS') {
+                if (selectedInstrumentFilter) {
+                    html = `<span class="cursor-pointer hover:underline" onclick="resetInstrumentFilter()"><i class="fa-solid fa-guitar"></i> Instrumentos</span> <i class="fa-solid fa-chevron-right text-[10px] mx-1"></i> <span class="text-purple-400 font-bold">${selectedInstrumentFilter}</span>`;
+                } else {
+                    let insts = new Set(libraryData.map(b => b.instrumento));
+                    html = `<i class="fa-solid fa-guitar"></i> Instrumentos (${insts.size})`;
+                }
+            }
+            breadcrumbContent.innerHTML = html;
+        }
+
+        function clearFocusBook() {
+            focusedBookCode = null;
+            renderUI();
+        }
+
+        function resetInstrumentFilter() {
+            selectedInstrumentFilter = null;
+            currentVisualMode = 'INSTRUMENTS';
+            renderUI();
+        }
+
+        function renderUI() {
+            updateStats();
+            updateActiveNavButtons();
+            updateBreadcrumb();
+
+            const query = (searchInput.value || '').toLowerCase();
+
+            if (currentTabMode === 'VISUAL') {
+                renderVisualView(query);
+            } else if (currentTabMode === 'TABLE') {
+                renderTableView(query);
+            } else if (currentTabMode === 'JSON') {
+                jsonCodeBlock.textContent = JSON.stringify(libraryData, null, 2);
+            }
+        }
+
+        function renderVisualView(query) {
+            viewContainerVisual.innerHTML = '';
+
+            if (libraryData.length === 0) {
+                viewContainerVisual.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-12 text-center text-xs text-slate-500">Nenhum dado. Clique em "Carregar do GitHub".</div>`;
+                return;
+            }
+
+            // LIVRO SELECIONADO (Exibe exclusivamente as faixas do livro clicado)
+            if (focusedBookCode) {
+                const book = libraryData.find(b => b.codigo === focusedBookCode);
+                if (!book) { clearFocusBook(); return; }
+
+                const container = document.createElement('div');
+                container.className = 'space-y-4';
+                container.innerHTML = `
+                    <div class="bg-slate-900 border border-blue-500/40 rounded-2xl p-5 shadow-xl flex items-center justify-between gap-4">
+                        <div>
+                            <button onclick="clearFocusBook()" class="text-xs text-blue-400 hover:underline mb-2 flex items-center gap-1">
+                                <i class="fa-solid fa-arrow-left"></i> Voltar para a lista de livros
+                            </button>
+                            <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                                <span class="px-2.5 py-1 bg-blue-600/20 text-blue-400 border border-blue-500/30 rounded-lg text-xs font-mono">${book.codigo}</span>
+                                ${escapeHTML(book.nome)}
+                            </h2>
+                            <p class="text-xs text-slate-400 mt-1">Instrumento: <span class="text-slate-200">${escapeHTML(book.instrumento)}</span> • Autor: <span class="text-slate-200">${escapeHTML(book.autor)}</span> • Ano: <span class="text-slate-200">${escapeHTML(book.ano)}</span></p>
+                        </div>
+                    </div>
+                    <div class="space-y-2">
+                        <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400">Músicas deste Livro (${book.musicas ? book.musicas.length : 0}):</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-2" id="focused-songs-list"></div>
+                    </div>
+                `;
+
+                const songsListDiv = container.querySelector('#focused-songs-list');
+                if (book.musicas && book.musicas.length > 0) {
+                    book.musicas.forEach(song => {
+                        const songCard = document.createElement('div');
+                        songCard.className = 'bg-slate-900 border border-slate-800 rounded-xl p-3.5 flex items-center gap-3';
+                        songCard.innerHTML = `
+                            <span class="w-8 h-8 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-mono text-xs font-bold">${song.codigo}</span>
+                            <div>
+                                <h4 class="text-xs font-bold text-white">${escapeHTML(song.titulo)}</h4>
+                                <p class="text-[11px] text-slate-400">Compositor: <span class="text-slate-200">${escapeHTML(song.compositor)}</span></p>
+                            </div>
+                        `;
+                        songsListDiv.appendChild(songCard);
+                    });
+                } else {
+                    songsListDiv.innerHTML = `<p class="text-xs text-slate-500 italic">Nenhuma música cadastrada neste livro.</p>`;
+                }
+
+                viewContainerVisual.appendChild(container);
+                return;
+            }
+
+            // MODO: INSTRUMENTOS
+            if (currentVisualMode === 'INSTRUMENTS' && !selectedInstrumentFilter) {
+                const mapInst = {};
+                libraryData.forEach(b => {
+                    const inst = (b.instrumento || 'OUTROS').toUpperCase();
+                    if (!mapInst[inst]) mapInst[inst] = [];
+                    mapInst[inst].push(b);
+                });
+
+                const grid = document.createElement('div');
+                grid.className = 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4';
+
+                Object.keys(mapInst).sort().forEach(inst => {
+                    const books = mapInst[inst];
+                    const card = document.createElement('div');
+                    card.className = 'bg-slate-900 hover:bg-slate-800/90 border border-slate-800 hover:border-purple-500/50 rounded-2xl p-5 cursor-pointer transition-all shadow-lg flex flex-col justify-between gap-4 group';
+                    card.onclick = () => { selectedInstrumentFilter = inst; renderUI(); };
+                    card.innerHTML = `
+                        <div class="flex items-center justify-between">
+                            <div class="p-3 bg-purple-500/10 text-purple-400 rounded-xl border border-purple-500/20"><i class="fa-solid fa-guitar text-xl"></i></div>
+                            <span class="text-xs font-mono bg-slate-950 px-2.5 py-1 rounded-lg text-slate-400">${books.length} livros</span>
+                        </div>
+                        <div>
+                            <h3 class="text-base font-bold text-white group-hover:text-purple-400 transition-colors uppercase">${inst}</h3>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+                viewContainerVisual.appendChild(grid);
+                return;
+            }
+
+            // MODO: TODAS AS MÚSICAS
+            if (currentVisualMode === 'SONGS') {
+                const listContainer = document.createElement('div');
+                listContainer.className = 'space-y-2';
+
+                libraryData.forEach(book => {
+                    (book.musicas || []).forEach(song => {
+                        if (query) {
+                            const match = book.nome.toLowerCase().includes(query) || song.titulo.toLowerCase().includes(query) || song.compositor.toLowerCase().includes(query);
+                            if (!match) return;
+                        }
+                        const row = document.createElement('div');
+                        row.className = 'bg-slate-900 border border-slate-800 rounded-xl p-3 flex items-center justify-between';
+                        row.innerHTML = `
+                            <div class="flex items-center gap-3">
+                                <span class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center font-mono text-xs font-bold">${song.codigo}</span>
+                                <div>
+                                    <h4 class="text-xs font-bold text-white">${escapeHTML(song.titulo)}</h4>
+                                    <p class="text-[11px] text-slate-400">Comp: ${escapeHTML(song.compositor)} • Livro: <span class="text-blue-400 cursor-pointer hover:underline" onclick="focusedBookCode='${book.codigo}'; renderUI();">${escapeHTML(book.nome)}</span></p>
+                                </div>
+                            </div>
+                        `;
+                        listContainer.appendChild(row);
+                    });
+                });
+                viewContainerVisual.appendChild(listContainer);
+                return;
+            }
+
+            // MODO: LIVROS (Ao clicar no card do livro, exibe apenas as músicas dele)
+            const filteredBooks = libraryData.filter(b => {
+                if (selectedInstrumentFilter && b.instrumento.toUpperCase() !== selectedInstrumentFilter) return false;
+                if (!query) return true;
+                return b.codigo.toLowerCase().includes(query) || b.nome.toLowerCase().includes(query) || b.autor.toLowerCase().includes(query);
+            });
+
+            if (filteredBooks.length === 0) {
+                viewContainerVisual.innerHTML = `<div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center text-xs text-slate-500">Nenhum livro encontrado.</div>`;
+                return;
+            }
+
+            const booksContainer = document.createElement('div');
+            booksContainer.className = 'space-y-3';
+
+            filteredBooks.forEach(book => {
+                const bookCard = document.createElement('div');
+                bookCard.className = 'bg-slate-900 hover:border-blue-500/50 border border-slate-800 rounded-2xl p-5 cursor-pointer transition-all shadow-md flex items-center justify-between gap-4 group';
+                bookCard.onclick = () => {
+                    focusedBookCode = book.codigo;
+                    renderUI();
+                };
+
+                bookCard.innerHTML = `
+                    <div class="flex items-center gap-4">
+                        <div class="p-3 bg-blue-500/10 text-blue-400 rounded-xl border border-blue-500/20 font-mono text-xs font-black">
+                            ${book.codigo}
+                        </div>
+                        <div>
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <h4 class="text-sm font-bold text-white group-hover:text-blue-400 transition-colors">${escapeHTML(book.nome)}</h4>
+                                <span class="text-[10px] font-mono px-2 py-0.5 bg-slate-950 text-blue-400 rounded border border-slate-800">${escapeHTML(book.instrumento)}</span>
+                            </div>
+                            <p class="text-xs text-slate-400 mt-1">Autor: <span class="text-slate-300">${escapeHTML(book.autor)}</span> • <span class="text-emerald-400 font-semibold">${book.musicas ? book.musicas.length : 0} músicas</span></p>
+                        </div>
+                    </div>
+                    <div class="text-slate-500 group-hover:text-blue-400 transition-colors">
+                        <i class="fa-solid fa-chevron-right text-xs"></i>
+                    </div>
+                `;
+                booksContainer.appendChild(bookCard);
+            });
+
+            viewContainerVisual.appendChild(booksContainer);
+        }
+
+        function renderTableView(query) {
+            tableViewBody.innerHTML = '';
+            let rowsCount = 0;
+            libraryData.forEach(book => {
+                if (selectedInstrumentFilter && book.instrumento.toUpperCase() !== selectedInstrumentFilter) return;
+                (book.musicas || []).forEach(song => {
+                    if (query && !book.nome.toLowerCase().includes(query) && !song.titulo.toLowerCase().includes(query)) return;
+                    rowsCount++;
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-slate-800/50 transition-colors';
+                    tr.innerHTML = `
+                        <td class="py-3 px-4 font-mono text-blue-400 font-bold">${escapeHTML(book.codigo)}</td>
+                        <td class="py-3 px-4 font-medium text-white">${escapeHTML(book.nome)}</td>
+                        <td class="py-3 px-4"><span class="px-2 py-0.5 bg-slate-800 rounded text-[10px] font-mono">${escapeHTML(book.instrumento)}</span></td>
+                        <td class="py-3 px-4 text-slate-400">${escapeHTML(book.autor)}</td>
+                        <td class="py-3 px-4 font-mono text-emerald-400">${escapeHTML(song.codigo)}</td>
+                        <td class="py-3 px-4 text-slate-200">${escapeHTML(song.titulo)}</td>
+                        <td class="py-3 px-4 text-slate-400">${escapeHTML(song.compositor)}</td>
+                        <td class="py-3 px-4 text-center"><button onclick="focusedBookCode='${book.codigo}'; setTabMode('VISUAL');" class="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded text-[11px]">Ver Livro</button></td>
+                    `;
+                    tableViewBody.appendChild(tr);
+                });
+            });
+            if (rowsCount === 0) tableViewBody.innerHTML = `<tr><td colspan="8" class="py-6 text-center text-slate-500 text-xs">Nenhum registro.</td></tr>`;
+        }
+
+        // Listeners
+        btnFetchGithub.onclick = fetchFromGitHub;
+        btnOpenTextModal.onclick = () => textModal.classList.remove('hidden');
+        document.querySelectorAll('.close-text-modal').forEach(el => el.onclick = () => textModal.classList.add('hidden'));
+
+        btnLoadSample.onclick = () => { rawInput.value = sampleText; showToast('Exemplo carregado.', 'info'); };
+        btnGenerateTextFromJson.onclick = () => { rawInput.value = convertJSONToText(libraryData); showToast('Texto gerado.', 'success'); };
+
+        btnProcessText.onclick = () => {
+            const text = rawInput.value.trim();
+            if (!text) { showToast('Texto vazio.', 'error'); return; }
+            libraryData = parseTextToJSON(text);
+            textModal.classList.add('hidden');
+            renderUI();
+            showToast(`Atualizado com ${libraryData.length} livros!`, 'success');
+        };
+
+        navBtnBooks.onclick = () => { currentVisualMode = 'BOOKS'; selectedInstrumentFilter = null; focusedBookCode = null; renderUI(); };
+        navBtnSongs.onclick = () => { currentVisualMode = 'SONGS'; selectedInstrumentFilter = null; focusedBookCode = null; renderUI(); };
+        navBtnInstruments.onclick = () => { currentVisualMode = 'INSTRUMENTS'; selectedInstrumentFilter = null; focusedBookCode = null; renderUI(); };
+
+        tabVisual.onclick = () => setTabMode('VISUAL');
+        tabTable.onclick = () => setTabMode('TABLE');
+        tabJson.onclick = () => setTabMode('JSON');
+        searchInput.oninput = () => renderUI();
+
+        btnExportJson.onclick = () => {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(libraryData, null, 2));
+            const dlAnchor = document.createElement('a');
+            dlAnchor.setAttribute("href", dataStr);
+            dlAnchor.setAttribute("download", "biblioteca.json");
+            document.body.appendChild(dlAnchor);
+            dlAnchor.click();
+            dlAnchor.remove();
+            showToast('Arquivo JSON baixado!', 'success');
+        };
+
+        function copyJson() {
+            navigator.clipboard.writeText(JSON.stringify(libraryData, null, 2)).then(() => showToast('JSON copiado!', 'success'));
+        }
+        btnCopyJson.onclick = copyJson;
+        btnCopyJsonInside.onclick = copyJson;
+
+        // Tenta buscar no GitHub ao iniciar
+        fetchFromGitHub();
+    </script>
+</body>
+</html>
