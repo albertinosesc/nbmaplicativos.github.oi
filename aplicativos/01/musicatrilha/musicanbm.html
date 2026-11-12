@@ -686,48 +686,26 @@ function withStatus(){ const list=allSongs(); let f=list.findIndex(s=>!S.complet
    Esta função cobre todos os casos. */
 function pitchToMidi(p){
   if(!p) return null;
-
-  // 1) MIDI direto (versões modernas)
+  // 1) Campo oficial MIDI absoluto (quando existe)
   if(typeof p.midiPitch === 'number' && p.midiPitch >= 0 && p.midiPitch <= 127)
     return p.midiPitch;
+  // 2) ABCJS moderno: pitch já é MIDI
   if(typeof p.pitch === 'number' && p.pitch >= 12 && p.pitch <= 127)
     return p.pitch;
-
-  // 2) Versão com verticalPos (a sua!) — a mais confiável
-  //    verticalPos 0 = C4 (Dó central)
-  if(typeof p.verticalPos === 'number'){
-    const vp = p.verticalPos;
-    // Quantas oitavas acima/abaixo do Dó central
-    // verticalPos: 0..6 = C4..B4, 7..13 = C5..B5, -7..-1 = C3..B3
-    // Fórmula: octave = 4 + floor(vp / 7)
-    //          diatonicInOctave = ((vp % 7) + 7) % 7
-    const octave = 4 + Math.floor(vp / 7);
-    const diatonicIdx = ((vp % 7) + 7) % 7;
-    const semis = [0,2,4,5,7,9,11][diatonicIdx];
-    const acc = (p.accidental === 'sharp') ? 1
-              : (p.accidental === 'flat') ? -1
-              : 0;
-    return (octave + 1) * 12 + semis + acc;
+  // 3) pitch class (0-11) -> assume oitava central (C4=60)
+  if(typeof p.pitch === 'number' && p.pitch >= 0 && p.pitch < 12)
+    return 60 + p.pitch;
+  // 4) fallback por nome (ex.: "C4", "D#5", "Bb3")
+  const name = p.name || p.note || '';
+  const m = /^([A-Ga-g])([#b]?)(-?\d+)?$/.exec(name);
+  if(m){
+    const base = {C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1].toUpperCase()];
+    let semis = base;
+    if(m[2]==='#') semis++;
+    else if(m[2]==='b') semis--;
+    const octv = m[3] != null ? parseInt(m[3],10) : 4;
+    return (octv + 1) * 12 + semis;
   }
-
-  // 3) Fallback por name (extrai oitava)
-  if(p.name){
-    const m = /^([A-Ga-g])([#b]?)(-?\d+)?$/.exec(String(p.name).trim());
-    if(m){
-      const note = m[1].toUpperCase();
-      const diatonicIdx = 'CDEFGAB'.indexOf(note);
-      const acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0;
-      let octave = m[3] != null ? parseInt(m[3], 10) : 4;
-      if(m[1] === m[1].toLowerCase() && m[3] == null) octave = 5;
-      return (octave + 1) * 12 + [0,2,4,5,7,9,11][diatonicIdx] + acc;
-    }
-  }
-
-  // 4) Último recurso: pitch 0-7 como diatônico na oitava 4
-  if(typeof p.pitch === 'number' && p.pitch >= 0 && p.pitch <= 7){
-    return 60 + [0,2,4,5,7,9,11][p.pitch];
-  }
-
   return null;
 }
 
@@ -909,80 +887,28 @@ function renderSheet(){ const paper=$('#paper');
   L.events=ex.events; L.targets=ex.targets; L.total=ex.total;
   const tp=getTempo(tune); L.spw=60/(tp.bpm*tp.q);
   if(!L.targets.length)paper.innerHTML+='<div class="paper-error">Nenhuma nota encontrada nesta música.</div>'; }
-function buildKeyboard(){
-  const piano = $('#piano');
-  piano.innerHTML = '';
-  L.keys.clear();
-  piano.classList.toggle('no-names', !S.settings.names);
-  if(!L.targets.length) return;
-
-  const ms = L.targets.map(t => t.midi).filter(v => v != null);
-  if(!ms.length) return;
-  const lo = Math.min(...ms);
-  const hi = Math.max(...ms);
-
-  // SEMPRE alinhar em Dó (múltiplo de 12)
-  const start = Math.floor(lo / 12) * 12;
-  let end = Math.ceil((hi + 1) / 12) * 12 - 1;
-  while(end - start < 23) end += 12;
-
-  L.kbStart = start;
-
-  // Lista de TODAS as teclas (brancas e pretas) em ordem de MIDI
-  // com posição em "unidades de tecla branca" para o CSS
-  const allKeys = [];
-  let whiteCount = 0;
-  for(let m = start; m <= end; m++){
-    const isBlack = BLACK_PC.includes(m % 12);
-    if(isBlack){
-      // Preta: fica entre a branca anterior (whiteCount-1) e a próxima (whiteCount)
-      // no CSS usamos porcentagem baseada em brancas
-      allKeys.push({ midi: m, isBlack: true, whiteIndex: whiteCount });
-    } else {
-      allKeys.push({ midi: m, isBlack: false, whiteIndex: whiteCount });
-      whiteCount++;
-    }
-  }
-  const W = whiteCount;
-  const ww = 100 / W;
-  piano.style.minWidth = (W * 46) + 'px';
-  piano.style.width = '100%';
-
-  // Renderiza brancas
-  allKeys.filter(k => !k.isBlack).forEach(k => {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'key white';
-    b.dataset.midi = k.midi;
-    const offset = k.midi - start;
-    b.innerHTML = '<span class="kbd-hint">' + (OFF_LABEL[offset] || '') + '</span>'
-                + '<span class="key-name">' + NOTE_PT[k.midi % 12] + '</span>';
-    b.setAttribute('aria-label', 'Nota ' + noteLabel(k.midi));
-    piano.appendChild(b);
-    L.keys.set(k.midi, b);
-  });
-
-  // Renderiza pretas — usando whiteIndex que é a contagem de brancas ANTES
-  allKeys.filter(k => k.isBlack).forEach(k => {
-    // k.whiteIndex = quantas brancas já foram adicionadas antes desta preta
-    // A preta fica no limite entre (whiteIndex-1) e (whiteIndex)
-    const centerPct = k.whiteIndex * ww;  // borda esquerda da próxima branca
-    const blackW = ww * 0.62;
-    const leftPct = centerPct - blackW / 2;
-
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'key black';
-    b.dataset.midi = k.midi;
-    b.style.left = leftPct + '%';
-    b.style.width = blackW + '%';
-    const offset = k.midi - start;
-    b.innerHTML = '<span class="kbd-hint">' + (OFF_LABEL[offset] || '') + '</span>';
-    b.setAttribute('aria-label', 'Nota ' + noteLabel(k.midi));
-    piano.appendChild(b);
-    L.keys.set(k.midi, b);
-  });
-}
+function buildKeyboard(){ const piano=$('#piano'); piano.innerHTML=''; L.keys.clear();
+  piano.classList.toggle('no-names',!S.settings.names);
+  if(!L.targets.length)return;
+  const ms=L.targets.map(t=>t.midi), lo=Math.min(...ms), hi=Math.max(...ms);
+  const start=Math.floor(lo/12)*12; let end=Math.ceil((hi+1)/12)*12-1;
+  while(end-start<23) end+=12;            // pelo menos 2 oitavas
+  L.kbStart=start;                         // sempre múltiplo de 12 (Dó)
+  const whites=[]; for(let m=start;m<=end;m++)if(!BLACK_PC.includes(m%12))whites.push(m);
+  const W=whites.length, ww=100/W;
+  piano.style.minWidth=(W*46)+'px';
+  whites.forEach(m=>{ const b=document.createElement('button'); b.type='button'; b.className='key white'; b.dataset.midi=m;
+    b.setAttribute('aria-label','Nota '+noteLabel(m));
+    b.innerHTML='<span class="kbd-hint">'+(OFF_LABEL[m-start]||'')+'</span><span class="key-name">'+NOTE_PT[m%12]+'</span>';
+    piano.appendChild(b); L.keys.set(m,b); });
+  let wc=0;
+  for(let m=start;m<=end;m++){ if(BLACK_PC.includes(m%12)){
+      const b=document.createElement('button'); b.type='button'; b.className='key black'; b.dataset.midi=m;
+      b.setAttribute('aria-label','Nota '+noteLabel(m));
+      b.style.left='calc('+(wc*ww)+'% - '+(ww*0.31)+'%)'; b.style.width=(ww*0.62)+'%';
+      b.innerHTML='<span class="kbd-hint">'+(OFF_LABEL[m-start]||'')+'</span>';
+      piano.appendChild(b); L.keys.set(m,b);
+    } else wc++; } }
 function ensureKeyVisible(k){ const wrap=$('#pianoScroll');
   if(k.offsetLeft<wrap.scrollLeft+8||k.offsetLeft+k.offsetWidth>wrap.scrollLeft+wrap.clientWidth-8)
     wrap.scrollLeft=k.offsetLeft-wrap.clientWidth/2+k.offsetWidth/2; }
@@ -1369,18 +1295,15 @@ function wire(){
   $('#tipClose').onclick=()=>{ S.settings.tipSeen=true; save(); $('#lessonTip').style.display='none'; };
   $('#piano').addEventListener('pointerdown',e=>{ const k=e.target.closest('.key'); if(!k)return;
     e.preventDefault(); pressKey(+k.dataset.midi,k); });
-  document.addEventListener('keydown', e => {
-  if(e.key === 'Escape'){ ... }
-  if(currentView !== 'licao' || modalOpen || e.repeat) return;
-  // ... filtros ...
-  if(e.code === 'Space'){ e.preventDefault(); toggleListen(); return; }
-  const off = CODE_OFF[e.code];
-  if(off == null || !L) return;
-  e.preventDefault();
-  const midi = L.kbStart + off;   // kbStart é sempre múltiplo de 12
-  const k = L.keys.get(midi);
-  if(k) pressKey(midi, k);
-});
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){ if(modalOpen)closeModal(); else if(currentView==='licao')requestExit(); return; }
+    if(currentView!=='licao'||modalOpen||e.repeat)return;
+    const ae=document.activeElement;
+    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable))return;
+    if(e.code==='Space'){ e.preventDefault(); toggleListen(); return; }
+    const off=CODE_OFF[e.code]; if(off==null||!L)return;
+    e.preventDefault(); const midi=L.kbStart+off, k=L.keys.get(midi);
+    if(k)pressKey(midi,k); });
   $('#libSearch').addEventListener('input',renderBiblioteca);
   $('#libDiff').addEventListener('change',renderBiblioteca);
   $('#libSort').addEventListener('change',renderBiblioteca);
