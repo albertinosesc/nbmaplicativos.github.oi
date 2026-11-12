@@ -1033,15 +1033,24 @@ async function loadRemoteSongs(){
       const id='r'+slug(file.replace(/\.abc$/i,''));
       if(SEEDS.some(s=>s.id===id)) continue;
       try{
-        const r=await fetch(absUrl(MUSIC_DIR+file),{cache:'no-cache'}); if(!r.ok) continue;
-        const abc=await r.text(); if(!abc.trim()) continue;
-        const tM=abc.match(/^T:\s*(.+)$/m), cM=abc.match(/^C:\s*(.+)$/m);
-        SEEDS.push({id,seed:true,order:1000+idx++,difficulty:Math.min(5,Math.max(1,diff||1)),
-          title:(typeof item==='object'&&item.title)||(tM?tM[1].trim():'')||file.replace(/\.abc$/i,''),
-          composer:(typeof item==='object'&&item.composer)||(cM?cM[1].trim():'')||'Autor desconhecido',abc});
-        added++;
-      }catch(e){}
-    }
+  const r=await fetch(absUrl(MUSIC_DIR+file),{cache:'no-cache'}); if(!r.ok) continue;
+  const abc=await r.text(); if(!abc.trim()) continue;
+  const tM=abc.match(/^T:\s*(.+)$/m), cM=abc.match(/^C:\s*(.+)$/m);
+  SEEDS.push({id,seed:true,order:1000+idx++,difficulty:Math.min(5,Math.max(1,diff||1)),
+    title:(typeof item==='object'&&item.title)||(tM?tM[1].trim():'')||file.replace(/\.abc$/i,''),
+    composer:(typeof item==='object'&&item.composer)||(cM?cM[1].trim():'')||'Autor desconhecido',abc});
+
+  // >>> NOVO: aplica defaultRange do manifest (se houver) <<<
+  if(typeof item==='object' && item.defaultRange && item.defaultRange.from && item.defaultRange.to){
+    const dr=item.defaultRange;
+    const kPiano=id+':piano';
+    const kXilo =id+':xilo';
+    if(!S.settings.ranges[kPiano]) S.settings.ranges[kPiano]={from:dr.from,to:dr.to};
+    if(!S.settings.ranges[kXilo ]) S.settings.ranges[kXilo ]={from:dr.from,to:dr.to};
+  }
+
+  added++;
+}catch(e){}
     if(added) metaCache.clear();
     if(currentView==='trilha') renderTrilha();
     else if(currentView==='biblioteca') renderBiblioteca();
