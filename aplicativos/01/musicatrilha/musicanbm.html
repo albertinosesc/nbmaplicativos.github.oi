@@ -6,7 +6,7 @@
 <title>Clave — Aprenda música como um jogo</title>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/nunito@5/index.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/baloo-2@5/index.css">
-<script defer src="https://cdn.jsdelivr.net/npm/abcjs@6/dist/abcjs-basic-min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/abcjs@6.4.0/dist/abcjs-basic-min.js"></script>
 <style>
 :root{
   --bg0:#160B2E;--bg1:#1B0E36;--surface:#2B1A4E;--surface2:#352260;--line:rgba(190,160,255,.17);
@@ -588,6 +588,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const NOTE_PT=['Dó','Dó♯','Ré','Ré♯','Mi','Fá','Fá♯','Sol','Sol♯','Lá','Lá♯','Si'];
 const NOTE_EN=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const BLACK_PC=[1,3,6,8,10];
+const DIATONIC_SEMITONES=[0,2,4,5,7,9,11]; // C D E F G A B
 const oct=m=>Math.floor(m/12)-1;
 const noteLabel=m=>NOTE_PT[m%12]+' ('+NOTE_EN[m%12]+oct(m)+')';
 const fmtTime=s=>Math.floor(s/60)+':'+String(s%60).padStart(2,'0');
@@ -647,10 +648,8 @@ function mascotSVG(uid){return '<svg viewBox="0 0 130 150" xmlns="http://www.w3.
 +'<circle cx="42" cy="110" r="3.2" fill="#FF9D6C" opacity=".55"/><circle cx="74" cy="105" r="3.2" fill="#FF9D6C" opacity=".55"/>'
 +'<path d="M57 128l-13-6v12z" fill="#7A3FF2"/><path d="M61 128l13-6v12z" fill="#7A3FF2"/><circle cx="59" cy="128" r="3.6" fill="#9D6BFF"/></svg>';}
 
-/* ================= músicas embutidas (fallback) ================= */
-/* As músicas remotas (pasta musicas/) são carregadas via fetch e mescladas aqui. */
+/* ================= músicas ================= */
 const SEEDS=[];
-
 const UNITS=[
 {n:1,title:'Primeiras notas',desc:'Dó a Lá, semínimas e mínimas',cls:'u0'},
 {n:2,title:'Ritmo e leitura',desc:'Colcheias e notas graves',cls:'u1'},
@@ -678,33 +677,36 @@ function withStatus(){ const list=allSongs(); let f=list.findIndex(s=>!S.complet
   return list.map((s,i)=>({...s,idx:i,done:!!S.completed[s.id],unlocked:i<=f,current:i===f})); }
 
 /* ================= conversão de pitch ABCJS -> MIDI ================= */
-/* Corrige o bug em que só a nota dó tocava certo.
-   ABCJS pode retornar em `p.pitch`:
-     - MIDI absoluto (60 = C4)   — versões modernas
-     - pitch class (0-11)        — versões antigas / dependendo do parser
-     - midiPitch (preferido)
-   Esta função cobre todos os casos. */
 function pitchToMidi(p){
   if(!p) return null;
-  // 1) Campo oficial MIDI absoluto (quando existe)
   if(typeof p.midiPitch === 'number' && p.midiPitch >= 0 && p.midiPitch <= 127)
     return p.midiPitch;
-  // 2) ABCJS moderno: pitch já é MIDI
   if(typeof p.pitch === 'number' && p.pitch >= 12 && p.pitch <= 127)
     return p.pitch;
-  // 3) pitch class (0-11) -> assume oitava central (C4=60)
-  if(typeof p.pitch === 'number' && p.pitch >= 0 && p.pitch < 12)
-    return 60 + p.pitch;
-  // 4) fallback por nome (ex.: "C4", "D#5", "Bb3")
-  const name = p.name || p.note || '';
-  const m = /^([A-Ga-g])([#b]?)(-?\d+)?$/.exec(name);
-  if(m){
-    const base = {C:0,D:2,E:4,F:5,G:7,A:9,B:11}[m[1].toUpperCase()];
-    let semis = base;
-    if(m[2]==='#') semis++;
-    else if(m[2]==='b') semis--;
-    const octv = m[3] != null ? parseInt(m[3],10) : 4;
-    return (octv + 1) * 12 + semis;
+  if(typeof p.verticalPos === 'number'){
+    const vp = p.verticalPos;
+    const octave = 4 + Math.floor(vp / 7);
+    const diatonicIdx = ((vp % 7) + 7) % 7;
+    const nameHasAcc = p.name && /[#b]/.test(String(p.name));
+    let acc = 0;
+    if(!nameHasAcc){
+      if(p.accidental === 'sharp' || p.accidental === 1) acc = 1;
+      else if(p.accidental === 'flat' || p.accidental === -1) acc = -1;
+    }
+    return (octave + 1) * 12 + DIATONIC_SEMITONES[diatonicIdx] + acc;
+  }
+  if(p.name){
+    const m = /^([A-Ga-g])([#b]?)(-?\d+)?$/.exec(String(p.name).trim());
+    if(m){
+      const idx = 'CDEFGAB'.indexOf(m[1].toUpperCase());
+      const acc = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0;
+      let octave = m[3] != null ? parseInt(m[3], 10) : 4;
+      if(m[1] === m[1].toLowerCase() && m[3] == null) octave = 5;
+      return (octave + 1) * 12 + DIATONIC_SEMITONES[idx] + acc;
+    }
+  }
+  if(typeof p.pitch === 'number' && p.pitch >= 0 && p.pitch <= 7){
+    return 60 + DIATONIC_SEMITONES[p.pitch];
   }
   return null;
 }
@@ -715,7 +717,6 @@ function extractNotes(tune){ const events=[]; let beat=0;
     const st=line.staff[0]; const voice=st&&st.voices&&st.voices[0]; if(!voice)return;
     voice.forEach(el=>{ if(el.el_type!=='note')return; const dur=el.duration||0.25;
       if(el.pitches&&el.pitches.length){
-        // MIDI absoluto (correto!) — o maior do acorde
         const midis = el.pitches.map(pitchToMidi).filter(v=>v!=null);
         const midi = midis.length ? Math.max(...midis) : null;
         const elems=((el.abselem&&el.abselem.elemset)||[]).flat().filter(e=>e&&e.classList);
@@ -737,7 +738,7 @@ function songMeta(s){ if(metaCache.has(s.id))return metaCache.get(s.id);
   const kk=s.abc.match(/^K:\s*(.+)$/m); if(kk)m.key=kk[1].trim();
   metaCache.set(s.id,m); return m; }
 
-/* ================= áudio (corrigido) ================= */
+/* ================= áudio ================= */
 let AC=null,master=null;
 function ensureAudio(){
   if(!AC){
@@ -752,7 +753,6 @@ function ensureAudio(){
   if(AC.state==='suspended'){ AC.resume().catch(()=>{}); }
   return AC;
 }
-// Dispara um som inaudível para destravar o contexto em iOS/Safari e Chrome mobile
 function unlockAudio(){
   const ctx=ensureAudio(); if(!ctx||!master)return;
   try{
@@ -818,7 +818,7 @@ function ensureVisible(paper,ev){ const e=ev.elems&&ev.elems[0]; if(!e||!paper)r
   const r=e.getBoundingClientRect(), p=paper.getBoundingClientRect();
   if(r.bottom>p.bottom-16||r.top<p.top+8) paper.scrollTop+=(r.top-p.top)-p.height*0.35; }
 
-/* ================= carregamento de músicas do GitHub (pasta musicas/) ================= */
+/* ================= carregamento de músicas do GitHub ================= */
 const MUSIC_DIR='musicas/';
 let remoteLoaded=false;
 function absUrl(path){ try{ return new URL(path, document.baseURI).href; }catch(e){ return path; } }
@@ -887,28 +887,43 @@ function renderSheet(){ const paper=$('#paper');
   L.events=ex.events; L.targets=ex.targets; L.total=ex.total;
   const tp=getTempo(tune); L.spw=60/(tp.bpm*tp.q);
   if(!L.targets.length)paper.innerHTML+='<div class="paper-error">Nenhuma nota encontrada nesta música.</div>'; }
-function buildKeyboard(){ const piano=$('#piano'); piano.innerHTML=''; L.keys.clear();
+function buildKeyboard(){
+  const piano=$('#piano'); piano.innerHTML=''; L.keys.clear();
   piano.classList.toggle('no-names',!S.settings.names);
   if(!L.targets.length)return;
-  const ms=L.targets.map(t=>t.midi), lo=Math.min(...ms), hi=Math.max(...ms);
-  const start=Math.floor(lo/12)*12; let end=Math.ceil((hi+1)/12)*12-1;
-  while(end-start<23) end+=12;            // pelo menos 2 oitavas
-  L.kbStart=start;                         // sempre múltiplo de 12 (Dó)
-  const whites=[]; for(let m=start;m<=end;m++)if(!BLACK_PC.includes(m%12))whites.push(m);
+  const ms=L.targets.map(t=>t.midi).filter(v=>v!=null);
+  if(!ms.length)return;
+  const lo=Math.min(...ms), hi=Math.max(...ms);
+  const start=Math.floor(lo/12)*12;
+  let end=Math.ceil((hi+1)/12)*12-1;
+  while(end-start<23) end+=12;
+  L.kbStart=start;
+  const whites=[]; for(let m=start;m<=end;m++) if(!BLACK_PC.includes(m%12)) whites.push(m);
   const W=whites.length, ww=100/W;
-  piano.style.minWidth=(W*46)+'px';
-  whites.forEach(m=>{ const b=document.createElement('button'); b.type='button'; b.className='key white'; b.dataset.midi=m;
+  piano.style.minWidth=(W*46)+'px'; piano.style.width='100%';
+  const whiteIndexByMidi=new Map();
+  whites.forEach((m,i)=>whiteIndexByMidi.set(m,i));
+  whites.forEach((m,i)=>{ const b=document.createElement('button'); b.type='button'; b.className='key white';
+    b.dataset.midi=m; const offset=m-start;
+    b.innerHTML='<span class="kbd-hint">'+(OFF_LABEL[offset]||'')+'</span><span class="key-name">'+NOTE_PT[m%12]+'</span>';
     b.setAttribute('aria-label','Nota '+noteLabel(m));
-    b.innerHTML='<span class="kbd-hint">'+(OFF_LABEL[m-start]||'')+'</span><span class="key-name">'+NOTE_PT[m%12]+'</span>';
     piano.appendChild(b); L.keys.set(m,b); });
-  let wc=0;
-  for(let m=start;m<=end;m++){ if(BLACK_PC.includes(m%12)){
-      const b=document.createElement('button'); b.type='button'; b.className='key black'; b.dataset.midi=m;
-      b.setAttribute('aria-label','Nota '+noteLabel(m));
-      b.style.left='calc('+(wc*ww)+'% - '+(ww*0.31)+'%)'; b.style.width=(ww*0.62)+'%';
-      b.innerHTML='<span class="kbd-hint">'+(OFF_LABEL[m-start]||'')+'</span>';
-      piano.appendChild(b); L.keys.set(m,b);
-    } else wc++; } }
+  for(let m=start;m<=end;m++){
+    if(!BLACK_PC.includes(m%12)) continue;
+    const prevW=whiteIndexByMidi.get(m-1);
+    const nextW=whiteIndexByMidi.get(m+1);
+    if(prevW==null||nextW==null) continue;
+    const centerPct=(prevW+1)*ww;
+    const blackW=ww*0.62;
+    const leftPct=centerPct-blackW/2;
+    const b=document.createElement('button'); b.type='button'; b.className='key black';
+    b.dataset.midi=m; b.style.left=leftPct+'%'; b.style.width=blackW+'%';
+    const offset=m-start;
+    b.innerHTML='<span class="kbd-hint">'+(OFF_LABEL[offset]||'')+'</span>';
+    b.setAttribute('aria-label','Nota '+noteLabel(m));
+    piano.appendChild(b); L.keys.set(m,b);
+  }
+}
 function ensureKeyVisible(k){ const wrap=$('#pianoScroll');
   if(k.offsetLeft<wrap.scrollLeft+8||k.offsetLeft+k.offsetWidth>wrap.scrollLeft+wrap.clientWidth-8)
     wrap.scrollLeft=k.offsetLeft-wrap.clientWidth/2+k.offsetWidth/2; }
@@ -1295,15 +1310,25 @@ function wire(){
   $('#tipClose').onclick=()=>{ S.settings.tipSeen=true; save(); $('#lessonTip').style.display='none'; };
   $('#piano').addEventListener('pointerdown',e=>{ const k=e.target.closest('.key'); if(!k)return;
     e.preventDefault(); pressKey(+k.dataset.midi,k); });
-  document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'){ if(modalOpen)closeModal(); else if(currentView==='licao')requestExit(); return; }
-    if(currentView!=='licao'||modalOpen||e.repeat)return;
-    const ae=document.activeElement;
-    if(ae&&(ae.tagName==='INPUT'||ae.tagName==='TEXTAREA'||ae.isContentEditable))return;
-    if(e.code==='Space'){ e.preventDefault(); toggleListen(); return; }
-    const off=CODE_OFF[e.code]; if(off==null||!L)return;
-    e.preventDefault(); const midi=L.kbStart+off, k=L.keys.get(midi);
-    if(k)pressKey(midi,k); });
+
+  document.addEventListener('keydown', e => {
+    if(e.key === 'Escape'){
+      if(modalOpen) closeModal();
+      else if(currentView === 'licao') requestExit();
+      return;
+    }
+    if(currentView !== 'licao' || modalOpen || e.repeat) return;
+    const ae = document.activeElement;
+    if(ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.isContentEditable)) return;
+    if(e.code === 'Space'){ e.preventDefault(); toggleListen(); return; }
+    const off = CODE_OFF[e.code];
+    if(off == null || !L) return;
+    e.preventDefault();
+    const midi = L.kbStart + off;
+    const k = L.keys.get(midi);
+    if(k) pressKey(midi, k);
+  });
+
   $('#libSearch').addEventListener('input',renderBiblioteca);
   $('#libDiff').addEventListener('change',renderBiblioteca);
   $('#libSort').addEventListener('change',renderBiblioteca);
@@ -1349,8 +1374,7 @@ function boot(){
   injectIcons(); makeBgNotes(); touchToday(); save();
   $('#saveBtn').innerHTML=I.plus+' Salvar música';
   updateHUD(); updateSoundBtn(); wire(); renderFormPreview();
-  // Garante que o ABCJS esteja carregado antes de renderizar qualquer música
-  const start=()=>{ loadRemoteSongs(); route(); };
+  const start=()=>{ try{ loadRemoteSongs(); route(); }catch(e){ console.error('Boot error:',e); } };
   if(window.ABCJS) start();
   else window.addEventListener('load',start,{once:true});
 }
