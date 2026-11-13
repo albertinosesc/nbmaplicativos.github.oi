@@ -562,6 +562,33 @@ html.lite-mode .btn:active{ transform:none !important; }
   .mini-piano-label{display:none}
   .mini-piano{min-width:360px;height:54px}
 }
+
+  .mini-piano-controls{
+  display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;
+}
+.range-btn{
+  border:1.5px solid var(--line);background:#1B0E36;color:var(--ink2);
+  font-family:var(--font-disp);font-weight:800;font-size:11.5px;
+  padding:5px 9px;border-radius:999px;cursor:pointer;transition:.15s;
+}
+.range-btn b{color:var(--gold);font-size:12px}
+.range-btn.active{
+  background:rgba(77,166,255,.2);border-color:var(--blue);color:#BFDCFF;
+}
+.range-btn.active b{color:var(--ink)}
+/* Notas dentro do range escolhido no mini piano */
+.mini-piano .key.white.in-range{
+  background:linear-gradient(#E8FFF2,#A8F5CC);
+}
+.mini-piano .key.black.in-range{
+  background:linear-gradient(#1FA85F,#157A43);
+}
+.mini-piano .key.edge{
+  outline:3px solid var(--gold);outline-offset:-3px;
+}
+@media (max-width:560px){
+  .mini-piano-controls{width:100%}
+}
 </style>
 
 </head>
@@ -620,11 +647,16 @@ html.lite-mode .btn:active{ transform:none !important; }
 
     <!-- TECLADO PEQUENO DE TESTE (1 oitava) -->
     <div class="mini-piano-wrap">
-      <span class="mini-piano-label">Teste a nota:</span>
-      <div id="miniPianoScroll" class="mini-piano-scroll">
-        <div id="miniPiano" class="mini-piano" aria-label="Teclado de teste"></div>
-      </div>
-    </div>
+  <div class="mini-piano-controls">
+    <span class="mini-piano-label">Região:</span>
+    <button id="rangeFromBtn" class="range-btn" title="Clique e escolha a nota inicial no mini piano">De: <b>—</b></button>
+    <button id="rangeToBtn" class="range-btn" title="Clique e escolha a nota final no mini piano">Até: <b>—</b></button>
+    <button id="rangeResetBtn" class="btn ghost small" title="Volta ao padrão (1 oitava)">Auto</button>
+  </div>
+  <div id="miniPianoScroll" class="mini-piano-scroll">
+    <div id="miniPiano" class="mini-piano" aria-label="Mini piano para escolher a região"></div>
+  </div>
+</div>
 
     <div id="lessonTip" class="lesson-tip">
       <i class="icw" data-icon="info"></i>
@@ -1487,6 +1519,7 @@ let KEYMAP = { map: {}, rev: {}, labels: {} };
 function initLesson(song){
   stopPlayback();
   metStop();
+
   let bpm = 100, beatsPerBar = 4;
   try{
     const tune = (window.ABCJS && ABCJS.parseOnly) ? ABCJS.parseOnly(song.abc)[0] : null;
@@ -1503,17 +1536,27 @@ function initLesson(song){
     keys: new Map(), kbStart: 60, noteList: [],
     tempo: { bpm, q: 0.25 }, beatsPerBar, hits: [], anchorAC: 0
   };
+
   const w = worldOf(song.difficulty);
   $('#lessonUnit').textContent = w.emblem + ' ' + w.name + ' • ' + DIFF_LABEL[song.difficulty];
   $('#lessonTitle').textContent = song.title;
   $('#lessonTip').style.display = S.settings.tipSeen ? 'none' : 'flex';
   setSwitch($('#namesSwitch'),  S.settings.names);
   setSwitch($('#assistSwitch'), S.settings.assist);
+
+  // Garante que essa música tem um range salvo (padrão 1 oitava C4 → C5)
+  if(!S.ranges) S.ranges = {};
+  if(!S.ranges[song.id]) S.ranges[song.id] = { from: 'C', to: 'c' };
+
   renderSheet();
-  buildPianoFromRange(song);   // piano grande com range da música
-  buildMiniPiano();            // mini piano de teste (1 oitava C4→C5)
+
+  buildPianoFromRange(song);   // piano grande com o range da música (padrão 1 oitava)
+  buildMiniPiano();            // mini piano seletor (C4 → C5, sempre 1 oitava)
+  updateMiniRangeUI();         // destaca o range atual + atualiza botões "De/Até"
+
   updatePlayUI();
   metSetButton();
+
   if(S.settings.metronome || S.settings.metLight) metStart();
 }
 /* ================= lista de notas ABC ================= */
@@ -1538,27 +1581,76 @@ const ABC_NOTES = (() => {
   });
   return result;
 })();
+
+/* ================= seletor de região (mini piano) ================= */
+const RANGE_PICK = { mode: null };   // null | 'from' | 'to'
+
+function abcFromMidi(m){
+  const names = { 0:'C',2:'D',4:'E',5:'F',7:'G',9:'A',11:'B' };
+  const semis = { 0:'', 1:'#', 2:'', 3:'#', 4:'', 5:'', 6:'#', 7:'', 8:'#', 9:'', 10:'#', 11:'' };
+  const pc = ((m % 12) + 12) % 12;
+  const oct = Math.floor(m / 12) - 1;
+  const base = names[pc] || 'C';
+  const acc  = semis[pc] || '';
+  // ABC: C4 = C, C5 = c, C6 = c', C3 = C,
+  let abc = base + acc;
+  if(oct >= 5){
+    abc = base.toLowerCase() + acc;
+    for(let i = 5; i < oct; i++) abc += "'";
+  } else if(oct === 4){
+    // padrão
+  } else if(oct < 4){
+    for(let i = oct; i < 4; i++) abc += ',';
+  }
+  return abc;
+}
+
+function midiFromAbc(abc){
+  const m = /^([A-Ga-g])([#b]?)(,+|'+)?$/.exec(abc);
+  if(!m) return null;
+  const base = m[1];
+  const acc  = m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0;
+  const upper = base.toUpperCase();
+  const diatonic = { C:0, D:2, E:4, F:5, G:7, A:9, B:11 }[upper];
+  if(diatonic == null) return null;
+  let oct = 4;
+  if(base === base.toLowerCase() && base !== base.toUpperCase()) oct = 5;
+  if(m[3]){
+    if(m[3][0] === ',') oct -= m[3].length;
+    if(m[3][0] === "'") oct += m[3].length;
+  }
+  return (oct + 1) * 12 + diatonic + acc;
+}
+
+function updateMiniRangeUI(){
+  if(!L) return;
+  const r = S.ranges[L.song.id] || { from: 'C', to: 'c' };
+  const fromBtn = document.getElementById('rangeFromBtn');
+  const toBtn   = document.getElementById('rangeToBtn');
+  if(fromBtn) fromBtn.innerHTML = 'De: <b>' + (r.from || '—') + '</b>';
+  if(toBtn)   toBtn.innerHTML   = 'Até: <b>' + (r.to || '—') + '</b>';
+  if(fromBtn) fromBtn.classList.toggle('active', RANGE_PICK.mode === 'from');
+  if(toBtn)   toBtn.classList.toggle('active', RANGE_PICK.mode === 'to');
+
+  // Destaca no mini piano
+  const mFrom = midiFromAbc(r.from) ?? 60;
+  const mTo   = midiFromAbc(r.to)   ?? 72;
+  const lo = Math.min(mFrom, mTo), hi = Math.max(mFrom, mTo);
+  document.querySelectorAll('#miniPiano .key').forEach(k => {
+    const mm = +k.dataset.midi;
+    k.classList.toggle('in-range', mm >= lo && mm <= hi);
+    k.classList.toggle('edge', mm === mFrom || mm === mTo);
+  });
+}
         
 function buildPianoFromRange(song){
-  // Mapa de notação ABC (oitavas 2 a 6) → MIDI
-  const ABC_TO_MIDI = {
-    'C,,':36,'D,,':38,'E,,':40,'F,,':41,'G,,':43,'A,,':45,'B,,':47,
-    'C,':48,'D,':50,'E,':52,'F,':53,'G,':55,'A,':57,'B,':59,
-    'C':60,'D':62,'E':64,'F':65,'G':67,'A':69,'B':71,
-    'c':72,'d':74,'e':76,'f':77,'g':79,'a':81,'b':83,
-    "c'":84,"d'":86,"e'":88,"f'":89,"g'":91,"a'":93,"b'":95
-  };
+  let r = S.ranges[song.id];
+  if(!r || !r.from || !r.to) r = { from: 'C', to: 'c' };
 
-  let r = null;
-  if(S.ranges && S.ranges[song.id] && S.ranges[song.id].from && S.ranges[song.id].to){
-    r = S.ranges[song.id];
-  }
-  if(!r) r = { from: 'C', to: 'c' }; // padrão: 1 oitava C4 → C5
-
-  const lo = ABC_TO_MIDI[r.from] != null ? ABC_TO_MIDI[r.from] : 60;
-  const hi = ABC_TO_MIDI[r.to]   != null ? ABC_TO_MIDI[r.to]   : 72;
-  const a = Math.min(lo, hi);
-  const b = Math.max(lo, hi);
+  const lo = midiFromAbc(r.from) ?? 60;
+  const hi = midiFromAbc(r.to)   ?? 72;
+  const a  = Math.min(lo, hi);
+  const b  = Math.max(lo, hi);
 
   const notes = [];
   for(let m = a; m <= b; m++) notes.push(m);
@@ -2612,7 +2704,31 @@ function wire(){
     updateLessonUI(); sfxClick();
   };
   $('#tipClose').onclick = () => { S.settings.tipSeen = true; save(); $('#lessonTip').style.display = 'none'; };
+  /* SELETOR DE REGIÃO (mini piano) */
+  const rFromBtn = $('#rangeFromBtn');
+  const rToBtn   = $('#rangeToBtn');
+  const rReset   = $('#rangeResetBtn');
 
+  if(rFromBtn) rFromBtn.onclick = () => {
+    RANGE_PICK.mode = RANGE_PICK.mode === 'from' ? null : 'from';
+    updateMiniRangeUI();
+    sfxClick();
+  };
+  if(rToBtn) rToBtn.onclick = () => {
+    RANGE_PICK.mode = RANGE_PICK.mode === 'to' ? null : 'to';
+    updateMiniRangeUI();
+    sfxClick();
+  };
+  if(rReset) rReset.onclick = () => {
+    if(!L) return;
+    S.ranges[L.song.id] = { from: 'C', to: 'c' };
+    RANGE_PICK.mode = null;
+    save();
+    buildPianoFromRange(L.song);
+    updateMiniRangeUI();
+    toast('Região redefinida para 1 oitava.', { type: 'info' });
+    sfxClick();
+  };
   /* PIANO */
   $('#pianoScroll').addEventListener('pointerdown', e => {
     const k = e.target.closest('.key'); if(!k) return;
@@ -2637,14 +2753,40 @@ function wire(){
     if(k) pressKey(midi, k);
   });
   
-$('#miniPianoScroll').addEventListener('pointerdown', e => {
-  const k = e.target.closest('.key'); if(!k) return;
-  e.preventDefault();
-  const midi = +k.dataset.midi;
-  k.classList.add('pressed');
-  setTimeout(() => k.classList.remove('pressed'), 150);
-  instNote(midi, 0.9, null, 0.8);
-});
+  /* MINI PIANO — toca + define região */
+  $('#miniPianoScroll').addEventListener('pointerdown', e => {
+    const k = e.target.closest('.key'); if(!k) return;
+    e.preventDefault();
+    const midi = +k.dataset.midi;
+    k.classList.add('pressed');
+    setTimeout(() => k.classList.remove('pressed'), 150);
+    instNote(midi, 0.9, null, 0.8);
+
+    if(!L) return;
+    if(RANGE_PICK.mode){
+      const abc = abcFromMidi(midi);
+      const cur = S.ranges[L.song.id] || { from: 'C', to: 'c' };
+      if(RANGE_PICK.mode === 'from'){
+        cur.from = abc;
+        // se "from" ficou maior que "to", troca
+        const mF = midiFromAbc(cur.from), mT = midiFromAbc(cur.to);
+        if(mF != null && mT != null && mF > mT){
+          const tmp = cur.from; cur.from = cur.to; cur.to = tmp;
+        }
+      } else {
+        cur.to = abc;
+        const mF = midiFromAbc(cur.from), mT = midiFromAbc(cur.to);
+        if(mF != null && mT != null && mT < mF){
+          const tmp = cur.from; cur.from = cur.to; cur.to = tmp;
+        }
+      }
+      S.ranges[L.song.id] = cur;
+      save();
+      RANGE_PICK.mode = null;
+      buildPianoFromRange(L.song);
+      updateMiniRangeUI();
+    }
+  });
   /* HUD ofensiva */
   const hudStreakChip = $('#hudStreak') && $('#hudStreak').closest('.chip');
   if(hudStreakChip){
