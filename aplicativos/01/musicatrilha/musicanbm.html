@@ -613,10 +613,7 @@ footer{text-align:center;color:var(--ink3);font-size:12.5px;font-weight:700;padd
         </div>
         <div id="ghStatus" class="form-msg"></div>
       </div>
-      <div class="card" style="margin-bottom:16px">
-        <h4><i class="icw" data-icon="trophy"></i> Ranking geral (todas as turmas)</h4>
-        <div id="rankGlobal"></div>
-      </div>
+      
       <div class="card" style="margin-bottom:16px">
         <h4><i class="icw" data-icon="info"></i> Aluno que está jogando</h4>
         <p class="sub">O progresso das músicas e o XP serão salvos no nome do aluno escolhido.</p>
@@ -1606,11 +1603,18 @@ function renderTrilha(){
 }
 function renderSidebar(){ const lvl=Math.floor(S.xp/150)+1, into=S.xp%150;
   const goal=60, tx=Math.min(S.today.xp||0,goal), C=2*Math.PI*26, off=C*(1-tx/goal);
-  const aluno=alunoAtual();
-  const rank=[...RIVALS];
-  if(aluno) rank.push({name:aluno.nome,xp:aluno.xp||0,emoji:S.settings.instrument==='xilo'?'🎼':'🎹',me:true});
-  else rank.push({name:'Você',xp:S.xp,emoji:S.settings.instrument==='xilo'?'🎼':'🎹',me:true});
-  rank.sort((a,b)=>b.xp-a.xp);
+    const aluno = alunoAtual();
+  let rank = [];
+  if(aluno){
+    // Só colegas da MESMA turma
+    const colegas = Object.values(DB.alunos)
+      .filter(a => a.turmaId === aluno.turmaId)
+      .map(a => ({name:a.nome, xp:a.xp||0, emoji:a.avatar||'🎵', me:a.id===aluno.id}));
+    rank = colegas.sort((a,b) => b.xp - a.xp);
+  } else {
+    // Sem aluno: sem ranking
+    rank = [];
+  }
   $('#sidebar').innerHTML=
    '<div class="card profile-card"><div class="mascot">'+mascotSVG('side')+'</div>'
    +'<div class="profile-info"><b>'+(aluno?esc(aluno.nome):'Visitante')+'</b>'
@@ -1792,17 +1796,8 @@ function renderTurmas(){
     if(t&&!t.value) t.value=GH.token?('•'.repeat(8)+GH.token.slice(-6)):'';
     if(GH.configured()&&!$('#ghStatus').innerHTML) ghStatus('ok','Conectado a '+GH.repo+' ✓');
   }
-  const rankGlobal=[...allAlunosFlat()].sort((a,b)=>(b.xp||0)-(a.xp||0)).slice(0,20);
-  const rg=$('#rankGlobal');
-  if(rg){
-    rg.innerHTML=rankGlobal.length?rankGlobal.map((a,i)=>{
-      const isMe=S.alunoAtual===a.id;
-      return '<div class="rank-row'+(isMe?' me':'')+'"><span class="rank-pos">'+(i<3?['🥇','🥈','🥉'][i]:i+1)+'</span>'
-        +'<span class="rank-emoji">'+(a.avatar||'🎵')+'</span>'
-        +'<span class="rank-name">'+esc(a.nome)+' <small style="color:var(--ink3);font-weight:700">'+(a.turma?'('+esc(a.turma.nome)+')':'')+'</small></span>'
-        +'<b>'+(a.xp||0)+' XP</b></div>';
-    }).join(''):'<div class="empty-state" style="padding:20px">Nenhum aluno cadastrado ainda.</div>';
-  }
+  
+  
   const sel=$('#alunoAtualSelect');
   if(sel){
     const opts=['<option value="">— escolha um aluno —</option>'];
@@ -2158,10 +2153,43 @@ function wire(){
     else if(act==='delTurma') deleteTurma(turmaId);
     else if(act==='delAluno') deleteAluno(turmaId,alunoId);
   });
-  $('#alunoAtualSelect').addEventListener('change',e=>{
-    S.alunoAtual=e.target.value||null; save();
-    updateHUD(); renderTurmas();
-    if(S.alunoAtual){ const a=alunoAtual(); if(a) toast('Jogando como '+esc(a.nome)+' 🎹',{type:'success'}); }
+    $('#alunoAtualSelect').addEventListener('change', async e => {
+    const anterior = S.alunoAtual;
+    const novo = e.target.value || null;
+
+    // 1) Salva progresso do aluno anterior no DB
+    if(anterior && DB.alunos[anterior]){
+      const a = DB.alunos[anterior];
+      a.xp = S.xp;
+      a.ofensiva = effStreak();
+      a.musicasConcluidas = JSON.parse(JSON.stringify(S.completed));
+      a.ultimoAcesso = todayStr();
+    }
+
+    // 2) Troca e carrega progresso do novo aluno
+    S.alunoAtual = novo;
+    if(novo && DB.alunos[novo]){
+      const a = DB.alunos[novo];
+      S.xp = a.xp || 0;
+      S.completed = JSON.parse(JSON.stringify(a.musicasConcluidas || {}));
+      S.streak = a.ofensiva || 0;
+      S.lastDay = a.ultimoAcesso || null;
+    } else {
+      S.xp = 0; S.completed = {}; S.streak = 0; S.lastDay = null;
+    }
+    save();
+
+    // 3) Persiste a mudança no GitHub
+    if(GH.configured()){
+      try{ await dbSave('troca de aluno'); }catch(err){ console.warn(err); }
+    }
+
+    // 4) Re-renderiza TUDO — ESSENCIAL: renderTrilha()
+    updateHUD();
+    renderTrilha();   // ← ISSO FALTAVA! Por isso a trilha ficava a do aluno anterior
+    renderTurmas();
+
+    if(novo){ const a = alunoAtual(); if(a) toast('Jogando como '+esc(a.nome)+' 🎹',{type:'success'}); }
   });
 
   let rzT=0;
