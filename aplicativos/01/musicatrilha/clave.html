@@ -525,6 +525,18 @@ html.lite-mode .btn{ box-shadow:0 2px 0 rgba(0,0,0,.3) !important; }
 html.lite-mode .btn:active{ transform:none !important; }
 
 body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
+
+  .btn.green.copied{
+  background:linear-gradient(180deg,#5FF3A9,#3CE68A);
+  color:#04331c;
+}
+#pixKey{
+  font-family:'Nunito Variable', ui-monospace, monospace;
+  letter-spacing:.4px;
+  user-select:all;
+  cursor:text;
+}
+#pixKey::selection{ background:rgba(60,230,138,.45); color:#F6F1FF; }
   
 </style>
 
@@ -728,33 +740,39 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
     </div>
   </section>
 
-  <section id="view-sobre" class="view">
-  <div class="container">
-    <div class="lib-head"><div><h1>Sobre mim</h1><p class="sub">Quem faz o Clave e por quê.</p></div></div>
-    <div class="card" style="max-width:820px;margin:0 auto">
-      <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
-        <img src="minha-foto.jpg" alt="Foto do professor" style="width:140px;height:140px;border-radius:50%;object-fit:cover;border:3px solid var(--green);flex-shrink:0">
-        <div style="flex:1;min-width:220px">
-          <h3 style="font-family:var(--font-disp);font-size:22px">Prof. Albertino Moura</h3>
-          <p class="sub" style="margin-top:6px;color:var(--ink2)">
-            Educador Musical e desenvolvedor do Clave. Criei este app para
-            tornar o aprendizado musical acessível, divertido e gratuito para
-            todos os alunos — do primeiro contato ao palco.
-          </p>
-          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
-            <a class="btn ghost small" href="https://wa.me/5571989797547" target="_blank" rel="noopener">WhatsApp</a>
-            <a class="btn ghost small" href="mailto:musicanplay3@gmail.com">E-mail</a>
-          </div>
-          <div style="margin-top:16px;padding:12px 14px;background:#221040;border:1px solid var(--line);border-radius:12px">
-            <div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--teal);margin-bottom:4px">Chave PIX</div>
-            <code style="font-size:13px;font-weight:700;color:var(--ink2);word-break:break-all">ba65ab76-9518-49bf-b746-8ed9299ce53a</code>
+    <section id="view-sobre" class="view">
+    <div class="container">
+      <div class="lib-head"><div><h1>Sobre mim</h1><p class="sub">Quem faz o Clave e por quê.</p></div></div>
+      <div class="card" style="max-width:820px;margin:0 auto">
+        <div style="display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap">
+          <img src="minha-foto.jpg" alt="Foto do professor" style="width:140px;height:140px;border-radius:50%;object-fit:cover;border:3px solid var(--green);flex-shrink:0">
+          <div style="flex:1;min-width:220px">
+            <h3 style="font-family:var(--font-disp);font-size:22px">Prof. Albertino Moura</h3>
+            <p class="sub" style="margin-top:6px;color:var(--ink2)">
+              Educador Musical e desenvolvedor do Clave. Criei este app para
+              tornar o aprendizado musical acessível, divertido e gratuito para
+              todos os alunos — do primeiro contato ao palco.
+            </p>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
+              <a class="btn ghost small" href="https://wa.me/5571989797547" target="_blank" rel="noopener">WhatsApp</a>
+              <a class="btn ghost small" href="mailto:musicanplay3@gmail.com">E-mail</a>
+            </div>
+
+            <div style="margin-top:16px;padding:12px 14px;background:#221040;border:1px solid var(--line);border-radius:12px">
+              <div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--teal);margin-bottom:6px">Chave PIX (aleatória)</div>
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+                <code id="pixKey" style="font-size:13px;font-weight:700;color:var(--ink2);word-break:break-all;flex:1;min-width:200px">ba65ab76-9518-49bf-b746-8ed9299ce53a</code>
+                <button class="btn green small" id="pixCopyBtn" type="button">
+                  <i class="icw" data-icon="copy"></i><span>Copiar</span>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
+      <footer>Clave — 2026</footer>
     </div>
-    <footer>Clave — 2026</footer>
-  </div>
-</section>
+  </section>
 </main>
 
 <div id="toasts" aria-live="polite"></div>
@@ -1398,8 +1416,12 @@ async function loadRemoteSongs(){
         if(typeof item === 'object' && item.defaultRange && item.defaultRange.from && item.defaultRange.to){
   const dr = item.defaultRange;
   if(!S.ranges) S.ranges = {};
-  // Se ainda não foi personalizado pelo aluno, aplica o defaultRange do manifest
-  if(!S.ranges[id] || !S.ranges[id]._custom){
+  const atual = S.ranges[id];
+  const manifestMudou = !atual
+    || atual.from !== dr.from
+    || atual.to   !== dr.to;
+  // Só sobrescreve se o aluno não personalizou manualmente
+  if(manifestMudou && !(atual && atual._custom)){
     S.ranges[id] = { from: dr.from, to: dr.to, _fromManifest: true };
     save();
   }
@@ -2551,7 +2573,16 @@ function renderTurmas(){
       + '<div class="turma-alunos">' + rows + '</div></div>';
   }).join('');
 }
-
+function selecionarTexto(el){
+  if(!el) return;
+  try{
+    const range = document.createRange();
+    range.selectNodeContents(el);
+    const sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+  }catch(e){}
+}
 /* ================= eventos ================= */
 function wire(){
   window.addEventListener('hashchange', route);
@@ -2561,9 +2592,70 @@ function wire(){
     document.addEventListener(evt, unlockAudio, { passive: true })
   );
 
-  /* CONTA */
+   /* CONTA */
   const cb = $('#contaBtn');
   if(cb) cb.onclick = () => abrirModalConta();
+
+  /* ===== PIX — copiar chave ===== */
+  const pixBtn = $('#pixCopyBtn');
+  if(pixBtn){
+    pixBtn.onclick = async () => {
+      const keyEl = $('#pixKey');
+      const key = keyEl ? keyEl.textContent.trim() : 'ba65ab76-9518-49bf-b746-8ed9299ce53a';
+      const label = pixBtn.querySelector('span');
+      const iconHost = pixBtn.querySelector('.icw');
+      const originalLabel = label ? label.textContent : 'Copiar';
+
+      const restaurarBotao = () => {
+        setTimeout(() => {
+          if(label) label.textContent = originalLabel;
+          if(iconHost) iconHost.innerHTML = I.copy;
+          pixBtn.classList.remove('copied');
+        }, 1800);
+      };
+
+      const mostrarSucesso = () => {
+        if(label) label.textContent = 'Copiado!';
+        if(iconHost) iconHost.innerHTML = I.check;
+        pixBtn.classList.add('copied');
+        toast('Chave PIX copiada! 📋', { type: 'success' });
+        sfxClick();
+        restaurarBotao();
+      };
+
+      const copiarFallback = () => {
+        try{
+          const ta = document.createElement('textarea');
+          ta.value = key;
+          ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed';
+          ta.style.top = '-9999px';
+          ta.style.opacity = '0';
+          document.body.appendChild(ta);
+          ta.select();
+          ta.setSelectionRange(0, key.length);
+          const ok = document.execCommand('copy');
+          ta.remove();
+          if(ok) mostrarSucesso();
+          else throw new Error('execCommand falhou');
+        }catch(err){
+          toast('Não foi possível copiar automaticamente. Selecione e copie manualmente.', { type: 'warn', duration: 5000 });
+          selecionarTexto(keyEl);
+        }
+      };
+
+      if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+        try{
+          await navigator.clipboard.writeText(key);
+          mostrarSucesso();
+        }catch(e){
+          copiarFallback();
+        }
+      } else {
+        copiarFallback();
+      }
+    };
+  }
 
   /* PRO */
   const ativarBtn = $('#ativarProBtn');
