@@ -12,9 +12,8 @@
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
   import { getFirestore, doc, getDoc, setDoc, collection, getDocs, runTransaction } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
-  import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
-  
-  // Seu firebaseConfig copiado do console
+  import { getAuth, signInAnonymously, onAuthStateChanged, createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signOut } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+
   const firebaseConfig = {
     apiKey: "AIzaSyCpUmcn9PCwOhEIvkbfjcn5SGjs51Vde8E",
     authDomain: "musicatrilha-5079a.firebaseapp.com",
@@ -29,8 +28,8 @@
   const db = getFirestore(app);
   const auth = getAuth(app);
 
-  // Expõe globalmente para o script principal do Clave
-     window.FirebaseService = { db, auth, signInAnonymously, onAuthStateChanged, doc, getDoc, setDoc, collection, getDocs, runTransaction };
+  window.FirebaseService = { db, auth, signInAnonymously, onAuthStateChanged, doc, getDoc, setDoc, collection, getDocs, runTransaction };
+  window.FirebaseAuth    = { createUserWithEmailAndPassword, signInWithEmailAndPassword, sendPasswordResetEmail, signOut };
 </script>
 
 <style>
@@ -253,15 +252,6 @@ h1{font-family:var(--font-disp);font-size:30px;font-weight:800}
 .lesson-tip .icw{color:var(--blue);flex-shrink:0}
 .lesson-tip .icon-btn{margin-left:auto;color:#BFDCFF}
 
-.instr-bar{display:flex;flex-wrap:wrap;gap:10px;align-items:center;
-  background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:8px 12px}
-.instr-label{font-family:var(--font-disp);font-weight:800;font-size:14px;color:var(--ink)}
-.range-info{font-weight:800;font-size:12.5px;color:var(--teal);margin-left:auto}
-
-.warn-box{display:none;background:rgba(255,201,60,.12);border:1px solid rgba(255,201,60,.4);color:#FFE8A3;
-  border-radius:10px;padding:8px 12px;font-size:12.5px;font-weight:700;line-height:1.4}
-.warn-box.show{display:block}
-
 .paper-wrap{flex:1;min-height:110px;position:relative}
 .paper{position:absolute;inset:0;background:var(--paper);border-radius:16px;overflow:auto;padding:24px 18px 16px;
   color:var(--paper-ink);box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 0 0 1px rgba(0,0,0,.06)}
@@ -428,7 +418,6 @@ footer{text-align:center;color:var(--ink3);font-size:12.5px;font-weight:700;padd
   .lesson{padding:10px}
   .lesson-title h2{font-size:16.5px}
   .hint-label{display:none}
-  .instr-bar{gap:6px;padding:7px 8px}
 }
 @media (max-width:560px){
   .chip-gems{display:none}
@@ -526,7 +515,7 @@ html.lite-mode .btn:active{ transform:none !important; }
 
 body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
 
-  .btn.green.copied{
+.btn.green.copied{
   background:linear-gradient(180deg,#5FF3A9,#3CE68A);
   color:#04331c;
 }
@@ -538,7 +527,7 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
 }
 #pixKey::selection{ background:rgba(60,230,138,.45); color:#F6F1FF; }
 
-  .turma-card{position:relative}
+.turma-card{position:relative}
 .turma-card [data-add-aluno]{white-space:nowrap}
 .turma-card [data-del-turma]{flex-shrink:0}
 </style>
@@ -596,10 +585,6 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
       <span id="pCount" class="pcount">0/0</span>
       <span id="comboChip" class="combo-chip" style="display:none"></span>
     </div>
-
-  
-   
-
     <div id="lessonTip" class="lesson-tip">
       <i class="icw" data-icon="info"></i>
       <span>Toque a nota destacada em azul na partitura. Cada erro custa uma vida ❤️</span>
@@ -630,7 +615,7 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
   </div>
 </section>
 
-    <section id="view-turmas" class="view">
+  <section id="view-turmas" class="view">
     <div class="container">
       <div class="lib-head">
         <div>
@@ -676,7 +661,7 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
       <div class="lib-head">
         <div><h1>Biblioteca de músicas</h1><p class="sub">Suas músicas e as da trilha.</p></div>
       </div>
-            <div class="toolbar">
+      <div class="toolbar">
         <div class="searchfield"><i class="icw" data-icon="search"></i><input id="libSearch" type="search" placeholder="Buscar por título ou autor…"></div>
         <select id="libTab">
           <option value="todas">Todas</option>
@@ -759,12 +744,10 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
               tornar o aprendizado musical acessível, divertido e gratuito para
               todos os alunos — do primeiro contato ao palco.
             </p>
-
             <div style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px">
               <a class="btn ghost small" href="https://wa.me/5571986797547" target="_blank" rel="noopener">WhatsApp</a>
               <a class="btn ghost small" href="mailto:musicanplay3@gmail.com">E-mail</a>
             </div>
-
             <div style="margin-top:16px;padding:12px 14px;background:#221040;border:1px solid var(--line);border-radius:12px">
               <div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--teal);margin-bottom:6px">Chave PIX (aleatória)</div>
               <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -774,7 +757,6 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
                 </button>
               </div>
             </div>
-
             <div style="margin-top:24px;padding-top:16px;border-top:1px solid var(--line)">
               <div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--ink3);margin-bottom:8px">Configurações</div>
               <button class="btn ghost small" id="limparCacheBtn" type="button" style="color:#FF9B9E;border-color:rgba(255,90,95,.35)">
@@ -932,12 +914,9 @@ function save(){ try{ localStorage.setItem(LS, JSON.stringify(S)); }catch(e){} }
 
 /* ================= versão / plano ================= */
 const IS_PRO_KEY = 'clave.isPro';
-const IS_ADMIN_KEY = 'clave.isAdmin';
 function isPro(){ return localStorage.getItem(IS_PRO_KEY) === 'true'; }
-function isAdmin(){ return localStorage.getItem(IS_ADMIN_KEY) === 'true'; }
 function applyPlanClasses(){
   document.body.classList.toggle('is-pro', isPro());
-  document.body.classList.toggle('is-admin', isAdmin());
 }
 
 function touchToday(){ const d = todayStr(); if(S.today.day !== d) S.today = { day: d, xp: 0 }; }
@@ -961,9 +940,6 @@ const LOJA = [
   { id:'loja-peixinho',   title:'Peixinhos do Mar',  composer:'Tradicional', preco: 1.99,
     abc:"X:1\nT:Peixinhos do Mar\nM:4/4\nL:1/4\nQ:100\nK:G\nG A B c | d d B2 | G A B c | d d B2 |]" }
 ];
-function lojaCompradas(){ return JSON.parse(localStorage.getItem('clave.lojaCompradas') || '{}'); }
-function lojaMarcarComprada(id){ const c = lojaCompradas(); c[id] = Date.now(); localStorage.setItem('clave.lojaCompradas', JSON.stringify(c)); }
-function lojaTemComprada(id){ return !!lojaCompradas()[id]; }
 
 /* ================= dados remotos (FIREBASE) ================= */
 const DB = { turmas: [], alunos: {}, contasGlobais: {}, loaded: false };
@@ -1018,11 +994,11 @@ async function dbSave(msg){
   await FB.write(payload);
   if(msg) console.log('dbSave:', msg);
 }
- /* ================= músicas compradas (pasta separada) ================= */
+
+/* ================= músicas compradas (pasta separada) ================= */
 const MUSICAS_COMPRADAS_CACHE = 'clave.musicasCompradasCache.v1';
 
 async function loadMusicasCompradas(){
-  // 1) Cache local (rápido)
   try{
     const cached = JSON.parse(localStorage.getItem(MUSICAS_COMPRADAS_CACHE) || 'null');
     if(cached && Array.isArray(cached) && cached.length){
@@ -1032,7 +1008,6 @@ async function loadMusicasCompradas(){
     }
   }catch(e){}
 
-  // 2) Firestore
   try{
     const svc = window.FirebaseService;
     if(!svc || !svc.getDocs || !svc.collection) return;
@@ -1069,14 +1044,12 @@ async function loadMusicasCompradas(){
 
 function temComprada(id){
   if(!id) return false;
-  if(S.compras.includes(id)) return true;
   const c = contaAtual();
-  if(c && Array.isArray(c.compras) && c.compras.includes(id)) return true;
-  if(lojaTemComprada(id)) return true;
+  if(c && Array.isArray(c.compras)) return c.compras.includes(id);
+  if(Array.isArray(S.compras)) return S.compras.includes(id);
   return false;
 }
-        
-function turmaDe(id){ return DB.turmas.find(t => t.id === id); }
+
 function contaAtual(){ return S.conta && DB.contasGlobais[S.conta] ? DB.contasGlobais[S.conta] : null; }
 
 /* ================= conversão pitch ABCJS → MIDI ================= */
@@ -1322,11 +1295,6 @@ function updatePlayUI(){
     b.classList.toggle('blue', !on);
     b.classList.toggle('red', on);
   }
-  const p = $('#previewPlayBtn');
-  if(p){
-    const on = PB.playing && PB.session && PB.session.owner === 'preview';
-    p.innerHTML = on ? I.stop + ' Parar prévia' : I.play + ' Ouvir prévia';
-  }
 }
 function ensureVisible(paper, ev){
   const e = ev.elems && ev.elems[0];
@@ -1447,21 +1415,29 @@ function metToggleLight(){ S.settings.metLight   = !S.settings.metLight;   save(
 const MUSIC_DIR = 'musicas/';
 let remoteLoaded = false;
 function absUrl(path){ try{ return new URL(path, document.baseURI).href; }catch(e){ return path; } }
+
 async function loadRemoteSongs(){
   if(remoteLoaded) return;
   remoteLoaded = true;
-  const CACHE_KEY = 'clave.songsCache.v1';
+  const CACHE_KEY = 'clave.songsCache.v2';
+  const CACHE_TTL_MS = 1000 * 60 * 60 * 12; // 12h
 
+  // 1) Cache válido?
   try{
-    const cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-    if(cached && Array.isArray(cached) && cached.length){
-      SEEDS.length = 0;
-      cached.forEach(s => SEEDS.push(s));
-      metaCache.clear();
-      return;
+    const raw = localStorage.getItem(CACHE_KEY);
+    if(raw){
+      const cached = JSON.parse(raw);
+      if(cached && Array.isArray(cached.songs) && cached.songs.length
+         && (Date.now() - (cached.savedAt || 0)) < CACHE_TTL_MS){
+        SEEDS.length = 0;
+        cached.songs.forEach(s => SEEDS.push(s));
+        metaCache.clear();
+        return;
+      }
     }
   }catch(e){}
 
+  // 2) Fetch
   try{
     const res = await fetch(absUrl(MUSIC_DIR + 'manifest.json'), { cache: 'no-cache' });
     if(!res.ok) throw new Error('manifest ' + res.status);
@@ -1492,18 +1468,15 @@ async function loadRemoteSongs(){
         });
 
         if(typeof item === 'object' && item.defaultRange && item.defaultRange.from && item.defaultRange.to){
-  const dr = item.defaultRange;
-  if(!S.ranges) S.ranges = {};
-  const atual = S.ranges[id];
-  const manifestMudou = !atual
-    || atual.from !== dr.from
-    || atual.to   !== dr.to;
-  // Só sobrescreve se o aluno não personalizou manualmente
-  if(manifestMudou && !(atual && atual._custom)){
-    S.ranges[id] = { from: dr.from, to: dr.to, _fromManifest: true };
-    save();
-  }
-}
+          const dr = item.defaultRange;
+          if(!S.ranges) S.ranges = {};
+          const atual = S.ranges[id];
+          const manifestMudou = !atual || atual.from !== dr.from || atual.to !== dr.to;
+          if(manifestMudou && !(atual && atual._custom)){
+            S.ranges[id] = { from: dr.from, to: dr.to, _fromManifest: true };
+            save();
+          }
+        }
 
         added++;
       }catch(e){}
@@ -1511,7 +1484,9 @@ async function loadRemoteSongs(){
 
     if(added){
       metaCache.clear();
-      try{ localStorage.setItem(CACHE_KEY, JSON.stringify(SEEDS)); }catch(e){}
+      try{
+        localStorage.setItem(CACHE_KEY, JSON.stringify({ songs: SEEDS, savedAt: Date.now() }));
+      }catch(e){}
       save();
     }
   }catch(e){
@@ -1519,31 +1494,22 @@ async function loadRemoteSongs(){
   }
 }
 
-/* ================= notas fixas C3 → C6 (3 oitavas) ================= */
-const PIANO_MIN = 48; // C3
-const PIANO_MAX = 84; // C6
-const PIANO_NOTES = (() => {
-  const list = [];
-  for(let m = PIANO_MIN; m <= PIANO_MAX; m++) list.push(m);
-  return list;
-})();
-const PIANO_KEYS_36 = ['KeyA','KeyW','KeyS','KeyE','KeyD','KeyF','KeyT','KeyG','KeyY','KeyH','KeyU','KeyJ',
-                       'KeyK','KeyO','KeyL','KeyP','Semicolon','Quote',
-                       'Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7'];
-const PIANO_LABELS_36 = { KeyA:'A', KeyW:'W', KeyS:'S', KeyE:'E', KeyD:'D', KeyF:'F', KeyT:'T', KeyG:'G', KeyY:'Y', KeyH:'H', KeyU:'U', KeyJ:'J',
+/* ================= teclado virtual ================= */
+const PIANO_KEYS = ['KeyA','KeyW','KeyS','KeyE','KeyD','KeyF','KeyT','KeyG','KeyY','KeyH','KeyU','KeyJ',
+                    'KeyK','KeyO','KeyL','KeyP','Semicolon','Quote',
+                    'Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7'];
+const PIANO_LABELS = { KeyA:'A', KeyW:'W', KeyS:'S', KeyE:'E', KeyD:'D', KeyF:'F', KeyT:'T', KeyG:'G', KeyY:'Y', KeyH:'H', KeyU:'U', KeyJ:'J',
   KeyK:'K', KeyO:'O', KeyL:'L', KeyP:'P', Semicolon:';', Quote:"'", Digit1:'1', Digit2:'2', Digit3:'3', Digit4:'4', Digit5:'5', Digit6:'6', Digit7:'7' };
 
 function buildKeyMap(notes){
-  const keys   = PIANO_KEYS_36;
-  const labels = PIANO_LABELS_36;
   const map = {}, rev = {};
-  for(let i = 0; i < notes.length && i < keys.length; i++){
+  for(let i = 0; i < notes.length && i < PIANO_KEYS.length; i++){
     const m = notes[i];
     if(rev[m] != null) continue;
-    map[keys[i]] = m;
-    rev[m] = keys[i];
+    map[PIANO_KEYS[i]] = m;
+    rev[m] = PIANO_KEYS[i];
   }
-  return { map, rev, labels };
+  return { map, rev, labels: PIANO_LABELS };
 }
 
 /* ================= lição ================= */
@@ -1578,8 +1544,6 @@ function initLesson(song){
   setSwitch($('#namesSwitch'),  S.settings.names);
   setSwitch($('#assistSwitch'), S.settings.assist);
 
-  // Se essa música NÃO tem range salvo, cria o padrão C3 → C5.
-  // Se já tem (vindo do manifest, por exemplo), respeita.
   if(!S.ranges) S.ranges = {};
   if(!S.ranges[song.id]){
     S.ranges[song.id] = { from: 'C,', to: 'c' };
@@ -1594,31 +1558,6 @@ function initLesson(song){
 
   if(S.settings.metronome || S.settings.metLight) metStart();
 }
-/* ================= lista de notas ABC ================= */
-const ABC_NOTES = (() => {
-  const letters = 'CDEFGAB';
-  const result = [];
-  const defs = [
-    { octMidi: 36, suffix: ',,', caseMode: 'up',  oct: 2 },
-    { octMidi: 48, suffix: ',',  caseMode: 'up',  oct: 3 },
-    { octMidi: 60, suffix: '',   caseMode: 'up',  oct: 4 },
-    { octMidi: 72, suffix: '',   caseMode: 'low', oct: 5 },
-    { octMidi: 84, suffix: "'",  caseMode: 'low', oct: 6 }
-  ];
-  defs.forEach(d => {
-    for(let li = 0; li < 7; li++){
-      const midi = d.octMidi + DIATONIC_SEMITONES[li];
-      const L = d.caseMode === 'up' ? letters[li] : letters[li].toLowerCase();
-      const abc = L + d.suffix;
-      const name = NOTE_PT[DIATONIC_SEMITONES[li]] + ' ' + d.oct;
-      result.push({ abc, midi, name, oct: d.oct });
-    }
-  });
-  return result;
-})();
-
-/* ================= seletor de região (mini piano) ================= */
-const RANGE_PICK = { mode: null };   // null | 'from' | 'to'
 
 function abcFromMidi(m){
   const names = { 0:'C',2:'D',4:'E',5:'F',7:'G',9:'A',11:'B' };
@@ -1627,7 +1566,6 @@ function abcFromMidi(m){
   const oct = Math.floor(m / 12) - 1;
   const base = names[pc] || 'C';
   const acc  = semis[pc] || '';
-  // ABC: C4 = C, C5 = c, C6 = c', C3 = C,
   let abc = base + acc;
   if(oct >= 5){
     abc = base.toLowerCase() + acc;
@@ -1657,27 +1595,6 @@ function midiFromAbc(abc){
   return (oct + 1) * 12 + diatonic + acc;
 }
 
-function updateMiniRangeUI(){
-  if(!L) return;
-  const r = S.ranges[L.song.id] || { from: 'C', to: 'c' };
-  const fromBtn = document.getElementById('rangeFromBtn');
-  const toBtn   = document.getElementById('rangeToBtn');
-  if(fromBtn) fromBtn.innerHTML = 'De: <b>' + (r.from || '—') + '</b>';
-  if(toBtn)   toBtn.innerHTML   = 'Até: <b>' + (r.to || '—') + '</b>';
-  if(fromBtn) fromBtn.classList.toggle('active', RANGE_PICK.mode === 'from');
-  if(toBtn)   toBtn.classList.toggle('active', RANGE_PICK.mode === 'to');
-
-  // Destaca no mini piano
-  const mFrom = midiFromAbc(r.from) ?? 60;
-  const mTo   = midiFromAbc(r.to)   ?? 72;
-  const lo = Math.min(mFrom, mTo), hi = Math.max(mFrom, mTo);
-  document.querySelectorAll('#miniPiano .key').forEach(k => {
-    const mm = +k.dataset.midi;
-    k.classList.toggle('in-range', mm >= lo && mm <= hi);
-    k.classList.toggle('edge', mm === mFrom || mm === mTo);
-  });
-}
-        
 function buildPianoFromRange(song){
   let r = S.ranges[song.id];
   if(!r || !r.from || !r.to) r = { from: 'C,', to: 'c' };
@@ -1695,41 +1612,6 @@ function buildPianoFromRange(song){
   buildPiano(notes);
 }
 
-function buildMiniPiano(){
-  const host = $('#miniPiano');
-  if(!host) return;
-  host.innerHTML = '';
-  const minM = 60, maxM = 72; // C4 → C5
-  const whites = [];
-  for(let m = minM; m <= maxM; m++) if(!isBlack(m)) whites.push(m);
-  const W = whites.length;
-  host.style.minWidth = (W * 44) + 'px';
-  host.style.width = '100%';
-  const wib = new Map();
-  whites.forEach((m,i) => wib.set(m, i));
-  const ww = 100 / W;
-  whites.forEach(m => {
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'key white';
-    b.dataset.midi = m;
-    b.innerHTML = '<span>' + NOTE_PT[m % 12] + '</span>';
-    host.appendChild(b);
-  });
-  for(let m = minM; m <= maxM; m++){
-    if(!isBlack(m)) continue;
-    const prevW = wib.get(m - 1), nextW = wib.get(m + 1);
-    if(prevW == null || nextW == null) continue;
-    const centerPct = (prevW + 1) * ww;
-    const blackW = ww * 0.62;
-    const b = document.createElement('button');
-    b.type = 'button'; b.className = 'key black';
-    b.dataset.midi = m;
-    b.style.left = (centerPct - blackW / 2) + '%';
-    b.style.width = blackW + '%';
-    host.appendChild(b);
-  }
-}
-        
 function renderSheet(){
   const paper = $('#paper');
   if(!window.ABCJS){ paper.innerHTML = '<div class="paper-error">⚠️ abcjs não carregou.</div>'; return; }
@@ -1840,7 +1722,7 @@ function updateLessonUI(){
   if(L.combo >= 2){ cc.style.display = 'inline-flex'; cc.innerHTML = I.flame + ' ×' + L.combo; }
   else cc.style.display = 'none';
   const t = L.targets[L.index];
-   $('#hintChip').innerHTML = L.finished
+  $('#hintChip').innerHTML = L.finished
     ? '🎉'
     : (S.settings.assist && t ? NOTE_PT[((t.midi%12)+12)%12] : '?');
   const hm = $('#hintMsg');
@@ -2233,10 +2115,10 @@ function renderBiblioteca(){
   const fd = $('#libDiff').value;
   const sort = $('#libSort').value;
 
-  const idsComprados = new Set([
-    ...(S.compras || []),
-    ...((contaAtual() && contaAtual().compras) || [])
-  ]);
+  const c = contaAtual();
+  const idsComprados = new Set(
+    (c && Array.isArray(c.compras)) ? c.compras : (S.compras || [])
+  );
 
   let f = list.filter(s => {
     if(tab === 'compradas' && !idsComprados.has(s.id)) return false;
@@ -2256,7 +2138,7 @@ function renderBiblioteca(){
   $('#libCount').textContent = f.length + ' de ' + list.length;
 }
 
-        function deleteCustom(id){
+function deleteCustom(id){
   const s = S.custom.find(x => x.id === id);
   if(!s) return;
   openModal(
@@ -2271,13 +2153,14 @@ function renderBiblioteca(){
     delete S.completed[id];
     delete S.ranges?.[id];
     save(); metaCache.delete(id);
-    try{ localStorage.removeItem('clave.songsCache.v1'); }catch(e){}
+    try{ localStorage.removeItem('clave.songsCache.v2'); }catch(e){}
     closeModal(true);
     renderBiblioteca(); renderTrilha();
     toast('Música excluída.', { type: 'info' });
   };
   $('#mCancel').onclick = () => closeModal();
 }
+
 /* ================= loja ================= */
 function renderLoja(){
   const grid = $('#lojaGrid');
@@ -2370,10 +2253,14 @@ function abrirModalCompra(item){
       const tem = (c2 && Array.isArray(c2.compras) && c2.compras.includes(item.id)) || S.compras.includes(item.id);
       if(tem){
         if(!S.compras.includes(item.id)) S.compras.push(item.id);
+        if(c2){
+          c2.compras = c2.compras || [];
+          if(!c2.compras.includes(item.id)) c2.compras.push(item.id);
+          scheduleDbSave('compra ' + item.title);
+        }
         if(!S.custom.some(s => s.id === item.id)){
           S.custom.push({ id: item.id, title: item.title, composer: item.composer, difficulty: 1, abc: item.abc, order: 500 + S.custom.length, seed: false, comprada: true });
         }
-        lojaMarcarComprada(item.id);
         save();
         closeModal(true);
         toast('“' + esc(item.title) + '” liberada! 🎉', { type: 'success' });
@@ -2399,89 +2286,219 @@ function abrirPraticaLoja(item){
   location.hash = '#/licao/' + item.id;
 }
 
-/* ================= conta (login grátis) ================= */
+/* ================= conta ================= */
 function abrirModalConta(){
   const c = contaAtual();
+
   if(c){
     openModal(
       '<div class="modal-head"><h3>Minha conta</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
-      + '<p class="modal-sub" style="text-align:left">Logado como <b>' + esc(c.nome) + '</b> — ' + (c.xp || 0) + ' XP</p>'
-      + '<div class="modal-actions"><button class="btn red" id="sairBtn">' + I.x + ' Sair da conta</button>'
-      + '<button class="btn ghost" id="fecharBtn">Fechar</button></div>'
+      + '<div style="text-align:left;margin-top:8px">'
+      +   '<p class="sub" style="margin-bottom:4px">Logado como</p>'
+      +   '<b style="font-family:var(--font-disp);font-size:20px">' + esc(c.nome) + '</b>'
+      +   '<p class="sub" style="margin-top:6px">E-mail: ' + esc(c.email || '—') + '</p>'
+      +   '<p class="sub">XP: ' + (c.xp || 0) + ' • Ofensiva: ' + (c.ofensiva || 0) + '</p>'
+      +   (c.pro ? '<p class="sub" style="color:var(--gold);font-weight:800">⭐ Versão Pro ativa</p>' : '')
+      + '</div>'
+      + '<div class="modal-actions-col" style="margin-top:18px">'
+      +   '<button class="btn ghost" id="contaSair">' + I.x + ' Sair da conta</button>'
+      +   '<button class="btn ghost" id="contaFechar">Fechar</button>'
+      + '</div>'
     );
-    $('#mClose').onclick = $('#fecharBtn').onclick = () => closeModal();
-    $('#sairBtn').onclick = () => {
-      S.conta = null; save(); updateHUD(); renderSidebar(); closeModal(true);
+    $('#mClose').onclick = $('#contaFechar').onclick = () => closeModal();
+    $('#contaSair').onclick = async () => {
+      try{
+        const { auth } = window.FirebaseService;
+        const { signOut } = window.FirebaseAuth;
+        await signOut(auth);
+      }catch(e){ console.warn('signOut:', e); }
+
+      S.conta = null;
+      S.xp = 0;
+      S.compras = [];
+      S.completed = {};
+      S.streak = 0;
+      S.lastDay = null;
+      S.diasEstudados = {};
+      localStorage.removeItem(IS_PRO_KEY);
+      save();
+      applyPlanClasses();
+      closeModal(true);
+      updateHUD(); renderSidebar(); renderTrilha(); renderTurmas();
       toast('Você saiu da conta.', { type: 'info' });
     };
     return;
   }
+
   openModal(
     '<div class="modal-head"><h3>Entrar / Criar conta</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
-    + '<p class="modal-sub" style="text-align:left">Crie uma conta grátis com nome e senha para salvar seu progresso e entrar no ranking global.</p>'
-    + '<div style="text-align:left;margin-top:12px">'
-    + '<label>Nome</label><input id="loginNome" type="text" placeholder="Seu nome" style="width:100%" maxlength="20">'
-    + '<label>Senha</label><input id="loginSenha" type="password" placeholder="Mínimo 4 caracteres" style="width:100%" maxlength="40">'
+    + '<p class="modal-sub" style="text-align:left">Crie uma conta grátis para salvar seu progresso e entrar no ranking global.</p>'
+    + '<div style="text-align:left;margin-top:12px;display:flex;flex-direction:column;gap:10px">'
+    +   '<label>Nome</label>'
+    +   '<input id="loginNome" type="text" placeholder="Seu nome" style="width:100%" maxlength="20" autocomplete="username">'
+    +   '<label>E-mail</label>'
+    +   '<input id="loginEmail" type="email" placeholder="seu@email.com" style="width:100%" maxlength="80" autocomplete="email">'
+    +   '<label>Senha</label>'
+    +   '<input id="loginSenha" type="password" placeholder="Mínimo 6 caracteres" style="width:100%" maxlength="40" autocomplete="current-password">'
     + '</div>'
     + '<div class="modal-actions">'
-    + '<button class="btn green" id="entrarBtn">' + I.check + ' Entrar</button>'
-    + '<button class="btn blue" id="criarBtn">' + I.plus + ' Criar conta</button>'
-    + '<button class="btn ghost" id="cancelarBtn">Cancelar</button>'
+    +   '<button class="btn green" id="entrarBtn">' + I.check + ' Entrar</button>'
+    +   '<button class="btn blue" id="criarBtn">' + I.plus + ' Criar conta</button>'
+    +   '<button class="btn ghost" id="cancelarBtn">Cancelar</button>'
     + '</div>'
+    + '<p style="text-align:center;margin-top:14px"><a href="#" id="esqueciSenha" style="color:var(--teal);font-weight:800;font-size:13px">Esqueci minha senha</a></p>'
   );
+  injectIcons();
+
   $('#mClose').onclick = $('#cancelarBtn').onclick = () => closeModal();
   $('#entrarBtn').onclick = () => entrarConta();
   $('#criarBtn').onclick  = () => criarConta();
+
+  const esqueci = $('#esqueciSenha');
+  if(esqueci) esqueci.onclick = (e) => {
+    e.preventDefault();
+    const email = ($('#loginEmail').value || '').trim();
+    if(!email){ toast('Digite seu e-mail primeiro.', { type: 'warn' }); return; }
+    try{
+      const { auth } = window.FirebaseService;
+      const { sendPasswordResetEmail } = window.FirebaseAuth;
+      sendPasswordResetEmail(auth, email)
+        .then(() => toast('E-mail de recuperação enviado! Verifique sua caixa.', { type: 'success', duration: 6000 }))
+        .catch((err) => toast('Erro: ' + err.message, { type: 'error' }));
+    }catch(err){ toast('Erro: ' + err.message, { type: 'error' }); }
+  };
 }
 async function criarConta(){
   const nome  = ($('#loginNome').value  || '').trim();
+  const email = ($('#loginEmail').value || '').trim().toLowerCase();
   const senha = ($('#loginSenha').value || '').trim();
+
   if(!nome || nome.length < 2){ toast('Nome muito curto.', { type: 'warn' }); return; }
-  if(!senha || senha.length < 4){ toast('Senha muito curta.', { type: 'warn' }); return; }
-  const id = slug(nome);
-  if(DB.contasGlobais[id]){ toast('Este nome já existe. Faça login ou escolha outro.', { type: 'warn' }); return; }
-    DB.contasGlobais[id] = {
-    id, nome, senha,
-    xp: 0, ofensiva: 0, ultimoAcesso: todayStr(),
-    compras: [],
-    musicasConcluidas: {}, diasEstudados: {},
-    criadoEm: todayStr()
-  };
-  S.conta = id;
-  S.xp = 0;
-  S.compras = [];
-  S.completed = {};
-  S.streak = 0;
-  S.lastDay = null;
-  S.diasEstudados = {};
-  save();
-  try{ await dbSave('nova conta ' + nome); }catch(e){ console.warn(e); }
-  closeModal(true);
-  updateHUD(); renderSidebar(); renderTrilha();
-  toast('Conta criada! 🎉 Bem-vindo, ' + nome, { type: 'success' });
+  if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('E-mail inválido.', { type: 'warn' }); return; }
+  if(!senha || senha.length < 6){ toast('Senha deve ter ao menos 6 caracteres.', { type: 'warn' }); return; }
+
+  const btn = $('#criarBtn');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = I.refresh + ' Criando...'; }
+
+  try{
+    const { auth, db, doc, setDoc, getDoc } = window.FirebaseService;
+    const { createUserWithEmailAndPassword } = window.FirebaseAuth;
+
+    const cred = await createUserWithEmailAndPassword(auth, email, senha);
+    const uid  = cred.user.uid;
+
+    // Preserva progresso local como visitante
+    const xpInicial = S.xp || 0;
+    const comprasIniciais = Array.isArray(S.compras) ? [...S.compras] : [];
+    const completedIniciais = { ...(S.completed || {}) };
+    const diasIniciais = { ...(S.diasEstudados || {}) };
+
+    const perfil = {
+      id: uid,
+      nome,
+      email,
+      xp: xpInicial,
+      ofensiva: S.streak || 0,
+      ultimoAcesso: todayStr(),
+      compras: comprasIniciais,
+      musicasConcluidas: completedIniciais,
+      diasEstudados: diasIniciais,
+      criadoEm: todayStr()
+    };
+
+    const snap = await getDoc(doc(db, 'clave', 'dados'));
+    const dadosAtuais = snap.exists() ? snap.data() : {};
+    const contasGlobais = dadosAtuais.contasGlobais || {};
+    contasGlobais[uid] = perfil;
+    await setDoc(doc(db, 'clave', 'dados'), { ...dadosAtuais, contasGlobais }, { merge: false });
+
+    DB.contasGlobais = contasGlobais;
+    S.conta = uid;
+    // S.xp, S.compras, S.completed, S.diasEstudados mantidos (já eram do visitante)
+    save();
+
+    closeModal(true);
+    updateHUD(); renderSidebar(); renderTrilha();
+    toast('Conta criada! 🎉 Bem-vindo, ' + esc(nome), { type: 'success' });
+  }catch(err){
+    const msg = err && err.code ? err.code : (err.message || 'Erro desconhecido');
+    if(msg.includes('email-already-in-use')) toast('Este e-mail já está cadastrado.', { type: 'error' });
+    else if(msg.includes('weak-password'))   toast('Senha muito fraca.', { type: 'error' });
+    else if(msg.includes('invalid-email'))   toast('E-mail inválido.', { type: 'error' });
+    else toast('Erro: ' + msg, { type: 'error', duration: 5000 });
+    if(btn){ btn.disabled = false; btn.innerHTML = originalHtml; }
+  }
 }
 async function entrarConta(){
-  const nome  = ($('#loginNome').value  || '').trim();
+  const email = ($('#loginEmail').value || '').trim().toLowerCase();
   const senha = ($('#loginSenha').value || '').trim();
-  if(!nome || !senha){ toast('Preencha nome e senha.', { type: 'warn' }); return; }
-  const id = slug(nome);
-  const c = DB.contasGlobais[id];
-  if(!c || c.senha !== senha){ toast('Nome ou senha incorretos.', { type: 'error' }); return; }
-  S.conta = id;
-  // ↓ ADICIONE ESTA LINHA ↓
-  if(c.pro) localStorage.setItem(IS_PRO_KEY, 'true'); else localStorage.removeItem(IS_PRO_KEY);
-  // ↑ ADICIONE ESTA LINHA ↑
-  S.xp = c.xp || 0;
-  S.compras = JSON.parse(JSON.stringify(c.compras || []));
-  S.completed = JSON.parse(JSON.stringify(c.musicasConcluidas || {}));
-  S.streak = c.ofensiva || 0;
-  S.lastDay = c.ultimoAcesso || null;
-  S.diasEstudados = JSON.parse(JSON.stringify(c.diasEstudados || {}));
-  save();
-  applyPlanClasses();  // ← e chame applyPlanClasses() após
-  closeModal(true);
-  updateHUD(); renderSidebar(); renderTrilha();
-  toast('Bem-vindo de volta, ' + c.nome + '! 🎹', { type: 'success' });
+
+  if(!email || !senha){ toast('Preencha e-mail e senha.', { type: 'warn' }); return; }
+
+  const btn = $('#entrarBtn');
+  const originalHtml = btn ? btn.innerHTML : '';
+  if(btn){ btn.disabled = true; btn.innerHTML = I.refresh + ' Entrando...'; }
+
+  try{
+    const { auth, db, doc, getDoc } = window.FirebaseService;
+    const { signInWithEmailAndPassword } = window.FirebaseAuth;
+
+    const cred = await signInWithEmailAndPassword(auth, email, senha);
+    const uid  = cred.user.uid;
+
+    const snap = await getDoc(doc(db, 'clave', 'dados'));
+    const dados = snap.exists() ? snap.data() : {};
+    const contasGlobais = dados.contasGlobais || {};
+    const c = contasGlobais[uid];
+
+    if(!c){
+      toast('Perfil não encontrado. Contate o suporte.', { type: 'error' });
+      if(btn){ btn.disabled = false; btn.innerHTML = originalHtml; }
+      return;
+    }
+
+    DB.contasGlobais = contasGlobais;
+
+    // Preserva compras locais feitas como visitante
+    const comprasVisitante = Array.isArray(S.compras) ? [...S.compras] : [];
+    const comprasFinal = Array.from(new Set([...(c.compras || []), ...comprasVisitante]));
+    const completadoFinal = { ...(c.musicasConcluidas || {}), ...(S.completed || {}) };
+    const diasFinal = { ...(c.diasEstudados || {}), ...(S.diasEstudados || {}) };
+    const xpFinal = Math.max(c.xp || 0, S.xp || 0);
+
+    S.conta = uid;
+    S.xp = xpFinal;
+    S.compras = comprasFinal;
+    S.completed = completadoFinal;
+    S.streak = Math.max(c.ofensiva || 0, S.streak || 0);
+    S.lastDay = c.ultimoAcesso || S.lastDay;
+    S.diasEstudados = diasFinal;
+    if(c.pro) localStorage.setItem(IS_PRO_KEY, 'true');
+    else localStorage.removeItem(IS_PRO_KEY);
+    save();
+    applyPlanClasses();
+
+    // Atualiza o perfil no Firestore se houve merge
+    c.compras = comprasFinal;
+    c.musicasConcluidas = completadoFinal;
+    c.diasEstudados = diasFinal;
+    c.xp = xpFinal;
+    c.ofensiva = S.streak;
+    scheduleDbSave('entrar ' + c.nome);
+
+    closeModal(true);
+    updateHUD(); renderSidebar(); renderTrilha(); renderTurmas();
+    toast('Bem-vindo de volta, ' + esc(c.nome) + '! 🎹', { type: 'success' });
+  }catch(err){
+    const msg = err && err.code ? err.code : (err.message || '');
+    if(msg.includes('user-not-found'))      toast('E-mail não cadastrado.', { type: 'error' });
+    else if(msg.includes('wrong-password')) toast('Senha incorreta.', { type: 'error' });
+    else if(msg.includes('invalid-email'))  toast('E-mail inválido.', { type: 'error' });
+    else if(msg.includes('too-many-requests')) toast('Muitas tentativas. Aguarde um pouco.', { type: 'warn' });
+    else toast('Erro: ' + msg, { type: 'error', duration: 5000 });
+    if(btn){ btn.disabled = false; btn.innerHTML = originalHtml; }
+  }
 }
 
 /* ================= modal / toast / confete ================= */
@@ -2592,13 +2609,6 @@ async function route(){
   metStop();
   closeModal(true);
   if(!DB.loaded) await dbLoad();
-  if(h === '#/admin'){
-    localStorage.setItem(IS_ADMIN_KEY, 'true');
-    applyPlanClasses();
-    toast('Modo admin ativado.', { type: 'success' });
-    location.hash = '#/trilha';
-    return;
-  }
   if(h.startsWith('#/licao/')){
     const id = h.slice(8);
     const song = withStatus().find(s => s.id === id);
@@ -2691,8 +2701,6 @@ function abrirCalendarioOfensiva(){
   bind();
 }
 
-        
-
 function makeBgNotes(){
   const glyphs = ['♪','♫','♬','♩'];
   const host = $('#bgNotes');
@@ -2761,7 +2769,7 @@ function renderTurmas(){
   }).join('');
 }
 
-        function abrirModalAluno(turmaId){
+function abrirModalAluno(turmaId){
   const turma = DB.turmas.find(t => t.id === turmaId);
   if(!turma){ toast('Turma não encontrada.', { type: 'error' }); return; }
   if(turma.professorId !== S.conta){ toast('Você não é dono dessa turma.', { type: 'error' }); return; }
@@ -2841,7 +2849,7 @@ function excluirTurma(turmaId){
   };
   $('#delCancel').onclick = () => closeModal();
 }
-        
+
 function selecionarTexto(el){
   if(!el) return;
   try{
@@ -2852,6 +2860,7 @@ function selecionarTexto(el){
     sel.addRange(range);
   }catch(e){}
 }
+
 /* ================= eventos ================= */
 function wire(){
   window.addEventListener('hashchange', route);
@@ -2861,11 +2870,9 @@ function wire(){
     document.addEventListener(evt, unlockAudio, { passive: true })
   );
 
-  /* CONTA */
   const cb = $('#contaBtn');
   if(cb) cb.onclick = () => abrirModalConta();
 
-  /* ===== PIX — copiar chave ===== */
   const pixBtn = $('#pixCopyBtn');
   if(pixBtn){
     pixBtn.onclick = async () => {
@@ -2926,7 +2933,6 @@ function wire(){
     };
   }
 
-  /* PRO */
   const ativarBtn = $('#ativarProBtn');
   if(ativarBtn){
     ativarBtn.onclick = () => {
@@ -3033,15 +3039,10 @@ function wire(){
           renderTurmas();
         }catch(e){
           const msg = e.message || 'Erro desconhecido';
-          if(msg.includes('já foi usada')){
-            toast('🔒 Esta chave já foi usada.', { type: 'error', duration: 5000 });
-          } else if(msg.includes('desativada')){
-            toast('Chave desativada.', { type: 'error' });
-          } else if(msg.includes('inválida')){
-            toast('Chave inválida. Confira e tente de novo.', { type: 'error' });
-          } else {
-            toast('Erro: ' + msg, { type: 'error', duration: 5000 });
-          }
+          if(msg.includes('já foi usada')) toast('🔒 Esta chave já foi usada.', { type: 'error', duration: 5000 });
+          else if(msg.includes('desativada')) toast('Chave desativada.', { type: 'error' });
+          else if(msg.includes('inválida')) toast('Chave inválida. Confira e tente de novo.', { type: 'error' });
+          else toast('Erro: ' + msg, { type: 'error', duration: 5000 });
           btn.disabled = false;
           btn.innerHTML = originalHtml;
         }
@@ -3049,7 +3050,6 @@ function wire(){
     };
   }
 
-  /* TRILHA */
   $('#worldStack').addEventListener('click', e => {
     const b = e.target.closest('.w-node');
     if(!b) return;
@@ -3076,7 +3076,6 @@ function wire(){
     sfxClick();
   });
 
-  /* LIÇÃO */
   $('#backBtn').onclick = requestExit;
   $('#listenBtn').onclick = toggleListen;
   $('#restartBtn').onclick = () => { if(L){ initLesson(L.song); toast('Reiniciada.', { type: 'info' }); } };
@@ -3097,13 +3096,11 @@ function wire(){
   };
   $('#tipClose').onclick = () => { S.settings.tipSeen = true; save(); $('#lessonTip').style.display = 'none'; };
 
-  /* PIANO */
   $('#pianoScroll').addEventListener('pointerdown', e => {
     const k = e.target.closest('.key'); if(!k) return;
     e.preventDefault(); pressKey(+k.dataset.midi, k);
   });
 
-  /* TECLADO FÍSICO */
   document.addEventListener('keydown', e => {
     if(e.key === 'Escape'){
       if(modalOpen) closeModal();
@@ -3121,7 +3118,6 @@ function wire(){
     if(k) pressKey(midi, k);
   });
 
-  /* LIMPAR CACHE */
   const limparBtn = $('#limparCacheBtn');
   if(limparBtn){
     limparBtn.onclick = () => {
@@ -3161,7 +3157,6 @@ function wire(){
     };
   }
 
-  /* HUD ofensiva */
   const hudStreakChip = $('#hudStreak') && $('#hudStreak').closest('.chip');
   if(hudStreakChip){
     hudStreakChip.style.cursor = 'pointer';
@@ -3174,7 +3169,6 @@ function wire(){
     };
   }
 
-  /* BIBLIOTECA */
   $('#libSearch').addEventListener('input',  renderBiblioteca);
   if($('#libTab')) $('#libTab').addEventListener('change', renderBiblioteca);
   $('#libDiff').addEventListener('change',   renderBiblioteca);
@@ -3188,7 +3182,6 @@ function wire(){
     else if(act === 'delete') deleteCustom(id);
   });
 
-  /* TURMAS */
   $('#novaTurmaBtn').onclick = () => {
     if(!isPro()){
       toast('🔒 Recurso exclusivo da versão Pro.', { type: 'warn' });
@@ -3230,7 +3223,6 @@ function wire(){
     };
   };
 
-    /* TURMAS — botões de adicionar aluno / excluir turma */
   $('#turmasList').addEventListener('click', e => {
     const btnAdd = e.target.closest('[data-add-aluno]');
     if(btnAdd){
@@ -3245,7 +3237,7 @@ function wire(){
       return;
     }
   });
-  /* RESIZE */
+
   let rzT = 0;
   window.addEventListener('resize', () => {
     clearTimeout(rzT);
@@ -3277,8 +3269,7 @@ function abrirBoasVindas(){
   $('#bemEntrar').onclick = () => { closeModal(true); abrirModalConta(); };
   $('#bemVisitante').onclick = () => { closeModal(true); };
 }
-        
-/* ================= boot ================= */
+
 /* ================= boot ================= */
 async function boot(){
   injectIcons();
@@ -3303,36 +3294,77 @@ async function boot(){
     await new Promise(r => window.addEventListener('load', r, { once: true }));
   }
 
-  // 1) Sincroniza Firebase primeiro (com cache rápido no localStorage)
   try{ await FB.init(); }catch(e){ console.warn('FB init:', e); }
+
+  if(window.FirebaseService && window.FirebaseService.auth){
+    const { auth, db, doc, getDoc } = window.FirebaseService;
+    auth.onAuthStateChanged(async (user) => {
+      if(!user){
+        // Deslogado: limpa estado se havia conta
+        if(S.conta){
+          S.conta = null;
+          S.xp = 0; S.compras = []; S.completed = {};
+          S.streak = 0; S.lastDay = null; S.diasEstudados = {};
+          localStorage.removeItem(IS_PRO_KEY);
+          save(); applyPlanClasses();
+          updateHUD(); renderSidebar(); renderTrilha();
+        }
+        return;
+      }
+      try{
+        const snap = await getDoc(doc(db, 'clave', 'dados'));
+        const dados = snap.exists() ? snap.data() : null;
+        const conta = dados && dados.contasGlobais && dados.contasGlobais[user.uid];
+        if(!conta) return;
+
+        DB.contasGlobais = dados.contasGlobais;
+
+        // MERGE (não sobrescreve compras/progresso local)
+        const comprasLocais = Array.isArray(S.compras) ? S.compras : [];
+        S.conta = user.uid;
+        S.xp = Math.max(S.xp || 0, conta.xp || 0);
+        S.compras = Array.from(new Set([...(conta.compras || []), ...comprasLocais]));
+        S.completed = { ...(S.completed || {}), ...(conta.musicasConcluidas || {}) };
+        S.streak = Math.max(S.streak || 0, conta.ofensiva || 0);
+        S.diasEstudados = { ...(S.diasEstudados || {}), ...(conta.diasEstudados || {}) };
+        S.lastDay = conta.ultimoAcesso || S.lastDay;
+        if(conta.pro) localStorage.setItem(IS_PRO_KEY, 'true');
+        else localStorage.removeItem(IS_PRO_KEY);
+        save(); applyPlanClasses();
+        updateHUD(); renderSidebar(); renderTrilha();
+      }catch(e){ console.warn('onAuthStateChanged:', e); }
+    });
+  }
+
   try{ await loadRemoteSongs(); }catch(e){ console.warn('remote:', e); }
   try{ await dbLoad(); }catch(e){ console.warn('dbLoad:', e); }
   try{ await loadMusicasCompradas(); }catch(e){ console.warn('compras:', e); }
 
-  // 2) Merge offline ↔ DB
+  // Merge offline ↔ DB
   if(S.conta && DB.contasGlobais[S.conta]){
     const c = DB.contasGlobais[S.conta];
     const maxXp = Math.max(c.xp || 0, S.xp || 0);
     const mergedCompleted = { ...(c.musicasConcluidas || {}), ...(S.completed || {}) };
     const mergedDias = { ...(c.diasEstudados || {}), ...(S.diasEstudados || {}) };
+    const mergedCompras = Array.from(new Set([...(c.compras || []), ...(S.compras || [])]));
     c.xp = maxXp;
     c.musicasConcluidas = mergedCompleted;
     c.diasEstudados = mergedDias;
+    c.compras = mergedCompras;
     c.ofensiva = S.streak || c.ofensiva || 0;
     c.ultimoAcesso = todayStr();
     S.xp = maxXp;
     S.completed = mergedCompleted;
     S.diasEstudados = mergedDias;
+    S.compras = mergedCompras;
     S.streak = c.ofensiva;
     S.lastDay = c.ultimoAcesso;
     save();
     try{ await dbSave('sync offline'); }catch(e){ console.warn(e); }
   }
 
-  // 3) Renderiza
   await route();
 
-  // 4) Modal de boas-vindas (só se não tem conta)
   if(!S.conta){
     abrirBoasVindas();
   }
