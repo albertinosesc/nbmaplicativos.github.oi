@@ -783,7 +783,20 @@ const WORLDS=[
 function worldOf(diff){ return WORLDS.find(w=>diff>=w.range[0]&&diff<=w.range[1]) || WORLDS[0]; }
 
 /* ================= músicas ================= */
-const SEEDS=[];
+const SEEDS=[
+  {
+    id:'fallback-teste', seed:true, order:0, difficulty:1,
+    title:'Música Teste', composer:'Sistema',
+    abc:`X:1
+T:Música Teste
+C:Sistema
+M:4/4
+L:1/4
+Q:1/4=90
+K:C
+C D E F | G A B c | c4 |]`
+  }
+];
 const DIFF_LABEL=['','Iniciante','Básico','Intermediário','Avançado','Mestre'];
 const RIVALS=[{name:'Ana',xp:420,emoji:'🎻'},{name:'Bruno',xp:310,emoji:'🎸'},{name:'Carla',xp:260,emoji:'🎺'},{name:'Diego',xp:180,emoji:'🥁'},{name:'Elis',xp:90,emoji:'🎷'}];
 const TIPS=['Pratique 10 minutos por dia — constância vence intensidade. 🎯','Cante as notas em voz alta enquanto toca: dó, ré, mi… 🎤','Ouça a música antes de tocar. 👂','Errou? Cada erro mostra exatamente o que revisar. 🔁','Desligue a ajuda quando se sentir confiante. 🎼'];
@@ -1058,53 +1071,24 @@ async function loadRemoteSongs(){
   }catch(e){ console.warn('Músicas remotas não carregadas:',e); }
 }
 
-/* ================= LISTA DE NOTAS ABC (de C, até c') =================
-   C,=Dó2 (36) ... c'=Dó6 (84). Cada item: { abc:'C,', midi:36, name:'Dó2' } */
+/* ================= LISTA DE NOTAS ABC (de C,, até c') =================
+   Convenção ABC:
+     C,,  = Dó2 (MIDI 36)
+     C,   = Dó3 (MIDI 48)
+     C    = Dó4 (MIDI 60) — dó central
+     c    = Dó5 (MIDI 72)
+     c'   = Dó6 (MIDI 84)
+   Cada item: { abc:'C,', midi:48, name:'Dó 3', oct:3 }
+*/
 const ABC_NOTES=(()=>{
-  const arr=[]; const letters='CDEFGAB';
-  // ordem: C, D, E, F, G, A, B (oitava 2), C D E F G A B (oitava 3 = central? não, convenção ABC: C=Dó4)
-  // Vamos montar do mais grave ao mais agudo:
-  //   oitava 2 (MIDI 36-47): C, D, E, F, G, A, B,
-  //   oitava 3 (MIDI 48-59): C, D, E, F, G, A, B,
-  //   oitava 4 (MIDI 60-71): C D E F G A B
-  //   oitava 5 (MIDI 72-83): c d e f g a b
-  //   oitava 6 (MIDI 84-95): c' d' e' f' g' a' b'
-  const octMidi=[36,48,60,72,84];
-  const suffixes=[',,',',','','\'','\'\''];
-  const nameOct=[2,3,4,5,6];
-  for(let oi=0; oi<5; oi++){
-    for(let li=0; li<7; li++){
-      const midi=octMidi[oi]+DIATONIC_SEMITONES[li];
-      const upper=(oi<=2);
-      const L=upper?letters[li]:letters[li].toLowerCase();
-      const suf=(oi===0?' ,,'.trim():oi===1?',':oi===2?'':oi===3?'\'':'\'\'');
-      // Correção: convenção ABC
-      // oi=0 -> oitava 2 -> "C," ; oi=1 -> oitava 3 -> "C" (não, oi=1 vira "C" que é dó4!)
-      // Vou refazer:
-    }
-  }
-  // Refazendo corretamente:
+  const letters='CDEFGAB';
   const result=[];
-  // oitava 2: C, D, E, F, G, A, B,  (MIDI 36-47) -> "C," (com uma vírgula)
-  // oitava 3: C D E F G A B  -> não, "C" é dó4! oitava 3 é "C,"? Não...
-  // Convenção ABC oficial:
-  //   C = C4 (dó central, MIDI 60)
-  //   C, = C3 (MIDI 48)
-  //   C,, = C2 (MIDI 36)
-  //   c = C5 (MIDI 72)
-  //   c' = C6 (MIDI 84)
-  // Então:
-  //   oitava 2 = C,,
-  //   oitava 3 = C,
-  //   oitava 4 = C
-  //   oitava 5 = c
-  //   oitava 6 = c'
   const defs=[
-    {octMidi:36, suffix:',,', caseMode:'up', oct:2},
-    {octMidi:48, suffix:',',  caseMode:'up', oct:3},
-    {octMidi:60, suffix:'',   caseMode:'up', oct:4},
-    {octMidi:72, suffix:'',   caseMode:'low',oct:5},
-    {octMidi:84, suffix:'\'', caseMode:'low',oct:6}
+    {octMidi:36, suffix:',,',  caseMode:'up',  oct:2},
+    {octMidi:48, suffix:',',   caseMode:'up',  oct:3},
+    {octMidi:60, suffix:'',    caseMode:'up',  oct:4},
+    {octMidi:72, suffix:'',    caseMode:'low', oct:5},
+    {octMidi:84, suffix:"'",   caseMode:'low', oct:6}
   ];
   defs.forEach(d=>{
     for(let li=0; li<7; li++){
@@ -1121,7 +1105,10 @@ const ABC_NOTES=(()=>{
 /* Retorna o item ABC_NOTES mais próximo do MIDI */
 function nearestAbcNote(midi){
   let best=ABC_NOTES[0], bd=Math.abs(midi-best.midi);
-  for(const n of ABC_NOTES){ const d=Math.abs(midi-n.midi); if(d<bd){bd=d;best=n;} }
+  for(const n of ABC_NOTES){
+    const d=Math.abs(midi-n.midi);
+    if(d<bd){ bd=d; best=n; }
+  }
   return best;
 }
 
