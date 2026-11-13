@@ -1884,11 +1884,27 @@ function worldSvgDecor(worldId){
 }
 
 function applyMinimized(){
-  const minimized = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
+  // Descobre qual mundo contém a música "current" (a próxima a estudar)
+  const list = withStatus();
+  const currentSong = list.find(s => s.current);
+  const activeWorldId = currentSong ? worldOf(currentSong.difficulty).id : null;
+
+  // Estado manual (para permitir o usuário abrir/fechar durante a sessão)
+  const manual = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
+
   document.querySelectorAll('#worldStack .world').forEach(el => {
     const wId = el.querySelector('.world-toggle')?.dataset.world;
     if(!wId) return;
-    const isMin = minimized.includes(wId);
+
+    // Regra: se é o mundo ativo → SEMPRE aberto
+    //        senão → SEMPRE minimizado, a menos que o usuário tenha aberto manualmente nesta sessão
+    let isMin;
+    if(wId === activeWorldId){
+      isMin = false;                              // mundo ativo sempre aberto
+    } else {
+      isMin = !manual.includes('open:' + wId);    // outros fechados, salvo abertura manual
+    }
+
     el.classList.toggle('minimized', isMin);
     const btn = el.querySelector('.world-toggle');
     if(btn){
@@ -2738,16 +2754,24 @@ function wire(){
   });
 
   $('#worldStack').addEventListener('click', e => {
-    const b = e.target.closest('.world-toggle');
-    if(!b) return;
-    const wId = b.dataset.world;
-    const minimized = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
-    const idx = minimized.indexOf(wId);
-    if(idx >= 0) minimized.splice(idx, 1); else minimized.push(wId);
-    localStorage.setItem('clave.minimized', JSON.stringify(minimized));
-    applyMinimized();
-    sfxClick();
-  });
+  const b = e.target.closest('.world-toggle');
+  if(!b) return;
+  const wId = b.dataset.world;
+  const manual = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
+  const key = 'open:' + wId;
+  const isOpenManually = manual.includes(key);
+
+  if(isOpenManually){
+    // fecha manualmente
+    manual.splice(manual.indexOf(key), 1);
+  } else {
+    // abre manualmente
+    manual.push(key);
+  }
+  localStorage.setItem('clave.minimized', JSON.stringify(manual));
+  applyMinimized();
+  sfxClick();
+});
 
   /* ---------- LIÇÃO ---------- */
   $('#backBtn').onclick = requestExit;
@@ -2962,47 +2986,50 @@ function wire(){
   });
 
   $('#alunoAtualSelect').addEventListener('change', async e => {
-    const anterior = S.alunoAtual;
-    const novo = e.target.value || null;
+  const anterior = S.alunoAtual;
+  const novo = e.target.value || null;
 
-    if(anterior && DB.alunos[anterior]){
-      const a = DB.alunos[anterior];
-      a.xp = S.xp;
-      a.ofensiva = effStreak();
-      a.musicasConcluidas = JSON.parse(JSON.stringify(S.completed));
-      a.ultimoAcesso = todayStr();
-      a.diasEstudados = { ...(a.diasEstudados || {}), ...(S.diasEstudados || {}) };
-    }
+  if(anterior && DB.alunos[anterior]){
+    const a = DB.alunos[anterior];
+    a.xp = S.xp;
+    a.ofensiva = effStreak();
+    a.musicasConcluidas = JSON.parse(JSON.stringify(S.completed));
+    a.ultimoAcesso = todayStr();
+    a.diasEstudados = { ...(a.diasEstudados || {}), ...(S.diasEstudados || {}) };
+  }
 
-    S.alunoAtual = novo;
-    if(novo && DB.alunos[novo]){
-      const a = DB.alunos[novo];
-      S.xp = a.xp || 0;
-      S.completed = JSON.parse(JSON.stringify(a.musicasConcluidas || {}));
-      S.streak = a.ofensiva || 0;
-      S.lastDay = a.ultimoAcesso || null;
-      S.diasEstudados = JSON.parse(JSON.stringify(a.diasEstudados || {}));
-    } else {
-      S.xp = 0;
-      S.completed = {};
-      S.streak = 0;
-      S.lastDay = null;
-      S.diasEstudados = S.diasEstudados || {};
-    }
-    save();
+  S.alunoAtual = novo;
+  if(novo && DB.alunos[novo]){
+    const a = DB.alunos[novo];
+    S.xp = a.xp || 0;
+    S.completed = JSON.parse(JSON.stringify(a.musicasConcluidas || {}));
+    S.streak = a.ofensiva || 0;
+    S.lastDay = a.ultimoAcesso || null;
+    S.diasEstudados = JSON.parse(JSON.stringify(a.diasEstudados || {}));
+  } else {
+    S.xp = 0;
+    S.completed = {};
+    S.streak = 0;
+    S.lastDay = null;
+    S.diasEstudados = S.diasEstudados || {};
+  }
+  save();
 
-    try{ await dbSave('troca de aluno'); }
-    catch(err){ console.warn(err); }
+  // 👇 AQUI
+  localStorage.removeItem('clave.minimized');
 
-    updateHUD();
-    renderTrilha();
-    renderTurmas();
+  try{ await dbSave('troca de aluno'); }
+  catch(err){ console.warn(err); }
 
-    if(novo){
-      const a = alunoAtual();
-      if(a) toast('Jogando como ' + esc(a.nome) + ' 🎹', { type: 'success' });
-    }
-  });
+  updateHUD();
+  renderTrilha();
+  renderTurmas();
+
+  if(novo){
+    const a = alunoAtual();
+    if(a) toast('Jogando como ' + esc(a.nome) + ' 🎹', { type: 'success' });
+  }
+});
 
   /* ---------- RESIZE ---------- */
   let rzT = 0;
