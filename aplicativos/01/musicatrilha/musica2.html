@@ -595,6 +595,47 @@ footer{text-align:center;color:var(--ink3);font-size:12.5px;font-weight:700;padd
 @media (max-width:560px){
   .stats-grid.five{grid-template-columns:repeat(2,1fr)}
 }
+
+/* ---------- Fileira de lâmpadas do metrônomo ---------- */
+.met-lamps{
+  display:inline-flex;
+  gap:4px;
+  align-items:center;
+  flex-shrink:0;
+}
+
+.met-lamp{
+  width:10px;height:10px;border-radius:50%;
+  background:#8A8A8A;
+  border:1px solid rgba(255,255,255,.25);
+  transition:background .08s, box-shadow .08s;
+}
+.met-lamp.on{
+  background:#FF5A5F;
+  box-shadow:0 0 8px rgba(255,90,95,.9);
+}
+.met-lamp.weak.on{
+  background:#3CE68A;
+  box-shadow:0 0 8px rgba(60,230,138,.9);
+}
+.met-lamp{
+  width:18px;height:18px;border-radius:50%;
+  background:#8A8A8A;
+  border:1px solid rgba(255,255,255,.25);
+  transition:background .08s, box-shadow .08s;
+}
+.met-lamp.on{
+  background:#FF5A5F;
+  box-shadow:0 0 10px rgba(255,90,95,.95);
+}
+.met-lamp.weak.on{
+  background:#3CE68A;
+  box-shadow:0 0 10px rgba(60,230,138,.95);
+}
+
+@media (max-width:560px){
+  #metLightBtn span:not(.met-lamps){ display:none; }
+}
 </style>
 
 </head>
@@ -681,11 +722,13 @@ footer{text-align:center;color:var(--ink3);font-size:12.5px;font-weight:700;padd
 
 <button id="metronomeBtn" class="btn ghost small" aria-pressed="false" title="Liga/desliga o som do metrônomo">
   <i class="icw" data-icon="volume"></i>
-  <span>Som</span>
+  <span>bpm</span>
 </button>
+
+
 <button id="metLightBtn" class="btn ghost small" aria-pressed="false" title="Liga/desliga a luz do metrônomo">
-  <span class="metronome-lamp" aria-hidden="true"></span>
-  <span>Luz</span>
+  <span id="metLamps" class="met-lamps" aria-hidden="true"></span>
+  <span></span>
 </button>
 
         <div class="spacer"></div>
@@ -1074,11 +1117,71 @@ function extractNotes(tune){
 }
 
 function getTempo(tune){
+  // 1) Tenta o caminho padrão do ABCJS
   const t = tune && tune.metaText && tune.metaText.tempo;
-  if(t && t.bpm){
-    const q = (t.duration && t.duration[0]) || 0.25;
-    return { bpm: t.bpm, q };
+  if(t){
+    // ABCJS pode retornar bpm + duration (fração da nota-base)
+    // Se bpm existe, usa. Se duration[0] existe, ele já é a duração da batida em "notas inteiras".
+    if(typeof t.bpm === 'number' && t.bpm > 0){
+      const q = (t.duration && t.duration[0]) || 0.25;
+      return { bpm: t.bpm, q };
+    }
+    // Fallback: t.qpm ou t.q
+    if(typeof t.qpm === 'number' && t.qpm > 0){
+      return { bpm: t.qpm, q: 0.25 };
+    }
   }
+
+  // 2) Fallback: ler o texto ABC cru
+  //    Aceita: Q:50, Q:1/4=50, Q:1/2=60, Q:3/8=90, Q:C=80
+  const abcText = (tune && (tune.abc || (tune.metaText && tune.metaText.abc))) || '';
+  // Extrai do campo Q:
+  const qLine = abcText.match(/^Q:\s*(.+)$/m);
+  if(qLine){
+    const raw = qLine[1].trim();
+
+    // Caso "Q:1/4=50"
+    let m = /^(\d+)\/(\d+)\s*=\s*(\d+)/.exec(raw);
+    if(m){
+      const num = parseInt(m[1], 10);
+      const den = parseInt(m[2], 10);
+      const bpm = parseInt(m[3], 10);
+      if(num > 0 && den > 0 && bpm > 0){
+        // duração da batida em "notas inteiras" = num/den / 4
+        const q = (num / den) / 4;
+        return { bpm, q };
+      }
+    }
+
+    // Caso "Q:C=80" (C = semínima)
+    m = /^([A-Ga-g])\s*=\s*(\d+)/.exec(raw);
+    if(m){
+      const bpm = parseInt(m[2], 10);
+      if(bpm > 0){
+        return { bpm, q: 0.25 }; // semínima
+      }
+    }
+
+    // Caso "Q:50" (só número) → BPM na unidade do L:
+    m = /^(\d+)$/.exec(raw);
+    if(m){
+      const bpm = parseInt(m[1], 10);
+      if(bpm > 0){
+        const lLine = abcText.match(/^L:\s*(\d+)\/(\d+)/m);
+        if(lLine){
+          const ln = parseInt(lLine[1], 10);
+          const ld = parseInt(lLine[2], 10);
+          if(ln > 0 && ld > 0){
+            const q = (ln / ld) / 4;
+            return { bpm, q };
+          }
+        }
+        return { bpm, q: 0.25 };
+      }
+    }
+  }
+
+  // 3) Default
   return { bpm: 100, q: 0.25 };
 }
 
@@ -1311,14 +1414,23 @@ function metSetButton(){
     const ico = bSound.querySelector('.icw');
     if(ico) ico.innerHTML = S.settings.metronome ? I.volume : I.mute;
   }
+
   const bLight = $('#metLightBtn');
   if(bLight){
     bLight.setAttribute('aria-pressed', String(!!S.settings.metLight));
-    const lamp = bLight.querySelector('.metronome-lamp');
-    if(lamp){
-      lamp.classList.remove('beat-strong','beat-weak');
-      lamp.style.background = S.settings.metLight ? '#3CE68A' : '#4A3670';
-      lamp.style.boxShadow  = S.settings.metLight ? '0 0 8px rgba(60,230,138,.7)' : 'none';
+
+    const host = $('#metLamps');
+    if(host){
+      const bpb = (L && L.beatsPerBar) ? L.beatsPerBar : 4;
+      if(host.children.length !== bpb){
+        let html = '';
+        for(let i = 0; i < bpb; i++){
+          html += '<span class="met-lamp' + (i === 0 ? '' : ' weak') + '"></span>';
+        }
+        host.innerHTML = html;
+      }
+      // limpa qualquer estado "on"
+      [...host.children].forEach(el => el.classList.remove('on'));
     }
   }
 }
@@ -1326,89 +1438,95 @@ function metSetButton(){
 function metStart(){
   if(!L) return;
   const ctx = ensureAudio(); if(!ctx) return;
+
+  // para qualquer loop antigo antes de começar
+  cancelAnimationFrame(MET.raf);
+  MET.token = (MET.token || 0) + 1;
+  const myToken = MET.token;
+
   const tp = L.tempo || { bpm: 100, q: 0.25 };
   MET.bpm = tp.bpm || 100;
-  MET.meterDuration = (60 / MET.bpm) * (tp.q || 0.25);
+  MET.meterDuration = 60 / MET.bpm;
   MET.beatsPerBar = L.beatsPerBar || 4;
   MET.beat = 0;
   MET.nextTime = ctx.currentTime + 0.1;
   MET._startAC = ctx.currentTime;
   MET.on      = !!S.settings.metronome;
   MET.light   = !!S.settings.metLight;
+  MET._token  = myToken;
+
+  // atualiza a fileira de bolinhas conforme o compasso da música
+  metSetButton();
   sfxClick();
-  metLoop();
+  metLoop(myToken);
 }
 
 function metStop(){
+  MET.token = (MET.token || 0) + 1;
   MET.on = false;
   MET.light = false;
   cancelAnimationFrame(MET.raf);
-  const lamp = $('#metLightBtn .metronome-lamp');
-  if(lamp){
-    lamp.classList.remove('beat-strong','beat-weak');
-    lamp.style.background = S.settings.metLight ? '#3CE68A' : '#4A3670';
-    lamp.style.boxShadow  = S.settings.metLight ? '0 0 8px rgba(60,230,138,.7)' : 'none';
+  MET.raf = 0;
+  MET._token = 0;
+
+  const host = $('#metLamps');
+  if(host){
+    [...host.children].forEach(el => el.classList.remove('on'));
   }
 }
 
-function metLoop(){
-  // continua se qualquer um dos modos estiver ligado
-  if(!MET.on && !MET.light) return;
-  const ctx = ensureAudio(); if(!ctx) return;
+function metLoop(token){
+  // Se este loop é de uma sessão antiga, morre imediatamente
+  if(token !== MET._token) return;
+  if(!MET.on && !MET.light){ MET.raf = 0; return; }
 
+  const ctx = ensureAudio();
+  if(!ctx) return;
+
+  // agenda cliques à frente
   while(MET.nextTime < ctx.currentTime + 0.15){
     const t = MET.nextTime;
     const strong = (MET.beat % MET.beatsPerBar) === 0;
 
-    // ---- SOM ----
     if(MET.on){
       const freq = strong ? 880 : 660;
       const vel  = strong ? 0.5 : 0.28;
       tone({ freq, dur: 0.06, vel, type: 'sine', when: t });
     }
 
-    // ---- LUZ ----
-    if(MET.light){
+        if(MET.light){
       const delay = Math.max(0, (t - ctx.currentTime) * 1000);
+      const beatIdx = MET.beat % MET.beatsPerBar; // 0 = primeiro tempo
       setTimeout(() => {
+        if(token !== MET._token) return;
         if(!MET.light) return;
-        const lamp = $('#metLightBtn .metronome-lamp');
-        if(!lamp) return;
-        lamp.classList.remove('beat-strong','beat-weak');
-        lamp.classList.add(strong ? 'beat-strong' : 'beat-weak');
-        clearTimeout(lamp._t);
-        lamp._t = setTimeout(() => {
-          lamp.classList.remove('beat-strong','beat-weak');
-          if(S.settings.metLight){
-            lamp.style.background = '#3CE68A';
-            lamp.style.boxShadow  = '0 0 8px rgba(60,230,138,.7)';
-          } else {
-            lamp.style.background = '#4A3670';
-            lamp.style.boxShadow  = 'none';
-          }
-        }, 120);
+        const host = $('#metLamps');
+        if(!host) return;
+        const lamps = host.children;
+        // apaga todas
+        for(let i = 0; i < lamps.length; i++) lamps[i].classList.remove('on');
+        // acende a do tempo atual
+        if(lamps[beatIdx]) lamps[beatIdx].classList.add('on');
       }, delay);
     }
 
     MET.beat++;
     MET.nextTime += MET.meterDuration;
   }
-  MET.raf = requestAnimationFrame(metLoop);
+  MET.raf = requestAnimationFrame(() => metLoop(token));
 }
 
 function metRestart(){
+  // garante que só existe UM metLoop rodando
   cancelAnimationFrame(MET.raf);
+  MET.raf = 0;
+  MET.token = (MET.token || 0) + 1;
   MET.on    = !!S.settings.metronome;
   MET.light = !!S.settings.metLight;
   metSetButton();
+
   if(MET.on || MET.light){
-    const ctx = ensureAudio();
-    if(ctx){
-      MET.beat = 0;
-      MET.nextTime = ctx.currentTime + 0.05;
-      MET._startAC = ctx.currentTime;
-      metLoop();
-    }
+    metStart();
   } else {
     metStop();
   }
@@ -1605,10 +1723,12 @@ function initLesson(song){
     correct: 0, startedAt: Date.now(), finished: false,
     events: [], targets: [], total: 0, spw: 2.4,
     keys: new Map(), kbStart: 60, noteList: [],
-    tempo: { bpm, q: 0.25 },
+        tempo: { bpm, q: 0.25 },
     beatsPerBar,
-    hits: []
+    hits: [],
+    anchorAC: 0
   };
+
   const w = worldOf(song.difficulty);
   $('#lessonUnit').textContent = w.emblem + ' ' + w.name + ' • ' + DIFF_LABEL[song.difficulty];
   $('#lessonTitle').textContent = song.title;
@@ -1900,12 +2020,17 @@ function evaluate(midi, keyEl){
   const t = L.targets[L.index];
   if(!t) return;
 
-  // desvio de tempo em segundos (positivo = tarde, negativo = cedo)
+  
+    // desvio de tempo em segundos (positivo = tarde, negativo = cedo)
   const ctx = ensureAudio();
-  const tempoAlvo = (MET._startAC || 0) + (t.start * L.spw);
   const tempoReal = ctx ? ctx.currentTime : 0;
+
+  // Ancora o "tempo zero" no PRIMEIRO toque do aluno, não no início do metrônomo.
+  if(!L.anchorAC) L.anchorAC = tempoReal;
+
+  const tempoAlvo = L.anchorAC + (t.start * L.spw);
   const erro = tempoReal - tempoAlvo;
-    L.hits.push({ midi, err: erro, idx: L.index, at: Date.now() });
+  L.hits.push({ midi, err: erro, idx: L.index, at: Date.now() });
 
   if(midi === t.midi){
     L.correct++;
@@ -3334,6 +3459,9 @@ async function boot(){
   route();
 }
 boot().catch(e => console.error('Boot error:', e));
+
+window.__debug = { get L(){ return L; }, get MET(){ return MET; }, get S(){ return S; } };
+
 
 })();
 </script>
