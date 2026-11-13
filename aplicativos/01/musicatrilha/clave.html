@@ -11,9 +11,9 @@
 <!-- ================= FIREBASE SDK (MODULAR) ================= -->
 <script type="module">
   import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
-  import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+  import { getFirestore, doc, getDoc, setDoc, collection, getDocs } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
   import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
-
+  
   // Seu firebaseConfig copiado do console
   const firebaseConfig = {
     apiKey: "AIzaSyCpUmcn9PCwOhEIvkbfjcn5SGjs51Vde8E",
@@ -30,7 +30,7 @@
   const auth = getAuth(app);
 
   // Expõe globalmente para o script principal do Clave
-  window.FirebaseService = { db, auth, signInAnonymously, onAuthStateChanged, doc, getDoc, setDoc };
+    window.FirebaseService = { db, auth, signInAnonymously, onAuthStateChanged, doc, getDoc, setDoc, collection, getDocs };
 </script>
 
 <style>
@@ -673,8 +673,13 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
       <div class="lib-head">
         <div><h1>Biblioteca de músicas</h1><p class="sub">Suas músicas e as da trilha.</p></div>
       </div>
-      <div class="toolbar">
+            <div class="toolbar">
         <div class="searchfield"><i class="icw" data-icon="search"></i><input id="libSearch" type="search" placeholder="Buscar por título ou autor…"></div>
+        <select id="libTab">
+          <option value="todas">Todas</option>
+          <option value="compradas">Minhas compras</option>
+          <option value="trilha">Só da trilha</option>
+        </select>
         <select id="libDiff">
           <option value="all">Todas as dificuldades</option>
           <option value="1">1 • Iniciante</option><option value="2">2 • Básico</option>
@@ -883,6 +888,7 @@ const DEF = {
   xp: 0, gems: 0, streak: 0, lastDay: null,
   today: { day: null, xp: 0 },
   completed: {}, custom: [], seq: 1,
+  compras: [],
   diasEstudados: {},
   ranges: {},
   settings: { sound: true, names: true, assist: true, tipSeen: false, metronome: false, metLight: false },
@@ -899,6 +905,7 @@ function load(){
         today:    { ...DEF.today,    ...(p.today    || {}) }
       };
       if(!Array.isArray(s.custom)) s.custom = [];
+      if(!Array.isArray(s.compras)) s.compras = [];
       if(!s.completed || typeof s.completed !== 'object') s.completed = {};
       if(!s.diasEstudados || typeof s.diasEstudados !== 'object') s.diasEstudados = {};
       return s;
@@ -931,13 +938,13 @@ function withStatus(){
 
 /* ================= catálogo da loja ================= */
 const LOJA = [
-  { id:'loja-parabens',   title:'Parabéns pra Você', composer:'Tradicional', preco: 4.90,
+  { id:'loja-parabens',   title:'Parabéns pra Você', composer:'Tradicional', preco: 1.99,
     abc:"X:1\nT:Parabéns pra Você\nM:3/4\nL:1/4\nQ:100\nK:C\nG G A G c B | G G A G d c |]" },
-  { id:'loja-hino',       title:'Hino da Alegria',   composer:'Beethoven',   preco: 4.90,
+  { id:'loja-hino',       title:'Hino da Alegria',   composer:'Beethoven',   preco: 1.99,
     abc:"X:1\nT:Hino da Alegria\nM:4/4\nL:1/4\nQ:100\nK:C\nE E F G | G F E D | C C D E | E D D2 |]" },
-  { id:'loja-cirandinha', title:'Ciranda Cirandinha',composer:'Tradicional', preco: 3.90,
+  { id:'loja-cirandinha', title:'Ciranda Cirandinha',composer:'Tradicional', preco: 1.99,
     abc:"X:1\nT:Ciranda Cirandinha\nM:4/4\nL:1/4\nQ:90\nK:C\nG G A A | G G E2 | G G A A | G G E2 |]" },
-  { id:'loja-peixinho',   title:'Peixinhos do Mar',  composer:'Tradicional', preco: 5.90,
+  { id:'loja-peixinho',   title:'Peixinhos do Mar',  composer:'Tradicional', preco: 1.99,
     abc:"X:1\nT:Peixinhos do Mar\nM:4/4\nL:1/4\nQ:100\nK:G\nG A B c | d d B2 | G A B c | d d B2 |]" }
 ];
 function lojaCompradas(){ return JSON.parse(localStorage.getItem('clave.lojaCompradas') || '{}'); }
@@ -997,6 +1004,64 @@ async function dbSave(msg){
   await FB.write(payload);
   if(msg) console.log('dbSave:', msg);
 }
+ /* ================= músicas compradas (pasta separada) ================= */
+const MUSICAS_COMPRADAS_CACHE = 'clave.musicasCompradasCache.v1';
+
+async function loadMusicasCompradas(){
+  // 1) Cache local (rápido)
+  try{
+    const cached = JSON.parse(localStorage.getItem(MUSICAS_COMPRADAS_CACHE) || 'null');
+    if(cached && Array.isArray(cached) && cached.length){
+      cached.forEach(m => {
+        if(!S.custom.some(s => s.id === m.id)) S.custom.push(m);
+      });
+    }
+  }catch(e){}
+
+  // 2) Firestore
+  try{
+    const svc = window.FirebaseService;
+    if(!svc || !svc.getDocs || !svc.collection) return;
+    await FB.init();
+    const snap = await svc.getDocs(svc.collection(svc.db, 'musicas-compradas'));
+    const lista = [];
+    snap.forEach(d => {
+      const data = d.data();
+      if(data && data.abc){
+        lista.push({
+          id: d.id,
+          title: data.title || d.id,
+          composer: data.composer || '',
+          difficulty: data.difficulty || 1,
+          abc: data.abc,
+          order: data.order || 900,
+          seed: false,
+          comprada: true
+        });
+      }
+    });
+    lista.forEach(m => {
+      const i = S.custom.findIndex(s => s.id === m.id);
+      if(i >= 0) S.custom[i] = { ...S.custom[i], ...m };
+      else S.custom.push(m);
+    });
+    save();
+    try{ localStorage.setItem(MUSICAS_COMPRADAS_CACHE, JSON.stringify(lista)); }catch(e){}
+    metaCache.clear();
+  }catch(e){
+    console.warn('loadMusicasCompradas:', e);
+  }
+}
+
+function temComprada(id){
+  if(!id) return false;
+  if(S.compras.includes(id)) return true;
+  const c = contaAtual();
+  if(c && Array.isArray(c.compras) && c.compras.includes(id)) return true;
+  if(lojaTemComprada(id)) return true;
+  return false;
+}
+        
 function turmaDe(id){ return DB.turmas.find(t => t.id === id); }
 function contaAtual(){ return S.conta && DB.contasGlobais[S.conta] ? DB.contasGlobais[S.conta] : null; }
 
@@ -2150,17 +2215,29 @@ function cardHtml(s){
 function renderBiblioteca(){
   const list = withStatus();
   const q = ($('#libSearch').value || '').toLowerCase().trim();
+  const tab = ($('#libTab') && $('#libTab').value) || 'todas';
   const fd = $('#libDiff').value;
   const sort = $('#libSort').value;
-  let f = list.filter(s =>
-    (fd === 'all' || s.difficulty === +fd) &&
-    (!q || (s.title + ' ' + (s.composer || '')).toLowerCase().includes(q))
-  );
+
+  const idsComprados = new Set([
+    ...(S.compras || []),
+    ...((contaAtual() && contaAtual().compras) || [])
+  ]);
+
+  let f = list.filter(s => {
+    if(tab === 'compradas' && !idsComprados.has(s.id)) return false;
+    if(tab === 'trilha' && idsComprados.has(s.id)) return false;
+    if(fd !== 'all' && s.difficulty !== +fd) return false;
+    if(q && !(s.title + ' ' + (s.composer || '')).toLowerCase().includes(q)) return false;
+    return true;
+  });
+
   const rank = s => s.current ? 0 : s.done ? 1 : 2;
   if(sort === 'diff-desc') f.sort((a,b) => b.difficulty - a.difficulty || a.idx - b.idx);
   else if(sort === 'title') f.sort((a,b) => a.title.localeCompare(b.title, 'pt'));
   else if(sort === 'status') f.sort((a,b) => rank(a) - rank(b) || a.idx - b.idx);
   else f.sort((a,b) => a.idx - b.idx);
+
   $('#songGrid').innerHTML = f.map(cardHtml).join('') || '<div class="empty-state">Nenhuma música. 🔍</div>';
   $('#libCount').textContent = f.length + ' de ' + list.length;
 }
@@ -2192,7 +2269,7 @@ function renderLoja(){
   const grid = $('#lojaGrid');
   if(!grid) return;
   grid.innerHTML = LOJA.map(item => {
-    const comprada = lojaTemComprada(item.id);
+    const comprada = temComprada(item.id);
     const precoTxt = 'R$ ' + item.preco.toFixed(2).replace('.', ',');
     return '<article class="song-card t1">'
       + '<div class="card-badges"><span class="diff-badge t1">Avulsa</span>'
@@ -2219,24 +2296,82 @@ function renderLoja(){
   };
 }
 function abrirModalCompra(item){
+  const c = contaAtual();
+  if(!c){
+    openModal(
+      '<div class="modal-head"><h3>' + esc(item.title) + '</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
+      + '<p class="modal-sub" style="text-align:left">Para comprar esta música, entre ou crie uma conta.</p>'
+      + '<div class="modal-actions"><button class="btn green" id="compraConta">' + I.user + ' Entrar / Criar conta</button>'
+      + '<button class="btn ghost" id="compraCancel">Cancelar</button></div>'
+    );
+    $('#mClose').onclick = $('#compraCancel').onclick = () => closeModal();
+    $('#compraConta').onclick = () => { closeModal(true); abrirModalConta(); };
+    return;
+  }
   const precoTxt = 'R$ ' + item.preco.toFixed(2).replace('.', ',');
   openModal(
     '<div class="modal-head"><h3>' + esc(item.title) + '</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
     + '<p class="modal-sub">Compre esta música por <b>' + precoTxt + '</b> e toque quando quiser.</p>'
-    + '<p class="sub" style="text-align:left;color:var(--ink3);margin-top:12px"><b>Modo teste:</b> ao confirmar, a música será liberada na sua conta sem cobrança.</p>'
-    + '<div class="modal-actions"><button class="btn gold" id="compraOk">' + I.check + ' Confirmar (teste)</button><button class="btn ghost" id="compraCancel">Cancelar</button></div>'
+    + '<div style="margin-top:14px;padding:12px 14px;background:#221040;border:1px solid var(--line);border-radius:12px;text-align:left">'
+    + '<div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--teal);margin-bottom:6px">Chave PIX</div>'
+    + '<div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">'
+    + '<code id="pixLojaKey" style="font-size:13px;font-weight:700;color:var(--ink2);word-break:break-all;flex:1;min-width:180px">ba65ab76-9518-49bf-b746-8ed9299ce53a</code>'
+    + '<button class="btn green small" id="pixLojaCopy" type="button">' + I.copy + '<span>Copiar</span></button>'
+    + '</div></div>'
+    + '<div class="modal-actions" style="margin-top:16px">'
+    + '<a class="btn green" href="https://wa.me/5571989797547?text=' + encodeURIComponent('Olá! Paguei R$ ' + item.preco.toFixed(2).replace('.', ',') + ' pela música "' + item.title + '". Meu nome na conta é: ' + c.nome) + '" target="_blank" rel="noopener">' + I.play + ' Enviar comprovante</a>'
+    + '<button class="btn gold" id="compraCheck">' + I.refresh + ' Já paguei</button>'
+    + '<button class="btn ghost" id="compraCancel">Fechar</button>'
+    + '</div>'
   );
-  const cl = $('#mClose'), cc = $('#compraCancel'), ok = $('#compraOk');
-  if(cl) cl.onclick = cc.onclick = () => closeModal();
-  if(ok) ok.onclick = () => {
-    lojaMarcarComprada(item.id);
-    if(!S.custom.some(s => s.id === item.id)){
-      S.custom.push({ id: item.id, title: item.title, composer: item.composer, difficulty: 1, abc: item.abc, order: 500 + S.custom.length, seed: false });
-      save(); metaCache.delete(item.id);
+  $('#mClose').onclick = $('#compraCancel').onclick = () => closeModal();
+
+  const copyBtn = $('#pixLojaCopy');
+  if(copyBtn){
+    copyBtn.onclick = async () => {
+      const key = 'ba65ab76-9518-49bf-b746-8ed9299ce53a';
+      try{
+        if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
+          await navigator.clipboard.writeText(key);
+        } else {
+          const ta = document.createElement('textarea');
+          ta.value = key; ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
+        }
+        toast('Chave PIX copiada! 📋', { type: 'success' });
+        sfxClick();
+      }catch(e){ toast('Copie manualmente.', { type: 'warn' }); }
+    };
+  }
+
+  $('#compraCheck').onclick = async () => {
+    const btn = $('#compraCheck');
+    btn.disabled = true;
+    btn.innerHTML = I.refresh + ' Verificando...';
+    try{
+      await dbLoad();
+      const c2 = contaAtual();
+      const tem = (c2 && Array.isArray(c2.compras) && c2.compras.includes(item.id)) || S.compras.includes(item.id);
+      if(tem){
+        if(!S.compras.includes(item.id)) S.compras.push(item.id);
+        if(!S.custom.some(s => s.id === item.id)){
+          S.custom.push({ id: item.id, title: item.title, composer: item.composer, difficulty: 1, abc: item.abc, order: 500 + S.custom.length, seed: false, comprada: true });
+        }
+        lojaMarcarComprada(item.id);
+        save();
+        closeModal(true);
+        toast('“' + esc(item.title) + '” liberada! 🎉', { type: 'success' });
+        renderLoja(); renderBiblioteca();
+      } else {
+        toast('Pagamento ainda não confirmado. Envie o comprovante no WhatsApp.', { type: 'warn', duration: 5000 });
+        btn.disabled = false;
+        btn.innerHTML = I.refresh + ' Já paguei';
+      }
+    }catch(e){
+      toast('Erro: ' + e.message, { type: 'error' });
+      btn.disabled = false;
+      btn.innerHTML = I.refresh + ' Já paguei';
     }
-    closeModal(true);
-    toast('“' + esc(item.title) + '” liberada! 🎉', { type: 'success' });
-    renderLoja(); renderBiblioteca();
   };
 }
 function abrirPraticaLoja(item){
@@ -2289,14 +2424,16 @@ async function criarConta(){
   if(!senha || senha.length < 4){ toast('Senha muito curta.', { type: 'warn' }); return; }
   const id = slug(nome);
   if(DB.contasGlobais[id]){ toast('Este nome já existe. Faça login ou escolha outro.', { type: 'warn' }); return; }
-  DB.contasGlobais[id] = {
+    DB.contasGlobais[id] = {
     id, nome, senha,
     xp: 0, ofensiva: 0, ultimoAcesso: todayStr(),
+    compras: [],
     musicasConcluidas: {}, diasEstudados: {},
     criadoEm: todayStr()
   };
   S.conta = id;
   S.xp = 0;
+  S.compras = [];
   S.completed = {};
   S.streak = 0;
   S.lastDay = null;
@@ -2314,8 +2451,9 @@ async function entrarConta(){
   const id = slug(nome);
   const c = DB.contasGlobais[id];
   if(!c || c.senha !== senha){ toast('Nome ou senha incorretos.', { type: 'error' }); return; }
-  S.conta = id;
+   S.conta = id;
   S.xp = c.xp || 0;
+  S.compras = JSON.parse(JSON.stringify(c.compras || []));
   S.completed = JSON.parse(JSON.stringify(c.musicasConcluidas || {}));
   S.streak = c.ofensiva || 0;
   S.lastDay = c.ultimoAcesso || null;
@@ -2815,6 +2953,7 @@ function wire(){
 
   /* BIBLIOTECA */
   $('#libSearch').addEventListener('input',  renderBiblioteca);
+  if($('#libTab')) $('#libTab').addEventListener('change', renderBiblioteca);
   $('#libDiff').addEventListener('change',   renderBiblioteca);
   $('#libSort').addEventListener('change',   renderBiblioteca);
   $('#songGrid').addEventListener('click', e => {
@@ -2826,7 +2965,7 @@ function wire(){
     else if(act === 'delete') deleteCustom(id);
   });
 
-    /* TURMAS */
+      /* TURMAS */
   $('#novaTurmaBtn').onclick = () => {
     if(!isPro()){
       toast('🔒 Recurso exclusivo da versão Pro.', { type: 'warn' });
@@ -2913,6 +3052,7 @@ async function boot(){
   try{ await FB.init(); }catch(e){ console.warn('FB init:', e); }
   try{ await loadRemoteSongs(); }catch(e){ console.warn('remote:', e); }
   try{ await dbLoad(); }catch(e){ console.warn('dbLoad:', e); }
+  try{ await loadMusicasCompradas(); }catch(e){ console.warn('compras:', e); }
 
   // 2) Merge offline ↔ DB
   if(S.conta && DB.contasGlobais[S.conta]){
