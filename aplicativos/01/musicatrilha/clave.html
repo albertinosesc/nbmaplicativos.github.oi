@@ -537,7 +537,10 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
   cursor:text;
 }
 #pixKey::selection{ background:rgba(60,230,138,.45); color:#F6F1FF; }
-  
+
+  .turma-card{position:relative}
+.turma-card [data-add-aluno]{white-space:nowrap}
+.turma-card [data-del-turma]{flex-shrink:0}
 </style>
 
 </head>
@@ -740,10 +743,9 @@ body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
           </div>
         </article>
       </div>
-            <footer>Clave — 2026</footer>
+    <footer>Clave — 2026</footer>
     </div>
   </section>
-
   <section id="view-sobre" class="view">
     <div class="container">
       <div class="lib-head"><div><h1>Sobre mim</h1><p class="sub">Quem faz o Clave e por quê.</p></div></div>
@@ -2747,12 +2749,99 @@ function renderTurmas(){
             + '<span class="avatar">🎵</span><span class="nome">' + esc(a.nome) + '</span>'
             + '<span class="xp">' + (a.xp || 0) + ' XP</span></div>'
         ).join('')
-      : '<div class="turma-empty">Nenhum aluno nesta turma.</div>';
-    return '<div class="turma-card">'
-      + '<div><h3>' + esc(t.nome) + ' <small>' + alunos.length + ' alunos</small></h3></div>'
-      + '<div class="turma-alunos">' + rows + '</div></div>';
+      : '<div class="turma-empty">Nenhum aluno nesta turma. Clique em <b>Adicionar aluno</b> para começar. 👇</div>';
+    return '<div class="turma-card" data-turma-id="' + t.id + '">'
+      + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
+      +   '<h3 style="flex:1;min-width:0">' + esc(t.nome) + ' <small>' + alunos.length + ' alunos</small></h3>'
+      +   '<button class="btn green small" data-add-aluno="' + t.id + '">' + I.plus + ' Adicionar aluno</button>'
+      +   '<button class="btn ghost small icon-only danger" data-del-turma="' + t.id + '" title="Excluir turma">' + I.trash + '</button>'
+      + '</div>'
+      + '<div class="turma-alunos">' + rows + '</div>'
+      + '</div>';
   }).join('');
 }
+
+        function abrirModalAluno(turmaId){
+  const turma = DB.turmas.find(t => t.id === turmaId);
+  if(!turma){ toast('Turma não encontrada.', { type: 'error' }); return; }
+  if(turma.professorId !== S.conta){ toast('Você não é dono dessa turma.', { type: 'error' }); return; }
+
+  openModal(
+    '<div class="modal-head"><h3>Adicionar aluno</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
+    + '<p class="modal-sub" style="text-align:left">Turma: <b>' + esc(turma.nome) + '</b></p>'
+    + '<div style="text-align:left;margin-top:12px">'
+    + '<label>Nome do aluno</label><input id="alNome" type="text" placeholder="Ex.: João Silva" style="width:100%" maxlength="20">'
+    + '<label>Senha (para o aluno entrar)</label><input id="alSenha" type="password" placeholder="Mínimo 4 caracteres" style="width:100%" maxlength="40">'
+    + '</div>'
+    + '<div class="modal-actions">'
+    + '<button class="btn green" id="alOk">' + I.check + ' Criar aluno</button>'
+    + '<button class="btn ghost" id="alCancel">Cancelar</button>'
+    + '</div>'
+  );
+  $('#mClose').onclick = $('#alCancel').onclick = () => closeModal();
+  $('#alOk').onclick = async () => {
+    const nome = ($('#alNome').value || '').trim();
+    const senha = ($('#alSenha').value || '').trim();
+    if(!nome || nome.length < 2){ toast('Nome muito curto.', { type: 'warn' }); return; }
+    if(!senha || senha.length < 4){ toast('Senha muito curta.', { type: 'warn' }); return; }
+
+    const id = slug(nome);
+    if(DB.alunos[id]){ toast('Já existe um aluno com esse nome.', { type: 'warn' }); return; }
+
+    DB.alunos[id] = {
+      id, nome, senha,
+      turmaId,
+      xp: 0,
+      ofensiva: 0,
+      musicasConcluidas: {},
+      diasEstudados: {},
+      criadoEm: todayStr()
+    };
+
+    try{
+      await dbSave('novo aluno ' + nome + ' na turma ' + turma.nome);
+      toast('Aluno criado! 🎉', { type: 'success' });
+    }catch(e){
+      toast('Erro: ' + e.message, { type: 'error' });
+    }
+    closeModal(true);
+    renderTurmas();
+  };
+}
+
+function excluirTurma(turmaId){
+  const turma = DB.turmas.find(t => t.id === turmaId);
+  if(!turma){ toast('Turma não encontrada.', { type: 'error' }); return; }
+  if(turma.professorId !== S.conta){ toast('Você não é dono dessa turma.', { type: 'error' }); return; }
+
+  const alunos = Object.values(DB.alunos).filter(a => a.turmaId === turmaId);
+  openModal(
+    '<h3 class="modal-title">Excluir turma?</h3>'
+    + '<p class="modal-sub">“' + esc(turma.nome) + '” será removida.<br>'
+    + (alunos.length ? '<b style="color:#FF9B9E">' + alunos.length + ' aluno(s)</b> serão removidos também.' : 'A turma está vazia.')
+    + '</p>'
+    + '<div class="modal-actions-col" style="margin-top:18px">'
+    + '<button class="btn red big" id="delOk">' + I.trash + ' Sim, excluir</button>'
+    + '<button class="btn ghost" id="delCancel">Cancelar</button>'
+    + '</div>'
+  );
+  $('#delOk').onclick = async () => {
+    DB.turmas = DB.turmas.filter(t => t.id !== turmaId);
+    Object.keys(DB.alunos).forEach(k => {
+      if(DB.alunos[k].turmaId === turmaId) delete DB.alunos[k];
+    });
+    try{
+      await dbSave('turma excluída ' + turma.nome);
+      toast('Turma excluída.', { type: 'success' });
+    }catch(e){
+      toast('Erro: ' + e.message, { type: 'error' });
+    }
+    closeModal(true);
+    renderTurmas();
+  };
+  $('#delCancel').onclick = () => closeModal();
+}
+        
 function selecionarTexto(el){
   if(!el) return;
   try{
@@ -3141,6 +3230,21 @@ function wire(){
     };
   };
 
+    /* TURMAS — botões de adicionar aluno / excluir turma */
+  $('#turmasList').addEventListener('click', e => {
+    const btnAdd = e.target.closest('[data-add-aluno]');
+    if(btnAdd){
+      sfxClick();
+      abrirModalAluno(btnAdd.dataset.addAluno);
+      return;
+    }
+    const btnDel = e.target.closest('[data-del-turma]');
+    if(btnDel){
+      sfxClick();
+      excluirTurma(btnDel.dataset.delTurma);
+      return;
+    }
+  });
   /* RESIZE */
   let rzT = 0;
   window.addEventListener('resize', () => {
