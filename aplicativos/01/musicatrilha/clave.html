@@ -523,72 +523,7 @@ html.lite-mode .w-node,
 html.lite-mode .world{ box-shadow:0 2px 6px rgba(0,0,0,.35) !important; }
 html.lite-mode .btn{ box-shadow:0 2px 0 rgba(0,0,0,.3) !important; }
 html.lite-mode .btn:active{ transform:none !important; }
-  /* ---------- Mini piano de teste ---------- */
-.mini-piano-wrap{
-  display:flex;align-items:center;gap:10px;
-  background:var(--surface);border:1px solid var(--line);
-  border-radius:12px;padding:6px 10px;flex-shrink:0;
-}
-.mini-piano-label{
-  font-size:11.5px;font-weight:800;color:var(--ink3);
-  text-transform:uppercase;letter-spacing:.6px;flex-shrink:0;
-}
-.mini-piano-scroll{
-  flex:1;min-width:0;overflow-x:auto;overflow-y:hidden;
-  border-radius:8px;background:#1B0E36;padding:4px;
-}
-.mini-piano{
-  position:relative;display:flex;height:60px;width:100%;
-  min-width:420px;user-select:none;-webkit-user-select:none;touch-action:none;
-}
-.mini-piano .key{border:none;cursor:pointer;position:relative;padding:0}
-.mini-piano .key.white{
-  flex:1 1 0;background:linear-gradient(#FFFDF7,#F1E9DC);
-  border:1px solid #C9BBA8;border-radius:0 0 6px 6px;margin:0 1px;
-  display:flex;align-items:flex-end;justify-content:center;
-  font-size:9px;color:#8A7A63;font-weight:800;padding-bottom:3px;
-  box-shadow:inset 0 -4px 0 rgba(0,0,0,.08);z-index:1;
-}
-.mini-piano .key.black{
-  position:absolute;top:0;height:62%;
-  background:linear-gradient(#3A2B52,#171026);
-  border:1px solid #0B0716;border-radius:0 0 4px 4px;z-index:2;
-  box-shadow:inset 0 -3px 0 rgba(255,255,255,.08);
-}
-.mini-piano .key.white.pressed{background:linear-gradient(#E8FFF2,#C9F5DD)}
-.mini-piano .key.black.pressed{background:linear-gradient(#1FA85F,#157A43)}
-.mini-piano .key.expect-mini{outline:3px solid var(--green);outline-offset:-3px}
-@media (max-width:560px){
-  .mini-piano-label{display:none}
-  .mini-piano{min-width:360px;height:54px}
-}
-
-  .mini-piano-controls{
-  display:flex;align-items:center;gap:6px;flex-wrap:wrap;flex-shrink:0;
-}
-.range-btn{
-  border:1.5px solid var(--line);background:#1B0E36;color:var(--ink2);
-  font-family:var(--font-disp);font-weight:800;font-size:11.5px;
-  padding:5px 9px;border-radius:999px;cursor:pointer;transition:.15s;
-}
-.range-btn b{color:var(--gold);font-size:12px}
-.range-btn.active{
-  background:rgba(77,166,255,.2);border-color:var(--blue);color:#BFDCFF;
-}
-.range-btn.active b{color:var(--ink)}
-/* Notas dentro do range escolhido no mini piano */
-.mini-piano .key.white.in-range{
-  background:linear-gradient(#E8FFF2,#A8F5CC);
-}
-.mini-piano .key.black.in-range{
-  background:linear-gradient(#1FA85F,#157A43);
-}
-.mini-piano .key.edge{
-  outline:3px solid var(--gold);outline-offset:-3px;
-}
-@media (max-width:560px){
-  .mini-piano-controls{width:100%}
-}
+  
 </style>
 
 </head>
@@ -645,18 +580,8 @@ html.lite-mode .btn:active{ transform:none !important; }
       <span id="comboChip" class="combo-chip" style="display:none"></span>
     </div>
 
-    <!-- TECLADO PEQUENO DE TESTE (1 oitava) -->
-    <div class="mini-piano-wrap">
-  <div class="mini-piano-controls">
-    <span class="mini-piano-label">Região:</span>
-    <button id="rangeFromBtn" class="range-btn" title="Clique e escolha a nota inicial no mini piano">De: <b>—</b></button>
-    <button id="rangeToBtn" class="range-btn" title="Clique e escolha a nota final no mini piano">Até: <b>—</b></button>
-    <button id="rangeResetBtn" class="btn ghost small" title="Volta ao padrão (1 oitava)">Auto</button>
-  </div>
-  <div id="miniPianoScroll" class="mini-piano-scroll">
-    <div id="miniPiano" class="mini-piano" aria-label="Mini piano para escolher a região"></div>
-  </div>
-</div>
+  
+   
 
     <div id="lessonTip" class="lesson-tip">
       <i class="icw" data-icon="info"></i>
@@ -1468,7 +1393,8 @@ async function loadRemoteSongs(){
         if(typeof item === 'object' && item.defaultRange && item.defaultRange.from && item.defaultRange.to){
           const dr = item.defaultRange;
           if(!S.ranges) S.ranges = {};
-          if(!S.ranges[id]) S.ranges[id] = { from: dr.from, to: dr.to };
+          S.ranges[id] = { from: dr.from, to: dr.to };   // manifest sempre vence
+          save();
         }
 
         added++;
@@ -1544,15 +1470,13 @@ function initLesson(song){
   setSwitch($('#namesSwitch'),  S.settings.names);
   setSwitch($('#assistSwitch'), S.settings.assist);
 
-  // Garante que essa música tem um range salvo (padrão 1 oitava C4 → C5)
+  // Padrão fixo: 2 oitavas (C3 → C5). O manifest pode sobrescrever via defaultRange.
   if(!S.ranges) S.ranges = {};
-  if(!S.ranges[song.id]) S.ranges[song.id] = { from: 'C', to: 'c' };
+  if(!S.ranges[song.id]) S.ranges[song.id] = { from: 'C,', to: 'c' };
 
   renderSheet();
 
-  buildPianoFromRange(song);   // piano grande com o range da música (padrão 1 oitava)
-  buildMiniPiano();            // mini piano seletor (C4 → C5, sempre 1 oitava)
-  updateMiniRangeUI();         // destaca o range atual + atualiza botões "De/Até"
+  buildPianoFromRange(song);   // piano grande usa S.ranges[song.id]
 
   updatePlayUI();
   metSetButton();
@@ -1645,16 +1569,16 @@ function updateMiniRangeUI(){
         
 function buildPianoFromRange(song){
   let r = S.ranges[song.id];
-  if(!r || !r.from || !r.to) r = { from: 'C', to: 'c' };
+  if(!r || !r.from || !r.to) r = { from: 'C,', to: 'c' };
 
-  const lo = midiFromAbc(r.from) ?? 60;
+  const lo = midiFromAbc(r.from) ?? 48;
   const hi = midiFromAbc(r.to)   ?? 72;
   const a  = Math.min(lo, hi);
   const b  = Math.max(lo, hi);
 
   const notes = [];
   for(let m = a; m <= b; m++) notes.push(m);
-  if(!notes.length){ for(let m = 60; m <= 72; m++) notes.push(m); }
+  if(!notes.length){ for(let m = 48; m <= 72; m++) notes.push(m); }
 
   KEYMAP = buildKeyMap(notes);
   buildPiano(notes);
@@ -2704,38 +2628,14 @@ function wire(){
     updateLessonUI(); sfxClick();
   };
   $('#tipClose').onclick = () => { S.settings.tipSeen = true; save(); $('#lessonTip').style.display = 'none'; };
-  /* SELETOR DE REGIÃO (mini piano) */
-  const rFromBtn = $('#rangeFromBtn');
-  const rToBtn   = $('#rangeToBtn');
-  const rReset   = $('#rangeResetBtn');
 
-  if(rFromBtn) rFromBtn.onclick = () => {
-    RANGE_PICK.mode = RANGE_PICK.mode === 'from' ? null : 'from';
-    updateMiniRangeUI();
-    sfxClick();
-  };
-  if(rToBtn) rToBtn.onclick = () => {
-    RANGE_PICK.mode = RANGE_PICK.mode === 'to' ? null : 'to';
-    updateMiniRangeUI();
-    sfxClick();
-  };
-  if(rReset) rReset.onclick = () => {
-    if(!L) return;
-    S.ranges[L.song.id] = { from: 'C', to: 'c' };
-    RANGE_PICK.mode = null;
-    save();
-    buildPianoFromRange(L.song);
-    updateMiniRangeUI();
-    toast('Região redefinida para 1 oitava.', { type: 'info' });
-    sfxClick();
-  };
   /* PIANO */
   $('#pianoScroll').addEventListener('pointerdown', e => {
     const k = e.target.closest('.key'); if(!k) return;
     e.preventDefault(); pressKey(+k.dataset.midi, k);
   });
 
-  /* TECLADO */
+  /* TECLADO FÍSICO */
   document.addEventListener('keydown', e => {
     if(e.key === 'Escape'){
       if(modalOpen) closeModal();
@@ -2752,41 +2652,7 @@ function wire(){
     const k = L.keys.get(midi);
     if(k) pressKey(midi, k);
   });
-  
-  /* MINI PIANO — toca + define região */
-  $('#miniPianoScroll').addEventListener('pointerdown', e => {
-    const k = e.target.closest('.key'); if(!k) return;
-    e.preventDefault();
-    const midi = +k.dataset.midi;
-    k.classList.add('pressed');
-    setTimeout(() => k.classList.remove('pressed'), 150);
-    instNote(midi, 0.9, null, 0.8);
 
-    if(!L) return;
-    if(RANGE_PICK.mode){
-      const abc = abcFromMidi(midi);
-      const cur = S.ranges[L.song.id] || { from: 'C', to: 'c' };
-      if(RANGE_PICK.mode === 'from'){
-        cur.from = abc;
-        // se "from" ficou maior que "to", troca
-        const mF = midiFromAbc(cur.from), mT = midiFromAbc(cur.to);
-        if(mF != null && mT != null && mF > mT){
-          const tmp = cur.from; cur.from = cur.to; cur.to = tmp;
-        }
-      } else {
-        cur.to = abc;
-        const mF = midiFromAbc(cur.from), mT = midiFromAbc(cur.to);
-        if(mF != null && mT != null && mT < mF){
-          const tmp = cur.from; cur.from = cur.to; cur.to = tmp;
-        }
-      }
-      S.ranges[L.song.id] = cur;
-      save();
-      RANGE_PICK.mode = null;
-      buildPianoFromRange(L.song);
-      updateMiniRangeUI();
-    }
-  });
   /* HUD ofensiva */
   const hudStreakChip = $('#hudStreak') && $('#hudStreak').closest('.chip');
   if(hudStreakChip){
@@ -2835,7 +2701,6 @@ function wire(){
   };
 
   /* RESIZE */
-     /* RESIZE */
   let rzT = 0;
   window.addEventListener('resize', () => {
     clearTimeout(rzT);
