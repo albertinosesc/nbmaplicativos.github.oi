@@ -676,9 +676,6 @@ footer{text-align:center;color:var(--ink3);font-size:12.5px;font-weight:700;padd
       <div class="paper-wrap"><div id="paper" class="paper" aria-label="Partitura"></div></div>
       <div class="lesson-controls"> 
 
-
-
-</button>
         <button id="listenBtn" class="btn blue small"></button>
         <button id="restartBtn" class="btn ghost small"><i class="icw" data-icon="refresh"></i><span>Recomeçar</span></button>
 
@@ -1311,6 +1308,8 @@ function metSetButton(){
   if(bSound){
     bSound.setAttribute('aria-pressed', String(!!S.settings.metronome));
     bSound.classList.toggle('active-met', !!S.settings.metronome);
+    const ico = bSound.querySelector('.icw');
+    if(ico) ico.innerHTML = S.settings.metronome ? I.volume : I.mute;
   }
   const bLight = $('#metLightBtn');
   if(bLight){
@@ -1906,7 +1905,7 @@ function evaluate(midi, keyEl){
   const tempoAlvo = (MET._startAC || 0) + (t.start * L.spw);
   const tempoReal = ctx ? ctx.currentTime : 0;
   const erro = tempoReal - tempoAlvo;
-  L.hits.push({ midi, err: erro, at: Date.now() });
+    L.hits.push({ midi, err: erro, idx: L.index, at: Date.now() });
 
   if(midi === t.midi){
     L.correct++;
@@ -1995,30 +1994,19 @@ function finishLesson(){
   }
 
   // ===== Precisão rítmica (só se o metrônomo estava ativo nesta lição) =====
+    // ===== Precisão rítmica (só se o metrônomo estava ativo nesta lição) =====
   const TOL = 0.200; // 200 ms de tolerância
   const medirRitmo = !!MET._startAC && L.hits.some(h => h.err != null);
   let accRitmo = null;
   if(medirRitmo){
-    // considera só as tentativas corretas (aquelas em que o pitch bateu)
-    const corretas = L.hits.filter((h, i) => {
-      // heurística: erro pequeno mas que corresponde a uma nota-alvo real
-      // Como o L.hits guarda tudo, usamos o próprio erro bruto:
-      return Math.abs(h.err) <= 10; // limite amplo, só para descartar outliers absurdos
-    });
-    // Melhor abordagem: comparar com a nota-alvo esperada naquele índice.
-    // Como L.hits está em ordem de tentativa, filtramos apenas tentativas cujo midi === alvo do momento.
-    // Reconstruímos com base em L.targets e L.hits:
     let ok = 0, total = 0;
-    let idx = 0;
     L.hits.forEach(h => {
-      // encontra o alvo que estava ativo quando este hit ocorreu (best-effort)
-      // Usamos a ordem: cada tentativa avança idx quando acerta o pitch
-      const alvo = L.targets[idx];
+      if(h.midi == null || h.idx == null) return;
+      const alvo = L.targets[h.idx];
       if(!alvo) return;
       if(h.midi === alvo.midi){
         total++;
         if(Math.abs(h.err) <= TOL) ok++;
-        idx++;
       }
     });
     accRitmo = total > 0 ? Math.round(100 * ok / total) : null;
@@ -3253,8 +3241,10 @@ function wire(){
   }
   save();
 
-  // 👇 AQUI
-  localStorage.removeItem('clave.minimized');
+    // Limpa só as aberturas manuais, mantendo outras preferências
+  const manual = JSON.parse(localStorage.getItem('clave.minimized') || '[]')
+    .filter(k => !k.startsWith('open:'));
+  localStorage.setItem('clave.minimized', JSON.stringify(manual));
 
   try{ await dbSave('troca de aluno'); }
   catch(err){ console.warn(err); }
