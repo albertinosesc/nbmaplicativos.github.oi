@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Clave — Aprenda música como um jogo</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/nunito@5/index.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fontsource-variable/baloo-2@5/index.css">
+<script defer src="https://cdn.jsdelivr.net/npm/abcjs@6.4.0/dist/abcjs-basic-min.js"></script>
+
+<!-- ================= FIREBASE SDK (MODULAR) ================= -->
+<script type="module">
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js';
+  import { getFirestore, doc, getDoc, setDoc } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js';
+  import { getAuth, signInAnonymously, onAuthStateChanged } from 'https://www.gstatic.com/firebasejs/9.22.0/firebase-auth.js';
+
+  // Seu firebaseConfig copiado do console
+  const firebaseConfig = {
+    apiKey: "AIzaSyCpUmcn9PCwOhEIvkbfjcn5SGjs51Vde8E",
+    authDomain: "musicatrilha-5079a.firebaseapp.com",
+    projectId: "musicatrilha-5079a",
+    storageBucket: "musicatrilha-5079a.firebasestorage.app",
+    messagingSenderId: "180424725803",
+    appId: "1:180424725803:web:90fce72d2690dcc23ee16e",
+    measurementId: "G-FGGZDJ569V"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+  const auth = getAuth(app);
+
+  // Expõe globalmente para o script principal do Clave
+  window.FirebaseService = { db, auth, signInAnonymously, onAuthStateChanged, doc, getDoc, setDoc };
+</script>
+
+<style>
+/* ... todo o CSS original permanece IGUAL ... */
+</style>
+</head>
+<body>
+<!-- ... todo o HTML original permanece IGUAL ... -->
+
+<script>
+(()=>{ 'use strict';
+
+/* ================= helpers ================= */
+const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
+const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+// ... (o resto dos helpers permanece igual) ...
+const NOTE_PT=['Dó','Dó♯','Ré','Ré♯','Mi','Fá','Fá♯','Sol','Sol♯','Lá','Lá♯','Si'];
+const NOTE_EN=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const BLACK_PC=[1,3,6,8,10];
+const DIATONIC_SEMITONES=[0,2,4,5,7,9,11];
+// ...
+
+/* ================= estado local ================= */
+// ... (igual) ...
+let S=load();
+function save(){ try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){} }
+// ...
+
+/* ================= dados remotos (AGORA FIREBASE) ================= */
+const DB={ turmas:[], alunos:{}, ultimoAluno:null, sha:null, loaded:false };
+
+const FB = {
+  configured(){ return true; }, // Firebase sempre configurado após o login anônimo
+
+  async readFile(){
+    const { db, doc, getDoc } = window.FirebaseService;
+    const docRef = doc(db, "clave", "dados");
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { data: docSnap.data(), sha: null };
+    }
+    return { data: null, sha: null };
+  },
+
+  async writeFile(obj){
+    const { db, doc, setDoc } = window.FirebaseService;
+    const docRef = doc(db, "clave", "dados");
+    await setDoc(docRef, obj);
+    return { content: { sha: null } };
+  }
+};
+
+async function dbLoad(){
+  try{
+    const r = await FB.readFile();
+    if(r.data){
+      DB.turmas = r.data.turmas || [];
+      DB.alunos = r.data.alunos || {};
+      DB.ultimoAluno = r.data.ultimoAluno || null;
+    } else {
+      DB.turmas = []; DB.alunos = {}; DB.ultimoAluno = null;
+    }
+    DB.loaded = true;
+    ghStatus('ok','Conectado ao Firebase ✓');
+  }catch(e){
+    DB.loaded = true;
+    ghStatus('err','Erro ao carregar: ' + e.message);
+  }
+}
+
+async function dbSave(msg){
+  const payload = { turmas: DB.turmas, alunos: DB.alunos, ultimoAluno: DB.ultimoAluno };
+  await FB.writeFile(payload);
+}
+
+// ... (o resto das funções permanece IGUAL, mas trocando 'GH' por 'FB' onde aparecer) ...
+
+/* ================= BOOT ================= */
+async function boot(){
+  injectIcons(); makeBgNotes(); touchToday(); save();
+  $('#saveBtn').innerHTML=I.plus+' Salvar música';
+  updateHUD(); updateSoundBtn(); wire(); renderFormPreview();
+  if(!window.ABCJS){ await new Promise(r=>window.addEventListener('load',r,{once:true})); }
+
+  // 1. Login anônimo no Firebase
+  const { auth, signInAnonymously, onAuthStateChanged } = window.FirebaseService;
+  await new Promise((resolve) => {
+    onAuthStateChanged(auth, (user) => {
+      if (user) { resolve(); }
+      else { signInAnonymously(auth).then(resolve); }
+    });
+  });
+
+  // 2. Carrega músicas remotas (do GitHub, se ainda quiser)
+  await loadRemoteSongs();
+
+  // 3. Carrega dados do Firestore
+  await dbLoad();
+
+  // 4. Sincroniza progresso offline
+  if(S.alunoAtual && DB.alunos[S.alunoAtual]){
+    const a = DB.alunos[S.alunoAtual];
+    const maxXp = Math.max(a.xp || 0, S.xp || 0);
+    const mergedCompleted = { ...(a.musicasConcluidas||{}), ...(S.completed||{}) };
+    const localTemMais = (S.xp||0) > (a.xp||0) ||
+      Object.keys(S.completed||{}).length > Object.keys(a.musicasConcluidas||{}).length;
+    a.xp = maxXp;
+    a.musicasConcluidas = mergedCompleted;
+    a.ofensiva = S.streak || a.ofensiva || 0;
+    a.ultimoAcesso = todayStr();
+    S.xp = maxXp;
+    S.completed = mergedCompleted;
+    S.streak = a.ofensiva;
+    S.lastDay = a.ultimoAcesso;
+    save();
+    if(localTemMais){
+      try{ await dbSave('sincronizar progresso offline'); }catch(e){ console.warn(e); }
+    }
+  }
+
+  route();
+}
+boot().catch(e=>console.error('Boot error:',e));
+})();
+</script>
+</body>
+</html>
