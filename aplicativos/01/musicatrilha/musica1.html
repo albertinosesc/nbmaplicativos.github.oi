@@ -527,6 +527,42 @@ footer{text-align:center;color:var(--ink3);font-size:12.5px;font-weight:700;padd
   #aurora i,#bgNotes span,.mascot svg,.w-node.current::after,.xilo-bar.expect{animation:none!important}
   html{scroll-behavior:auto}
 }
+.hud-aluno{display:inline-flex;align-items:center;gap:7px;background:var(--surface);
+  border:1px solid var(--line);border-radius:999px;padding:4px 12px 4px 5px;font-weight:800;font-size:13.5px;max-width:200px}
+.hud-aluno .hud-avatar{width:28px;height:28px;border-radius:50%;background:#221040;
+  display:inline-flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.hud-aluno .hud-nome{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media (max-width:760px){ .hud-aluno{max-width:120px;padding:3px 8px 3px 4px} .hud-aluno .hud-nome{font-size:12px} }
+@media (max-width:560px){ .hud-aluno .hud-nome{display:none} }
+
+.world-toggle{margin-left:6px;width:32px;height:32px;border-radius:10px;border:1px solid rgba(255,255,255,.25);
+  background:rgba(255,255,255,.08);color:#fff;cursor:pointer;font-weight:800;font-size:18px;line-height:1;
+  display:inline-flex;align-items:center;justify-content:center;transition:.15s;flex-shrink:0}
+.world-toggle:hover{background:rgba(255,255,255,.2)}
+.world.minimized .world-path{display:none}
+.world.minimized{padding-bottom:22px}
+.world.minimized .world-emblem-wrap{transform:scale(.85);transition:transform .2s}
+
+.cal-head{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}
+.cal-title{font-family:var(--font-disp);font-size:18px}
+.cal-nav{display:flex;gap:6px}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-top:6px}
+.cal-dow{text-align:center;font-size:10.5px;font-weight:800;color:var(--ink3);
+  text-transform:uppercase;padding:4px 0}
+.cal-day{aspect-ratio:1;display:flex;align-items:center;justify-content:center;
+  border-radius:8px;font-weight:800;font-size:13px;background:#221040;color:var(--ink3);
+  border:1px solid transparent;position:relative;min-height:34px}
+.cal-day.other{opacity:.25}
+.cal-day.studied{background:rgba(60,230,138,.25);border-color:rgba(60,230,138,.6);color:#B9FFD9}
+.cal-day.missed{background:rgba(77,166,255,.18);border-color:rgba(77,166,255,.4);color:#BFDCFF}
+.cal-day.today{outline:2px solid var(--gold);outline-offset:1px}
+.cal-day.future{opacity:.35}
+.cal-legend{display:flex;gap:14px;justify-content:center;margin-top:14px;font-size:12px;font-weight:800;color:var(--ink2);flex-wrap:wrap}
+.cal-legend span{display:inline-flex;align-items:center;gap:6px}
+.cal-legend i{width:12px;height:12px;border-radius:4px;display:inline-block}
+.cal-legend .lg-s{background:rgba(60,230,138,.6)}
+.cal-legend .lg-m{background:rgba(77,166,255,.5)}
+.cal-legend .lg-n{background:#221040;border:1px solid var(--line)}
 </style>
 
 </head>
@@ -544,7 +580,11 @@ footer{text-align:center;color:var(--ink3);font-size:12.5px;font-weight:700;padd
     <a href="#/turmas" id="navTurmas" class="nav-link"><i class="icw" data-icon="trophy"></i><span>Turmas</span></a>
     <a href="#/biblioteca" id="navBib" class="nav-link"><i class="icw" data-icon="book"></i><span>Biblioteca</span></a>
   </nav>
-  <div class="hud">
+  <div class="hud">  
+<span id="hudAluno" class="hud-aluno" style="display:none" title="Aluno atual">
+  <span class="hud-avatar">🎵</span>
+  <span class="hud-nome">Visitante</span>
+</span>
     <span class="chip" title="Ofensiva"><i class="icw c-flame" data-icon="flame"></i><b id="hudStreak">0</b></span>
     <span class="chip" title="XP"><i class="icw c-bolt" data-icon="bolt"></i><b id="hudXp">0</b></span>
     <span class="chip chip-gems" title="Gemas"><i class="icw c-gem" data-icon="gem"></i><b id="hudGems">0</b></span>
@@ -733,7 +773,6 @@ const NOTE_PT = ['Dó','Dó♯','Ré','Ré♯','Mi','Fá','Fá♯','Sol','Sol♯
 const NOTE_EN = ['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
 const BLACK_PC = [1,3,6,8,10];
 const DIATONIC_SEMITONES = [0,2,4,5,7,9,11];
-const NATURAL_PC = [0,2,4,5,7,9,11];
 const NOTE_NUM = ['1','2','3','4','5','6','7'];
 const XILO_COLORS = ['#FF5A5F','#FF9D3C','#FFD75E','#3CE68A','#4DA6FF','#8A6BFF','#E560FF'];
 const oct = m => Math.floor(m / 12) - 1;
@@ -829,6 +868,7 @@ const DEF = {
   xp: 0, gems: 0, streak: 0, lastDay: null,
   today: { day: null, xp: 0 },
   completed: {}, custom: [], seq: 1, welcomeSeen: false,
+  diasEstudados: {},
   settings: {
     sound: true, names: true, assist: true, tipSeen: false,
     instrument: 'piano',
@@ -850,6 +890,7 @@ function load(){
       if(!Array.isArray(s.custom)) s.custom = [];
       if(!s.completed || typeof s.completed !== 'object') s.completed = {};
       if(!s.settings.ranges || typeof s.settings.ranges !== 'object') s.settings.ranges = {};
+      if(!s.diasEstudados || typeof s.diasEstudados !== 'object') s.diasEstudados = {};
       return s;
     }
   }catch(e){}
@@ -929,9 +970,6 @@ function ghStatus(cls, html){
   el.innerHTML = html;
 }
 
-function allAlunosFlat(){
-  return Object.values(DB.alunos).map(a => ({ ...a, turma: DB.turmas.find(t => t.id === a.turmaId) }));
-}
 function turmaDe(id){ return DB.turmas.find(t => t.id === id); }
 function alunoAtual(){ return S.alunoAtual && DB.alunos[S.alunoAtual] ? DB.alunos[S.alunoAtual] : null; }
 
@@ -1207,7 +1245,7 @@ function ensureVisible(paper, ev){
     paper.scrollTop += (r.top - p.top) - p.height * 0.35;
 }
 
-/* ================= músicas remotas (manifest) ================= */
+/* ================= músicas remotas ================= */
 const MUSIC_DIR = 'musicas/';
 let remoteLoaded = false;
 function absUrl(path){ try{ return new URL(path, document.baseURI).href; }catch(e){ return path; } }
@@ -1548,8 +1586,6 @@ function refreshInstrumentRender(initial){
 function checkRangeWarning(){
   if(!L || !L.targets.length){ $('#instrWarn').classList.remove('show'); return; }
   const instr = S.settings.instrument;
-  const minM = L.targets.reduce((a,t) => Math.min(a, t.midi), Infinity);
-  const maxM = L.targets.reduce((a,t) => Math.max(a, t.midi), -Infinity);
   const fromAbc = $('#rangeFrom').value, toAbc = $('#rangeTo').value;
   const iF = ABC_NOTES.findIndex(n => n.abc === fromAbc);
   const iT = ABC_NOTES.findIndex(n => n.abc === toAbc);
@@ -1626,8 +1662,10 @@ function flashHint(msg){
   }, 1500);
 }
 function setSwitch(btn, on){ btn.setAttribute('aria-checked', String(on)); }
+
 function addXp(n){
   touchToday();
+  marcarDiaEstudado();
   S.xp += n;
   S.today.xp += n;
   save();
@@ -1844,6 +1882,22 @@ function worldSvgDecor(worldId){
     + '</svg>';
   return '';
 }
+
+function applyMinimized(){
+  const minimized = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
+  document.querySelectorAll('#worldStack .world').forEach(el => {
+    const wId = el.querySelector('.world-toggle')?.dataset.world;
+    if(!wId) return;
+    const isMin = minimized.includes(wId);
+    el.classList.toggle('minimized', isMin);
+    const btn = el.querySelector('.world-toggle');
+    if(btn){
+      btn.textContent = isMin ? '+' : '−';
+      btn.title = isMin ? 'Expandir' : 'Minimizar';
+    }
+  });
+}
+
 function renderTrilha(){
   const stack = $('#worldStack');
   stack.innerHTML = '';
@@ -1875,6 +1929,7 @@ function renderTrilha(){
       +   '<div class="world-titles"><small>Mundo ' + (wi + 1) + '</small><h2>' + esc(w.name) + '</h2><p>' + esc(w.desc) + '</p></div>'
       +   '<div class="world-progress"><b>' + done + '/' + songs.length + '</b>'
       +   '<div class="world-bar"><div style="width:' + (100 * done / songs.length) + '%"></div></div></div>'
+      +   '<button class="world-toggle" data-world="' + w.id + '" aria-label="Minimizar/expandir" title="Minimizar">−</button>'
       + '</div>'
       + '<div class="world-path"><svg class="world-svg" aria-hidden="true"></svg><div class="world-nodes">' + nodesHtml + '</div></div>';
     stack.appendChild(div);
@@ -1908,7 +1963,9 @@ function renderTrilha(){
     });
   });
   renderSidebar();
+  applyMinimized();
 }
+
 function renderSidebar(){
   const lvl = Math.floor(S.xp / 150) + 1;
   const into = S.xp % 150;
@@ -2223,9 +2280,6 @@ function scheduleDbSave(msg){
 function renderTurmas(){
   const card = $('#ghCard');
   if(card){
-    const r = $('#ghRepoInput'), t = $('#ghTokenInput');
-    if(r && !r.value) r.value = '';
-    if(t && !t.value) t.value = '';
     if(!$('#ghStatus').innerHTML) ghStatus('ok', 'Backend: Firebase Firestore ✓');
   }
   const sel = $('#alunoAtualSelect');
@@ -2382,7 +2436,11 @@ function addAlunoModal(id){
     const nome = $('#maNome').value.trim();
     if(!nome){ toast('Digite o nome.', { type: 'warn' }); return; }
     const id = 'a' + Date.now().toString(36);
-    DB.alunos[id] = { id, turmaId: t.id, nome, avatar: avatarSel, xp: 0, ofensiva: 0, ultimoAcesso: todayStr(), musicasConcluidas: {} };
+    DB.alunos[id] = {
+      id, turmaId: t.id, nome, avatar: avatarSel,
+      xp: 0, ofensiva: 0, ultimoAcesso: todayStr(),
+      musicasConcluidas: {}, diasEstudados: {}
+    };
     try{ await dbSave('novo aluno ' + nome); toast('Aluno adicionado!', { type: 'success' }); }
     catch(e){ toast('Erro: ' + e.message, { type: 'error' }); }
     closeModal(true);
@@ -2494,6 +2552,17 @@ function updateHUD(){
   $('#hudStreak').textContent = a ? (a.ofensiva || 0) : effStreak();
   $('#hudXp').textContent     = a ? (a.xp || 0)      : S.xp;
   $('#hudGems').textContent   = S.gems;
+  const ha = $('#hudAluno');
+  if(ha){
+    if(a){
+      ha.style.display = 'inline-flex';
+      ha.querySelector('.hud-avatar').textContent = a.avatar || '🎵';
+      ha.querySelector('.hud-nome').textContent   = a.nome;
+      ha.title = a.nome + (a.turma ? ' • ' + a.turma.nome : '');
+    } else {
+      ha.style.display = 'none';
+    }
+  }
 }
 function showView(v){
   currentView = v;
@@ -2539,6 +2608,113 @@ async function route(){
   updateHUD();
 }
 
+/* ================= calendário de ofensiva ================= */
+function getDiasEstudados(){
+  const a = alunoAtual();
+  if(a && a.diasEstudados) return a.diasEstudados;
+  return S.diasEstudados || {};
+}
+function marcarDiaEstudado(){
+  const d = todayStr();
+  const a = alunoAtual();
+  if(a){
+    a.diasEstudados = a.diasEstudados || {};
+    a.diasEstudados[d] = true;
+    scheduleDbSave('dia estudado ' + a.nome);
+  }
+  S.diasEstudados = S.diasEstudados || {};
+  S.diasEstudados[d] = true;
+  save();
+}
+function abrirCalendarioOfensiva(){
+  let ym = new Date();
+  const dow = ['D','S','T','Q','Q','S','S'];
+
+  function render(){
+    const dias = getDiasEstudados();
+    const y = ym.getFullYear(), m = ym.getMonth();
+    const primeiro = new Date(y, m, 1);
+    const lastDay = new Date(y, m + 1, 0).getDate();
+    const startDow = primeiro.getDay();
+    const hoje = todayStr();
+
+    let cells = '';
+    const prevLast = new Date(y, m, 0).getDate();
+    for(let i = startDow - 1; i >= 0; i--){
+      cells += '<div class="cal-day other">' + (prevLast - i) + '</div>';
+    }
+    for(let d = 1; d <= lastDay; d++){
+      const iso = y + '-' + String(m + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
+      const isFuture = iso > hoje;
+      const isToday  = iso === hoje;
+      let cls = 'cal-day';
+      if(isFuture) cls += ' future';
+      else if(dias[iso]) cls += ' studied';
+      else if(iso < hoje) cls += ' missed';
+      if(isToday) cls += ' today';
+      cells += '<div class="' + cls + '" title="' + iso + '">' + d + '</div>';
+    }
+    const totalCells = startDow + lastDay;
+    const rest = (7 - (totalCells % 7)) % 7;
+    for(let i = 1; i <= rest; i++){
+      cells += '<div class="cal-day other">' + i + '</div>';
+    }
+
+    const nomeMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                     'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m];
+    const mesLabel = nomeMes + ' ' + y;
+
+    return (
+      '<div class="modal-head"><h3>Ofensiva</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
+      + '<div class="cal-head">'
+      +   '<button class="icon-btn" id="calPrev">‹</button>'
+      +   '<div class="cal-title">' + mesLabel + '</div>'
+      +   '<button class="icon-btn" id="calNext">›</button>'
+      + '</div>'
+      + '<div class="cal-grid">'
+      +   dow.map(d => '<div class="cal-dow">' + d + '</div>').join('')
+      +   cells
+      + '</div>'
+      + '<div class="cal-legend">'
+      +   '<span><i class="lg-s"></i> Estudou</span>'
+      +   '<span><i class="lg-m"></i> Não estudou</span>'
+      +   '<span><i class="lg-n"></i> Futuro</span>'
+      + '</div>'
+    );
+  }
+
+  openModal(render(), { onClose: () => {} });
+
+  function refresh(){
+    const backdrop = $('#modalRoot .modal');
+    if(!backdrop) return;
+    backdrop.innerHTML = render();
+    bind();
+  }
+  function bind(){
+    const cl = $('#mClose'); if(cl) cl.onclick = () => closeModal();
+    const pv = $('#calPrev');
+    const nx = $('#calNext');
+    if(pv) pv.onclick = () => { ym = new Date(ym.getFullYear(), ym.getMonth() - 1, 1); refresh(); };
+    if(nx) nx.onclick = () => { ym = new Date(ym.getFullYear(), ym.getMonth() + 1, 1); refresh(); };
+  }
+  bind();
+}
+
+function makeBgNotes(){
+  const glyphs = ['♪','♫','♬','♩'];
+  const host = $('#bgNotes');
+  let html = '';
+  for(let i = 0; i < 11; i++){
+    const left = Math.random() * 96;
+    const fs = 20 + Math.random() * 42;
+    const dur = 16 + Math.random() * 20;
+    const delay = -Math.random() * 30;
+    html += '<span style="left:' + left + '%;font-size:' + fs + 'px;animation-duration:' + dur + 's;animation-delay:' + delay + 's">' + glyphs[i % 4] + '</span>';
+  }
+  host.innerHTML = html;
+}
+
 /* ================= eventos ================= */
 function wire(){
   window.addEventListener('hashchange', route);
@@ -2547,6 +2723,7 @@ function wire(){
   document.addEventListener('pointerdown', unlockAudio, { once: true });
   document.addEventListener('keydown',     unlockAudio, { once: true });
 
+  /* ---------- TRILHA ---------- */
   $('#worldStack').addEventListener('click', e => {
     const b = e.target.closest('.w-node');
     if(!b) return;
@@ -2560,9 +2737,23 @@ function wire(){
     }
   });
 
+  $('#worldStack').addEventListener('click', e => {
+    const b = e.target.closest('.world-toggle');
+    if(!b) return;
+    const wId = b.dataset.world;
+    const minimized = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
+    const idx = minimized.indexOf(wId);
+    if(idx >= 0) minimized.splice(idx, 1); else minimized.push(wId);
+    localStorage.setItem('clave.minimized', JSON.stringify(minimized));
+    applyMinimized();
+    sfxClick();
+  });
+
+  /* ---------- LIÇÃO ---------- */
   $('#backBtn').onclick = requestExit;
   $('#listenBtn').onclick = toggleListen;
   $('#restartBtn').onclick = () => { if(L){ initLesson(L.song); toast('Reiniciada.', { type: 'info' }); } };
+
   $('#namesSwitch').onclick = () => {
     S.settings.names = !S.settings.names;
     save();
@@ -2570,6 +2761,7 @@ function wire(){
     $('#piano').classList.toggle('no-names', !S.settings.names);
     sfxClick();
   };
+
   $('#assistSwitch').onclick = () => {
     S.settings.assist = !S.settings.assist;
     save();
@@ -2581,8 +2773,10 @@ function wire(){
     updateLessonUI();
     sfxClick();
   };
+
   $('#tipClose').onclick = () => { S.settings.tipSeen = true; save(); $('#lessonTip').style.display = 'none'; };
 
+  /* ---------- INSTRUMENTO / RANGE / XILOFONE ---------- */
   $('#instPianoBtn').onclick = () => setInstrumentUI('piano');
   $('#instXiloBtn').onclick  = () => setInstrumentUI('xilo');
 
@@ -2606,6 +2800,7 @@ function wire(){
     }
     sfxClick();
   };
+
   $('#rangeFrom').onchange = () => {
     if(!L) return;
     const f = $('#rangeFrom').value, t = $('#rangeTo').value;
@@ -2617,6 +2812,7 @@ function wire(){
     refreshInstrumentRender();
     sfxClick();
   };
+
   $('#rangeTo').onchange = () => {
     if(!L) return;
     const f = $('#rangeFrom').value, t = $('#rangeTo').value;
@@ -2629,6 +2825,7 @@ function wire(){
     sfxClick();
   };
 
+  /* ---------- PIANO / XILOFONE (clique) ---------- */
   $('#pianoScroll').addEventListener('pointerdown', e => {
     const k = e.target.closest('.key');
     if(!k) return;
@@ -2642,6 +2839,7 @@ function wire(){
     pressKey(+k.dataset.midi, k);
   });
 
+  /* ---------- TECLADO FÍSICO ---------- */
   document.addEventListener('keydown', e => {
     if(e.key === 'Escape'){
       if(modalOpen) closeModal();
@@ -2659,10 +2857,25 @@ function wire(){
     if(k) pressKey(midi, k);
   });
 
+  /* ---------- HUD: chip de ofensiva abre o calendário ---------- */
+  const hudStreakChip = $('#hudStreak') && $('#hudStreak').closest('.chip');
+  if(hudStreakChip){
+    hudStreakChip.style.cursor = 'pointer';
+    hudStreakChip.setAttribute('role', 'button');
+    hudStreakChip.setAttribute('tabindex', '0');
+    hudStreakChip.title = 'Ver calendário de estudos';
+    hudStreakChip.onclick = abrirCalendarioOfensiva;
+    hudStreakChip.onkeydown = ev => {
+      if(ev.key === 'Enter' || ev.key === ' '){ ev.preventDefault(); abrirCalendarioOfensiva(); }
+    };
+  }
+
+  /* ---------- BIBLIOTECA ---------- */
   $('#libSearch').addEventListener('input',  renderBiblioteca);
   $('#libDiff').addEventListener('change',   renderBiblioteca);
   $('#libSort').addEventListener('change',   renderBiblioteca);
   $('#libInstr').addEventListener('change',  renderBiblioteca);
+
   $('#songGrid').addEventListener('click', e => {
     const b = e.target.closest('[data-action]');
     if(!b || b.disabled) return;
@@ -2675,6 +2888,7 @@ function wire(){
     else if(act === 'delete') deleteCustom(id);
   });
 
+  /* ---------- CADASTRO ---------- */
   const goNova = e => {
     if(currentView === 'biblioteca'){
       e.preventDefault();
@@ -2690,12 +2904,14 @@ function wire(){
   $('#saveBtn').onclick = saveForm;
   $('#clearBtn').onclick = () => { resetForm(); toast('Limpo.', { type: 'info' }); };
   $('#cancelEditBtn').onclick = resetForm;
+
   $('#downBtn').onclick = () => {
     const abc = $('#fAbc').value.trim();
     if(!abc){ toast('Sem ABC.', { type: 'warn' }); return; }
     const tM = abc.match(/^T:\s*(.+)$/m);
     downloadAbc(abc, $('#fTitle').value.trim() || (tM ? tM[1].trim() : 'musica'));
   };
+
   $('#fFile').addEventListener('change', e => {
     const f = e.target.files && e.target.files[0];
     if(!f) return;
@@ -2709,9 +2925,9 @@ function wire(){
     e.target.value = '';
   });
 
-  // Botões do card GitHub (agora só "testar Firebase")
-  const ghSave  = $('#ghSaveBtn');
-  const ghTest  = $('#ghTestBtn');
+  /* ---------- FIREBASE (botões do card) ---------- */
+  const ghSave = $('#ghSaveBtn');
+  const ghTest = $('#ghTestBtn');
   const testFirebase = async () => {
     ghStatus('', 'Testando Firebase...');
     try{
@@ -2732,7 +2948,9 @@ function wire(){
   if(ghSave) ghSave.onclick = testFirebase;
   if(ghTest) ghTest.onclick = testFirebase;
 
+  /* ---------- TURMAS ---------- */
   $('#novaTurmaBtn').onclick = novaTurmaModal;
+
   $('#turmasList').addEventListener('click', e => {
     const b = e.target.closest('[data-act]');
     if(!b) return;
@@ -2753,6 +2971,7 @@ function wire(){
       a.ofensiva = effStreak();
       a.musicasConcluidas = JSON.parse(JSON.stringify(S.completed));
       a.ultimoAcesso = todayStr();
+      a.diasEstudados = { ...(a.diasEstudados || {}), ...(S.diasEstudados || {}) };
     }
 
     S.alunoAtual = novo;
@@ -2762,11 +2981,13 @@ function wire(){
       S.completed = JSON.parse(JSON.stringify(a.musicasConcluidas || {}));
       S.streak = a.ofensiva || 0;
       S.lastDay = a.ultimoAcesso || null;
+      S.diasEstudados = JSON.parse(JSON.stringify(a.diasEstudados || {}));
     } else {
       S.xp = 0;
       S.completed = {};
       S.streak = 0;
       S.lastDay = null;
+      S.diasEstudados = S.diasEstudados || {};
     }
     save();
 
@@ -2783,6 +3004,7 @@ function wire(){
     }
   });
 
+  /* ---------- RESIZE ---------- */
   let rzT = 0;
   window.addEventListener('resize', () => {
     clearTimeout(rzT);
@@ -2796,20 +3018,6 @@ function wire(){
       if(confRaf) resizeConf();
     }, 240);
   });
-}
-
-function makeBgNotes(){
-  const glyphs = ['♪','♫','♬','♩'];
-  const host = $('#bgNotes');
-  let html = '';
-  for(let i = 0; i < 11; i++){
-    const left = Math.random() * 96;
-    const fs = 20 + Math.random() * 42;
-    const dur = 16 + Math.random() * 20;
-    const delay = -Math.random() * 30;
-    html += '<span style="left:' + left + '%;font-size:' + fs + 'px;animation-duration:' + dur + 's;animation-delay:' + delay + 's">' + glyphs[i % 4] + '</span>';
-  }
-  host.innerHTML = html;
 }
 
 /* ================= BOOT ================= */
@@ -2842,17 +3050,21 @@ async function boot(){
     const a = DB.alunos[S.alunoAtual];
     const maxXp = Math.max(a.xp || 0, S.xp || 0);
     const mergedCompleted = { ...(a.musicasConcluidas || {}), ...(S.completed || {}) };
+    const mergedDias = { ...(a.diasEstudados || {}), ...(S.diasEstudados || {}) };
     const localTemMais =
       (S.xp || 0) > (a.xp || 0) ||
-      Object.keys(S.completed || {}).length > Object.keys(a.musicasConcluidas || {}).length;
+      Object.keys(S.completed || {}).length > Object.keys(a.musicasConcluidas || {}).length ||
+      Object.keys(S.diasEstudados || {}).length > Object.keys(a.diasEstudados || {}).length;
 
     a.xp = maxXp;
     a.musicasConcluidas = mergedCompleted;
+    a.diasEstudados = mergedDias;
     a.ofensiva = S.streak || a.ofensiva || 0;
     a.ultimoAcesso = todayStr();
 
     S.xp = maxXp;
     S.completed = mergedCompleted;
+    S.diasEstudados = mergedDias;
     S.streak = a.ofensiva;
     S.lastDay = a.ultimoAcesso;
     save();
