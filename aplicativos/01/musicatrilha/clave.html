@@ -1391,11 +1391,14 @@ async function loadRemoteSongs(){
         });
 
         if(typeof item === 'object' && item.defaultRange && item.defaultRange.from && item.defaultRange.to){
-          const dr = item.defaultRange;
-          if(!S.ranges) S.ranges = {};
-          S.ranges[id] = { from: dr.from, to: dr.to };   // manifest sempre vence
-          save();
-        }
+  const dr = item.defaultRange;
+  if(!S.ranges) S.ranges = {};
+  // Se ainda não foi personalizado pelo aluno, aplica o defaultRange do manifest
+  if(!S.ranges[id] || !S.ranges[id]._custom){
+    S.ranges[id] = { from: dr.from, to: dr.to, _fromManifest: true };
+    save();
+  }
+}
 
         added++;
       }catch(e){}
@@ -1470,13 +1473,16 @@ function initLesson(song){
   setSwitch($('#namesSwitch'),  S.settings.names);
   setSwitch($('#assistSwitch'), S.settings.assist);
 
-  // Padrão fixo: 2 oitavas (C3 → C5). O manifest pode sobrescrever via defaultRange.
+  // Se essa música NÃO tem range salvo, cria o padrão C3 → C5.
+  // Se já tem (vindo do manifest, por exemplo), respeita.
   if(!S.ranges) S.ranges = {};
-  if(!S.ranges[song.id]) S.ranges[song.id] = { from: 'C,', to: 'c' };
+  if(!S.ranges[song.id]){
+    S.ranges[song.id] = { from: 'C,', to: 'c' };
+    save();
+  }
 
   renderSheet();
-
-  buildPianoFromRange(song);   // piano grande usa S.ranges[song.id]
+  buildPianoFromRange(song);
 
   updatePlayUI();
   metSetButton();
