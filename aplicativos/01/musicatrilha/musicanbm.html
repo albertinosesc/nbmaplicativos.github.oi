@@ -1603,17 +1603,13 @@ function renderTrilha(){
 }
 function renderSidebar(){ const lvl=Math.floor(S.xp/150)+1, into=S.xp%150;
   const goal=60, tx=Math.min(S.today.xp||0,goal), C=2*Math.PI*26, off=C*(1-tx/goal);
-    const aluno = alunoAtual();
+      const aluno = alunoAtual();
   let rank = [];
-  if(aluno){
-    // Só colegas da MESMA turma
+  if(aluno && aluno.turmaId){
     const colegas = Object.values(DB.alunos)
       .filter(a => a.turmaId === aluno.turmaId)
       .map(a => ({name:a.nome, xp:a.xp||0, emoji:a.avatar||'🎵', me:a.id===aluno.id}));
     rank = colegas.sort((a,b) => b.xp - a.xp);
-  } else {
-    // Sem aluno: sem ranking
-    rank = [];
   }
   $('#sidebar').innerHTML=
    '<div class="card profile-card"><div class="mascot">'+mascotSVG('side')+'</div>'
@@ -1627,10 +1623,12 @@ function renderSidebar(){ const lvl=Math.floor(S.xp/150)+1, into=S.xp%150;
    +'<circle cx="36" cy="36" r="26" stroke="url(#goalGrad)" stroke-width="8" fill="none" stroke-linecap="round" stroke-dasharray="'+C.toFixed(1)+'" stroke-dashoffset="'+off.toFixed(1)+'" transform="rotate(-90 36 36)"/>'
    +'<text x="36" y="41" text-anchor="middle" font-size="14" font-weight="800" fill="#F6F1FF">'+Math.round(100*tx/goal)+'%</text></svg></div>'
    +'<div><b>Meta diária</b><p>'+(S.today.xp||0)+'/'+goal+' XP</p></div></div>'
-   +'<div class="card"><h4>'+I.trophy+' Ranking</h4><div class="rank-list">'
-   +rank.map((r,i)=>'<div class="rank-row'+(r.me?' me':'')+'"><span class="rank-pos">'+(i<3?['🥇','🥈','🥉'][i]:i+1)+'</span>'
-     +'<span class="rank-emoji">'+r.emoji+'</span><span class="rank-name">'+esc(r.name)+'</span><b>'+r.xp+' XP</b></div>').join('')
-   +'</div></div>'
+      +(rank.length
+      ? '<div class="card"><h4>'+I.trophy+' Ranking da turma</h4><div class="rank-list">'
+        + rank.map((r,i)=>'<div class="rank-row'+(r.me?' me':'')+'"><span class="rank-pos">'+(i<3?['🥇','🥈','🥉'][i]:i+1)+'</span>'
+          +'<span class="rank-emoji">'+r.emoji+'</span><span class="rank-name">'+esc(r.name)+'</span><b>'+r.xp+' XP</b></div>').join('')
+        +'</div></div>'
+      : '')
    +'<div class="card tip-card"><h4>💡 Dica</h4><p id="tipText">'+TIPS[tipIdx]+'</p>'
    +'<button class="btn ghost small" id="tipBtn">'+I.refresh+' Outra dica</button></div>';
   $('#tipBtn').onclick=()=>{ tipIdx=(tipIdx+1)%TIPS.length; $('#tipText').textContent=TIPS[tipIdx]; sfxClick(); };
@@ -2215,15 +2213,32 @@ async function boot(){
   if(!window.ABCJS){ await new Promise(r=>window.addEventListener('load',r,{once:true})); }
   await loadRemoteSongs();
   await dbLoad();
-  // Carrega progresso do aluno atual (se houver)
+
   if(S.alunoAtual && DB.alunos[S.alunoAtual]){
     const a = DB.alunos[S.alunoAtual];
-    S.xp = a.xp || 0;
-    S.completed = JSON.parse(JSON.stringify(a.musicasConcluidas || {}));
-    S.streak = a.ofensiva || 0;
-    S.lastDay = a.ultimoAcesso || null;
+    // Sincroniza progresso local ↔ DB (recupera XP ganho offline)
+    const maxXp = Math.max(a.xp || 0, S.xp || 0);
+    const mergedCompleted = { ...(a.musicasConcluidas||{}), ...(S.completed||{}) };
+    const localTemMais = (S.xp||0) > (a.xp||0) ||
+      Object.keys(S.completed||{}).length > Object.keys(a.musicasConcluidas||{}).length;
+
+    a.xp = maxXp;
+    a.musicasConcluidas = mergedCompleted;
+    a.ofensiva = S.streak || a.ofensiva || 0;
+    a.ultimoAcesso = todayStr();
+
+    S.xp = maxXp;
+    S.completed = mergedCompleted;
+    S.streak = a.ofensiva;
+    S.lastDay = a.ultimoAcesso;
     save();
+
+    // Se o local tinha mais progresso, salva no GitHub
+    if(localTemMais && GH.configured()){
+      try{ await dbSave('sincronizar progresso offline'); }catch(e){ console.warn(e); }
+    }
   }
+
   route();
 }
 boot().catch(e=>console.error('Boot error:',e));
