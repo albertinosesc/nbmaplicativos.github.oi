@@ -2465,7 +2465,10 @@ async function entrarConta(){
   const id = slug(nome);
   const c = DB.contasGlobais[id];
   if(!c || c.senha !== senha){ toast('Nome ou senha incorretos.', { type: 'error' }); return; }
-   S.conta = id;
+  S.conta = id;
+  // ↓ ADICIONE ESTA LINHA ↓
+  if(c.pro) localStorage.setItem(IS_PRO_KEY, 'true'); else localStorage.removeItem(IS_PRO_KEY);
+  // ↑ ADICIONE ESTA LINHA ↑
   S.xp = c.xp || 0;
   S.compras = JSON.parse(JSON.stringify(c.compras || []));
   S.completed = JSON.parse(JSON.stringify(c.musicasConcluidas || {}));
@@ -2473,6 +2476,7 @@ async function entrarConta(){
   S.lastDay = c.ultimoAcesso || null;
   S.diasEstudados = JSON.parse(JSON.stringify(c.diasEstudados || {}));
   save();
+  applyPlanClasses();  // ← e chame applyPlanClasses() após
   closeModal(true);
   updateHUD(); renderSidebar(); renderTrilha();
   toast('Bem-vindo de volta, ' + c.nome + '! 🎹', { type: 'success' });
@@ -2711,10 +2715,12 @@ function scheduleDbSave(msg){
   }, 1500);
 }
 function renderTurmas(){
+  const minhasTurmas = DB.turmas.filter(t => t.professorId === S.conta);
+
   const sel = $('#alunoAtualSelect');
   if(sel){
     const opts = ['<option value="">— escolha um aluno —</option>'];
-    DB.turmas.forEach(t => {
+    minhasTurmas.forEach(t => {
       const alunos = Object.values(DB.alunos).filter(a => a.turmaId === t.id);
       if(!alunos.length) return;
       opts.push('<optgroup label="' + esc(t.nome) + '">');
@@ -2725,13 +2731,14 @@ function renderTurmas(){
     });
     sel.innerHTML = opts.join('');
   }
+
   const list = $('#turmasList');
   if(!list) return;
-  if(!DB.turmas.length){
+  if(!minhasTurmas.length){
     list.innerHTML = '<div class="empty-state">Nenhuma turma ainda. Clique em <b>Nova turma</b> para começar. 🎓</div>';
     return;
   }
-  list.innerHTML = DB.turmas.map(t => {
+  list.innerHTML = minhasTurmas.map(t => {
     const alunos = Object.values(DB.alunos).filter(a => a.turmaId === t.id);
     alunos.sort((a,b) => (b.xp || 0) - (a.xp || 0));
     const rows = alunos.length
@@ -2883,7 +2890,6 @@ function wire(){
         const key = ($('#proKey').value || '').trim().toUpperCase();
         if(!key){ toast('Digite a chave.', { type: 'warn' }); return; }
 
-        // Chave de teste hardcoded (não vai pro Firestore)
         if(key === 'CLAVE-PRO-TESTE'){
           localStorage.setItem(IS_PRO_KEY, 'true');
           applyPlanClasses();
@@ -2893,39 +2899,43 @@ function wire(){
           return;
         }
 
+        if(!S.conta){
+          toast('Entre na sua conta antes de ativar o Pro.', { type: 'warn' });
+          return;
+        }
+
         const btn = $('#proOk');
         const originalHtml = btn.innerHTML;
         btn.disabled = true;
         btn.innerHTML = I.refresh + ' Validando...';
 
         try{
-          const { db, doc, runTransaction } = window.FirebaseService;
+          const { db, doc, runTransaction, setDoc } = window.FirebaseService;
 
           await runTransaction(db, async (transaction) => {
             const chaveRef = doc(db, 'chavesPro', key);
             const chaveSnap = await transaction.get(chaveRef);
 
-            if(!chaveSnap.exists()){
-              throw new Error('Chave inválida.');
-            }
-
+            if(!chaveSnap.exists()) throw new Error('Chave inválida.');
             const data = chaveSnap.data();
+            if(!data.ativa) throw new Error('Chave desativada.');
+            if(data.usadaPor) throw new Error('Esta chave já foi usada por outra conta.');
 
-            if(!data.ativa){
-              throw new Error('Chave desativada.');
-            }
-
-            if(data.usadaPor){
-              throw new Error('Esta chave já foi usada por outra conta.');
-            }
-
-            // Marca DENTRO da transação — se outro tentar ao mesmo tempo,
-            // o Firestore cancela uma das operações automaticamente.
             transaction.update(chaveRef, {
-              usadaPor: S.conta || 'anon',
+              usadaPor: S.conta,
               usadaEm: new Date().toISOString()
             });
           });
+
+          await setDoc(doc(db, 'clave', 'dados'), {
+            contasGlobais: {
+              [S.conta]: { pro: true }
+            }
+          }, { merge: true });
+
+          if(DB.contasGlobais[S.conta]){
+            DB.contasGlobais[S.conta].pro = true;
+          }
 
           localStorage.setItem(IS_PRO_KEY, 'true');
           applyPlanClasses();
@@ -3095,6 +3105,11 @@ function wire(){
       toast('🔒 Recurso exclusivo da versão Pro.', { type: 'warn' });
       return;
     }
+    if(!S.conta){
+      toast('Entre na sua conta para criar turmas.', { type: 'warn' });
+      abrirModalConta();
+      return;
+    }
     openModal(
       '<div class="modal-head"><h3>Nova turma</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
       + '<div style="text-align:left;margin-top:8px">'
@@ -3108,9 +3123,21 @@ function wire(){
       const nome = $('#mtNome').value.trim();
       if(!nome){ toast('Digite o nome.', { type: 'warn' }); return; }
       const id = 't' + Date.now().toString(36);
-      DB.turmas.push({ id, nome, professor: $('#mtProf').value.trim(), criadaEm: todayStr() });
-      try{ await dbSave('nova turma'); toast('Turma criada!', { type: 'success' }); } catch(e){ toast('Erro: ' + e.message, { type: 'error' }); }
-      closeModal(true); renderTurmas();
+      DB.turmas.push({
+        id,
+        nome,
+        professor: $('#mtProf').value.trim(),
+        professorId: S.conta,
+        criadaEm: todayStr()
+      });
+      try{
+        await dbSave('nova turma');
+        toast('Turma criada!', { type: 'success' });
+      }catch(e){
+        toast('Erro: ' + e.message, { type: 'error' });
+      }
+      closeModal(true);
+      renderTurmas();
     };
   };
 
