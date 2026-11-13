@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Clave — Gerenciador de Chaves</title>
+<style>
+:root{
+  --bg:#160B2E;--surface:#2B1A4E;--surface2:#352260;--line:rgba(190,160,255,.17);
+  --ink:#F6F1FF;--ink2:#C9B8EC;--ink3:#9A86C4;
+  --green:#3CE68A;--green-d:#1FA85F;--gold:#FFC93C;--gold-d:#D99A0B;
+  --red:#FF5A5F;--red-d:#D63036;--blue:#4DA6FF;--blue-d:#2C7FD6;
+  --teal:#2ED9C3;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Nunito Variable',system-ui,sans-serif;color:var(--ink);min-height:100vh;
+  background:linear-gradient(180deg,#1B0E36,#160B2E);padding:20px}
+.container{max-width:900px;margin:0 auto}
+h1{font-size:28px;margin-bottom:6px}
+.sub{color:var(--ink3);font-size:14px;font-weight:700;margin-bottom:20px}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:16px;padding:20px;margin-bottom:16px}
+.card h2{font-size:18px;margin-bottom:14px;display:flex;align-items:center;gap:8px}
+label{display:block;font-size:13px;font-weight:800;color:var(--ink2);margin-bottom:6px}
+input,textarea{width:100%;background:#221040;border:1px solid var(--line);color:var(--ink);
+  border-radius:10px;padding:10px 12px;font:inherit;font-size:14px;font-weight:700;margin-bottom:12px}
+input:focus,textarea:focus{outline:none;border-color:var(--green)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;font-weight:800;
+  font-size:14px;border:none;border-radius:10px;padding:11px 18px;cursor:pointer;
+  transition:.15s;color:var(--ink);background:var(--surface2);margin-right:8px;margin-bottom:8px}
+.btn:hover{filter:brightness(1.1)}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.green{background:linear-gradient(180deg,#48F09A,#2BD97E);color:#083A22}
+.btn.gold{background:linear-gradient(180deg,#FFD75E,#FFC93C);color:#4A3200}
+.btn.red{background:linear-gradient(180deg,#FF7A7E,#FF5A5F);color:#4D0508}
+.btn.blue{background:linear-gradient(180deg,#63B4FF,#3D9BFF);color:#062B4F}
+.btn.ghost{background:transparent;border:2px solid var(--line);color:var(--ink2)}
+.btn.small{padding:7px 12px;font-size:13px;border-radius:8px}
+.chave-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+.chave-item{display:flex;align-items:center;gap:10px;padding:12px 14px;background:#221040;
+  border:1px solid var(--line);border-radius:10px;flex-wrap:wrap}
+.chave-item.livre{border-left:4px solid var(--green)}
+.chave-item.usada{border-left:4px solid var(--red);opacity:.7}
+.chave-code{font-family:ui-monospace,monospace;font-weight:800;font-size:14px;
+  color:var(--gold);flex:1;min-width:180px;word-break:break-all}
+.chave-meta{font-size:11px;color:var(--ink3);font-weight:700;width:100%;margin-top:4px}
+.badge{font-size:11px;font-weight:800;text-transform:uppercase;padding:3px 8px;border-radius:999px}
+.badge.livre{background:rgba(60,230,138,.15);color:var(--green)}
+.badge.usada{background:rgba(255,90,95,.15);color:var(--red)}
+.toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);
+  background:#2B1A4E;border:1px solid var(--line);border-left:4px solid var(--blue);
+  border-radius:12px;padding:12px 20px;font-weight:800;font-size:14px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);z-index:1000;animation:slideUp .3s}
+.toast.success{border-left-color:var(--green)}
+.toast.error{border-left-color:var(--red)}
+.toast.warn{border-left-color:var(--gold)}
+@keyframes slideUp{from{transform:translate(-50%,20px);opacity:0}to{transform:translate(-50%,0);opacity:1}}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid rgba(255,255,255,.3);
+  border-top-color:#fff;border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.stat-box{background:#221040;border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+.stat-box b{display:block;font-size:22px;color:var(--gold)}
+.stat-box span{font-size:11px;color:var(--ink3);text-transform:uppercase;font-weight:800}
+.warn{background:rgba(255,201,60,.1);border:1px solid rgba(255,201,60,.4);
+  color:#FFE8A3;border-radius:10px;padding:12px;font-size:13px;font-weight:700;
+  line-height:1.5;margin-bottom:14px}
+.hidden{display:none}
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>🔑 Clave — Gerenciador de Chaves</h1>
+  <p class="sub">Gere, busque e marque chaves Pro para vender</p>
+
+  <!-- CONFIG TOKEN -->
+  <div class="card" id="cfgCard">
+    <h2>⚙️ Configuração</h2>
+    <div class="warn">
+      Cole seu token do GitHub (PAT) abaixo. Ele fica salvo no seu navegador e nunca é enviado para lugar nenhum além da API do GitHub.
+      <br>Gere em: <a href="https://github.com/settings/tokens" target="_blank" style="color:#FFE8A3">github.com/settings/tokens</a> → escopo <b>repo</b>.
+    </div>
+    <label>Token do GitHub</label>
+    <input id="tokenInput" type="password" placeholder="ghp_..." autocomplete="off">
+    <label>Repositório</label>
+    <input id="repoInput" type="text" value="albertinosesc/nbmaplicativos.github.oi">
+    <label>Branch</label>
+    <input id="branchInput" type="text" value="main">
+    <button class="btn green" id="salvarCfg">💾 Salvar configuração</button>
+    <button class="btn ghost small" id="limparCfg" style="margin-top:8px">🗑️ Esquecer token</button>
+  </div>
+
+  <!-- MAIN -->
+  <div id="main" class="hidden">
+    <div class="stats">
+      <div class="stat-box"><b id="total">0</b><span>Total</span></div>
+      <div class="stat-box"><b id="livres" style="color:var(--green)">0</b><span>Livres</span></div>
+      <div class="stat-box"><b id="usadas" style="color:var(--red)">0</b><span>Usadas</span></div>
+    </div>
+
+    <div class="card">
+      <h2>🎲 Gerar chaves</h2>
+      <label>Quantidade</label>
+      <input id="qtdInput" type="number" value="5" min="1" max="100">
+      <button class="btn gold" id="gerarBtn">✨ Gerar e salvar no GitHub</button>
+    </div>
+
+    <div class="card">
+      <h2>📋 Chaves salvas</h2>
+      <button class="btn blue small" id="buscarBtn">🔄 Recarregar do GitHub</button>
+      <button class="btn ghost small" id="copiarLivresBtn">📋 Copiar chaves livres</button>
+      <div id="loadingList" class="hidden" style="margin-top:12px;color:var(--ink3);font-weight:700">
+        <span class="spinner"></span> Buscando do GitHub…
+      </div>
+      <div id="chaveList" class="chave-list"></div>
+      <div id="emptyList" class="hidden" style="text-align:center;color:var(--ink3);font-weight:700;padding:24px">
+        Nenhuma chave ainda. Gere a primeira acima! 👆
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+
+  const LS_TOKEN = 'clave.gh_token';
+  const LS_REPO  = 'clave.gh_repo';
+  const LS_BRANCH = 'clave.gh_branch';
+  const FILE_PATH = 'chaves.json';
+
+  let chaves = [];
+
+  // ============ helpers ============
+  const $ = s => document.querySelector(s);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  function toast(msg, type){
+    const t = document.createElement('div');
+    t.className = 'toast ' + (type || '');
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  function gerarChaveStr(){
+    const bloco = () => Math.random().toString(36).slice(2, 6).toUpperCase();
+    return 'CLAVE-PRO-' + bloco() + '-' + bloco();
+  }
+
+  // ============ config ============
+  function carregarCfg(){
+    const t = localStorage.getItem(LS_TOKEN);
+    if(t){
+      $('#tokenInput').value = t;
+      $('#repoInput').value = localStorage.getItem(LS_REPO) || 'albertinosesc/nbmaplicativos.github.oi';
+      $('#branchInput').value = localStorage.getItem(LS_BRANCH) || 'main';
+      $('#cfgCard').classList.add('hidden');
+      $('#main').classList.remove('hidden');
+      buscar();
+    }
+  }
+
+  function salvarCfg(){
+    const t = $('#tokenInput').value.trim();
+    const r = $('#repoInput').value.trim();
+    const b = $('#branchInput').value.trim() || 'main';
+    if(!t){ toast('Cole o token do GitHub', 'error'); return; }
+    if(!r){ toast('Digite owner/repo', 'error'); return; }
+    localStorage.setItem(LS_TOKEN, t);
+    localStorage.setItem(LS_REPO, r);
+    localStorage.setItem(LS_BRANCH, b);
+    $('#cfgCard').classList.add('hidden');
+    $('#main').classList.remove('hidden');
+    toast('Configuração salva! ✅', 'success');
+    buscar();
+  }
+
+  function limparCfg(){
+    if(!confirm('Esquecer o token? Você vai precisar colar de novo.')) return;
+    localStorage.removeItem(LS_TOKEN);
+    localStorage.removeItem(LS_REPO);
+    localStorage.removeItem(LS_BRANCH);
+    location.reload();
+  }
+
+  // ============ API GitHub ============
+  function apiUrl(){
+    const repo = localStorage.getItem(LS_REPO);
+    return `https://api.github.com/repos/${repo}/contents/${FILE_PATH}`;
+  }
+
+  function headers(){
+    return {
+      'Authorization': 'Bearer ' + localStorage.getItem(LS_TOKEN),
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json'
+    };
+  }
+
+  async function lerArquivo(){
+    const res = await fetch(apiUrl() + '?ref=' + (localStorage.getItem(LS_BRANCH) || 'main'), {
+      headers: headers()
+    });
+    if(res.status === 404){
+      return { sha: null, chaves: [] };
+    }
+    if(!res.ok){
+      const err = await res.text();
+      throw new Error('GitHub ' + res.status + ': ' + err);
+    }
+    const data = await res.json();
+    const conteudo = decodeURIComponent(escape(atob(data.content.replace(/\n/g, ''))));
+    let lista = [];
+    try{ lista = JSON.parse(conteudo); }catch(e){ lista = []; }
+    if(!Array.isArray(lista)) lista = [];
+    return { sha: data.sha, chaves: lista };
+  }
+
+  async function escreverArquivo(chavesLista, sha){
+    const conteudo = JSON.stringify(chavesLista, null, 2);
+    const body = {
+      message: 'Atualiza chaves.json (' + chavesLista.length + ' chaves)',
+      content: btoa(unescape(encodeURIComponent(conteudo))),
+      branch: localStorage.getItem(LS_BRANCH) || 'main'
+    };
+    if(sha) body.sha = sha;
+
+    const res = await fetch(apiUrl(), {
+      method: 'PUT',
+      headers: headers(),
+      body: JSON.stringify(body)
+    });
+    if(!res.ok){
+      const err = await res.text();
+      throw new Error('GitHub ' + res.status + ': ' + err);
+    }
+    return await res.json();
+  }
+
+  // ============ ações ============
+  async function buscar(){
+    $('#loadingList').classList.remove('hidden');
+    $('#chaveList').innerHTML = '';
+    $('#emptyList').classList.add('hidden');
+
+    try{
+      const { chaves: lista } = await lerArquivo();
+      chaves = lista;
+      renderLista();
+    }catch(e){
+      toast(e.message, 'error');
+      $('#emptyList').classList.remove('hidden');
+    }finally{
+      $('#loadingList').classList.add('hidden');
+    }
+  }
+
+  async function gerar(){
+    const qtd = Math.max(1, Math.min(100, parseInt($('#qtdInput').value) || 1));
+    const btn = $('#gerarBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span> Gerando…';
+
+    try{
+      const { sha, chaves: lista } = await lerArquivo();
+
+      const novas = [];
+      for(let i = 0; i < qtd; i++){
+        let c;
+        do { c = gerarChaveStr(); } while(lista.some(x => x.chave === c) || novas.some(x => x.chave === c));
+        novas.push({
+          chave: c,
+          criadaEm: new Date().toISOString(),
+          usadaPor: null,
+          usadaEm: null
+        });
+      }
+
+      const atualizado = [...lista, ...novas];
+      await escreverArquivo(atualizado, sha);
+
+      chaves = atualizado;
+      renderLista();
+      toast(qtd + ' chave' + (qtd > 1 ? 's' : '') + ' criada' + (qtd > 1 ? 's' : '') + '! 🎉', 'success');
+    }catch(e){
+      toast(e.message, 'error');
+    }finally{
+      btn.disabled = false;
+      btn.innerHTML = '✨ Gerar e salvar no GitHub';
+    }
+  }
+
+  async function marcarUsada(chaveStr){
+    const nome = prompt('Quem comprou? (nome do aluno)');
+    if(!nome) return;
+
+    try{
+      const { sha, chaves: lista } = await lerArquivo();
+      const idx = lista.findIndex(c => c.chave === chaveStr);
+      if(idx < 0){ toast('Chave não encontrada', 'error'); return; }
+      lista[idx].usadaPor = nome.trim();
+      lista[idx].usadaEm = new Date().toISOString();
+      await escreverArquivo(lista, sha);
+      chaves = lista;
+      renderLista();
+      toast('Chave marcada como usada! ✅', 'success');
+    }catch(e){
+      toast(e.message, 'error');
+    }
+  }
+
+  async function liberar(chaveStr){
+    if(!confirm('Liberar esta chave novamente? (volta a ficar disponível)')) return;
+    try{
+      const { sha, chaves: lista } = await lerArquivo();
+      const idx = lista.findIndex(c => c.chave === chaveStr);
+      if(idx < 0) return;
+      lista[idx].usadaPor = null;
+      lista[idx].usadaEm = null;
+      await escreverArquivo(lista, sha);
+      chaves = lista;
+      renderLista();
+      toast('Chave liberada!', 'success');
+    }catch(e){
+      toast(e.message, 'error');
+    }
+  }
+
+  function copiar(texto){
+    navigator.clipboard.writeText(texto).then(() => toast('Copiado! 📋', 'success'))
+      .catch(() => {
+        const ta = document.createElement('textarea');
+        ta.value = texto; document.body.appendChild(ta); ta.select();
+        document.execCommand('copy'); ta.remove();
+        toast('Copiado! 📋', 'success');
+      });
+  }
+
+  function copiarLivres(){
+    const livres = chaves.filter(c => !c.usadaPor).map(c => c.chave);
+    if(!livres.length){ toast('Nenhuma chave livre', 'warn'); return; }
+    copiar(livres.join('\n'));
+  }
+
+  // ============ render ============
+  function renderLista(){
+    const total = chaves.length;
+    const livres = chaves.filter(c => !c.usadaPor).length;
+    const usadas = total - livres;
+    $('#total').textContent = total;
+    $('#livres').textContent = livres;
+    $('#usadas').textContent = usadas;
+
+    const host = $('#chaveList');
+    if(!total){
+      host.innerHTML = '';
+      $('#emptyList').classList.remove('hidden');
+      return;
+    }
+    $('#emptyList').classList.add('hidden');
+
+    // Mais recentes no topo
+    const sorted = [...chaves].reverse();
+    host.innerHTML = sorted.map(c => {
+      const isUsada = !!c.usadaPor;
+      const dt = c.criadaEm ? new Date(c.criadaEm).toLocaleDateString('pt-BR') : '—';
+      return '<div class="chave-item ' + (isUsada ? 'usada' : 'livre') + '">'
+        + '<span class="chave-code">' + esc(c.chave) + '</span>'
+        + '<span class="badge ' + (isUsada ? 'usada' : 'livre') + '">' + (isUsada ? 'Usada' : 'Livre') + '</span>'
+        + '<button class="btn blue small" data-copy="' + esc(c.chave) + '">📋 Copiar</button>'
+        + (isUsada
+            ? '<button class="btn ghost small" data-liberar="' + esc(c.chave) + '">↩️ Liberar</button>'
+            : '<button class="btn green small" data-usar="' + esc(c.chave) + '">✅ Marcar usada</button>')
+        + '<div class="chave-meta">Criada em ' + dt + (isUsada ? ' • Usada por ' + esc(c.usadaPor) + ' em ' + new Date(c.usadaEm).toLocaleDateString('pt-BR') : '') + '</div>'
+        + '</div>';
+    }).join('');
+
+    host.querySelectorAll('[data-copy]').forEach(b => {
+      b.onclick = () => copiar(b.dataset.copy);
+    });
+    host.querySelectorAll('[data-usar]').forEach(b => {
+      b.onclick = () => marcarUsada(b.dataset.usar);
+    });
+    host.querySelectorAll('[data-liberar]').forEach(b => {
+      b.onclick = () => liberar(b.dataset.liberar);
+    });
+  }
+
+  // ============ wire ============
+  $('#salvarCfg').onclick = salvarCfg;
+  $('#limparCfg').onclick = limparCfg;
+  $('#gerarBtn').onclick = gerar;
+  $('#buscarBtn').onclick = buscar;
+  $('#copiarLivresBtn').onclick = copiarLivres;
+
+  carregarCfg();
+})();
+</script>
+</body>
+</html>
