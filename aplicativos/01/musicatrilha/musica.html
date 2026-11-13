@@ -1234,35 +1234,50 @@ function songMeta(s){
 }
 
 /* ================= áudio ================= */
-let AC = null, master = null, audioReady = false;
+let AC = null, master = null, audioReady = false, audioError = null;
 function ensureAudio(){
-  if(!AC){
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if(!Ctx){ console.warn('[Clave] Web Audio API não disponível'); return null; }
-    try { AC = new Ctx(); }
-    catch(err){ console.error('[Clave] AudioContext falhou:', err); return null; }
+  if(AC){
+    if(AC.state === 'suspended') AC.resume().catch(()=>{});
+    return AC;
+  }
+  const Ctx = window.AudioContext
+           || window.webkitAudioContext
+           || window.mozAudioContext
+           || window.msAudioContext;
+  if(!Ctx){
+    audioError = 'Web Audio API não está disponível neste navegador.';
+    console.warn('[Clave] ' + audioError);
+    return null;
+  }
+  try {
+    AC = new Ctx();
+  } catch(err){
+    audioError = 'Erro ao criar AudioContext: ' + (err && err.message ? err.message : err);
+    console.error('[Clave] ' + audioError, err);
+    return null;
+  }
+  master = AC.createGain();
+  master.gain.value = S.settings.sound ? 0.9 : 0;
 
-    master = AC.createGain();
-    master.gain.value = S.settings.sound ? 0.9 : 0;
-
-    // Compressor é OPCIONAL. Se falhar no PS4, liga direto.
-    let ok = false;
+  let ok = false;
+  try {
+    const comp = AC.createDynamicsCompressor();
+    master.connect(comp);
+    comp.connect(AC.destination);
+    ok = true;
+  } catch(err){
+    console.warn('[Clave] Compressor falhou:', err);
+  }
+  if(!ok){
     try {
-      const comp = AC.createDynamicsCompressor();
-      master.connect(comp);
-      comp.connect(AC.destination);
-      ok = true;
+      master.connect(AC.destination);
     } catch(err){
-      console.warn('[Clave] Compressor falhou, usando conexão direta:', err);
-    }
-    if(!ok){
-      try { master.connect(AC.destination); }
-      catch(err){ console.error('[Clave] master.connect falhou:', err); }
+      audioError = 'Falha ao conectar áudio: ' + (err && err.message ? err.message : err);
+      console.error('[Clave] ' + audioError, err);
+      return null;
     }
   }
-  if(AC.state === 'suspended'){
-    AC.resume().catch(err => console.warn('[Clave] resume falhou:', err));
-  }
+  if(AC.state === 'suspended') AC.resume().catch(()=>{});
   return AC;
 }
 function unlockAudio(){
@@ -1369,8 +1384,13 @@ function setPlayCursor(sess, ev, on){
           function startPlayback(sess){
   stopPlayback();
   const ctx = ensureAudio();
-  if(!ctx){ toast('Áudio indisponível.', { type: 'warn' }); return; }
+  if(!ctx){
+    toast(audioError || 'Áudio indisponível.', { type: 'warn', duration: 7000 });
+    return;
+  }
   if(ctx.state === 'suspended') ctx.resume().catch(()=>{});
+
+            
     const t0 = ctx.currentTime + 0.15;
   const g = ctx.createGain(); g.gain.value = 1; g.connect(master);
   PB.gain = g; PB.session = sess; PB.playing = true;
@@ -3485,7 +3505,7 @@ function wire(){
 /* ================= BOOT ================= */
 
           
-   async function boot(){
+async function boot(){
   injectIcons();
   makeBgNotes();
   touchToday();
@@ -3506,12 +3526,32 @@ function wire(){
     console.log('[Clave] modo lite ativado');
   }
 
+  // Diagnóstico de áudio (uma vez, para descobrir se o PS4 suporta)
+  if(isPS4 || fewCores){
+    const testCtx = window.AudioContext || window.webkitAudioContext;
+    if(!testCtx){
+      setTimeout(() => toast('⚠️ Este navegador não suporta áudio (Web Audio API). O app funciona, mas sem som.', { type: 'warn', duration: 8000 }), 1500);
+    } else {
+      try {
+        const t = new testCtx();
+        setTimeout(() => {
+          if(t.state === 'suspended'){
+            toast('⚠️ Toque na tela uma vez para ativar o áudio.', { type: 'info', duration: 6000 });
+          }
+        }, 800);
+      } catch(err){
+        setTimeout(() => toast('⚠️ Áudio bloqueado neste navegador: ' + err.message, { type: 'error', duration: 8000 }), 1500);
+      }
+    }
+  }
+
   if(!window.ABCJS){
     await new Promise(r => window.addEventListener('load', r, { once: true }));
   }
 
   // 1) Renderiza imediatamente com dados locais
   route();
+  // ... resto igual
 
   // 2) Sincroniza Firebase/músicas/Firestore em background
   (async () => {
