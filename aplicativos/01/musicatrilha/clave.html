@@ -2679,6 +2679,7 @@ function wire(){
   }
 
   /* PRO */
+   /* PRO */
   const ativarBtn = $('#ativarProBtn');
   if(ativarBtn){
     ativarBtn.onclick = () => {
@@ -2690,16 +2691,38 @@ function wire(){
         + '<div class="modal-actions"><button class="btn gold" id="proOk">' + I.check + ' Ativar</button><button class="btn ghost" id="proCancel">Cancelar</button></div>'
       );
       $('#mClose').onclick = $('#proCancel').onclick = () => closeModal();
-      $('#proOk').onclick = () => {
+      $('#proOk').onclick = async () => {
         const key = ($('#proKey').value || '').trim().toUpperCase();
+        if(!key){ toast('Digite a chave.', { type: 'warn' }); return; }
         if(key === 'CLAVE-PRO-TESTE'){
           localStorage.setItem(IS_PRO_KEY, 'true');
           applyPlanClasses();
           closeModal(true);
           toast('Versão Pro ativada! 🎉', { type: 'success' });
           renderTurmas();
-        } else {
-          toast('Chave inválida.', { type: 'error' });
+          return;
+        }
+        try{
+          const { db, doc, getDoc, setDoc } = window.FirebaseService;
+          const snap = await getDoc(doc(db, 'chavesPro', key));
+          if(!snap.exists()){ toast('Chave inválida.', { type: 'error' }); return; }
+          const data = snap.data();
+          if(!data.ativa){ toast('Chave desativada.', { type: 'error' }); return; }
+          if(data.usadaPor && data.usadaPor !== S.conta){
+            toast('Esta chave já foi usada.', { type: 'error' }); return;
+          }
+          await setDoc(doc(db, 'chavesPro', key), {
+            ...data,
+            usadaPor: S.conta || 'anon',
+            usadaEm: new Date().toISOString()
+          }, { merge: true });
+          localStorage.setItem(IS_PRO_KEY, 'true');
+          applyPlanClasses();
+          closeModal(true);
+          toast('Versão Pro ativada! 🎉', { type: 'success' });
+          renderTurmas();
+        }catch(e){
+          toast('Erro ao validar: ' + e.message, { type: 'error' });
         }
       };
     };
@@ -2803,8 +2826,12 @@ function wire(){
     else if(act === 'delete') deleteCustom(id);
   });
 
-  /* TURMAS */
+    /* TURMAS */
   $('#novaTurmaBtn').onclick = () => {
+    if(!isPro()){
+      toast('🔒 Recurso exclusivo da versão Pro.', { type: 'warn' });
+      return;
+    }
     openModal(
       '<div class="modal-head"><h3>Nova turma</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
       + '<div style="text-align:left;margin-top:8px">'
