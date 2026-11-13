@@ -1234,31 +1234,53 @@ function songMeta(s){
 }
 
 /* ================= áudio ================= */
-let AC = null, master = null;
+let AC = null, master = null, audioReady = false;
 function ensureAudio(){
   if(!AC){
     const Ctx = window.AudioContext || window.webkitAudioContext;
-    if(!Ctx) return null;
-    AC = new Ctx();
+    if(!Ctx){ console.warn('[Clave] Web Audio API não disponível'); return null; }
+    try { AC = new Ctx(); }
+    catch(err){ console.error('[Clave] AudioContext falhou:', err); return null; }
+
     master = AC.createGain();
     master.gain.value = S.settings.sound ? 0.9 : 0;
-    const comp = AC.createDynamicsCompressor();
-    master.connect(comp);
-    comp.connect(AC.destination);
+
+    // Compressor é OPCIONAL. Se falhar no PS4, liga direto.
+    let ok = false;
+    try {
+      const comp = AC.createDynamicsCompressor();
+      master.connect(comp);
+      comp.connect(AC.destination);
+      ok = true;
+    } catch(err){
+      console.warn('[Clave] Compressor falhou, usando conexão direta:', err);
+    }
+    if(!ok){
+      try { master.connect(AC.destination); }
+      catch(err){ console.error('[Clave] master.connect falhou:', err); }
+    }
   }
-  if(AC.state === 'suspended') AC.resume().catch(() => {});
+  if(AC.state === 'suspended'){
+    AC.resume().catch(err => console.warn('[Clave] resume falhou:', err));
+  }
   return AC;
 }
 function unlockAudio(){
   const ctx = ensureAudio();
   if(!ctx || !master) return;
+  if(ctx.state === 'running'){ audioReady = true; return; }
+  ctx.resume().then(() => {
+    if(ctx.state === 'running') audioReady = true;
+  }).catch(()=>{});
   try{
     const o = ctx.createOscillator(), g = ctx.createGain();
     g.gain.value = 0.0001;
     o.connect(g); g.connect(master);
     o.start(); o.stop(ctx.currentTime + 0.02);
-  }catch(e){}
+  }catch(err){}
 }
+
+          
 function tone(o){
   const ctx = ensureAudio(); if(!ctx) return;
   const when = o.when || ctx.currentTime;
@@ -1343,11 +1365,13 @@ function setPlayCursor(sess, ev, on){
     if(k) k.classList.toggle('playing', on);
   }
 }
-function startPlayback(sess){
+
+          function startPlayback(sess){
   stopPlayback();
   const ctx = ensureAudio();
   if(!ctx){ toast('Áudio indisponível.', { type: 'warn' }); return; }
-  const t0 = ctx.currentTime + 0.15;
+  if(ctx.state === 'suspended') ctx.resume().catch(()=>{});
+    const t0 = ctx.currentTime + 0.15;
   const g = ctx.createGain(); g.gain.value = 1; g.connect(master);
   PB.gain = g; PB.session = sess; PB.playing = true;
   const token = ++PB.token;
@@ -1464,6 +1488,7 @@ function metSetButton(){
 function metStart(){
   if(!L) return;
   const ctx = ensureAudio(); if(!ctx) return;
+  if(ctx.state === 'suspended') ctx.resume().catch(()=>{});
 
   // para qualquer loop antigo antes de começar
   cancelAnimationFrame(MET.raf);
@@ -2052,13 +2077,21 @@ function floatXp(keyEl){
   document.body.appendChild(sp);
   setTimeout(() => sp.remove(), 950);
 }
-function pressKey(midi, keyEl){
+
+
+  function pressKey(midi, keyEl){
   keyEl.classList.add('pressed');
   clearTimeout(keyEl._pt);
   keyEl._pt = setTimeout(() => keyEl.classList.remove('pressed'), 200);
+
+  // PS4: força destravar o áudio no primeiro toque em cada nota
+  const ctx = ensureAudio();
+  if(ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
+
   instNote(midi, 0.9, null, 0.8);
   evaluate(midi, keyEl);
 }
+  
 function evaluate(midi, keyEl){
   if(!L || L.finished || PB.playing) return;
   const t = L.targets[L.index];
@@ -3128,9 +3161,9 @@ function wire(){
   window.addEventListener('hashchange', route);
 
   $('#soundBtn').onclick = () => { setSound(!S.settings.sound); sfxClick(); };
-  document.addEventListener('pointerdown', unlockAudio, { once: true });
-  document.addEventListener('keydown',     unlockAudio, { once: true });
-
+  ['pointerdown','touchstart','click','keydown','touchend'].forEach(evt => {
+    document.addEventListener(evt, unlockAudio, { passive: true });
+  });
   /* ---------- TRILHA ---------- */
   $('#worldStack').addEventListener('click', e => {
     const b = e.target.closest('.w-node');
