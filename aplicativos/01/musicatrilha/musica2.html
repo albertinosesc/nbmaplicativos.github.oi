@@ -1708,7 +1708,6 @@ function initLesson(song){
   stopPlayback();
   metStop();
 
-  // extrai BPM e compasso do ABC
   let bpm = 100, beatsPerBar = 4;
   try{
     const tune = (window.ABCJS && ABCJS.parseOnly) ? ABCJS.parseOnly(song.abc)[0] : null;
@@ -1723,11 +1722,14 @@ function initLesson(song){
     correct: 0, startedAt: Date.now(), finished: false,
     events: [], targets: [], total: 0, spw: 2.4,
     keys: new Map(), kbStart: 60, noteList: [],
-        tempo: { bpm, q: 0.25 },
+    tempo: { bpm, q: 0.25 },
     beatsPerBar,
     hits: [],
     anchorAC: 0
   };
+
+  // Auto começa desligado (padrão C → c)
+  $('#rangeAutoBtn').classList.remove('on');
 
   const w = worldOf(song.difficulty);
   $('#lessonUnit').textContent = w.emblem + ' ' + w.name + ' • ' + DIFF_LABEL[song.difficulty];
@@ -1886,10 +1888,15 @@ function refreshInstrumentRender(initial){
   const songId = L.song.id;
   let r = getRangeFor(songId, instr);
   const autoOn = $('#rangeAutoBtn').classList.contains('on');
-  if(autoOn || !r){
+
+  if(autoOn){
     const a = autoRange(songId, instr);
     if(a){ r = a; setRangeFor(songId, instr, a.from, a.to); }
+  } else if(!r){
+    r = { from: 'C', to: 'c' };
+   
   }
+
   if(!r) r = { from: 'C', to: 'c' };
   $('#rangeFrom').value = r.from;
   $('#rangeTo').value   = r.to;
@@ -3167,14 +3174,19 @@ function wire(){
   $$('#xiloModes button').forEach(x => x.classList.toggle('active', x.dataset.mode === S.settings.xiloMode));
 
   $('#rangeAutoBtn').onclick = () => {
-    const on = !$('#rangeAutoBtn').classList.contains('on');
-    $('#rangeAutoBtn').classList.toggle('on', on);
-    if(on && L){
-      const a = autoRange(L.song.id, S.settings.instrument);
-      if(a){ setRangeFor(L.song.id, S.settings.instrument, a.from, a.to); refreshInstrumentRender(); }
-    }
-    sfxClick();
-  };
+  const on = !$('#rangeAutoBtn').classList.contains('on');
+  $('#rangeAutoBtn').classList.toggle('on', on);
+  if(!L) return;
+
+  if(on){
+    const a = autoRange(L.song.id, S.settings.instrument);
+    if(a){ setRangeFor(L.song.id, S.settings.instrument, a.from, a.to); refreshInstrumentRender(); }
+  } else {
+    setRangeFor(L.song.id, S.settings.instrument, 'C', 'c');
+    refreshInstrumentRender();
+  }
+  sfxClick();
+};
 
   $('#rangeFrom').onchange = () => {
     if(!L) return;
