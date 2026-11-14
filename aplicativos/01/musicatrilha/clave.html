@@ -648,7 +648,7 @@ html.lite-mode .btn:active{ transform:none !important; }
     <span class="brand-name">Clave</span>
   </a>
   <nav class="mainnav" aria-label="Navegação principal">
-        <button id="navToggle" class="icon-btn" aria-label="Menu" style="display:none">
+        
       <svg class="ic" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 6h18M3 12h18M3 18h18"/></svg>
     </button>
     <a href="#/trilha" id="navTrilha" class="nav-link"><i class="icw" data-icon="route"></i><span>Trilha</span></a>
@@ -965,8 +965,8 @@ const DEF = {
   diasEstudados: {},
   ranges: {},
   settings: { sound: true, names: true, assist: true, tipSeen: false, metronome: false, metLight: false },
-  conta: null,             // uid do professor/usuário (conta de e-mail)
-  alunoSessao: null        // slug do aluno em sessão (professor jogando como aluno)
+  conta: null,
+  alunoSessao: null
 };
 function load(){
   try{
@@ -996,7 +996,6 @@ function isPro(){ return localStorage.getItem(IS_PRO_KEY) === 'true'; }
 function applyPlanClasses(){
   document.body.classList.toggle('is-pro', isPro());
 }
-
 function touchToday(){ const d = todayStr(); if(S.today.day !== d) S.today = { day: d, xp: 0 }; }
 function effStreak(){ if(!S.lastDay) return 0; const d = daysBetween(S.lastDay, todayStr()); return d <= 1 ? S.streak : 0; }
 function allSongs(){ return [...SEEDS, ...S.custom].sort((a,b) => a.difficulty - b.difficulty || (a.order||0) - (b.order||0)); }
@@ -1021,7 +1020,6 @@ const LOJA = [
 
 /* ================= Firestore ================= */
 const DB = { turmas: [], alunos: {}, contasGlobais: {}, compras: [], loaded: false };
-
 const FB = {
   _ready: null,
   async init(){
@@ -1050,13 +1048,12 @@ const FB = {
     await setDoc(doc(db, 'clave', 'dados'), obj, { merge: false });
   }
 };
-
 async function dbLoad(){
   try{
     const data = await FB.read();
     DB.turmas        = (data && data.turmas)        || [];
     DB.alunos        = (data && data.alunos)        || {};
-    DB.contasGlobais = (data && data.contasGlobais) || {};
+    DB.contasGlobais = (data && data.contasGlobais) || [];
     DB.compras       = (data && data.compras)       || [];
     DB.loaded = true;
   }catch(e){
@@ -1083,27 +1080,16 @@ function scheduleDbSave(msg){
   }, 1500);
 }
 
-/* ================= contexto atual ================= */
-function contaAtual(){
-  return S.conta && DB.contasGlobais[S.conta] ? DB.contasGlobais[S.conta] : null;
-}
-function alunoSessao(){
-  return S.alunoSessao && DB.alunos[S.alunoSessao] ? DB.alunos[S.alunoSessao] : null;
-}
+/* ================= contexto ================= */
+function contaAtual(){ return S.conta && DB.contasGlobais[S.conta] ? DB.contasGlobais[S.conta] : null; }
+function alunoSessao(){ return S.alunoSessao && DB.alunos[S.alunoSessao] ? DB.alunos[S.alunoSessao] : null; }
 function jogadorAtual(){
-  // Retorna { tipo: 'conta'|'alunoSessao'|'visitante', dados }
-  if(S.alunoSessao){
-    const a = alunoSessao();
-    if(a) return { tipo: 'alunoSessao', dados: a };
-  }
+  if(S.alunoSessao){ const a = alunoSessao(); if(a) return { tipo: 'alunoSessao', dados: a }; }
   const c = contaAtual();
   if(c) return { tipo: 'conta', dados: c };
   return { tipo: 'visitante', dados: null };
 }
-function isProfessor(){
-  const c = contaAtual();
-  return !!(c && c.pro);
-}
+function isProfessor(){ const c = contaAtual(); return !!(c && c.pro); }
 function turmaDoJogador(){
   const j = jogadorAtual();
   if(j.tipo === 'alunoSessao' && j.dados.turmaId) return DB.turmas.find(t => t.id === j.dados.turmaId) || null;
@@ -1111,28 +1097,22 @@ function turmaDoJogador(){
   return null;
 }
 
-/* ================= compras visíveis para o jogador ================= */
+/* ================= compras visíveis ================= */
 function musicasVisiveis(){
-  // Retorna Set de IDs que o jogador atual pode tocar
   const vis = new Set();
   const c = contaAtual();
-  if(c && Array.isArray(c.compras)){
-    c.compras.forEach(id => vis.add(id));
-  }
+  if(c && Array.isArray(c.compras)) c.compras.forEach(id => vis.add(id));
   const j = jogadorAtual();
   if(j.tipo === 'alunoSessao'){
-    const alunoId = j.dados.id;
-    const turmaId = j.dados.turmaId;
+    const alunoId = j.dados.id, turmaId = j.dados.turmaId;
     DB.compras.forEach(cp => {
-      if(!cp.alunoIds && cp.destino !== 'todos') return;
       if(cp.turmaId !== turmaId) return;
       if(cp.destino === 'todos') vis.add(cp.musicaId);
       else if(Array.isArray(cp.alunoIds) && cp.alunoIds.includes(alunoId)) vis.add(cp.musicaId);
     });
   }
   if(j.tipo === 'conta' && j.dados.turmaId){
-    const alunoId = j.dados.id;
-    const turmaId = j.dados.turmaId;
+    const alunoId = j.dados.id, turmaId = j.dados.turmaId;
     DB.compras.forEach(cp => {
       if(cp.turmaId !== turmaId) return;
       if(cp.destino === 'todos') vis.add(cp.musicaId);
@@ -1141,10 +1121,10 @@ function musicasVisiveis(){
   }
   return vis;
 }
+function jogadorTemMusica(id){ if(!id) return false; return musicasVisiveis().has(id); }
 
-/* ================= músicas compradas (catálogo global) ================= */
+/* ================= músicas compradas (catálogo) ================= */
 const MUSICAS_COMPRADAS_CACHE = 'clave.musicasCompradasCache.v3';
-
 async function loadMusicasCompradas(){
   let lista = [];
   try{
@@ -1155,27 +1135,14 @@ async function loadMusicasCompradas(){
       snap.forEach(d => {
         const data = d.data();
         if(data && data.abc){
-          lista.push({
-            id: d.id,
-            title: data.title || d.id,
-            composer: data.composer || '',
-            difficulty: data.difficulty || 1,
-            abc: data.abc,
-            order: data.order || 900,
-            seed: false,
-            comprada: true
-          });
+          lista.push({ id: d.id, title: data.title || d.id, composer: data.composer || '', difficulty: data.difficulty || 1, abc: data.abc, order: data.order || 900, seed: false, comprada: true });
         }
       });
       try{ localStorage.setItem(MUSICAS_COMPRADAS_CACHE, JSON.stringify(lista)); }catch(e){}
     }
   }catch(e){
-    try{
-      const cached = JSON.parse(localStorage.getItem(MUSICAS_COMPRADAS_CACHE) || 'null');
-      if(cached && Array.isArray(cached)) lista = cached;
-    }catch(e2){}
+    try{ const cached = JSON.parse(localStorage.getItem(MUSICAS_COMPRADAS_CACHE) || 'null'); if(cached && Array.isArray(cached)) lista = cached; }catch(e2){}
   }
-
   const vis = musicasVisiveis();
   lista.forEach(m => {
     if(!vis.has(m.id)) return;
@@ -1185,11 +1152,6 @@ async function loadMusicasCompradas(){
   });
   save();
   metaCache.clear();
-}
-
-function jogadorTemMusica(id){
-  if(!id) return false;
-  return musicasVisiveis().has(id);
 }
 
 /* ================= pitch → MIDI ================= */
@@ -1246,21 +1208,14 @@ function extractNotes(tune){
   });
   return { events, total: beat, targets: events.filter(e => e.midi != null) };
 }
-
 function getTempo(tune){
   const t = tune && tune.metaText && tune.metaText.tempo;
   if(t){
-    if(typeof t.bpm === 'number' && t.bpm > 0){
-      const q = (t.duration && t.duration[0]) || 0.25;
-      return { bpm: t.bpm, q };
-    }
-    if(typeof t.qpm === 'number' && t.qpm > 0){
-      return { bpm: t.qpm, q: 0.25 };
-    }
+    if(typeof t.bpm === 'number' && t.bpm > 0){ const q = (t.duration && t.duration[0]) || 0.25; return { bpm: t.bpm, q }; }
+    if(typeof t.qpm === 'number' && t.qpm > 0) return { bpm: t.qpm, q: 0.25 };
   }
   return { bpm: 100, q: 0.25 };
 }
-
 const metaCache = new Map();
 function songMeta(s){
   if(metaCache.has(s.id)) return metaCache.get(s.id);
@@ -1292,26 +1247,15 @@ function ensureAudio(){
     AC = new Ctx();
     master = AC.createGain();
     master.gain.value = S.settings.sound ? 0.9 : 0;
-    try{
-      const comp = AC.createDynamicsCompressor();
-      master.connect(comp);
-      comp.connect(AC.destination);
-    }catch(e){
-      master.connect(AC.destination);
-    }
+    try{ const comp = AC.createDynamicsCompressor(); master.connect(comp); comp.connect(AC.destination); }
+    catch(e){ master.connect(AC.destination); }
   }
   if(AC.state === 'suspended') AC.resume().catch(() => {});
   return AC;
 }
 function unlockAudio(){
-  const ctx = ensureAudio();
-  if(!ctx || !master) return;
-  try{
-    const o = ctx.createOscillator(), g = ctx.createGain();
-    g.gain.value = 0.0001;
-    o.connect(g); g.connect(master);
-    o.start(); o.stop(ctx.currentTime + 0.02);
-  }catch(e){}
+  const ctx = ensureAudio(); if(!ctx || !master) return;
+  try{ const o = ctx.createOscillator(), g = ctx.createGain(); g.gain.value = 0.0001; o.connect(g); g.connect(master); o.start(); o.stop(ctx.currentTime + 0.02); }catch(e){}
 }
 function tone(o){
   const ctx = ensureAudio(); if(!ctx) return;
@@ -1322,9 +1266,7 @@ function tone(o){
   const dest = o.dest || master;
   const g = ctx.createGain();
   const flt = ctx.createBiquadFilter();
-  flt.type = 'lowpass';
-  flt.frequency.value = Math.min(7000, f * 7);
-  flt.Q.value = 0.4;
+  flt.type = 'lowpass'; flt.frequency.value = Math.min(7000, f * 7); flt.Q.value = 0.4;
   g.connect(flt); flt.connect(dest);
   const o1 = ctx.createOscillator(); o1.type = o.type || 'triangle'; o1.frequency.value = f; o1.connect(g);
   const o2 = ctx.createOscillator(); o2.type = 'sine'; o2.frequency.value = f * 2;
@@ -1336,41 +1278,19 @@ function tone(o){
   o1.stop(when + dur + 0.06); o2.stop(when + dur + 0.06);
 }
 const instNote = (midi, dur, when, vel, dest) => tone({ midi, dur, when, vel, type: 'triangle', dest });
-
 const sfxClick   = () => tone({ freq: 950, dur: 0.05, vel: 0.12, type: 'sine' });
 const sfxWrong   = () => { tone({ freq: 130, dur: 0.22, vel: 0.28, type: 'square' }); tone({ freq: 139, dur: 0.22, vel: 0.2, type: 'square' }); };
-const sfxFanfare = () => {
-  const c = ensureAudio(); if(!c) return;
-  [72,76,79,84].forEach((m,i) => instNote(m, 0.5, c.currentTime + 0.12 * i, 0.7));
-  [72,76,79,84].forEach(m => instNote(m, 1.1, c.currentTime + 0.55, 0.45));
-  tone({ freq: 2637, dur: 0.6, vel: 0.12, type: 'sine', when: c.currentTime + 0.55 });
-};
-const sfxFail = () => {
-  const c = ensureAudio(); if(!c) return;
-  tone({ midi: 64, dur: 0.3, vel: 0.4 });
-  tone({ midi: 58, dur: 0.5, vel: 0.4, when: c.currentTime + 0.25 });
-};
-function setSound(on){
-  S.settings.sound = on; save(); ensureAudio();
-  if(master && AC) master.gain.setTargetAtTime(on ? 0.9 : 0, AC.currentTime, 0.02);
-  updateSoundBtn();
-}
-function updateSoundBtn(){
-  const b = $('#soundBtn');
-  b.innerHTML = S.settings.sound ? I.volume : I.mute;
-  b.setAttribute('aria-pressed', String(S.settings.sound));
-}
+const sfxFanfare = () => { const c = ensureAudio(); if(!c) return; [72,76,79,84].forEach((m,i) => instNote(m, 0.5, c.currentTime + 0.12 * i, 0.7)); [72,76,79,84].forEach(m => instNote(m, 1.1, c.currentTime + 0.55, 0.45)); tone({ freq: 2637, dur: 0.6, vel: 0.12, type: 'sine', when: c.currentTime + 0.55 }); };
+const sfxFail = () => { const c = ensureAudio(); if(!c) return; tone({ midi: 64, dur: 0.3, vel: 0.4 }); tone({ midi: 58, dur: 0.5, vel: 0.4, when: c.currentTime + 0.25 }); };
+function setSound(on){ S.settings.sound = on; save(); ensureAudio(); if(master && AC) master.gain.setTargetAtTime(on ? 0.9 : 0, AC.currentTime, 0.02); updateSoundBtn(); }
+function updateSoundBtn(){ const b = $('#soundBtn'); b.innerHTML = S.settings.sound ? I.volume : I.mute; b.setAttribute('aria-pressed', String(S.settings.sound)); }
 
 /* ================= playback ================= */
 const PB = { token: 0, raf: 0, gain: null, session: null, playing: false, lastEv: null };
-
 function setPlayCursor(sess, ev, on){
   if(!ev) return;
   ev.elems.forEach(e => e.classList.toggle('hl-play', on));
-  if(sess.keys && ev.midi != null){
-    const k = sess.keys.get(ev.midi);
-    if(k) k.classList.toggle('playing', on);
-  }
+  if(sess.keys && ev.midi != null){ const k = sess.keys.get(ev.midi); if(k) k.classList.toggle('playing', on); }
 }
 function startPlayback(sess){
   stopPlayback();
@@ -1387,17 +1307,10 @@ function startPlayback(sess){
   const step = () => {
     if(token !== PB.token) return;
     const now = ctx.currentTime;
-    if(now >= end){
-      const cb = sess.onEnd;
-      stopPlayback();
-      if(cb) cb();
-      return;
-    }
+    if(now >= end){ const cb = sess.onEnd; stopPlayback(); if(cb) cb(); return; }
     const b = (now - t0) / sess.spw;
     let cur = null;
-    for(const ev of sess.events){
-      if(ev.midi != null && b >= ev.start && b < ev.start + ev.dur){ cur = ev; break; }
-    }
+    for(const ev of sess.events){ if(ev.midi != null && b >= ev.start && b < ev.start + ev.dur){ cur = ev; break; } }
     if(cur !== PB.lastEv){
       setPlayCursor(sess, PB.lastEv, false);
       setPlayCursor(sess, cur, true);
@@ -1416,10 +1329,7 @@ function stopPlayback(){
   PB.lastEv = null;
   if(PB.gain){
     const g = PB.gain;
-    try{
-      g.gain.setTargetAtTime(0.0001, AC.currentTime, 0.02);
-      setTimeout(() => { try{ g.disconnect(); }catch(e){} }, 300);
-    }catch(e){}
+    try{ g.gain.setTargetAtTime(0.0001, AC.currentTime, 0.02); setTimeout(() => { try{ g.disconnect(); }catch(e){} }, 300); }catch(e){}
     PB.gain = null;
   }
   PB.playing = false;
@@ -1439,13 +1349,11 @@ function ensureVisible(paper, ev){
   const e = ev.elems && ev.elems[0];
   if(!e || !paper) return;
   const r = e.getBoundingClientRect(), p = paper.getBoundingClientRect();
-  if(r.bottom > p.bottom - 16 || r.top < p.top + 8)
-    paper.scrollTop += (r.top - p.top) - p.height * 0.35;
+  if(r.bottom > p.bottom - 16 || r.top < p.top + 8) paper.scrollTop += (r.top - p.top) - p.height * 0.35;
 }
 
 /* ================= metrônomo ================= */
 const MET = { on:false, light:false, raf:0, nextTime:0, beat:0, beatsPerBar:4, bpm:100, meterDuration:0.25, _startAC:0, token:0 };
-
 function metSetButton(){
   const bSound = $('#metronomeBtn');
   if(bSound){
@@ -1491,11 +1399,8 @@ function metStart(){
 }
 function metStop(){
   MET.token = (MET.token || 0) + 1;
-  MET.on = false;
-  MET.light = false;
-  cancelAnimationFrame(MET.raf);
-  MET.raf = 0;
-  MET._token = 0;
+  MET.on = false; MET.light = false;
+  cancelAnimationFrame(MET.raf); MET.raf = 0; MET._token = 0;
   const host = $('#metLamps');
   if(host) [...host.children].forEach(el => el.classList.remove('on'));
 }
@@ -1530,8 +1435,7 @@ function metLoop(token){
   MET.raf = requestAnimationFrame(() => metLoop(token));
 }
 function metRestart(){
-  cancelAnimationFrame(MET.raf);
-  MET.raf = 0;
+  cancelAnimationFrame(MET.raf); MET.raf = 0;
   MET.token = (MET.token || 0) + 1;
   MET.on    = !!S.settings.metronome;
   MET.light = !!S.settings.metLight;
@@ -1546,19 +1450,16 @@ function metToggleLight(){ S.settings.metLight   = !S.settings.metLight;   save(
 const MUSIC_DIR = 'musicas/';
 let remoteLoaded = false;
 function absUrl(path){ try{ return new URL(path, document.baseURI).href; }catch(e){ return path; } }
-
 async function loadRemoteSongs(){
   if(remoteLoaded) return;
   remoteLoaded = true;
   const CACHE_KEY = 'clave.songsCache.v4';
   const CACHE_TTL_MS = 1000 * 60 * 60 * 12;
-
   try{
     const raw = localStorage.getItem(CACHE_KEY);
     if(raw){
       const cached = JSON.parse(raw);
-      if(cached && Array.isArray(cached.songs) && cached.songs.length
-         && (Date.now() - (cached.savedAt || 0)) < CACHE_TTL_MS){
+      if(cached && Array.isArray(cached.songs) && cached.songs.length && (Date.now() - (cached.savedAt || 0)) < CACHE_TTL_MS){
         SEEDS.length = 0;
         cached.songs.forEach(s => SEEDS.push(s));
         metaCache.clear();
@@ -1566,28 +1467,24 @@ async function loadRemoteSongs(){
       }
     }
   }catch(e){}
-
   try{
     const res = await fetch(absUrl(MUSIC_DIR + 'manifest.json'), { cache: 'no-cache' });
     if(!res.ok) throw new Error('manifest ' + res.status);
     const man = await res.json();
     const list = Array.isArray(man.songs) ? man.songs : (Array.isArray(man) ? man : []);
     let idx = 0, added = 0;
-
     for(const item of list){
       const file = typeof item === 'string' ? item : item.file;
       if(!file) continue;
       const diff = typeof item === 'object' && item.difficulty ? +item.difficulty : 1;
       const id = 'r' + slug(file.replace(/\.abc$/i, ''));
       if(SEEDS.some(s => s.id === id)) continue;
-
       try{
         const r = await fetch(absUrl(MUSIC_DIR + file), { cache: 'no-cache' });
         if(!r.ok) continue;
         const abc = await r.text();
         if(!abc.trim()) continue;
         const tM = abc.match(/^T:\s*(.+)$/m), cM = abc.match(/^C:\s*(.+)$/m);
-
         SEEDS.push({
           id, seed: true, order: 1000 + idx++,
           difficulty: Math.min(5, Math.max(1, diff || 1)),
@@ -1595,40 +1492,30 @@ async function loadRemoteSongs(){
           composer: (typeof item === 'object' && item.composer) || (cM ? cM[1].trim() : '') || 'Autor desconhecido',
           abc
         });
-
         if(typeof item === 'object' && item.defaultRange && item.defaultRange.from && item.defaultRange.to){
           const dr = item.defaultRange;
           if(!S.ranges) S.ranges = {};
           const atual = S.ranges[id];
           const manifestMudou = !atual || atual.from !== dr.from || atual.to !== dr.to;
-          if(manifestMudou && !(atual && atual._custom)){
-            S.ranges[id] = { from: dr.from, to: dr.to, _fromManifest: true };
-            save();
-          }
+          if(manifestMudou && !(atual && atual._custom)){ S.ranges[id] = { from: dr.from, to: dr.to, _fromManifest: true }; save(); }
         }
         added++;
       }catch(e){}
     }
-
     if(added){
       metaCache.clear();
-      try{
-        localStorage.setItem(CACHE_KEY, JSON.stringify({ songs: SEEDS, savedAt: Date.now() }));
-      }catch(e){}
+      try{ localStorage.setItem(CACHE_KEY, JSON.stringify({ songs: SEEDS, savedAt: Date.now() })); }catch(e){}
       save();
     }
-  }catch(e){
-    console.warn('Músicas remotas não carregadas:', e);
-  }
+  }catch(e){ console.warn('Músicas remotas não carregadas:', e); }
 }
 
-/* ================= teclado virtual ================= */
+/* ================= teclado ================= */
 const PIANO_KEYS = ['KeyA','KeyW','KeyS','KeyE','KeyD','KeyF','KeyT','KeyG','KeyY','KeyH','KeyU','KeyJ',
                     'KeyK','KeyO','KeyL','KeyP','Semicolon','Quote',
                     'Digit1','Digit2','Digit3','Digit4','Digit5','Digit6','Digit7'];
 const PIANO_LABELS = { KeyA:'A', KeyW:'W', KeyS:'S', KeyE:'E', KeyD:'D', KeyF:'F', KeyT:'T', KeyG:'G', KeyY:'Y', KeyH:'H', KeyU:'U', KeyJ:'J',
   KeyK:'K', KeyO:'O', KeyL:'L', KeyP:'P', Semicolon:';', Quote:"'", Digit1:'1', Digit2:'2', Digit3:'3', Digit4:'4', Digit5:'5', Digit6:'6', Digit7:'7' };
-
 function buildKeyMap(notes){
   const map = {}, rev = {};
   for(let i = 0; i < notes.length && i < PIANO_KEYS.length; i++){
@@ -1643,11 +1530,8 @@ function buildKeyMap(notes){
 /* ================= lição ================= */
 let L = null, currentView = 'trilha', hintTimer = 0;
 let KEYMAP = { map: {}, rev: {}, labels: {} };
-
 function initLesson(song){
-  stopPlayback();
-  metStop();
-
+  stopPlayback(); metStop();
   let bpm = 100, beatsPerBar = 4;
   try{
     const tune = (window.ABCJS && ABCJS.parseOnly) ? ABCJS.parseOnly(song.abc)[0] : null;
@@ -1656,48 +1540,23 @@ function initLesson(song){
     const mm = song.abc.match(/^M:\s*(\d+)\/(\d+)/m);
     if(mm) beatsPerBar = parseInt(mm[1], 10) || 4;
   }catch(e){}
-
-  L = {
-    song, index: 0, hearts: 5, mistakes: 0, combo: 0, maxCombo: 0,
-    correct: 0, startedAt: Date.now(), finished: false,
-    events: [], targets: [], total: 0, spw: 2.4,
-    keys: new Map(), tempo: { bpm, q: 0.25 }, beatsPerBar, hits: [], anchorAC: 0
-  };
-
+  L = { song, index: 0, hearts: 5, mistakes: 0, combo: 0, maxCombo: 0, correct: 0, startedAt: Date.now(), finished: false, events: [], targets: [], total: 0, spw: 2.4, keys: new Map(), tempo: { bpm, q: 0.25 }, beatsPerBar, hits: [], anchorAC: 0 };
   const w = worldOf(song.difficulty);
   $('#lessonUnit').textContent = w.emblem + ' ' + w.name + ' • ' + DIFF_LABEL[song.difficulty];
   $('#lessonTitle').textContent = song.title;
   $('#lessonTip').style.display = S.settings.tipSeen ? 'none' : 'flex';
   setSwitch($('#namesSwitch'),  S.settings.names);
   setSwitch($('#assistSwitch'), S.settings.assist);
-
   if(!S.ranges) S.ranges = {};
-  if(!S.ranges[song.id]){
-    S.ranges[song.id] = { from: 'C,', to: 'c' };
-    save();
-  }
-
-  // Render imediato (rápido)
+  if(!S.ranges[song.id]){ S.ranges[song.id] = { from: 'C,', to: 'c' }; save(); }
   renderSheet();
   buildPianoFromRange(song);
   updatePlayUI();
   metSetButton();
-
-  // Re-render após layout estabilizar (corrige corte antes de tocar)
-  requestAnimationFrame(() => {
-    if(!L || L.finished) return;
-    renderSheet();
-    buildPianoFromRange(L.song);
-  });
-  setTimeout(() => {
-    if(!L || L.finished) return;
-    renderSheet();
-    buildPianoFromRange(L.song);
-  }, 120);
-
+  requestAnimationFrame(() => { if(!L || L.finished) return; renderSheet(); buildPianoFromRange(L.song); });
+  setTimeout(() => { if(!L || L.finished) return; renderSheet(); buildPianoFromRange(L.song); }, 120);
   if(S.settings.metronome || S.settings.metLight) metStart();
 }
-
 function midiFromAbc(abc){
   const m = /^([A-Ga-g])([#b]?)(,+|'+)?$/.exec(abc);
   if(!m) return null;
@@ -1714,7 +1573,6 @@ function midiFromAbc(abc){
   }
   return (octv + 1) * 12 + diatonic + acc;
 }
-
 function buildPianoFromRange(song){
   let r = S.ranges[song.id];
   if(!r || !r.from || !r.to) r = { from: 'C,', to: 'c' };
@@ -1728,7 +1586,6 @@ function buildPianoFromRange(song){
   KEYMAP = buildKeyMap(notes);
   buildPiano(notes);
 }
-
 function renderSheet(){
   const paper = $('#paper');
   if(!window.ABCJS){ paper.innerHTML = '<div class="paper-error">⚠️ abcjs não carregou.</div>'; return; }
@@ -1755,7 +1612,6 @@ function renderSheet(){
   L.spw = 60 / (tp.bpm * tp.q);
   if(!L.targets.length) paper.innerHTML += '<div class="paper-error">Nenhuma nota.</div>';
 }
-
 function buildPiano(notes){
   const piano = $('#piano');
   piano.innerHTML = '';
@@ -1804,7 +1660,6 @@ function buildPiano(notes){
   applyPracticeHighlight();
   updateLessonUI();
 }
-
 function ensureKeyVisible(k){
   const wrap = k.closest('.piano-scroll') || $('#pianoScroll');
   if(!wrap) return;
@@ -1816,18 +1671,12 @@ function applyPracticeHighlight(){
   if(!L) return;
   L.targets.forEach((t,i) => {
     const cls = i < L.index ? 'hl-done' : (i === L.index && !L.finished ? 'hl-current' : '');
-    t.elems.forEach(e => {
-      e.classList.remove('hl-done', 'hl-current');
-      if(cls) e.classList.add(cls);
-    });
+    t.elems.forEach(e => { e.classList.remove('hl-done', 'hl-current'); if(cls) e.classList.add(cls); });
   });
   L.keys.forEach(k => k.classList.remove('expect'));
   const t = L.targets[L.index];
   if(t && !L.finished){
-    if(S.settings.assist){
-      const k = L.keys.get(t.midi);
-      if(k){ k.classList.add('expect'); ensureKeyVisible(k); }
-    }
+    if(S.settings.assist){ const k = L.keys.get(t.midi); if(k){ k.classList.add('expect'); ensureKeyVisible(k); } }
     ensureVisible($('#paper'), t);
   }
 }
@@ -1841,55 +1690,34 @@ function updateLessonUI(){
   if(L.combo >= 2){ cc.style.display = 'inline-flex'; cc.innerHTML = I.flame + ' ×' + L.combo; }
   else cc.style.display = 'none';
   const t = L.targets[L.index];
-  $('#hintChip').innerHTML = L.finished
-    ? '🎉'
-    : (S.settings.assist && t ? NOTE_PT[((t.midi%12)+12)%12] : '?');
+  $('#hintChip').innerHTML = L.finished ? '🎉' : (S.settings.assist && t ? NOTE_PT[((t.midi%12)+12)%12] : '?');
   const hm = $('#hintMsg');
   if(!hm.classList.contains('err')) hm.textContent = L.finished ? 'Concluída!' : baseHint();
 }
 function flashHint(msg){
   const m = $('#hintMsg');
-  m.textContent = msg;
-  m.classList.add('err');
+  m.textContent = msg; m.classList.add('err');
   clearTimeout(hintTimer);
-  hintTimer = setTimeout(() => {
-    m.classList.remove('err');
-    m.textContent = L && !L.finished ? baseHint() : 'Concluída!';
-  }, 1500);
+  hintTimer = setTimeout(() => { m.classList.remove('err'); m.textContent = L && !L.finished ? baseHint() : 'Concluída!'; }, 1500);
 }
 function setSwitch(btn, on){ btn.setAttribute('aria-checked', String(on)); }
 
-/* ================= XP e progresso (aplicado ao jogador atual) ================= */
+/* ================= XP e progresso ================= */
 function addXp(n){
   touchToday();
   marcarDiaEstudado();
   const j = jogadorAtual();
-  if(j.tipo === 'alunoSessao'){
-    j.dados.xp = (j.dados.xp || 0) + n;
-    j.dados.ultimoAcesso = todayStr();
-    scheduleDbSave('xp aluno ' + j.dados.nome + ' +' + n);
-  } else if(j.tipo === 'conta'){
-    j.dados.xp = (j.dados.xp || 0) + n;
-    j.dados.ultimoAcesso = todayStr();
-    scheduleDbSave('xp conta ' + j.dados.nome + ' +' + n);
-  } else {
-    S.xp += n; S.today.xp += n;
-  }
+  if(j.tipo === 'alunoSessao'){ j.dados.xp = (j.dados.xp || 0) + n; j.dados.ultimoAcesso = todayStr(); scheduleDbSave('xp aluno ' + j.dados.nome + ' +' + n); }
+  else if(j.tipo === 'conta'){ j.dados.xp = (j.dados.xp || 0) + n; j.dados.ultimoAcesso = todayStr(); scheduleDbSave('xp conta ' + j.dados.nome + ' +' + n); }
+  else { S.xp += n; S.today.xp += n; }
   save();
   updateHUD();
 }
 function marcarDiaEstudado(){
   const d = todayStr();
   const j = jogadorAtual();
-  if(j.tipo === 'alunoSessao'){
-    j.dados.diasEstudados = j.dados.diasEstudados || {};
-    j.dados.diasEstudados[d] = true;
-    scheduleDbSave('dia aluno ' + j.dados.nome);
-  } else if(j.tipo === 'conta'){
-    j.dados.diasEstudados = j.dados.diasEstudados || {};
-    j.dados.diasEstudados[d] = true;
-    scheduleDbSave('dia conta ' + j.dados.nome);
-  }
+  if(j.tipo === 'alunoSessao'){ j.dados.diasEstudados = j.dados.diasEstudados || {}; j.dados.diasEstudados[d] = true; scheduleDbSave('dia aluno ' + j.dados.nome); }
+  else if(j.tipo === 'conta'){ j.dados.diasEstudados = j.dados.diasEstudados || {}; j.dados.diasEstudados[d] = true; scheduleDbSave('dia conta ' + j.dados.nome); }
   S.diasEstudados = S.diasEstudados || {};
   S.diasEstudados[d] = true;
   save();
@@ -1899,19 +1727,12 @@ function salvarProgressoMusica(musicaId, stars, acc){
   if(j.tipo === 'alunoSessao' || j.tipo === 'conta'){
     j.dados.musicasConcluidas = j.dados.musicasConcluidas || {};
     const ant = j.dados.musicasConcluidas[musicaId];
-    j.dados.musicasConcluidas[musicaId] = {
-      stars: Math.max(stars, (ant && ant.stars) || 0),
-      acc:   Math.max(acc,   (ant && ant.acc)   || 0)
-    };
+    j.dados.musicasConcluidas[musicaId] = { stars: Math.max(stars, (ant && ant.stars) || 0), acc: Math.max(acc, (ant && ant.acc) || 0) };
     j.dados.ofensiva = effStreak();
     scheduleDbSave('progresso ' + musicaId + ' ' + j.dados.nome);
   }
   const prev = S.completed[musicaId];
-  S.completed[musicaId] = {
-    stars: Math.max(stars, (prev && prev.stars) || 0),
-    acc:   Math.max(acc,   (prev && prev.acc)   || 0),
-    at: Date.now()
-  };
+  S.completed[musicaId] = { stars: Math.max(stars, (prev && prev.stars) || 0), acc: Math.max(acc, (prev && prev.acc) || 0), at: Date.now() };
   save();
 }
 
@@ -1968,14 +1789,9 @@ function evaluate(midi, keyEl){
 }
 function toggleListen(){
   if(!L) return;
-  if(PB.playing && PB.session && PB.session.owner === 'lesson'){
-    stopPlayback(); applyPracticeHighlight(); return;
-  }
+  if(PB.playing && PB.session && PB.session.owner === 'lesson'){ stopPlayback(); applyPracticeHighlight(); return; }
   if(!L.events.length) return;
-  startPlayback({
-    owner: 'lesson', events: L.events, total: L.total, spw: L.spw,
-    paper: $('#paper'), keys: L.keys, onEnd: () => applyPracticeHighlight()
-  });
+  startPlayback({ owner: 'lesson', events: L.events, total: L.total, spw: L.spw, paper: $('#paper'), keys: L.keys, onEnd: () => applyPracticeHighlight() });
 }
 function finishLesson(){
   L.finished = true;
@@ -1991,16 +1807,10 @@ function finishLesson(){
   const gems = 5 + (perfect ? 3 : 0);
   S.gems += gems;
   const d = todayStr();
-  if(S.lastDay !== d){
-    const diff = S.lastDay ? daysBetween(S.lastDay, d) : 999;
-    S.streak = diff === 1 ? S.streak + 1 : 1;
-    S.lastDay = d;
-  }
+  if(S.lastDay !== d){ const diff = S.lastDay ? daysBetween(S.lastDay, d) : 999; S.streak = diff === 1 ? S.streak + 1 : 1; S.lastDay = d; }
   salvarProgressoMusica(L.song.id, stars, acc);
   save(); updateHUD(); sfxFanfare(); confettiBurst();
-
-  // === Precisão rítmica (metrônomo) ===
-  const TOL = 0.200; // 200 ms
+  const TOL = 0.200;
   const medirRitmo = !!MET._startAC && L.hits.some(h => h.err != null);
   let accRitmo = null;
   if(medirRitmo){
@@ -2013,7 +1823,6 @@ function finishLesson(){
     });
     accRitmo = total > 0 ? Math.round(100 * ok / total) : null;
   }
-
   const next = withStatus().find(s => !s.done);
   const maxCombo = L.maxCombo, song = L.song;
   const statsHtml = '<div class="stats-grid' + (accRitmo != null ? ' five' : '') + '">'
@@ -2022,7 +1831,6 @@ function finishLesson(){
     + (accRitmo != null ? '<div class="stat"><b>' + accRitmo + '%</b><span>Ritmo</span></div>' : '')
     + '<div class="stat"><b>×' + maxCombo + '</b><span>Combo</span></div>'
     + '<div class="stat"><b>' + fmtTime(secs) + '</b><span>Tempo</span></div></div>';
-
   openModal(
     '<div class="mascot-wrap mascot">' + mascotSVG('win') + '</div>'
     + '<h3 class="modal-title">' + (next ? 'Música concluída!' : 'Trilha completa! 🏆') + '</h3>'
@@ -2033,9 +1841,7 @@ function finishLesson(){
     + statsHtml
     + '<div class="reward-line"><span class="icw c-gem">' + I.gem + '</span> +' + gems + ' gemas' + (perfect ? ' &nbsp;•&nbsp; Perfeito! +30 XP' : '') + '</div>'
     + '<div class="modal-actions-col">'
-    + (next
-        ? '<button class="btn gold big" id="mNext">Próxima: ' + esc(next.title) + ' ' + I.arrowR + '</button>'
-        : '<button class="btn gold big" id="mTrail">' + I.route + ' Voltar à trilha</button>')
+    + (next ? '<button class="btn gold big" id="mNext">Próxima: ' + esc(next.title) + ' ' + I.arrowR + '</button>' : '<button class="btn gold big" id="mTrail">' + I.route + ' Voltar à trilha</button>')
     + '<button class="btn ghost" id="mTrail">' + I.route + ' Voltar à trilha</button></div>',
     { onClose: () => { location.hash = '#/trilha'; } }
   );
@@ -2071,48 +1877,18 @@ function requestExit(){
     const st = $('#mStay'), qt = $('#mQuit');
     if(st) st.onclick = () => closeModal();
     if(qt) qt.onclick = () => { closeModal(true); location.hash = '#/trilha'; };
-  } else {
-    location.hash = '#/trilha';
-  }
+  } else { location.hash = '#/trilha'; }
 }
 
 /* ================= trilha ================= */
 function worldSvgDecor(worldId){
-  if(worldId === 'forest') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none">'
-    + '<path d="M0 180 Q60 150 120 170 T260 160 T400 175 V200 H0 Z" fill="rgba(15,60,35,.6)"/>'
-    + '<circle cx="40" cy="40" r="2" fill="#a8e6b8" opacity=".7"/><circle cx="120" cy="60" r="1.5" fill="#c8ffd8" opacity=".6"/>'
-    + '<circle cx="300" cy="50" r="2" fill="#a8e6b8" opacity=".7"/><circle cx="360" cy="100" r="1.5" fill="#c8ffd8" opacity=".6"/>'
-    + '</svg>';
-  if(worldId === 'farm') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none">'
-    + '<path d="M0 175 Q100 140 200 160 T400 155 V200 H0 Z" fill="rgba(80,50,20,.55)"/>'
-    + '<circle cx="50" cy="55" r="20" fill="rgba(255,210,120,.25)"/>'
-    + '<path d="M0 185 Q50 170 100 180 T200 175 T300 182 T400 178" stroke="rgba(180,140,70,.35)" stroke-width="2" fill="none"/>'
-    + '<circle cx="120" cy="90" r="1.8" fill="#ffd27a" opacity=".7"/>'
-    + '<circle cx="280" cy="70" r="1.5" fill="#ffd27a" opacity=".6"/>'
-    + '<circle cx="350" cy="120" r="1.5" fill="#ffd27a" opacity=".6"/>'
-    + '</svg>';
-  if(worldId === 'city') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none">'
-    + '<rect x="20" y="140" width="26" height="60" fill="rgba(80,30,140,.5)"/><rect x="60" y="120" width="34" height="80" fill="rgba(80,30,140,.55)"/>'
-    + '<rect x="110" y="150" width="20" height="50" fill="rgba(80,30,140,.5)"/><rect x="270" y="130" width="30" height="70" fill="rgba(80,30,140,.55)"/>'
-    + '<rect x="315" y="100" width="40" height="100" fill="rgba(80,30,140,.5)"/>'
-    + '<circle cx="130" cy="40" r="1.5" fill="#f0a3ff" opacity=".7"/><circle cx="200" cy="30" r="1.5" fill="#a3d5ff" opacity=".7"/>'
-    + '<circle cx="330" cy="60" r="1.5" fill="#f0a3ff" opacity=".6"/></svg>';
-  if(worldId === 'space') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none">'
-    + '<circle cx="60" cy="40" r="1.5" fill="#fff"/><circle cx="150" cy="90" r="1.2" fill="#fff"/>'
-    + '<circle cx="230" cy="30" r="1.8" fill="#c8d8ff"/><circle cx="310" cy="80" r="1.3" fill="#fff"/>'
-    + '<circle cx="370" cy="40" r="1" fill="#fff"/><circle cx="90" cy="140" r="1" fill="#fff"/>'
-    + '<circle cx="340" cy="150" r="1.4" fill="#c8d8ff"/>'
-    + '<ellipse cx="200" cy="180" rx="80" ry="10" fill="rgba(120,80,200,.25)"/>'
-    + '</svg>';
-  if(worldId === 'volcano') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none">'
-    + '<path d="M0 180 L80 90 L140 130 L200 60 L260 130 L320 90 L400 180 Z" fill="rgba(120,30,10,.55)"/>'
-    + '<circle cx="70" cy="40" r="2" fill="#ff8c4d" opacity=".7"/><circle cx="200" cy="20" r="1.5" fill="#ffb37a" opacity=".7"/>'
-    + '<circle cx="320" cy="40" r="2" fill="#ff8c4d" opacity=".6"/>'
-    + '<path d="M0 190 Q100 170 200 185 T400 180" stroke="rgba(255,120,60,.35)" stroke-width="2" fill="none"/>'
-    + '</svg>';
+  if(worldId === 'forest') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none"><path d="M0 180 Q60 150 120 170 T260 160 T400 175 V200 H0 Z" fill="rgba(15,60,35,.6)"/><circle cx="40" cy="40" r="2" fill="#a8e6b8" opacity=".7"/><circle cx="120" cy="60" r="1.5" fill="#c8ffd8" opacity=".6"/><circle cx="300" cy="50" r="2" fill="#a8e6b8" opacity=".7"/><circle cx="360" cy="100" r="1.5" fill="#c8ffd8" opacity=".6"/></svg>';
+  if(worldId === 'farm') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none"><path d="M0 175 Q100 140 200 160 T400 155 V200 H0 Z" fill="rgba(80,50,20,.55)"/><circle cx="50" cy="55" r="20" fill="rgba(255,210,120,.25)"/><path d="M0 185 Q50 170 100 180 T200 175 T300 182 T400 178" stroke="rgba(180,140,70,.35)" stroke-width="2" fill="none"/><circle cx="120" cy="90" r="1.8" fill="#ffd27a" opacity=".7"/><circle cx="280" cy="70" r="1.5" fill="#ffd27a" opacity=".6"/><circle cx="350" cy="120" r="1.5" fill="#ffd27a" opacity=".6"/></svg>';
+  if(worldId === 'city') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none"><rect x="20" y="140" width="26" height="60" fill="rgba(80,30,140,.5)"/><rect x="60" y="120" width="34" height="80" fill="rgba(80,30,140,.55)"/><rect x="110" y="150" width="20" height="50" fill="rgba(80,30,140,.5)"/><rect x="270" y="130" width="30" height="70" fill="rgba(80,30,140,.55)"/><rect x="315" y="100" width="40" height="100" fill="rgba(80,30,140,.5)"/><circle cx="130" cy="40" r="1.5" fill="#f0a3ff" opacity=".7"/><circle cx="200" cy="30" r="1.5" fill="#a3d5ff" opacity=".7"/><circle cx="330" cy="60" r="1.5" fill="#f0a3ff" opacity=".6"/></svg>';
+  if(worldId === 'space') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none"><circle cx="60" cy="40" r="1.5" fill="#fff"/><circle cx="150" cy="90" r="1.2" fill="#fff"/><circle cx="230" cy="30" r="1.8" fill="#c8d8ff"/><circle cx="310" cy="80" r="1.3" fill="#fff"/><circle cx="370" cy="40" r="1" fill="#fff"/><circle cx="90" cy="140" r="1" fill="#fff"/><circle cx="340" cy="150" r="1.4" fill="#c8d8ff"/><ellipse cx="200" cy="180" rx="80" ry="10" fill="rgba(120,80,200,.25)"/></svg>';
+  if(worldId === 'volcano') return '<svg viewBox="0 0 400 200" preserveAspectRatio="none"><path d="M0 180 L80 90 L140 130 L200 60 L260 130 L320 90 L400 180 Z" fill="rgba(120,30,10,.55)"/><circle cx="70" cy="40" r="2" fill="#ff8c4d" opacity=".7"/><circle cx="200" cy="20" r="1.5" fill="#ffb37a" opacity=".7"/><circle cx="320" cy="40" r="2" fill="#ff8c4d" opacity=".6"/><path d="M0 190 Q100 170 200 185 T400 180" stroke="rgba(255,120,60,.35)" stroke-width="2" fill="none"/></svg>';
   return '';
 }
-
 function applyMinimized(){
   const list = withStatus();
   const currentSong = list.find(s => s.current);
@@ -2129,7 +1905,6 @@ function applyMinimized(){
     if(btn){ btn.textContent = isMin ? '+' : '−'; btn.title = isMin ? 'Expandir' : 'Minimizar'; }
   });
 }
-
 function renderTrilha(){
   const stack = $('#worldStack');
   stack.innerHTML = '';
@@ -2166,9 +1941,7 @@ function renderTrilha(){
       + '<div class="world-path"><svg class="world-svg" aria-hidden="true"></svg><div class="world-nodes">' + nodesHtml + '</div></div>';
     stack.appendChild(div);
   });
-  if(!WORLDS.some(w => byWorld[w.id].length)){
-    stack.innerHTML = '<div class="empty-state" style="margin-top:20px">Nenhuma música carregada. 🎵</div>';
-  }
+  if(!WORLDS.some(w => byWorld[w.id].length)) stack.innerHTML = '<div class="empty-state" style="margin-top:20px">Nenhuma música carregada. 🎵</div>';
   requestAnimationFrame(() => {
     document.querySelectorAll('#worldStack .world').forEach(worldEl => {
       const holderEl = worldEl.querySelector('.world-path');
@@ -2185,10 +1958,7 @@ function renderTrilha(){
         const x = r.left - wr.left + r.width/2;
         const y = r.top  - wr.top  + r.height/2;
         if(!prev) d = 'M' + x + ' ' + y;
-        else {
-          const my = (prev.y + y) / 2;
-          d += ' C ' + prev.x + ' ' + my + ', ' + x + ' ' + my + ', ' + x + ' ' + y;
-        }
+        else { const my = (prev.y + y) / 2; d += ' C ' + prev.x + ' ' + my + ', ' + x + ' ' + my + ', ' + x + ' ' + y; }
         prev = { x, y };
       });
       svg.innerHTML = '<path d="' + d + '" fill="none" stroke="rgba(255,255,255,.35)" stroke-width="4" stroke-linecap="round" stroke-dasharray="2 10"/>';
@@ -2197,7 +1967,6 @@ function renderTrilha(){
   renderSidebar();
   applyMinimized();
 }
-
 function renderSidebar(){
   const c = contaAtual();
   const al = alunoSessao();
@@ -2209,23 +1978,16 @@ function renderSidebar(){
   const tx = Math.min(S.today.xp || 0, goal);
   const C = 2 * Math.PI * 26;
   const off = C * (1 - tx / goal);
-
   const rankGlobal = Object.entries(DB.contasGlobais)
     .map(([id, cc]) => ({ id, nome: cc.nome || 'Anônimo', xp: cc.xp || 0, me: id === S.conta && !al }))
     .sort((a,b) => b.xp - a.xp)
     .slice(0, 10);
-
   const turma = turmaDoJogador();
   const rankTurma = turma
-    ? Object.values(DB.alunos)
-        .filter(a => a.turmaId === turma.id)
-        .map(a => ({ id: a.id, nome: a.nome, xp: a.xp || 0, me: S.alunoSessao === a.id }))
-        .sort((a,b) => b.xp - a.xp)
+    ? Object.values(DB.alunos).filter(a => a.turmaId === turma.id).map(a => ({ id: a.id, nome: a.nome, xp: a.xp || 0, me: S.alunoSessao === a.id })).sort((a,b) => b.xp - a.xp)
     : [];
-
   const nomeMostrado = al ? al.nome + ' (aluno)' : (c ? c.nome : 'Visitante');
   const subtitulo   = al ? 'Sessão do professor' : (c ? (c.pro ? 'Professor · Pro' : 'Usuário') : 'Visitante');
-
   $('#sidebar').innerHTML =
     '<div class="card profile-card"><div class="mascot">' + mascotSVG('side') + '</div>'
     + '<div class="profile-info"><b>' + esc(nomeMostrado) + '</b>'
@@ -2256,7 +2018,6 @@ function renderSidebar(){
         : '')
     + '<div class="card tip-card"><h4>💡 Dica</h4><p id="tipText">' + TIPS[tipIdx] + '</p>'
     + '<button class="btn ghost small" id="tipBtn">' + I.refresh + ' Outra dica</button></div>';
-
   const tb = $('#tipBtn');
   if(tb) tb.onclick = () => { tipIdx = (tipIdx + 1) % TIPS.length; $('#tipText').textContent = TIPS[tipIdx]; sfxClick(); };
 }
@@ -2286,9 +2047,7 @@ function renderBiblioteca(){
   const tab = ($('#libTab') && $('#libTab').value) || 'todas';
   const fd = $('#libDiff').value;
   const sort = $('#libSort').value;
-
   const vis = musicasVisiveis();
-
   let f = list.filter(s => {
     if(tab === 'compradas' && !vis.has(s.id)) return false;
     if(tab === 'trilha' && vis.has(s.id)) return false;
@@ -2296,17 +2055,14 @@ function renderBiblioteca(){
     if(q && !(s.title + ' ' + (s.composer || '')).toLowerCase().includes(q)) return false;
     return true;
   });
-
   const rank = s => s.current ? 0 : s.done ? 1 : 2;
   if(sort === 'diff-desc') f.sort((a,b) => b.difficulty - a.difficulty || a.idx - b.idx);
   else if(sort === 'title') f.sort((a,b) => a.title.localeCompare(b.title, 'pt'));
   else if(sort === 'status') f.sort((a,b) => rank(a) - rank(b) || a.idx - b.idx);
   else f.sort((a,b) => a.idx - b.idx);
-
   $('#songGrid').innerHTML = f.map(cardHtml).join('') || '<div class="empty-state">Nenhuma música. 🔍</div>';
   $('#libCount').textContent = f.length + ' de ' + list.length;
 }
-
 function deleteCustom(id){
   const s = S.custom.find(x => x.id === id);
   if(!s) return;
@@ -2346,12 +2102,15 @@ function abrirPreview(song, opts){
     { onClose: () => stopPlayback() }
   );
   injectIcons();
-
   const paper = document.getElementById(paperId);
+  if(!paper) return;
+  if(!window.ABCJS){
+    paper.innerHTML = '<div class="paper-error">⚠️ abcjs não carregou.</div>';
+    return;
+  }
   let tunes = null;
   let abc = song.abc;
   if(apenasAmostra){
-    // Corta o ABC nos primeiros 2 compassos por linha
     const linhas = abc.split('\n');
     const out = [];
     let contador = 0;
@@ -2375,39 +2134,28 @@ function abrirPreview(song, opts){
   }catch(err){
     paper.innerHTML = '<div class="paper-error">Erro: ' + esc(err.message) + '</div>';
   }
-
   const tune = tunes && tunes[0], ex = tune ? extractNotes(tune) : { events: [], total: 0 };
   const tp = tune ? getTempo(tune) : { bpm: 100, q: 0.25 };
   const spw = 60 / (tp.bpm * tp.q);
-
   const btnPlay = document.getElementById('pvPlay');
-  btnPlay.onclick = () => {
-    if(PB.playing && PB.session && PB.session.owner === 'preview'){
-      stopPlayback(); return;
-    }
-    startPlayback({
-      owner: 'preview',
-      events: ex.events,
-      total: ex.total,
-      spw,
-      paper,
-      keys: null,
-      onEnd: () => {}
-    });
+  if(btnPlay) btnPlay.onclick = () => {
+    if(PB.playing && PB.session && PB.session.owner === 'preview'){ stopPlayback(); return; }
+    startPlayback({ owner: 'preview', events: ex.events, total: ex.total, spw, paper, keys: null, onEnd: () => {} });
   };
-
-  document.getElementById('pvPraticar').onclick = () => {
-    stopPlayback(); closeModal(true); location.hash = '#/licao/' + song.id;
-  };
-  document.getElementById('pvClose').onclick = document.getElementById('pvFechar').onclick = () => { stopPlayback(); closeModal(); };
+  const pvPr = document.getElementById('pvPraticar');
+  if(pvPr) pvPr.onclick = () => { stopPlayback(); closeModal(true); location.hash = '#/licao/' + song.id; };
+  const pvC = document.getElementById('pvClose');
+  const pvF = document.getElementById('pvFechar');
+  if(pvC) pvC.onclick = () => { stopPlayback(); closeModal(); };
+  if(pvF) pvF.onclick = () => { stopPlayback(); closeModal(); };
 }
+
 /* ================= loja ================= */
 function renderLoja(){
   const grid = $('#lojaGrid');
   if(!grid) return;
   const ehProf = isProfessor();
   const minhasTurmas = ehProf ? DB.turmas.filter(t => t.professorId === S.conta) : [];
-
   grid.innerHTML = LOJA.map(item => {
     const comprada = jogadorTemMusica(item.id);
     const precoTxt = 'R$ ' + item.preco.toFixed(2).replace('.', ',');
@@ -2428,7 +2176,6 @@ function renderLoja(){
       + '</div></article>';
   }).join('');
   injectIcons();
-
   grid.onclick = e => {
     const b = e.target.closest('[data-loja-action]');
     if(!b) return;
@@ -2440,18 +2187,10 @@ function renderLoja(){
     else if(act === 'praticar') abrirPraticaLoja(item);
     else if(act === 'turma') abrirModalCompraTurma(item);
     else if(act === 'preview'){
-      // Prévia usa o mesmo formato de song que abrirPreview espera
-      abrirPreview({
-        id: item.id,
-        title: item.title,
-        composer: item.composer,
-        difficulty: item.difficulty || 1,
-        abc: item.abc
-      }, { amostra: true });
+      abrirPreview({ id: item.id, title: item.title, composer: item.composer, difficulty: item.difficulty || 1, abc: item.abc }, { amostra: true });
     }
   };
 }
-
 function abrirModalCompra(item){
   const c = contaAtual();
   if(!c){
@@ -2483,24 +2222,15 @@ function abrirModalCompra(item){
     + '</div>'
   );
   $('#mClose').onclick = $('#compraCancel').onclick = () => closeModal();
-
   const copyBtn = $('#pixLojaCopy');
-  if(copyBtn){
-    copyBtn.onclick = async () => {
-      try{
-        if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
-          await navigator.clipboard.writeText(PIX_KEY);
-        } else {
-          const ta = document.createElement('textarea');
-          ta.value = PIX_KEY; ta.style.position = 'fixed'; ta.style.opacity = '0';
-          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
-        }
-        toast('Chave PIX copiada! 📋', { type: 'success' });
-        sfxClick();
-      }catch(e){ toast('Copie manualmente.', { type: 'warn' }); }
-    };
-  }
-
+  if(copyBtn) copyBtn.onclick = async () => {
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) await navigator.clipboard.writeText(PIX_KEY);
+      else { const ta = document.createElement('textarea'); ta.value = PIX_KEY; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+      toast('Chave PIX copiada! 📋', { type: 'success' });
+      sfxClick();
+    }catch(e){ toast('Copie manualmente.', { type: 'warn' }); }
+  };
   $('#compraCheck').onclick = async () => {
     const btn = $('#compraCheck');
     btn.disabled = true;
@@ -2511,9 +2241,7 @@ function abrirModalCompra(item){
       const tem = (c2 && Array.isArray(c2.compras) && c2.compras.includes(item.id));
       if(tem){
         if(!c2.compras.includes(item.id)) c2.compras.push(item.id);
-        if(!S.custom.some(s => s.id === item.id)){
-          S.custom.push({ id: item.id, title: item.title, composer: item.composer, difficulty: 1, abc: item.abc, order: 500 + S.custom.length, seed: false, comprada: true });
-        }
+        if(!S.custom.some(s => s.id === item.id)) S.custom.push({ id: item.id, title: item.title, composer: item.composer, difficulty: 1, abc: item.abc, order: 500 + S.custom.length, seed: false, comprada: true });
         save();
         scheduleDbSave('compra ' + item.title);
         closeModal(true);
@@ -2531,21 +2259,15 @@ function abrirModalCompra(item){
     }
   };
 }
-
 function abrirModalCompraTurma(item){
   const c = contaAtual();
   if(!c || !isProfessor()){ toast('Só o professor Pro pode comprar para a turma.', { type: 'warn' }); return; }
   const minhasTurmas = DB.turmas.filter(t => t.professorId === S.conta);
   if(!minhasTurmas.length){ toast('Você não tem turmas.', { type: 'warn' }); return; }
-
   const turmaSel = minhasTurmas[0];
   const alunos = Object.values(DB.alunos).filter(a => a.turmaId === turmaSel.id);
-
   const turmaOpts = minhasTurmas.map(t => '<option value="' + t.id + '">' + esc(t.nome) + '</option>').join('');
-  const alunoChecks = alunos.map(a =>
-    '<label class="checkline"><input type="checkbox" class="aluno-chk" value="' + a.id + '"> ' + esc(a.nome) + '</label>'
-  ).join('') || '<div class="turma-empty">Nenhum aluno nesta turma.</div>';
-
+  const alunoChecks = alunos.map(a => '<label class="checkline"><input type="checkbox" class="aluno-chk" value="' + a.id + '"> ' + esc(a.nome) + '</label>').join('') || '<div class="turma-empty">Nenhum aluno nesta turma.</div>';
   openModal(
     '<div class="modal-head"><h3>' + esc(item.title) + '</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
     + '<p class="modal-sub" style="text-align:left">Escolha para quem liberar esta música.</p>'
@@ -2564,52 +2286,31 @@ function abrirModalCompraTurma(item){
     +   '<button class="btn ghost" id="ctCancel">Cancelar</button>'
     + '</div>'
   );
-
   $('#mClose').onclick = $('#ctCancel').onclick = () => closeModal();
-  $('#ctTodos').onclick = () => {
-    $$('#ctAlunos .aluno-chk').forEach(cb => cb.checked = true);
-  };
-  $('#ctLimpar').onclick = () => {
-    $$('#ctAlunos .aluno-chk').forEach(cb => cb.checked = false);
-  };
+  $('#ctTodos').onclick = () => { $$('#ctAlunos .aluno-chk').forEach(cb => cb.checked = true); };
+  $('#ctLimpar').onclick = () => { $$('#ctAlunos .aluno-chk').forEach(cb => cb.checked = false); };
   $('#ctTurma').onchange = () => {
     const t = minhasTurmas.find(x => x.id === $('#ctTurma').value);
     if(!t) return;
     const al = Object.values(DB.alunos).filter(a => a.turmaId === t.id);
-    $('#ctAlunos').innerHTML = al.map(a =>
-      '<label class="checkline"><input type="checkbox" class="aluno-chk" value="' + a.id + '"> ' + esc(a.nome) + '</label>'
-    ).join('') || '<div class="turma-empty">Nenhum aluno nesta turma.</div>';
+    $('#ctAlunos').innerHTML = al.map(a => '<label class="checkline"><input type="checkbox" class="aluno-chk" value="' + a.id + '"> ' + esc(a.nome) + '</label>').join('') || '<div class="turma-empty">Nenhum aluno nesta turma.</div>';
   };
-
   $('#ctOk').onclick = async () => {
     const turmaId = $('#ctTurma').value;
     const marcados = $$('#ctAlunos .aluno-chk:checked').map(cb => cb.value);
     if(!marcados.length){ toast('Marque ao menos um aluno.', { type: 'warn' }); return; }
     const turma = DB.turmas.find(t => t.id === turmaId);
     const todos = alunos.length === marcados.length;
-    DB.compras.push({
-      musicaId: item.id,
-      professorId: S.conta,
-      turmaId,
-      destino: todos ? 'todos' : 'alunos',
-      alunoIds: todos ? [] : marcados,
-      criadoEm: todayStr()
-    });
-    // Garante que a música exista no catálogo do app
-    if(!S.custom.some(s => s.id === item.id)){
-      S.custom.push({ id: item.id, title: item.title, composer: item.composer, difficulty: 1, abc: item.abc, order: 500 + S.custom.length, seed: false });
-    }
+    DB.compras.push({ musicaId: item.id, professorId: S.conta, turmaId, destino: todos ? 'todos' : 'alunos', alunoIds: todos ? [] : marcados, criadoEm: todayStr() });
+    if(!S.custom.some(s => s.id === item.id)) S.custom.push({ id: item.id, title: item.title, composer: item.composer, difficulty: 1, abc: item.abc, order: 500 + S.custom.length, seed: false });
     try{
       await dbSave('compra turma ' + item.title + ' → ' + turma.nome);
       closeModal(true);
       toast('Compra registrada para ' + (todos ? 'todos os alunos' : marcados.length + ' aluno(s)') + '! 🎉', { type: 'success' });
       renderLoja(); renderBiblioteca();
-    }catch(e){
-      toast('Erro: ' + e.message, { type: 'error' });
-    }
+    }catch(e){ toast('Erro: ' + e.message, { type: 'error' }); }
   };
 }
-
 function abrirPraticaLoja(item){
   if(!S.custom.some(s => s.id === item.id)){
     S.custom.push({ id: item.id, title: item.title, composer: item.composer, difficulty: 1, abc: item.abc, order: 500 + S.custom.length, seed: false });
@@ -2619,10 +2320,9 @@ function abrirPraticaLoja(item){
   location.hash = '#/licao/' + item.id;
 }
 
-/* ================= conta (usuário/professor) ================= */
+/* ================= conta ================= */
 function abrirModalConta(){
   const c = contaAtual();
-
   if(c){
     const turma = turmaDoJogador();
     openModal(
@@ -2644,30 +2344,16 @@ function abrirModalConta(){
     const btnPro = $('#virarPro');
     if(btnPro) btnPro.onclick = () => { closeModal(true); abrirModalPro(); };
     $('#contaSair').onclick = async () => {
-      try{
-        const { auth } = window.FirebaseService;
-        const { signOut } = window.FirebaseAuth;
-        await signOut(auth);
-      }catch(e){ console.warn('signOut:', e); }
-      S.conta = null;
-      S.alunoSessao = null;
-      S.xp = 0;
-      S.compras = [];
-      S.completed = {};
-      S.streak = 0;
-      S.lastDay = null;
-      S.diasEstudados = {};
-      S.custom = [];
+      try{ const { auth } = window.FirebaseService; const { signOut } = window.FirebaseAuth; await signOut(auth); }catch(e){ console.warn('signOut:', e); }
+      S.conta = null; S.alunoSessao = null; S.xp = 0; S.compras = []; S.completed = {}; S.streak = 0; S.lastDay = null; S.diasEstudados = {}; S.custom = [];
       localStorage.removeItem(IS_PRO_KEY);
-      save();
-      applyPlanClasses();
+      save(); applyPlanClasses();
       closeModal(true);
       updateHUD(); renderSidebar(); renderTrilha(); renderTurmas(); renderBiblioteca(); renderLoja();
       toast('Você saiu da conta.', { type: 'info' });
     };
     return;
   }
-
   openModal(
     '<div class="modal-head"><h3>Entrar / Criar conta</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
     + '<p class="modal-sub" style="text-align:left">Escolha como entrar:</p>'
@@ -2681,7 +2367,6 @@ function abrirModalConta(){
   $('#modoConta').onclick = () => { closeModal(true); abrirLoginConta(); };
   $('#modoTurma').onclick = () => { closeModal(true); abrirLoginTurma(); };
 }
-
 function abrirLoginConta(){
   openModal(
     '<div class="modal-head"><h3>Entrar / Criar conta</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
@@ -2702,11 +2387,9 @@ function abrirLoginConta(){
     + '<p style="text-align:center;margin-top:14px"><a href="#" id="esqueciSenha" style="color:var(--teal);font-weight:800;font-size:13px">Esqueci minha senha</a></p>'
   );
   injectIcons();
-
   $('#mClose').onclick = $('#cancelarBtn').onclick = () => closeModal();
   $('#entrarBtn').onclick = () => entrarConta();
   $('#criarBtn').onclick  = () => criarConta();
-
   const esqueci = $('#esqueciSenha');
   if(esqueci) esqueci.onclick = (e) => {
     e.preventDefault();
@@ -2721,7 +2404,6 @@ function abrirLoginConta(){
     }catch(err){ toast('Erro: ' + err.message, { type: 'error' }); }
   };
 }
-
 function abrirLoginTurma(){
   openModal(
     '<div class="modal-head"><h3>Entrar com turma</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
@@ -2740,7 +2422,6 @@ function abrirLoginTurma(){
   $('#mClose').onclick = $('#cancelarBtn').onclick = () => closeModal();
   $('#turmaEntrarBtn').onclick = () => entrarAlunoTurma();
 }
-
 async function entrarAlunoTurma(){
   const nome  = ($('#turmaNome').value  || '').trim();
   const senha = ($('#turmaSenha').value || '').trim();
@@ -2748,7 +2429,6 @@ async function entrarAlunoTurma(){
   const id = slug(nome);
   const a = DB.alunos[id];
   if(!a || a.senha !== senha){ toast('Nome ou senha incorretos.', { type: 'error' }); return; }
-
   S.alunoSessao = id;
   S.xp = a.xp || 0;
   S.completed = JSON.parse(JSON.stringify(a.musicasConcluidas || {}));
@@ -2760,52 +2440,38 @@ async function entrarAlunoTurma(){
   updateHUD(); renderSidebar(); renderTrilha();
   toast('Bem-vindo, ' + a.nome + '! 🎹', { type: 'success' });
 }
-
 async function criarConta(){
   const nome  = ($('#loginNome').value  || '').trim();
   const email = ($('#loginEmail').value || '').trim().toLowerCase();
   const senha = ($('#loginSenha').value || '').trim();
-
   if(!nome || nome.length < 2){ toast('Nome muito curto.', { type: 'warn' }); return; }
   if(!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)){ toast('E-mail inválido.', { type: 'warn' }); return; }
   if(!senha || senha.length < 6){ toast('Senha deve ter ao menos 6 caracteres.', { type: 'warn' }); return; }
-
   const btn = $('#criarBtn');
   const originalHtml = btn ? btn.innerHTML : '';
   if(btn){ btn.disabled = true; btn.innerHTML = I.refresh + ' Criando...'; }
-
   try{
     const { auth, db, doc, setDoc, getDoc } = window.FirebaseService;
     const { createUserWithEmailAndPassword } = window.FirebaseAuth;
-
     const cred = await createUserWithEmailAndPassword(auth, email, senha);
     const uid  = cred.user.uid;
-
     const perfil = {
-      id: uid,
-      nome,
-      email,
-      pro: false,
-      xp: S.xp || 0,
-      ofensiva: S.streak || 0,
-      ultimoAcesso: todayStr(),
+      id: uid, nome, email, pro: false,
+      xp: S.xp || 0, ofensiva: S.streak || 0, ultimoAcesso: todayStr(),
       compras: Array.isArray(S.compras) ? [...S.compras] : [],
       musicasConcluidas: { ...(S.completed || {}) },
       diasEstudados: { ...(S.diasEstudados || {}) },
       criadoEm: todayStr()
     };
-
     const snap = await getDoc(doc(db, 'clave', 'dados'));
     const dadosAtuais = snap.exists() ? snap.data() : {};
     const contasGlobais = dadosAtuais.contasGlobais || {};
     contasGlobais[uid] = perfil;
     await setDoc(doc(db, 'clave', 'dados'), { ...dadosAtuais, contasGlobais }, { merge: false });
-
     DB.contasGlobais = contasGlobais;
     S.conta = uid;
     S.alunoSessao = null;
     save();
-
     closeModal(true);
     updateHUD(); renderSidebar(); renderTrilha();
     toast('Conta criada! 🎉 Bem-vindo, ' + esc(nome), { type: 'success' });
@@ -2818,22 +2484,18 @@ async function criarConta(){
     if(btn){ btn.disabled = false; btn.innerHTML = originalHtml; }
   }
 }
-
 async function entrarConta(){
   const email = ($('#loginEmail').value || '').trim().toLowerCase();
   const senha = ($('#loginSenha').value || '').trim();
   if(!email || !senha){ toast('Preencha e-mail e senha.', { type: 'warn' }); return; }
-
   const btn = $('#entrarBtn');
   const originalHtml = btn ? btn.innerHTML : '';
   if(btn){ btn.disabled = true; btn.innerHTML = I.refresh + ' Entrando...'; }
-
   try{
     const { auth, db, doc, getDoc } = window.FirebaseService;
     const { signInWithEmailAndPassword } = window.FirebaseAuth;
     const cred = await signInWithEmailAndPassword(auth, email, senha);
     const uid  = cred.user.uid;
-
     const snap = await getDoc(doc(db, 'clave', 'dados'));
     const dados = snap.exists() ? snap.data() : {};
     const contasGlobais = dados.contasGlobais || {};
@@ -2843,7 +2505,6 @@ async function entrarConta(){
       if(btn){ btn.disabled = false; btn.innerHTML = originalHtml; }
       return;
     }
-
     DB.contasGlobais = contasGlobais;
     S.conta = uid;
     S.alunoSessao = null;
@@ -2856,9 +2517,7 @@ async function entrarConta(){
     S.custom = S.custom.filter(s => !s.comprada || S.compras.includes(s.id));
     if(c.pro) localStorage.setItem(IS_PRO_KEY, 'true');
     else localStorage.removeItem(IS_PRO_KEY);
-    save();
-    applyPlanClasses();
-
+    save(); applyPlanClasses();
     closeModal(true);
     updateHUD(); renderSidebar(); renderTrilha(); renderTurmas(); renderBiblioteca(); renderLoja();
     toast('Bem-vindo de volta, ' + esc(c.nome) + '! 🎹', { type: 'success' });
@@ -2873,7 +2532,7 @@ async function entrarConta(){
   }
 }
 
-/* ================= modal Pro ================= */
+/* ================= Pro ================= */
 function abrirModalPro(){
   if(!contaAtual()){
     openModal(
@@ -2902,26 +2561,18 @@ function abrirModalPro(){
     + '<div class="modal-actions"><button class="btn gold" id="proOk">' + I.check + ' Ativar</button><button class="btn ghost" id="proCancel">Cancelar</button></div>'
   );
   const proCopyBtn = $('#pixProCopy');
-  if(proCopyBtn){
-    proCopyBtn.onclick = async () => {
-      try{
-        if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
-          await navigator.clipboard.writeText(PIX_KEY);
-        } else {
-          const ta = document.createElement('textarea');
-          ta.value = PIX_KEY; ta.style.position = 'fixed'; ta.style.opacity = '0';
-          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
-        }
-        toast('Chave PIX copiada! 📋', { type: 'success' });
-        sfxClick();
-      }catch(e){ toast('Copie manualmente.', { type: 'warn' }); }
-    };
-  }
+  if(proCopyBtn) proCopyBtn.onclick = async () => {
+    try{
+      if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) await navigator.clipboard.writeText(PIX_KEY);
+      else { const ta = document.createElement('textarea'); ta.value = PIX_KEY; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
+      toast('Chave PIX copiada! 📋', { type: 'success' });
+      sfxClick();
+    }catch(e){ toast('Copie manualmente.', { type: 'warn' }); }
+  };
   $('#mClose').onclick = $('#proCancel').onclick = () => closeModal();
   $('#proOk').onclick = async () => {
     const key = ($('#proKey').value || '').trim().toUpperCase();
     if(!key){ toast('Digite a chave.', { type: 'warn' }); return; }
-
     if(key === 'CLAVE-PRO-TESTE'){
       localStorage.setItem(IS_PRO_KEY, 'true');
       const c = contaAtual();
@@ -2934,12 +2585,10 @@ function abrirModalPro(){
       return;
     }
     if(!S.conta){ toast('Entre na sua conta.', { type: 'warn' }); return; }
-
     const btn = $('#proOk');
     const originalHtml = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = I.refresh + ' Validando...';
-
     try{
       const { db, doc, runTransaction, setDoc } = window.FirebaseService;
       await runTransaction(db, async (transaction) => {
@@ -2951,9 +2600,7 @@ function abrirModalPro(){
         if(data.usadaPor) throw new Error('Esta chave já foi usada por outra conta.');
         transaction.update(chaveRef, { usadaPor: S.conta, usadaEm: new Date().toISOString() });
       });
-      await setDoc(doc(db, 'clave', 'dados'), {
-        contasGlobais: { [S.conta]: { pro: true } }
-      }, { merge: true });
+      await setDoc(doc(db, 'clave', 'dados'), { contasGlobais: { [S.conta]: { pro: true } } }, { merge: true });
       if(DB.contasGlobais[S.conta]) DB.contasGlobais[S.conta].pro = true;
       localStorage.setItem(IS_PRO_KEY, 'true');
       applyPlanClasses();
@@ -2977,12 +2624,7 @@ function renderTurmas(){
   const minhas = DB.turmas.filter(t => t.professorId === S.conta);
   const list = $('#turmasList');
   if(!list) return;
-
-  if(!minhas.length){
-    list.innerHTML = '<div class="empty-state">Nenhuma turma ainda. Clique em <b>Nova turma</b> para começar. 🎓</div>';
-    return;
-  }
-
+  if(!minhas.length){ list.innerHTML = '<div class="empty-state">Nenhuma turma ainda. Clique em <b>Nova turma</b> para começar. 🎓</div>'; return; }
   list.innerHTML = minhas.map(t => {
     const alunos = Object.values(DB.alunos).filter(a => a.turmaId === t.id);
     alunos.sort((a,b) => (b.xp || 0) - (a.xp || 0));
@@ -3006,12 +2648,10 @@ function renderTurmas(){
       + '</div>';
   }).join('');
 }
-
 function abrirModalAluno(turmaId){
   const turma = DB.turmas.find(t => t.id === turmaId);
   if(!turma){ toast('Turma não encontrada.', { type: 'error' }); return; }
   if(turma.professorId !== S.conta){ toast('Você não é dono dessa turma.', { type: 'error' }); return; }
-
   openModal(
     '<div class="modal-head"><h3>Adicionar aluno</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
     + '<p class="modal-sub" style="text-align:left">Turma: <b>' + esc(turma.nome) + '</b></p>'
@@ -3032,31 +2672,19 @@ function abrirModalAluno(turmaId){
     if(!senha || senha.length < 4){ toast('Senha muito curta.', { type: 'warn' }); return; }
     const id = slug(nome);
     if(DB.alunos[id]){ toast('Já existe um aluno com esse nome.', { type: 'warn' }); return; }
-    DB.alunos[id] = {
-      id, nome, senha,
-      turmaId,
-      xp: 0,
-      ofensiva: 0,
-      musicasConcluidas: {},
-      diasEstudados: {},
-      criadoEm: todayStr()
-    };
+    DB.alunos[id] = { id, nome, senha, turmaId, xp: 0, ofensiva: 0, musicasConcluidas: {}, diasEstudados: {}, criadoEm: todayStr() };
     try{
       await dbSave('novo aluno ' + nome + ' na turma ' + turma.nome);
       closeModal(true);
       toast('Aluno criado! 🎉', { type: 'success' });
       renderTurmas();
-    }catch(e){
-      toast('Erro: ' + e.message, { type: 'error' });
-    }
+    }catch(e){ toast('Erro: ' + e.message, { type: 'error' }); }
   };
 }
-
 function excluirTurma(turmaId){
   const turma = DB.turmas.find(t => t.id === turmaId);
   if(!turma) return;
   if(turma.professorId !== S.conta){ toast('Você não é dono dessa turma.', { type: 'error' }); return; }
-
   const alunos = Object.values(DB.alunos).filter(a => a.turmaId === turmaId);
   openModal(
     '<h3 class="modal-title">Excluir turma?</h3>'
@@ -3070,9 +2698,7 @@ function excluirTurma(turmaId){
   );
   $('#delOk').onclick = async () => {
     DB.turmas = DB.turmas.filter(t => t.id !== turmaId);
-    Object.keys(DB.alunos).forEach(k => {
-      if(DB.alunos[k].turmaId === turmaId) delete DB.alunos[k];
-    });
+    Object.keys(DB.alunos).forEach(k => { if(DB.alunos[k].turmaId === turmaId) delete DB.alunos[k]; });
     try{ await dbSave('turma excluída ' + turma.nome); toast('Turma excluída.', { type: 'success' }); }
     catch(e){ toast('Erro: ' + e.message, { type: 'error' }); }
     closeModal(true);
@@ -3080,7 +2706,6 @@ function excluirTurma(turmaId){
   };
   $('#delCancel').onclick = () => closeModal();
 }
-
 function excluirAluno(alunoId){
   const a = DB.alunos[alunoId];
   if(!a) return;
@@ -3102,13 +2727,11 @@ function excluirAluno(alunoId){
   };
   $('#delCancel').onclick = () => closeModal();
 }
-
 function entrarComoSessaoAluno(alunoId){
   const a = DB.alunos[alunoId];
   if(!a) return;
   const turma = DB.turmas.find(t => t.id === a.turmaId);
   if(!turma || turma.professorId !== S.conta){ toast('Sem permissão.', { type: 'error' }); return; }
-
   S.alunoSessao = alunoId;
   S.xp = a.xp || 0;
   S.completed = JSON.parse(JSON.stringify(a.musicasConcluidas || {}));
@@ -3119,7 +2742,6 @@ function entrarComoSessaoAluno(alunoId){
   toast('Agora jogando como ' + a.nome + '.', { type: 'success' });
   location.hash = '#/trilha';
 }
-
 function sairSessaoAluno(){
   const a = alunoSessao();
   if(!a) return;
@@ -3143,7 +2765,6 @@ function updateHUD(){
   $('#hudStreak').textContent = dados ? (dados.ofensiva || 0) : effStreak();
   $('#hudXp').textContent     = dados ? (dados.xp || 0)      : S.xp;
   $('#hudGems').textContent   = S.gems;
-
   const ha = $('#hudConta');
   if(ha){
     if(dados){
@@ -3153,24 +2774,17 @@ function updateHUD(){
       ha.title = dados.nome;
     } else { ha.style.display = 'none'; }
   }
-
   const sess = $('#sessaoChip');
   if(sess){
     const a = alunoSessao();
-    if(a){
-      sess.style.display = 'inline-flex';
-      $('#sessaoNome').textContent = a.nome;
-    } else {
-      sess.style.display = 'none';
-    }
+    if(a){ sess.style.display = 'inline-flex'; $('#sessaoNome').textContent = a.nome; }
+    else { sess.style.display = 'none'; }
   }
-
-    const tp = $('#topProBtn');
+  const tp = $('#topProBtn');
   if(tp){
     const c = contaAtual();
     tp.style.display = (c && c.pro) ? 'none' : 'inline-flex';
   }
-
   const cb = $('#contaBtn');
   if(cb) cb.classList.toggle('active-met', !!dados);
 }
@@ -3196,7 +2810,6 @@ async function route(){
   metStop();
   closeModal(true);
   if(!DB.loaded) await dbLoad();
-
   if(h.startsWith('#/licao/')){
     const id = h.slice(8);
     const song = withStatus().find(s => s.id === id);
@@ -3230,7 +2843,6 @@ async function route(){
     showView('trilha');
     renderTrilha();
   }
-
   updateNav(h);
   updateHUD();
 }
@@ -3278,9 +2890,7 @@ function confettiBurst(){
   const colors = ['#FFC93C','#3CE68A','#4DA6FF','#E560FF','#FF5A5F','#2ED9C3','#FFFFFF'];
   confUntil = performance.now() + 3200;
   for(let i = 0; i < 170; i++){
-    confs.push({ x: Math.random()*cvs.width, y:-20-Math.random()*cvs.height*0.35,
-      vx:(Math.random()-0.5)*2.4, vy:2+Math.random()*3.6, s:5+Math.random()*7,
-      r:Math.random()*Math.PI, vr:(Math.random()-0.5)*0.26, c:colors[i%colors.length], sh:i%3 });
+    confs.push({ x: Math.random()*cvs.width, y:-20-Math.random()*cvs.height*0.35, vx:(Math.random()-0.5)*2.4, vy:2+Math.random()*3.6, s:5+Math.random()*7, r:Math.random()*Math.PI, vr:(Math.random()-0.5)*0.26, c:colors[i%colors.length], sh:i%3 });
   }
   if(confs.length > 420) confs = confs.slice(-420);
   if(!confRaf) confLoop();
@@ -3307,9 +2917,7 @@ function confLoop(){
 /* ================= calendário ================= */
 function getDiasEstudados(){
   const j = jogadorAtual();
-  if(j.tipo === 'alunoSessao' || j.tipo === 'conta'){
-    return j.dados.diasEstudados || {};
-  }
+  if(j.tipo === 'alunoSessao' || j.tipo === 'conta') return j.dados.diasEstudados || {};
   return S.diasEstudados || {};
 }
 function abrirCalendarioOfensiva(){
@@ -3357,7 +2965,6 @@ function abrirCalendarioOfensiva(){
   }
   bind();
 }
-
 function makeBgNotes(){
   const glyphs = ['♪','♫','♬','♩'];
   const host = $('#bgNotes');
@@ -3381,23 +2988,19 @@ function wire(){
     document.addEventListener(evt, unlockAudio, { passive: true })
   );
 
-    const navToggle = $('#navToggle');
-  const navEl = $('.mainnav');
-  function atualizarNavToggle(){
-    if(!navToggle) return;
-    const mobile = window.matchMedia('(max-width: 900px)').matches;
-    navToggle.style.display = mobile ? 'inline-flex' : 'none';
-    if(!mobile && navEl) navEl.classList.remove('aberto');
-  }
-  if(navToggle){
-    navToggle.onclick = () => { navEl.classList.toggle('aberto'); sfxClick(); };
-  }
-  atualizarNavToggle();
-  window.addEventListener('resize', atualizarNavToggle);
+  /* Conta / Pro (topbar) */
+  const contaBtn = $('#contaBtn');
+  if(contaBtn) contaBtn.onclick = () => abrirModalConta();
+
   const topPro = $('#topProBtn');
   if(topPro) topPro.onclick = () => abrirModalPro();
-  const cb = $('#contaBtn');
-  if(cb) cb.onclick = () => abrirModalConta();
+
+  /* Menu hamburguer (se existir no HTML) */
+  const navToggle = $('#navToggle');
+  const navEl = $('.mainnav');
+  if(navToggle && navEl){
+    navToggle.onclick = () => { navEl.classList.toggle('aberto'); sfxClick(); };
+  }
 
   const sessaoChip = $('#sessaoChip');
   if(sessaoChip) sessaoChip.onclick = () => {
@@ -3417,13 +3020,8 @@ function wire(){
   if(pixBtn){
     pixBtn.onclick = async () => {
       try{
-        if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
-          await navigator.clipboard.writeText(PIX_KEY);
-        } else {
-          const ta = document.createElement('textarea');
-          ta.value = PIX_KEY; ta.style.position = 'fixed'; ta.style.opacity = '0';
-          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
-        }
+        if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) await navigator.clipboard.writeText(PIX_KEY);
+        else { const ta = document.createElement('textarea'); ta.value = PIX_KEY; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
         toast('Chave PIX copiada! 📋', { type: 'success' });
         sfxClick();
       }catch(e){ toast('Copie manualmente.', { type: 'warn' }); }
@@ -3517,18 +3115,11 @@ function wire(){
         try{
           try{ localStorage.clear(); }catch(e){}
           try{ sessionStorage.clear(); }catch(e){}
-          try{
-            if(window.caches && caches.keys){
-              const keys = await caches.keys();
-              await Promise.all(keys.map(k => caches.delete(k)));
-            }
-          }catch(e){}
+          try{ if(window.caches && caches.keys){ const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } }catch(e){}
           closeModal(true);
           toast('Limpando…', { type: 'success' });
           setTimeout(() => { location.href = location.pathname + location.search; }, 600);
-        }catch(e){
-          toast('Erro: ' + e.message, { type: 'error' });
-        }
+        }catch(e){ toast('Erro: ' + e.message, { type: 'error' }); }
       };
     };
   }
@@ -3548,19 +3139,19 @@ function wire(){
   if($('#libTab')) $('#libTab').addEventListener('change', renderBiblioteca);
   $('#libDiff').addEventListener('change',   renderBiblioteca);
   $('#libSort').addEventListener('change',   renderBiblioteca);
- $('#songGrid').addEventListener('click', e => {
-  const b = e.target.closest('[data-action]');
-  if(!b || b.disabled) return;
-  const id = b.dataset.id, act = b.dataset.action;
-  sfxClick();
-  if(act === 'practice') location.hash = '#/licao/' + id;
-  else if(act === 'delete') deleteCustom(id);
-  else if(act === 'preview'){
-    const song = withStatus().find(s => s.id === id);
-    if(song) abrirPreview(song, { amostra: false });
-  }
-});
-    
+
+  $('#songGrid').addEventListener('click', e => {
+    const b = e.target.closest('[data-action]');
+    if(!b || b.disabled) return;
+    const id = b.dataset.id, act = b.dataset.action;
+    sfxClick();
+    if(act === 'practice') location.hash = '#/licao/' + id;
+    else if(act === 'delete') deleteCustom(id);
+    else if(act === 'preview'){
+      const song = withStatus().find(s => s.id === id);
+      if(song) abrirPreview(song, { amostra: false });
+    }
+  });
 
   $('#novaTurmaBtn').onclick = () => {
     if(!isProfessor()){ toast('🔒 Recurso Pro.', { type: 'warn' }); return; }
@@ -3593,13 +3184,8 @@ function wire(){
       sfxClick();
       const valor = cod.dataset.copy;
       try{
-        if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
-          await navigator.clipboard.writeText(valor);
-        } else {
-          const ta = document.createElement('textarea');
-          ta.value = valor; ta.style.position = 'fixed'; ta.style.opacity = '0';
-          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
-        }
+        if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext) await navigator.clipboard.writeText(valor);
+        else { const ta = document.createElement('textarea'); ta.value = valor; ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove(); }
         toast('Código copiado! 📋', { type: 'success' });
       }catch(err){ toast('Copie manualmente: ' + valor, { type: 'warn' }); }
       return;
@@ -3661,13 +3247,9 @@ async function boot(){
   const ua = navigator.userAgent || '';
   const isPS4 = /PlayStation/i.test(ua) && !/PlayStation 5/i.test(ua);
   const fewCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2;
-  if(isPS4 || fewCores){
-    document.documentElement.classList.add('lite-mode');
-  }
+  if(isPS4 || fewCores) document.documentElement.classList.add('lite-mode');
 
-  if(!window.ABCJS){
-    await new Promise(r => window.addEventListener('load', r, { once: true }));
-  }
+  if(!window.ABCJS) await new Promise(r => window.addEventListener('load', r, { once: true }));
 
   try{ await FB.init(); }catch(e){ console.warn('FB init:', e); }
 
@@ -3676,11 +3258,8 @@ async function boot(){
     auth.onAuthStateChanged(async (user) => {
       if(!user){
         if(S.conta){
-          S.conta = null;
-          S.alunoSessao = null;
-          S.xp = 0; S.compras = []; S.completed = {};
-          S.streak = 0; S.lastDay = null; S.diasEstudados = {};
-          S.custom = [];
+          S.conta = null; S.alunoSessao = null;
+          S.xp = 0; S.compras = []; S.completed = {}; S.streak = 0; S.lastDay = null; S.diasEstudados = {}; S.custom = [];
           localStorage.removeItem(IS_PRO_KEY);
           save(); applyPlanClasses();
           updateHUD(); renderSidebar(); renderTrilha();
@@ -3692,11 +3271,8 @@ async function boot(){
         const dados = snap.exists() ? snap.data() : null;
         const conta = dados && dados.contasGlobais && dados.contasGlobais[user.uid];
         if(!conta) return;
-
         DB.contasGlobais = dados.contasGlobais;
-
-        S.conta = user.uid;
-        S.alunoSessao = null;
+        S.conta = user.uid; S.alunoSessao = null;
         S.xp = conta.xp || 0;
         S.compras = Array.isArray(conta.compras) ? [...conta.compras] : [];
         S.completed = { ...(conta.musicasConcluidas || {}) };
@@ -3704,7 +3280,6 @@ async function boot(){
         S.lastDay = conta.ultimoAcesso || null;
         S.diasEstudados = { ...(conta.diasEstudados || {}) };
         S.custom = S.custom.filter(s => !s.comprada || S.compras.includes(s.id));
-
         if(conta.pro) localStorage.setItem(IS_PRO_KEY, 'true');
         else localStorage.removeItem(IS_PRO_KEY);
         save(); applyPlanClasses();
@@ -3719,13 +3294,22 @@ async function boot(){
 
   await route();
 
-  if(!S.conta && !S.alunoSessao){
-    abrirBoasVindas();
-  }
+  if(!S.conta && !S.alunoSessao) abrirBoasVindas();
 }
 boot().catch(e => console.error('Boot error:', e));
 
 })();
 </script>
+
+
+
+
+
+
+
+
+
+
+  
 </body>
 </html>
