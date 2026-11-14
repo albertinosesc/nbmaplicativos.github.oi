@@ -2159,6 +2159,7 @@ function cardHtml(s){
     + (c ? '<div class="card-stars">' + '★'.repeat(c.stars) + '☆'.repeat(3 - c.stars) + '<small>precisão ' + c.acc + '%</small></div>' : '')
     + '<div class="card-actions">'
     + '<button class="btn ' + (s.unlocked ? 'green' : 'ghost') + ' small" data-action="practice" data-id="' + s.id + '"' + (s.unlocked ? '' : ' disabled') + '>' + I.play + ' ' + (s.done ? 'Revisar' : 'Praticar') + '</button>'
+    + '<button class="btn blue small" data-action="preview" data-id="' + s.id + '">' + I.note + ' Ver/Ouvir</button>'
     + (s.seed ? '' : '<button class="btn ghost small icon-only danger" data-action="delete" data-id="' + s.id + '">' + I.trash + '</button>')
     + '</div></article>';
 }
@@ -2211,12 +2212,82 @@ function deleteCustom(id){
   };
   $('#mCancel').onclick = () => closeModal();
 }
+function abrirPreview(song, opts){
+  opts = opts || {};
+  const apenasAmostra = !!opts.amostra;
+  const paperId = 'previewPaper';
+  openModal(
+    '<div class="modal-head"><h3>' + esc(song.title) + '</h3><button class="icon-btn" id="pvClose">' + I.x + '</button></div>'
+    + (song.composer ? '<p class="sub" style="text-align:left;margin-top:-6px">' + esc(song.composer) + '</p>' : '')
+    + '<div id="' + paperId + '" style="background:var(--paper);border-radius:12px;padding:16px 12px;margin-top:12px;max-height:46vh;overflow:auto;text-align:left"></div>'
+    + (apenasAmostra ? '<p class="sub" style="text-align:left;margin-top:8px;color:var(--ink3)">Prévia gratuita — apenas os primeiros compassos.</p>' : '')
+    + '<div class="modal-actions" style="margin-top:14px">'
+    + '<button class="btn blue small" id="pvPlay">' + I.play + ' Ouvir</button>'
+    + '<button class="btn green small" id="pvPraticar">' + I.note + ' Praticar</button>'
+    + '<button class="btn ghost small" id="pvFechar">Fechar</button>'
+    + '</div>',
+    { onClose: () => stopPlayback() }
+  );
+  injectIcons();
 
+  const paper = document.getElementById(paperId);
+  let tunes = null;
+  let abc = song.abc;
+  if(apenasAmostra){
+    // Corta o ABC nos primeiros 2 compassos por linha
+    const linhas = abc.split('\n');
+    const out = [];
+    let contador = 0;
+    for(const l of linhas){
+      if(/^[A-Za-z]:/.test(l) || !l.trim()){ out.push(l); continue; }
+      const partes = l.split('|');
+      out.push(partes.slice(0, 3).join('|'));
+      contador++;
+      if(contador >= 2) break;
+    }
+    abc = out.join('\n');
+  }
+  try{
+    const cs = getComputedStyle(paper);
+    const w = Math.max(260, paper.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 8);
+    tunes = ABCJS.renderAbc(paper, abc, {
+      staffwidth: w, scale: 1.05, add_classes: true,
+      paddingtop: 12, paddingbottom: 8, paddingleft: 2, paddingright: 2,
+      wrap: { minSpacing: 1.8, maxSpacing: 2.6, preferredMeasuresPerLine: 4 }
+    });
+  }catch(err){
+    paper.innerHTML = '<div class="paper-error">Erro: ' + esc(err.message) + '</div>';
+  }
+
+  const tune = tunes && tunes[0], ex = tune ? extractNotes(tune) : { events: [], total: 0 };
+  const tp = tune ? getTempo(tune) : { bpm: 100, q: 0.25 };
+  const spw = 60 / (tp.bpm * tp.q);
+
+  const btnPlay = document.getElementById('pvPlay');
+  btnPlay.onclick = () => {
+    if(PB.playing && PB.session && PB.session.owner === 'preview'){
+      stopPlayback(); return;
+    }
+    startPlayback({
+      owner: 'preview',
+      events: ex.events,
+      total: ex.total,
+      spw,
+      paper,
+      keys: null,
+      onEnd: () => {}
+    });
+  };
+
+  document.getElementById('pvPraticar').onclick = () => {
+    stopPlayback(); closeModal(true); location.hash = '#/licao/' + song.id;
+  };
+  document.getElementById('pvClose').onclick = document.getElementById('pvFechar').onclick = () => { stopPlayback(); closeModal(); };
+}
 /* ================= loja ================= */
 function renderLoja(){
   const grid = $('#lojaGrid');
   if(!grid) return;
-  const c = contaAtual();
   const ehProf = isProfessor();
   const minhasTurmas = ehProf ? DB.turmas.filter(t => t.professorId === S.conta) : [];
 
@@ -2233,12 +2304,14 @@ function renderLoja(){
       + (comprada
           ? '<button class="btn green small" data-loja-action="praticar" data-id="' + item.id + '">' + I.play + ' Tocar</button>'
           : '<button class="btn gold small" data-loja-action="comprar" data-id="' + item.id + '">' + I.gem + ' Comprar</button>')
+      + '<button class="btn blue small" data-loja-action="preview" data-id="' + item.id + '">' + I.note + ' Prévia</button>'
       + (ehProf && minhasTurmas.length
           ? '<button class="btn blue small" data-loja-action="turma" data-id="' + item.id + '">' + I.trophy + ' Para a turma</button>'
           : '')
       + '</div></article>';
   }).join('');
   injectIcons();
+
   grid.onclick = e => {
     const b = e.target.closest('[data-loja-action]');
     if(!b) return;
@@ -2249,6 +2322,16 @@ function renderLoja(){
     if(act === 'comprar') abrirModalCompra(item);
     else if(act === 'praticar') abrirPraticaLoja(item);
     else if(act === 'turma') abrirModalCompraTurma(item);
+    else if(act === 'preview'){
+      // Prévia usa o mesmo formato de song que abrirPreview espera
+      abrirPreview({
+        id: item.id,
+        title: item.title,
+        composer: item.composer,
+        difficulty: item.difficulty || 1,
+        abc: item.abc
+      }, { amostra: true });
+    }
   };
 }
 
@@ -3329,14 +3412,19 @@ function wire(){
   if($('#libTab')) $('#libTab').addEventListener('change', renderBiblioteca);
   $('#libDiff').addEventListener('change',   renderBiblioteca);
   $('#libSort').addEventListener('change',   renderBiblioteca);
-  $('#songGrid').addEventListener('click', e => {
-    const b = e.target.closest('[data-action]');
-    if(!b || b.disabled) return;
-    const id = b.dataset.id, act = b.dataset.action;
-    sfxClick();
-    if(act === 'practice') location.hash = '#/licao/' + id;
-    else if(act === 'delete') deleteCustom(id);
-  });
+ $('#songGrid').addEventListener('click', e => {
+  const b = e.target.closest('[data-action]');
+  if(!b || b.disabled) return;
+  const id = b.dataset.id, act = b.dataset.action;
+  sfxClick();
+  if(act === 'practice') location.hash = '#/licao/' + id;
+  else if(act === 'delete') deleteCustom(id);
+  else if(act === 'preview'){
+    const song = withStatus().find(s => s.id === id);
+    if(song) abrirPreview(song, { amostra: false });
+  }
+});
+    
 
   $('#novaTurmaBtn').onclick = () => {
     if(!isProfessor()){ toast('🔒 Recurso Pro.', { type: 'warn' }); return; }
