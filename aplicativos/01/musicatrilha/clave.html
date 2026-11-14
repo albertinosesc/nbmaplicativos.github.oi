@@ -363,9 +363,6 @@ footer{text-align:center;color:var(--ink3);font-size:12.5px;font-weight:700;padd
 .turma-empty{text-align:center;color:var(--ink3);font-size:13px;font-weight:700;padding:22px 10px;
   border:1px dashed var(--line);border-radius:10px}
 .turma-actions{display:flex;gap:6px;flex-wrap:wrap;margin-top:auto;padding-top:8px;border-top:1px solid var(--line)}
-.turma-codigo{display:inline-flex;align-items:center;gap:6px;font-family:'Nunito Variable',monospace;
-  background:rgba(46,217,195,.12);border:1px solid rgba(46,217,195,.4);color:var(--teal);
-  border-radius:8px;padding:3px 10px;font-weight:800;font-size:13px;letter-spacing:1.2px;cursor:pointer}
 
 #modalRoot .modal-backdrop{position:fixed;inset:0;background:rgba(10,5,25,.72);backdrop-filter:blur(6px);
   -webkit-backdrop-filter:blur(6px);z-index:160;display:flex;align-items:center;justify-content:center;padding:18px;animation:fadeIn .2s}
@@ -532,7 +529,6 @@ html.lite-mode .btn:active{ transform:none !important; }
 .turma-card [data-add-aluno]{white-space:nowrap}
 .turma-card [data-del-turma]{flex-shrink:0}
 </style>
-
 </head>
 <body>
 <div id="aurora"><i></i><i></i><i></i></div>
@@ -621,7 +617,7 @@ html.lite-mode .btn:active{ transform:none !important; }
       <div class="lib-head">
         <div>
           <h1>Turmas e Ranking 🏆</h1>
-          <p class="sub">Cadastre turmas e acompanhe o ranking. Cada aluno tem sua própria conta.</p>
+          <p class="sub">Cadastre turmas, alunos e acompanhe o ranking da turma.</p>
         </div>
         <button class="btn green" id="novaTurmaBtn"><i class="icw" data-icon="plus"></i><span>Nova turma</span></button>
       </div>
@@ -631,8 +627,8 @@ html.lite-mode .btn:active{ transform:none !important; }
           <div style="font-size:56px;line-height:1;margin-bottom:8px">🔒</div>
           <h3 style="font-family:var(--font-disp);font-size:22px;margin-bottom:6px">Recurso exclusivo da versão Pro</h3>
           <p class="sub" style="max-width:520px;margin:0 auto 18px">
-            A aba <b>Turmas</b> permite criar turmas, gerar códigos de acesso
-            e acompanhar o ranking dos alunos. Disponível na versão Pro.
+            A aba <b>Turmas</b> permite cadastrar alunos, criar rankings por turma
+            e usar o modo professor. Está disponível apenas na versão Pro.
           </p>
           <button class="btn gold" id="ativarProBtn">
             <i class="icw" data-icon="spark"></i>
@@ -643,8 +639,12 @@ html.lite-mode .btn:active{ transform:none !important; }
 
       <div id="turmasConteudo">
         <div class="card" style="margin-bottom:16px">
-          <h4><i class="icw" data-icon="info"></i> Como funciona</h4>
-          <p class="sub">Crie uma turma, copie o código gerado e envie para os alunos. Cada aluno cria a própria conta grátis e digita o código para entrar na turma.</p>
+          <h4><i class="icw" data-icon="info"></i> Aluno que está jogando</h4>
+          <p class="sub">O progresso das músicas e o XP serão salvos no nome do aluno escolhido.</p>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;align-items:center">
+            <select id="alunoAtualSelect" style="flex:1;min-width:220px"></select>
+            <span id="alunoAtualInfo" class="chip" style="display:none"></span>
+          </div>
         </div>
         <div id="turmasList" class="grid"></div>
       </div>
@@ -711,7 +711,7 @@ html.lite-mode .btn:active{ transform:none !important; }
         <article class="song-card t4">
           <div class="card-badges"><span class="diff-badge t4">Pro</span></div>
           <h3>Vantagens da versão Pro</h3>
-          <p class="composer">Turmas, código de acesso, ranking por turma.</p>
+          <p class="composer">Turmas, ranking por turma, cadastro de músicas.</p>
           <div class="card-actions">
             <a class="btn gold small" href="https://youtu.be/XXXXXXXXXXX" target="_blank" rel="noopener"><i class="icw" data-icon="play"></i><span>Assistir</span></a>
           </div>
@@ -725,9 +725,10 @@ html.lite-mode .btn:active{ transform:none !important; }
           </div>
         </article>
       </div>
-    <footer>Clave — 2026</footer>
+      <footer>Clave — 2026</footer>
     </div>
   </section>
+
   <section id="view-sobre" class="view">
     <div class="container">
       <div class="lib-head"><div><h1>Sobre mim</h1><p class="sub">Quem faz o Clave e por quê.</p></div></div>
@@ -793,12 +794,6 @@ const slug = t => String(t).toLowerCase().normalize('NFD').replace(/[\u0300-\u03
 const todayStr = () => { const d = new Date(); return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); };
 const daysBetween = (a,b) => Math.round((new Date(b+'T00:00:00') - new Date(a+'T00:00:00')) / 86400000);
 const PIX_KEY = '66ed51c1-afa6-4d07-82c6-ab5263143bc5';
-function gerarCodigoTurma(){
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let s = '';
-  for(let i = 0; i < 6; i++) s += chars[Math.floor(Math.random()*chars.length)];
-  return s;
-}
 
 /* ================= ícones ================= */
 const P = {
@@ -1005,7 +1000,6 @@ function scheduleDbSave(msg){
 const MUSICAS_COMPRADAS_CACHE = 'clave.musicasCompradasCache.v2';
 
 async function loadMusicasCompradas(){
-  // 1) Firestore: catálogo global de músicas (não controla permissão)
   let lista = [];
   try{
     const svc = window.FirebaseService;
@@ -1037,7 +1031,6 @@ async function loadMusicasCompradas(){
     }catch(e2){}
   }
 
-  // 2) Só injeta em S.custom as que o usuário ATUAL comprou
   const c = contaAtual();
   const donoCompras = c ? (c.compras || []) : (S.compras || []);
   lista.forEach(m => {
@@ -1059,6 +1052,9 @@ function temComprada(id){
 
 function contaAtual(){
   return S.conta && DB.contasGlobais[S.conta] ? DB.contasGlobais[S.conta] : null;
+}
+function alunoTurmaAtual(){
+  return S.conta && DB.alunos[S.conta] ? DB.alunos[S.conta] : null;
 }
 
 /* ================= pitch → MIDI ================= */
@@ -1728,6 +1724,12 @@ function addXp(n){
     c.ultimoAcesso = todayStr();
     scheduleDbSave('xp conta ' + c.nome + ' +' + n);
   }
+  const a = alunoTurmaAtual();
+  if(a){
+    a.xp = (a.xp || 0) + n;
+    a.ultimoAcesso = todayStr();
+    scheduleDbSave('xp aluno turma ' + a.nome + ' +' + n);
+  }
 }
 function floatXp(keyEl){
   const r = keyEl.getBoundingClientRect();
@@ -1823,6 +1825,14 @@ function finishLesson(){
     c.musicasConcluidas[L.song.id] = { stars: Math.max(stars, (ant && ant.stars) || 0), acc };
     c.ofensiva = effStreak();
     scheduleDbSave('conclusão ' + L.song.title + ' — ' + c.nome);
+  }
+  const a = alunoTurmaAtual();
+  if(a){
+    a.musicasConcluidas = a.musicasConcluidas || {};
+    const antA = a.musicasConcluidas[L.song.id];
+    a.musicasConcluidas[L.song.id] = { stars: Math.max(stars, (antA && antA.stars) || 0), acc };
+    a.ofensiva = effStreak();
+    scheduleDbSave('conclusão ' + L.song.title + ' — aluno turma ' + a.nome);
   }
   const next = withStatus().find(s => !s.done);
   const maxCombo = L.maxCombo, song = L.song;
@@ -2014,6 +2024,7 @@ function renderSidebar(){
   const C = 2 * Math.PI * 26;
   const off = C * (1 - tx / goal);
   const conta = contaAtual();
+  const aluno = alunoTurmaAtual();
 
   let rank = [];
   if(DB.contasGlobais && Object.keys(DB.contasGlobais).length){
@@ -2023,12 +2034,15 @@ function renderSidebar(){
       .slice(0, 10);
   }
 
+  const nome = conta ? conta.nome : (aluno ? aluno.nome + ' (turma)' : 'Visitante');
+  const sub  = conta ? 'Conta grátis' : (aluno ? 'Aluno de turma' : 'Nível ' + lvl);
+
   $('#sidebar').innerHTML =
     '<div class="card profile-card"><div class="mascot">' + mascotSVG('side') + '</div>'
-    + '<div class="profile-info"><b>' + (conta ? esc(conta.nome) : 'Visitante') + '</b>'
-    + '<span>' + (conta ? 'Conta grátis' : 'Nível ' + lvl) + '</span>'
+    + '<div class="profile-info"><b>' + esc(nome) + '</b>'
+    + '<span>' + sub + '</span>'
     + '<div class="pbar thin"><div style="width:' + (100 * into / 150) + '%"></div></div>'
-    + '<small>' + (conta ? 'XP: ' + (conta.xp || 0) : 'Faltam ' + (150 - into) + ' XP para o nível ' + (lvl + 1)) + '</small></div></div>'
+    + '<small>' + 'XP: ' + S.xp + '</small></div></div>'
     + '<div class="card goal-card"><div class="goal-ring">'
     + '<svg width="72" height="72" viewBox="0 0 72 72"><defs><linearGradient id="goalGrad" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3CE68A"/><stop offset="1" stop-color="#2ED9C3"/></linearGradient></defs>'
     + '<circle cx="36" cy="36" r="26" stroke="#3A2762" stroke-width="8" fill="none"/>'
@@ -2246,48 +2260,38 @@ function abrirPraticaLoja(item){
   location.hash = '#/licao/' + item.id;
 }
 
-/* ================= conta ================= */
+/* ================= conta (usuário) ================= */
 function abrirModalConta(){
   const c = contaAtual();
+  const a = alunoTurmaAtual();
 
-  if(c){
-    const codigoTurma = DB.turmas.find(t => t.id === c.turmaId);
+  if(c || a){
+    const dados = c || a;
+    const tipo = c ? 'Conta do aluno' : 'Aluno de turma';
+    const turma = a ? DB.turmas.find(t => t.id === a.turmaId) : null;
     openModal(
       '<div class="modal-head"><h3>Minha conta</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
       + '<div style="text-align:left;margin-top:8px">'
-      +   '<p class="sub" style="margin-bottom:4px">Logado como</p>'
-      +   '<b style="font-family:var(--font-disp);font-size:20px">' + esc(c.nome) + '</b>'
-      +   '<p class="sub" style="margin-top:6px">E-mail: ' + esc(c.email || '—') + '</p>'
-      +   '<p class="sub">XP: ' + (c.xp || 0) + ' • Ofensiva: ' + (c.ofensiva || 0) + '</p>'
-      +   (codigoTurma ? '<p class="sub" style="margin-top:6px">Turma: <b>' + esc(codigoTurma.nome) + '</b></p>' : '')
-      +   (c.pro ? '<p class="sub" style="color:var(--gold);font-weight:800">⭐ Versão Pro ativa</p>' : '')
+      +   '<p class="sub" style="margin-bottom:4px">' + tipo + '</p>'
+      +   '<b style="font-family:var(--font-disp);font-size:20px">' + esc(dados.nome) + '</b>'
+      +   (dados.email ? '<p class="sub" style="margin-top:6px">E-mail: ' + esc(dados.email) + '</p>' : '')
+      +   (turma ? '<p class="sub" style="margin-top:6px">Turma: <b>' + esc(turma.nome) + '</b></p>' : '')
+      +   '<p class="sub" style="margin-top:6px">XP: ' + (dados.xp || 0) + ' • Ofensiva: ' + (dados.ofensiva || 0) + '</p>'
       + '</div>'
       + '<div class="modal-actions-col" style="margin-top:18px">'
-      +   '<button class="btn blue" id="entrarTurmaBtn">' + I.plus + ' ' + (c.turmaId ? 'Trocar de turma' : 'Entrar em turma') + '</button>'
       +   '<button class="btn ghost" id="contaSair">' + I.x + ' Sair da conta</button>'
       +   '<button class="btn ghost" id="contaFechar">Fechar</button>'
       + '</div>'
     );
     $('#mClose').onclick = $('#contaFechar').onclick = () => closeModal();
-    $('#entrarTurmaBtn').onclick = () => {
-      closeModal(true);
-      const codigo = prompt('Digite o código da turma (ex: XK4P2A):');
-      if(!codigo) return;
-      const turma = DB.turmas.find(t => (t.codigo || '').toUpperCase() === codigo.trim().toUpperCase());
-      if(!turma){ toast('Turma não encontrada.', { type: 'error' }); return; }
-      c.turmaId = turma.id;
-      save();
-      scheduleDbSave('entrou na turma ' + turma.nome);
-      toast('Você entrou na turma "' + turma.nome + '"! 🎉', { type: 'success' });
-      updateHUD(); renderSidebar(); renderTurmas();
-    };
     $('#contaSair').onclick = async () => {
-      try{
-        const { auth } = window.FirebaseService;
-        const { signOut } = window.FirebaseAuth;
-        await signOut(auth);
-      }catch(e){ console.warn('signOut:', e); }
-
+      if(c){
+        try{
+          const { auth } = window.FirebaseService;
+          const { signOut } = window.FirebaseAuth;
+          await signOut(auth);
+        }catch(e){ console.warn('signOut:', e); }
+      }
       S.conta = null;
       S.xp = 0;
       S.compras = [];
@@ -2308,7 +2312,22 @@ function abrirModalConta(){
 
   openModal(
     '<div class="modal-head"><h3>Entrar / Criar conta</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
-    + '<p class="modal-sub" style="text-align:left">Crie uma conta grátis para salvar seu progresso e entrar no ranking global.</p>'
+    + '<p class="modal-sub" style="text-align:left">Escolha como entrar:</p>'
+    + '<div class="modal-actions-col" style="margin-top:14px">'
+    +   '<button class="btn green big" id="modoConta">' + I.user + ' Entrar com conta (e-mail)</button>'
+    +   '<button class="btn blue big" id="modoTurma">' + I.trophy + ' Entrar com turma (professor)</button>'
+    + '</div>'
+    + '<div class="modal-actions"><button class="btn ghost" id="cancelarBtn">Cancelar</button></div>'
+  );
+  $('#mClose').onclick = $('#cancelarBtn').onclick = () => closeModal();
+  $('#modoConta').onclick = () => { closeModal(true); abrirLoginConta(); };
+  $('#modoTurma').onclick = () => { closeModal(true); abrirLoginTurma(); };
+}
+
+function abrirLoginConta(){
+  openModal(
+    '<div class="modal-head"><h3>Entrar / Criar conta</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
+    + '<p class="modal-sub" style="text-align:left">Conta independente com e-mail e senha.</p>'
     + '<div style="text-align:left;margin-top:12px;display:flex;flex-direction:column;gap:10px">'
     +   '<label>Nome</label>'
     +   '<input id="loginNome" type="text" placeholder="Seu nome" style="width:100%" maxlength="20" autocomplete="username">'
@@ -2320,7 +2339,7 @@ function abrirModalConta(){
     + '<div class="modal-actions">'
     +   '<button class="btn green" id="entrarBtn">' + I.check + ' Entrar</button>'
     +   '<button class="btn blue" id="criarBtn">' + I.plus + ' Criar conta</button>'
-    +   '<button class="btn ghost" id="cancelarBtn">Cancelar</button>'
+    +   '<button class="btn ghost" id="cancelarBtn">Voltar</button>'
     + '</div>'
     + '<p style="text-align:center;margin-top:14px"><a href="#" id="esqueciSenha" style="color:var(--teal);font-weight:800;font-size:13px">Esqueci minha senha</a></p>'
   );
@@ -2345,6 +2364,47 @@ function abrirModalConta(){
   };
 }
 
+function abrirLoginTurma(){
+  openModal(
+    '<div class="modal-head"><h3>Entrar como aluno da turma</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
+    + '<p class="modal-sub" style="text-align:left">Use o nome e a senha que seu professor cadastrou na turma.</p>'
+    + '<div style="text-align:left;margin-top:12px;display:flex;flex-direction:column;gap:10px">'
+    +   '<label>Nome do aluno</label>'
+    +   '<input id="turmaNome" type="text" placeholder="Ex.: João Silva" style="width:100%" maxlength="20">'
+    +   '<label>Senha da turma</label>'
+    +   '<input id="turmaSenha" type="password" placeholder="Senha" style="width:100%" maxlength="40">'
+    + '</div>'
+    + '<div class="modal-actions">'
+    +   '<button class="btn green" id="turmaEntrarBtn">' + I.check + ' Entrar</button>'
+    +   '<button class="btn ghost" id="cancelarBtn">Voltar</button>'
+    + '</div>'
+  );
+  $('#mClose').onclick = $('#cancelarBtn').onclick = () => closeModal();
+  $('#turmaEntrarBtn').onclick = () => entrarAlunoTurma();
+}
+
+async function entrarAlunoTurma(){
+  const nome  = ($('#turmaNome').value  || '').trim();
+  const senha = ($('#turmaSenha').value || '').trim();
+  if(!nome || !senha){ toast('Preencha nome e senha.', { type: 'warn' }); return; }
+  const id = slug(nome);
+  const a = DB.alunos[id];
+  if(!a || a.senha !== senha){ toast('Nome ou senha incorretos.', { type: 'error' }); return; }
+
+  S.conta = id;
+  S.xp = a.xp || 0;
+  S.compras = [];
+  S.completed = JSON.parse(JSON.stringify(a.musicasConcluidas || {}));
+  S.streak = a.ofensiva || 0;
+  S.lastDay = a.ultimoAcesso || null;
+  S.diasEstudados = JSON.parse(JSON.stringify(a.diasEstudados || {}));
+  S.custom = [];
+  save();
+  closeModal(true);
+  updateHUD(); renderSidebar(); renderTrilha();
+  toast('Bem-vindo, ' + a.nome + '! 🎹', { type: 'success' });
+}
+
 async function criarConta(){
   const nome  = ($('#loginNome').value  || '').trim();
   const email = ($('#loginEmail').value || '').trim().toLowerCase();
@@ -2358,7 +2418,6 @@ async function criarConta(){
   const originalHtml = btn ? btn.innerHTML : '';
   if(btn){ btn.disabled = true; btn.innerHTML = I.refresh + ' Criando...'; }
 
-  // Preserva progresso de visitante (só existe se o usuário NÃO estava logado)
   const xpVisitante = S.xp || 0;
   const comprasVisitante = Array.isArray(S.compras) ? [...S.compras] : [];
   const completedVisitante = { ...(S.completed || {}) };
@@ -2392,7 +2451,6 @@ async function criarConta(){
 
     DB.contasGlobais = contasGlobais;
     S.conta = uid;
-    // S.xp, S.compras, S.completed, S.diasEstudados permanecem como estavam (migração única)
     save();
 
     closeModal(true);
@@ -2438,7 +2496,6 @@ async function entrarConta(){
 
     DB.contasGlobais = contasGlobais;
 
-    // SUBSTITUI tudo pela conta (não mescla com progresso de outra pessoa)
     S.conta = uid;
     S.xp = c.xp || 0;
     S.compras = Array.isArray(c.compras) ? [...c.compras] : [];
@@ -2446,8 +2503,6 @@ async function entrarConta(){
     S.streak = c.ofensiva || 0;
     S.lastDay = c.ultimoAcesso || null;
     S.diasEstudados = { ...(c.diasEstudados || {}) };
-
-    // Reconstrói S.custom só com músicas compradas desta conta
     S.custom = S.custom.filter(s => !s.comprada || S.compras.includes(s.id));
 
     if(c.pro) localStorage.setItem(IS_PRO_KEY, 'true');
@@ -2541,20 +2596,22 @@ function confLoop(){
 /* ================= HUD / rotas ================= */
 function updateHUD(){
   const c = contaAtual();
-  $('#hudStreak').textContent = c ? (c.ofensiva || 0) : effStreak();
-  $('#hudXp').textContent     = c ? (c.xp || 0)      : S.xp;
+  const a = alunoTurmaAtual();
+  const dados = c || a;
+  $('#hudStreak').textContent = dados ? (dados.ofensiva || 0) : effStreak();
+  $('#hudXp').textContent     = dados ? (dados.xp || 0)      : S.xp;
   $('#hudGems').textContent   = S.gems;
   const ha = $('#hudConta');
   if(ha){
-    if(c){
+    if(dados){
       ha.style.display = 'inline-flex';
-      ha.querySelector('.hud-avatar').textContent = '🎹';
-      ha.querySelector('.hud-nome').textContent   = c.nome;
-      ha.title = c.nome;
+      ha.querySelector('.hud-avatar').textContent = c ? '🎹' : '🎓';
+      ha.querySelector('.hud-nome').textContent   = dados.nome;
+      ha.title = dados.nome;
     } else { ha.style.display = 'none'; }
   }
   const cb = $('#contaBtn');
-  if(cb) cb.classList.toggle('active-met', !!c);
+  if(cb) cb.classList.toggle('active-met', !!dados);
 }
 function showView(v){
   currentView = v;
@@ -2610,6 +2667,8 @@ async function route(){
 function getDiasEstudados(){
   const c = contaAtual();
   if(c && c.diasEstudados) return c.diasEstudados;
+  const a = alunoTurmaAtual();
+  if(a && a.diasEstudados) return a.diasEstudados;
   return S.diasEstudados || {};
 }
 function marcarDiaEstudado(){
@@ -2619,6 +2678,12 @@ function marcarDiaEstudado(){
     c.diasEstudados = c.diasEstudados || {};
     c.diasEstudados[d] = true;
     scheduleDbSave('dia estudado ' + c.nome);
+  }
+  const a = alunoTurmaAtual();
+  if(a){
+    a.diasEstudados = a.diasEstudados || {};
+    a.diasEstudados[d] = true;
+    scheduleDbSave('dia estudado aluno turma ' + a.nome);
   }
   S.diasEstudados = S.diasEstudados || {};
   S.diasEstudados[d] = true;
@@ -2684,9 +2749,24 @@ function makeBgNotes(){
   host.innerHTML = html;
 }
 
-/* ================= turmas ================= */
+/* ================= turmas (Pro) ================= */
 function renderTurmas(){
   const minhasTurmas = DB.turmas.filter(t => t.professorId === S.conta);
+
+  const sel = $('#alunoAtualSelect');
+  if(sel){
+    const opts = ['<option value="">— escolha um aluno —</option>'];
+    minhasTurmas.forEach(t => {
+      const alunos = Object.values(DB.alunos).filter(a => a.turmaId === t.id);
+      if(!alunos.length) return;
+      opts.push('<optgroup label="' + esc(t.nome) + '">');
+      alunos.sort((a,b) => (b.xp || 0) - (a.xp || 0)).forEach(a => {
+        opts.push('<option value="' + a.id + '"' + (S.conta === a.id ? ' selected' : '') + '>' + esc(a.nome) + ' — ' + (a.xp || 0) + ' XP</option>');
+      });
+      opts.push('</optgroup>');
+    });
+    sel.innerHTML = opts.join('');
+  }
 
   const list = $('#turmasList');
   if(!list) return;
@@ -2695,7 +2775,7 @@ function renderTurmas(){
     return;
   }
   list.innerHTML = minhasTurmas.map(t => {
-    const alunos = Object.values(DB.contasGlobais).filter(a => a.turmaId === t.id);
+    const alunos = Object.values(DB.alunos).filter(a => a.turmaId === t.id);
     alunos.sort((a,b) => (b.xp || 0) - (a.xp || 0));
     const rows = alunos.length
       ? alunos.map((a,i) =>
@@ -2703,11 +2783,11 @@ function renderTurmas(){
             + '<span class="avatar">🎵</span><span class="nome">' + esc(a.nome) + '</span>'
             + '<span class="xp">' + (a.xp || 0) + ' XP</span></div>'
         ).join('')
-      : '<div class="turma-empty">Nenhum aluno ainda. Copie o código abaixo e envie para os alunos entrarem. 👇</div>';
+      : '<div class="turma-empty">Nenhum aluno nesta turma. Clique em <b>Adicionar aluno</b> para começar. 👇</div>';
     return '<div class="turma-card" data-turma-id="' + t.id + '">'
       + '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">'
       +   '<h3 style="flex:1;min-width:0">' + esc(t.nome) + ' <small>' + alunos.length + ' alunos</small></h3>'
-      +   '<span class="turma-codigo" data-copy="' + t.codigo + '" title="Copiar código">' + t.codigo + ' ' + I.copy + '</span>'
+      +   '<button class="btn green small" data-add-aluno="' + t.id + '">' + I.plus + ' Adicionar aluno</button>'
       +   '<button class="btn ghost small icon-only danger" data-del-turma="' + t.id + '" title="Excluir turma">' + I.trash + '</button>'
       + '</div>'
       + '<div class="turma-alunos">' + rows + '</div>'
@@ -2715,16 +2795,64 @@ function renderTurmas(){
   }).join('');
 }
 
+function abrirModalAluno(turmaId){
+  const turma = DB.turmas.find(t => t.id === turmaId);
+  if(!turma){ toast('Turma não encontrada.', { type: 'error' }); return; }
+  if(turma.professorId !== S.conta){ toast('Você não é dono dessa turma.', { type: 'error' }); return; }
+
+  openModal(
+    '<div class="modal-head"><h3>Adicionar aluno</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
+    + '<p class="modal-sub" style="text-align:left">Turma: <b>' + esc(turma.nome) + '</b></p>'
+    + '<div style="text-align:left;margin-top:12px;display:flex;flex-direction:column;gap:10px">'
+    + '<label>Nome do aluno</label><input id="alNome" type="text" placeholder="Ex.: João Silva" style="width:100%" maxlength="20">'
+    + '<label>Senha (para o aluno entrar)</label><input id="alSenha" type="password" placeholder="Mínimo 4 caracteres" style="width:100%" maxlength="40">'
+    + '</div>'
+    + '<div class="modal-actions">'
+    + '<button class="btn green" id="alOk">' + I.check + ' Criar aluno</button>'
+    + '<button class="btn ghost" id="alCancel">Cancelar</button>'
+    + '</div>'
+  );
+  $('#mClose').onclick = $('#alCancel').onclick = () => closeModal();
+  $('#alOk').onclick = async () => {
+    const nome = ($('#alNome').value || '').trim();
+    const senha = ($('#alSenha').value || '').trim();
+    if(!nome || nome.length < 2){ toast('Nome muito curto.', { type: 'warn' }); return; }
+    if(!senha || senha.length < 4){ toast('Senha muito curta.', { type: 'warn' }); return; }
+
+    const id = slug(nome);
+    if(DB.alunos[id]){ toast('Já existe um aluno com esse nome.', { type: 'warn' }); return; }
+
+    DB.alunos[id] = {
+      id, nome, senha,
+      turmaId,
+      xp: 0,
+      ofensiva: 0,
+      musicasConcluidas: {},
+      diasEstudados: {},
+      criadoEm: todayStr()
+    };
+
+    try{
+      await dbSave('novo aluno ' + nome + ' na turma ' + turma.nome);
+      toast('Aluno criado! 🎉', { type: 'success' });
+    }catch(e){
+      toast('Erro: ' + e.message, { type: 'error' });
+    }
+    closeModal(true);
+    renderTurmas();
+  };
+}
+
 function excluirTurma(turmaId){
   const turma = DB.turmas.find(t => t.id === turmaId);
   if(!turma){ toast('Turma não encontrada.', { type: 'error' }); return; }
   if(turma.professorId !== S.conta){ toast('Você não é dono dessa turma.', { type: 'error' }); return; }
 
-  const alunos = Object.values(DB.contasGlobais).filter(a => a.turmaId === turmaId);
+  const alunos = Object.values(DB.alunos).filter(a => a.turmaId === turmaId);
   openModal(
     '<h3 class="modal-title">Excluir turma?</h3>'
     + '<p class="modal-sub">“' + esc(turma.nome) + '” será removida.'
-    + (alunos.length ? '<br><b style="color:#FF9B9E">' + alunos.length + ' aluno(s)</b> ficarão sem turma.' : '')
+    + (alunos.length ? '<br><b style="color:#FF9B9E">' + alunos.length + ' aluno(s)</b> serão removidos também.' : '')
     + '</p>'
     + '<div class="modal-actions-col" style="margin-top:18px">'
     + '<button class="btn red big" id="delOk">' + I.trash + ' Sim, excluir</button>'
@@ -2733,8 +2861,8 @@ function excluirTurma(turmaId){
   );
   $('#delOk').onclick = async () => {
     DB.turmas = DB.turmas.filter(t => t.id !== turmaId);
-    Object.values(DB.contasGlobais).forEach(a => {
-      if(a.turmaId === turmaId) delete a.turmaId;
+    Object.keys(DB.alunos).forEach(k => {
+      if(DB.alunos[k].turmaId === turmaId) delete DB.alunos[k];
     });
     try{
       await dbSave('turma excluída ' + turma.nome);
@@ -2779,7 +2907,6 @@ function wire(){
       const label = pixBtn.querySelector('span');
       const iconHost = pixBtn.querySelector('.icw');
       const originalLabel = label ? label.textContent : 'Copiar';
-
       const restaurarBotao = () => {
         setTimeout(() => {
           if(label) label.textContent = originalLabel;
@@ -2787,7 +2914,6 @@ function wire(){
           pixBtn.classList.remove('copied');
         }, 1800);
       };
-
       const mostrarSucesso = () => {
         if(label) label.textContent = 'Copiado!';
         if(iconHost) iconHost.innerHTML = I.check;
@@ -2796,38 +2922,23 @@ function wire(){
         sfxClick();
         restaurarBotao();
       };
-
       const copiarFallback = () => {
         try{
           const ta = document.createElement('textarea');
-          ta.value = key;
-          ta.setAttribute('readonly', '');
-          ta.style.position = 'fixed';
-          ta.style.top = '-9999px';
-          ta.style.opacity = '0';
-          document.body.appendChild(ta);
-          ta.select();
-          ta.setSelectionRange(0, key.length);
-          const ok = document.execCommand('copy');
-          ta.remove();
-          if(ok) mostrarSucesso();
-          else throw new Error('execCommand falhou');
+          ta.value = key; ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed'; ta.style.top = '-9999px'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select(); ta.setSelectionRange(0, key.length);
+          const ok = document.execCommand('copy'); ta.remove();
+          if(ok) mostrarSucesso(); else throw new Error('execCommand falhou');
         }catch(err){
-          toast('Não foi possível copiar automaticamente. Selecione e copie manualmente.', { type: 'warn', duration: 5000 });
+          toast('Não foi possível copiar automaticamente.', { type: 'warn' });
           selecionarTexto(keyEl);
         }
       };
-
       if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
-        try{
-          await navigator.clipboard.writeText(key);
-          mostrarSucesso();
-        }catch(e){
-          copiarFallback();
-        }
-      } else {
-        copiarFallback();
-      }
+        try{ await navigator.clipboard.writeText(key); mostrarSucesso(); }
+        catch(e){ copiarFallback(); }
+      } else { copiarFallback(); }
     };
   }
 
@@ -2837,29 +2948,16 @@ function wire(){
       openModal(
         '<div class="modal-head"><h3>Ativar versão Pro</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
         + '<p class="modal-sub" style="text-align:left">A versão Pro libera <b>Turmas</b> e <b>Ranking por turma</b>.</p>'
-        + '<p class="sub" style="text-align:left;color:var(--ink2);margin-top:10px;line-height:1.6">'
-        + '<b>Como ativar:</b><br>'
-        + '1. Faça o PIX para a chave abaixo<br>'
-        + '2. Envie o comprovante no WhatsApp<br>'
-        + '3. Aguarde a confirmação<br>'
-        + '4. Você receberá uma chave de ativação aqui'
-        + '</p>'
         + '<div style="margin-top:14px;padding:12px 14px;background:#221040;border:1px solid var(--line);border-radius:12px;text-align:center">'
-        + '<div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--teal);margin-bottom:8px">Pague com QR Code PIX</div>'
         + '<img src="qrcode-pix.png" alt="QR Code PIX" style="width:180px;height:180px;display:block;margin:0 auto;border-radius:8px;background:#fff;padding:6px">'
-        + '<div style="font-size:11px;font-weight:800;letter-spacing:1px;text-transform:uppercase;color:var(--teal);margin-top:12px;margin-bottom:6px">Ou copie a chave</div>'
-        + '<div style="display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap">'
-        + '<code id="pixProKey" style="font-size:13px;font-weight:700;color:var(--ink2);word-break:break-all">' + PIX_KEY + '</code>'
+        + '<div style="display:flex;gap:8px;align-items:center;justify-content:center;flex-wrap:wrap;margin-top:8px">'
+        + '<code style="font-size:12px;color:var(--ink2);word-break:break-all">' + PIX_KEY + '</code>'
         + '<button class="btn green small" id="pixProCopy" type="button">' + I.copy + '<span>Copiar</span></button>'
         + '</div></div>'
-        + '<div class="modal-actions" style="margin-top:8px">'
-        + '<a class="btn green" href="https://wa.me/5571986797547?text=' + encodeURIComponent('Olá! Paguei o PIX do Clave Pro. Meu nome na conta é: ' + (contaAtual()?.nome || '')) + '" target="_blank" rel="noopener">' + I.play + ' Enviar comprovante</a>'
-        + '</div>'
         + '<p class="sub" style="text-align:left;color:var(--ink3);margin-top:14px">Já tem a chave? Cole abaixo:</p>'
         + '<input id="proKey" type="text" placeholder="CLAVE-PRO-..." style="width:100%;margin-top:6px">'
         + '<div class="modal-actions"><button class="btn gold" id="proOk">' + I.check + ' Ativar</button><button class="btn ghost" id="proCancel">Cancelar</button></div>'
       );
-
       const proCopyBtn = $('#pixProCopy');
       if(proCopyBtn){
         proCopyBtn.onclick = async () => {
@@ -2876,9 +2974,7 @@ function wire(){
           }catch(e){ toast('Copie manualmente.', { type: 'warn' }); }
         };
       }
-
       $('#mClose').onclick = $('#proCancel').onclick = () => closeModal();
-
       $('#proOk').onclick = async () => {
         const key = ($('#proKey').value || '').trim().toUpperCase();
         if(!key){ toast('Digite a chave.', { type: 'warn' }); return; }
@@ -2904,32 +3000,19 @@ function wire(){
 
         try{
           const { db, doc, runTransaction, setDoc } = window.FirebaseService;
-
           await runTransaction(db, async (transaction) => {
             const chaveRef = doc(db, 'chavesPro', key);
             const chaveSnap = await transaction.get(chaveRef);
-
             if(!chaveSnap.exists()) throw new Error('Chave inválida.');
             const data = chaveSnap.data();
             if(!data.ativa) throw new Error('Chave desativada.');
             if(data.usadaPor) throw new Error('Esta chave já foi usada por outra conta.');
-
-            transaction.update(chaveRef, {
-              usadaPor: S.conta,
-              usadaEm: new Date().toISOString()
-            });
+            transaction.update(chaveRef, { usadaPor: S.conta, usadaEm: new Date().toISOString() });
           });
-
           await setDoc(doc(db, 'clave', 'dados'), {
-            contasGlobais: {
-              [S.conta]: { pro: true }
-            }
+            contasGlobais: { [S.conta]: { pro: true } }
           }, { merge: true });
-
-          if(DB.contasGlobais[S.conta]){
-            DB.contasGlobais[S.conta].pro = true;
-          }
-
+          if(DB.contasGlobais[S.conta]) DB.contasGlobais[S.conta].pro = true;
           localStorage.setItem(IS_PRO_KEY, 'true');
           applyPlanClasses();
           closeModal(true);
@@ -2939,7 +3022,7 @@ function wire(){
           const msg = e.message || 'Erro desconhecido';
           if(msg.includes('já foi usada')) toast('🔒 Esta chave já foi usada.', { type: 'error', duration: 5000 });
           else if(msg.includes('desativada')) toast('Chave desativada.', { type: 'error' });
-          else if(msg.includes('inválida')) toast('Chave inválida. Confira e tente de novo.', { type: 'error' });
+          else if(msg.includes('inválida')) toast('Chave inválida.', { type: 'error' });
           else toast('Erro: ' + msg, { type: 'error', duration: 5000 });
           btn.disabled = false;
           btn.innerHTML = originalHtml;
@@ -3021,14 +3104,13 @@ function wire(){
     limparBtn.onclick = () => {
       openModal(
         '<div class="modal-head"><h3>Limpar dados do navegador?</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
-        + '<p class="modal-sub" style="text-align:left;line-height:1.6">Isso vai remover do <b>navegador atual</b>:</p>'
+        + '<p class="modal-sub" style="text-align:left">Isso vai remover do <b>navegador atual</b>:</p>'
         + '<ul style="text-align:left;color:var(--ink2);font-weight:700;font-size:14px;line-height:1.8;padding-left:20px;margin-top:8px">'
         + '<li>Progresso local (XP, ofensiva, músicas concluídas)</li>'
         + '<li>Sessão da conta (você precisará logar de novo)</li>'
         + '<li>Músicas em cache e cache de navegação</li>'
         + '<li>Status Pro salvo localmente</li>'
         + '</ul>'
-        + '<p class="modal-sub" style="text-align:left;margin-top:12px;color:#FF9B9E">Se você tem conta, o progresso salvo na nuvem será recuperado ao fazer login de novo.</p>'
         + '<div class="modal-actions">'
         + '<button class="btn red" id="limparOk">' + I.trash + ' Sim, limpar tudo</button>'
         + '<button class="btn ghost" id="limparCancel">Cancelar</button>'
@@ -3102,42 +3184,25 @@ function wire(){
     $('#mtOk').onclick = async () => {
       const nome = $('#mtNome').value.trim();
       if(!nome){ toast('Digite o nome.', { type: 'warn' }); return; }
-      const codigo = gerarCodigoTurma();
       const id = 't' + Date.now().toString(36);
       DB.turmas.push({
-        id,
-        nome,
-        codigo,
+        id, nome,
         professor: $('#mtProf').value.trim(),
         professorId: S.conta,
         criadaEm: todayStr()
       });
-      try{
-        await dbSave('nova turma');
-        closeModal(true);
-        toast('Turma criada! Código: ' + codigo + ' 🎉', { type: 'success', duration: 6000 });
-        renderTurmas();
-      }catch(e){
-        toast('Erro: ' + e.message, { type: 'error' });
-      }
+      try{ await dbSave('nova turma'); toast('Turma criada!', { type: 'success' }); }
+      catch(e){ toast('Erro: ' + e.message, { type: 'error' }); }
+      closeModal(true);
+      renderTurmas();
     };
   };
 
-  $('#turmasList').addEventListener('click', async e => {
-    const cod = e.target.closest('[data-copy]');
-    if(cod){
+  $('#turmasList').addEventListener('click', e => {
+    const btnAdd = e.target.closest('[data-add-aluno]');
+    if(btnAdd){
       sfxClick();
-      const valor = cod.dataset.copy;
-      try{
-        if(navigator.clipboard && navigator.clipboard.writeText && window.isSecureContext){
-          await navigator.clipboard.writeText(valor);
-        } else {
-          const ta = document.createElement('textarea');
-          ta.value = valor; ta.style.position = 'fixed'; ta.style.opacity = '0';
-          document.body.appendChild(ta); ta.select(); document.execCommand('copy'); ta.remove();
-        }
-        toast('Código copiado! 📋', { type: 'success' });
-      }catch(err){ toast('Copie manualmente: ' + valor, { type: 'warn' }); }
+      abrirModalAluno(btnAdd.dataset.addAluno);
       return;
     }
     const btnDel = e.target.closest('[data-del-turma]');
@@ -3168,15 +3233,15 @@ function abrirBoasVindas(){
   openModal(
     '<div class="mascot-wrap mascot">' + mascotSVG('welcome') + '</div>'
     + '<h3 class="modal-title">Bem-vindo ao Clave!</h3>'
-    + '<p class="modal-sub">Aprenda música tocando. 🎹<br>Quer <b>salvar seu progresso</b> e entrar no ranking global?</p>'
+    + '<p class="modal-sub">Aprenda música tocando. 🎹<br>Como você quer entrar?</p>'
     + '<div class="modal-actions-col" style="margin-top:18px">'
     + '<button class="btn green big" id="bemCriar">' + I.plus + ' Criar conta grátis</button>'
-    + '<button class="btn ghost" id="bemEntrar">' + I.user + ' Já tenho conta</button>'
+    + '<button class="btn blue big" id="bemTurma">' + I.trophy + ' Entrar como aluno de turma</button>'
     + '<button class="btn ghost" id="bemVisitante">Continuar como visitante</button>'
     + '</div>'
   );
-  $('#bemCriar').onclick = () => { closeModal(true); abrirModalConta(); };
-  $('#bemEntrar').onclick = () => { closeModal(true); abrirModalConta(); };
+  $('#bemCriar').onclick = () => { closeModal(true); abrirLoginConta(); };
+  $('#bemTurma').onclick = () => { closeModal(true); abrirLoginTurma(); };
   $('#bemVisitante').onclick = () => { closeModal(true); };
 }
 
@@ -3197,7 +3262,6 @@ async function boot(){
   const fewCores = navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2;
   if(isPS4 || fewCores){
     document.documentElement.classList.add('lite-mode');
-    console.log('[Clave] modo lite ativado');
   }
 
   if(!window.ABCJS){
@@ -3210,7 +3274,8 @@ async function boot(){
     const { auth, db, doc, getDoc } = window.FirebaseService;
     auth.onAuthStateChanged(async (user) => {
       if(!user){
-        if(S.conta){
+        if(S.conta && DB.contasGlobais[S.conta]){
+          // só desloga se era conta de e-mail
           S.conta = null;
           S.xp = 0; S.compras = []; S.completed = {};
           S.streak = 0; S.lastDay = null; S.diasEstudados = {};
@@ -3229,7 +3294,6 @@ async function boot(){
 
         DB.contasGlobais = dados.contasGlobais;
 
-        // SUBSTITUI pela conta (não mescla com S local de outra pessoa)
         S.conta = user.uid;
         S.xp = conta.xp || 0;
         S.compras = Array.isArray(conta.compras) ? [...conta.compras] : [];
@@ -3250,18 +3314,6 @@ async function boot(){
   try{ await loadRemoteSongs(); }catch(e){ console.warn('remote:', e); }
   try{ await dbLoad(); }catch(e){ console.warn('dbLoad:', e); }
   try{ await loadMusicasCompradas(); }catch(e){ console.warn('compras:', e); }
-
-  // Se estava logado no boot, sincroniza progresso da conta (não merge com visitante)
-  if(S.conta && DB.contasGlobais[S.conta]){
-    const c = DB.contasGlobais[S.conta];
-    const maxXp = Math.max(c.xp || 0, S.xp || 0);
-    c.xp = maxXp;
-    S.xp = maxXp;
-    c.ofensiva = S.streak || c.ofensiva || 0;
-    c.ultimoAcesso = todayStr();
-    save();
-    try{ await dbSave('sync login'); }catch(e){ console.warn(e); }
-  }
 
   await route();
 
