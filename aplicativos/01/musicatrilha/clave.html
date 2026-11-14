@@ -251,8 +251,8 @@ h1{font-family:var(--font-disp);font-size:30px;font-weight:800}
 .lesson-tip .icw{color:var(--blue);flex-shrink:0}
 .lesson-tip .icon-btn{margin-left:auto;color:#BFDCFF}
 
-.paper-wrap{flex:1;min-height:110px;position:relative}
-.paper{position:absolute;inset:0;background:var(--paper);border-radius:16px;overflow:auto;padding:24px 18px 16px;
+.paper-wrap{flex:1;min-height:140px;position:relative}
+.paper{position:absolute;inset:0;background:var(--paper);border-radius:16px;overflow:auto;padding:26px 22px 20px;
   color:var(--paper-ink);box-shadow:0 10px 30px rgba(0,0,0,.35),inset 0 0 0 1px rgba(0,0,0,.06)}
 .paper svg{color:var(--paper-ink);max-width:100%}
 .paper-error{color:#8A4A3A;font-weight:800;text-align:center;padding:40px 16px;font-size:14px}
@@ -1615,13 +1615,16 @@ function buildPianoFromRange(song){
 function renderSheet(){
   const paper = $('#paper');
   if(!window.ABCJS){ paper.innerHTML = '<div class="paper-error">⚠️ abcjs não carregou.</div>'; return; }
-  const w = Math.max(300, paper.clientWidth - 36);
+  const cs = getComputedStyle(paper);
+  const padL = parseFloat(cs.paddingLeft) || 0;
+  const padR = parseFloat(cs.paddingRight) || 0;
+  const w = Math.max(280, paper.clientWidth - padL - padR - 12);
   let tunes = null;
   try{
     tunes = ABCJS.renderAbc(paper, L.song.abc, {
       staffwidth: w, scale: 1.15, add_classes: true,
-      paddingtop: 16, paddingbottom: 14, paddingleft: 0, paddingright: 0,
-      wrap: { minSpacing: 1.7, maxSpacing: 2.6, preferredMeasuresPerLine: 4 }
+      paddingtop: 26, paddingbottom: 18, paddingleft: 4, paddingright: 4,
+      wrap: { minSpacing: 1.9, maxSpacing: 2.8, preferredMeasuresPerLine: 4 }
     });
   }catch(err){
     paper.innerHTML = '<div class="paper-error">Erro: ' + esc(err.message) + '</div>';
@@ -1878,13 +1881,31 @@ function finishLesson(){
   }
   salvarProgressoMusica(L.song.id, stars, acc);
   save(); updateHUD(); sfxFanfare(); confettiBurst();
+
+  // === Precisão rítmica (metrônomo) ===
+  const TOL = 0.200; // 200 ms
+  const medirRitmo = !!MET._startAC && L.hits.some(h => h.err != null);
+  let accRitmo = null;
+  if(medirRitmo){
+    let ok = 0, total = 0;
+    L.hits.forEach(h => {
+      if(h.midi == null || h.idx == null) return;
+      const alvo = L.targets[h.idx];
+      if(!alvo) return;
+      if(h.midi === alvo.midi){ total++; if(Math.abs(h.err) <= TOL) ok++; }
+    });
+    accRitmo = total > 0 ? Math.round(100 * ok / total) : null;
+  }
+
   const next = withStatus().find(s => !s.done);
   const maxCombo = L.maxCombo, song = L.song;
-  const statsHtml = '<div class="stats-grid">'
+  const statsHtml = '<div class="stats-grid' + (accRitmo != null ? ' five' : '') + '">'
     + '<div class="stat"><b>+' + (notesXp + bonus + perfect) + '</b><span>XP</span></div>'
     + '<div class="stat"><b>' + acc + '%</b><span>Notas</span></div>'
+    + (accRitmo != null ? '<div class="stat"><b>' + accRitmo + '%</b><span>Ritmo</span></div>' : '')
     + '<div class="stat"><b>×' + maxCombo + '</b><span>Combo</span></div>'
     + '<div class="stat"><b>' + fmtTime(secs) + '</b><span>Tempo</span></div></div>';
+
   openModal(
     '<div class="mascot-wrap mascot">' + mascotSVG('win') + '</div>'
     + '<h3 class="modal-title">' + (next ? 'Música concluída!' : 'Trilha completa! 🏆') + '</h3>'
