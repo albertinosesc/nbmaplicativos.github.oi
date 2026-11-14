@@ -535,6 +535,9 @@ html.lite-mode .btn:active{ transform:none !important; }
 .turma-card [data-del-turma]{flex-shrink:0}
 .checkline{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;background:#221040;border:1px solid var(--line);font-weight:700;font-size:13.5px}
 .checkline input[type=checkbox]{accent-color:var(--green);width:16px;height:16px}
+body:not(.is-pro) #turmasConteudo{display:none}
+body:not(.is-pro) #turmasBloqueio{display:block !important}
+body:not(.is-pro) #novaTurmaBtn{ display:none !important; }
 </style>
 </head>
 <body>
@@ -2653,7 +2656,19 @@ async function entrarConta(){
 
 /* ================= modal Pro ================= */
 function abrirModalPro(){
-  if(!contaAtual()){ toast('Entre na sua conta primeiro.', { type: 'warn' }); return; }
+  if(!contaAtual()){
+    openModal(
+      '<div class="modal-head"><h3>Ativar versão Pro</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
+      + '<p class="modal-sub" style="text-align:left">Para ativar o Pro, você precisa entrar ou criar uma conta.</p>'
+      + '<div class="modal-actions">'
+      + '<button class="btn green" id="proConta">' + I.user + ' Entrar / Criar conta</button>'
+      + '<button class="btn ghost" id="proCancel">Fechar</button>'
+      + '</div>'
+    );
+    $('#mClose').onclick = $('#proCancel').onclick = () => closeModal();
+    $('#proConta').onclick = () => { closeModal(true); abrirLoginConta(); };
+    return;
+  }
   openModal(
     '<div class="modal-head"><h3>Ativar versão Pro</h3><button class="icon-btn" id="mClose">' + I.x + '</button></div>'
     + '<p class="modal-sub" style="text-align:left">A versão Pro libera <b>Turmas</b> e <b>Ranking por turma</b>.</p>'
@@ -2931,8 +2946,7 @@ function updateHUD(){
     }
   }
 
-  const navTurmas = $('#navTurmas');
-  if(navTurmas) navTurmas.style.display = isProfessor() ? '' : 'none';
+  
 
   const cb = $('#contaBtn');
   if(cb) cb.classList.toggle('active-met', !!dados);
@@ -2966,10 +2980,22 @@ async function route(){
     if(!song.unlocked){ toast('🔒 Complete a anterior.', { type: 'warn' }); location.hash = '#/trilha'; return; }
     showView('licao');
     initLesson(song);
-  } else if(h.startsWith('#/turmas')){
-    if(!isProfessor()){ toast('🔒 Recurso Pro.', { type: 'warn' }); location.hash = '#/trilha'; return; }
+   } else if(h.startsWith('#/turmas')){
     showView('turmas');
-    renderTurmas();
+    if(!isProfessor()){
+      // Visitante / usuário sem Pro → mostra bloqueio + botão Ativar Pro
+      const conteudo = $('#turmasConteudo');
+      const bloqueio = $('#turmasBloqueio');
+      if(conteudo) conteudo.style.display = 'none';
+      if(bloqueio) bloqueio.style.display = 'block';
+    } else {
+      const conteudo = $('#turmasConteudo');
+      const bloqueio = $('#turmasBloqueio');
+      if(conteudo) conteudo.style.display = '';
+      if(bloqueio) bloqueio.style.display = 'none';
+      renderTurmas();
+    }
+  }
   } else if(h.startsWith('#/biblioteca')){
     showView('biblioteca');
     renderBiblioteca();
