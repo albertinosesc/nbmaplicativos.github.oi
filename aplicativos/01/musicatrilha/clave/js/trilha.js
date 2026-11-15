@@ -56,7 +56,6 @@ export function renderTrilha(){
 
   WORLDS.forEach((w, wi) => {
     const songs = byWorld[w.id];
-    if(!songs.length) return;
     const done = songs.filter(s => s.done).length;
     const nodesHtml = songs.map((s, i) => {
       const off = Math.round(Math.sin(i * 1.15) * 52);
@@ -71,20 +70,35 @@ export function renderTrilha(){
         + (subText ? '<div class="w-node-sub">' + esc(subText) + '</div>' : '')
         + '</div></div>';
     }).join('');
+
+    // Se o mundo está vazio, mostra mensagem + botão "Em breve"
+    const vazioHtml = !songs.length
+      ? '<div class="w-empty"><span class="w-empty-emoji">' + w.emblem + '</span><b>Em breve!</b><span>Novas músicas chegando neste mundo.</span></div>'
+      : '';
+
     const div = document.createElement('section');
-    div.className = 'world ' + w.cls;
+    div.className = 'world ' + w.cls + (songs.length ? '' : ' world-empty');
     div.innerHTML = '<div class="world-deco">' + worldSvgDecor(w.id) + '</div>'
       + '<div class="world-head">'
       +   '<div class="world-emblem-wrap">' + w.emblem + '</div>'
       +   '<div class="world-titles"><small>Mundo ' + (wi + 1) + '</small><h2>' + esc(w.name) + '</h2><p>' + esc(w.desc) + '</p></div>'
       +   '<div class="world-progress"><b>' + done + '/' + songs.length + '</b>'
-      +   '<div class="world-bar"><div style="width:' + (100 * done / songs.length) + '%"></div></div></div>'
+      +   '<div class="world-bar"><div style="width:' + (songs.length ? (100 * done / songs.length) : 0) + '%"></div></div></div>'
       +   '<button class="world-toggle" data-world="' + w.id + '" aria-label="Minimizar/expandir" title="Minimizar">−</button>'
       + '</div>'
-      + '<div class="world-path"><svg class="world-svg" aria-hidden="true"></svg><div class="world-nodes">' + nodesHtml + '</div></div>';
+      + '<div class="world-path">'
+      +   '<svg class="world-svg" aria-hidden="true"></svg>'
+      +   '<div class="world-nodes">' + nodesHtml + vazioHtml + '</div>'
+      + '</div>';
     stack.appendChild(div);
   });
-  if(!WORLDS.some(w => byWorld[w.id].length)) stack.innerHTML = '<div class="empty-state" style="margin-top:20px">Nenhuma música carregada. 🎵</div>';
+
+  if(!WORLDS.some(w => byWorld[w.id].length)){
+    // Só cai aqui se NENHUM mundo tiver música
+    stack.innerHTML = '<div class="empty-state" style="margin-top:20px">Nenhuma música carregada. 🎵</div>';
+    return;
+  }
+
   requestAnimationFrame(() => {
     document.querySelectorAll('#worldStack .world').forEach(worldEl => {
       const holderEl = worldEl.querySelector('.world-path');
