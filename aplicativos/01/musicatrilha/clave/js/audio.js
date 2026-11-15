@@ -168,15 +168,34 @@ export function metSetButton(){
   const bLight = document.getElementById('metLightBtn');
   if(bLight){
     bLight.setAttribute('aria-pressed', String(!!S.settings.metLight));
+    bLight.style.overflow = 'visible';
+    bLight.style.minWidth = 'auto';
+    bLight.style.padding = '8px 10px';
     const host = document.getElementById('metLamps');
     if(host){
+      host.style.display = 'inline-flex';
+      host.style.gap = '5px';
+      host.style.alignItems = 'center';
+      host.style.minHeight = '18px';
+      host.style.overflow = 'visible';
       const bpb = (window.L && window.L.beatsPerBar) ? window.L.beatsPerBar : 4;
       if(host.children.length !== bpb){
         let html = '';
         for(let i = 0; i < bpb; i++) html += '<span class="met-lamp' + (i === 0 ? '' : ' weak') + '"></span>';
         host.innerHTML = html;
       }
-      [...host.children].forEach(el => el.classList.remove('on'));
+      [...host.children].forEach(el => {
+        el.style.display = 'inline-block';
+        el.style.width = '16px';
+        el.style.height = '16px';
+        el.style.minWidth = '16px';
+        el.style.minHeight = '16px';
+        el.style.borderRadius = '50%';
+        el.style.background = '#8A8A8A';
+        el.style.border = '1px solid rgba(255,255,255,.25)';
+        el.style.flexShrink = '0';
+        el.classList.remove('on');
+      });
     }
   }
 }
@@ -207,7 +226,13 @@ export function metStop(){
   MET.on = false; MET.light = false;
   cancelAnimationFrame(MET.raf); MET.raf = 0; MET._token = 0;
   const host = document.getElementById('metLamps');
-  if(host) [...host.children].forEach(el => el.classList.remove('on'));
+  if(host){
+    [...host.children].forEach(el => {
+      el.classList.remove('on');
+      el.style.background = '#8A8A8A';
+      el.style.boxShadow = 'none';
+    });
+  }
 }
 
 export function metLoop(token){
@@ -229,8 +254,17 @@ export function metLoop(token){
         const host = document.getElementById('metLamps');
         if(!host) return;
         const lamps = host.children;
-        for(let i = 0; i < lamps.length; i++) lamps[i].classList.remove('on');
-        if(lamps[beatIdx]) lamps[beatIdx].classList.add('on');
+        for(let i = 0; i < lamps.length; i++){
+          lamps[i].classList.remove('on');
+          lamps[i].style.background = '#8A8A8A';
+          lamps[i].style.boxShadow = 'none';
+        }
+        if(lamps[beatIdx]){
+          lamps[beatIdx].classList.add('on');
+          const isStrong = beatIdx === 0;
+          lamps[beatIdx].style.background = isStrong ? '#FF5A5F' : '#3CE68A';
+          lamps[beatIdx].style.boxShadow = isStrong ? '0 0 10px rgba(255,90,95,.95)' : '0 0 10px rgba(60,230,138,.95)';
+        }
       }, delay);
     }
     MET.beat++;
