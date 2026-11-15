@@ -1,19 +1,18 @@
 // ===== Todos os event listeners =====
-import { S, save, setSound } from './state.js';
+import { S, save } from './state.js';
 import { toast, closeModal } from './ui.js';
 import { setLibView, deleteCustom, abrirPreview } from './biblioteca.js';
-import { metToggleSound, metToggleLight, setSound as audioSetSound } from './audio.js';
+import { setSound, metToggleSound, metToggleLight } from './audio.js';
 import { requestExit, toggleListen, initLesson } from './lesson.js';
-import { setLibView as _setLibView } from './biblioteca.js';
 import { sairSessaoAluno } from './turmas.js';
 import { abrirModalConta, abrirModalPro } from './auth.js';
 import { enviarComentario } from './comentarios.js';
 
 export function wire(){
-  window.addEventListener('hashchange', () => window.route());
+  window.addEventListener('hashchange', () => { if(window.route) route(); });
 
   const soundBtn = document.getElementById('soundBtn');
-  if(soundBtn) soundBtn.onclick = () => { if(window.setSound) setSound(!S.settings.sound); if(window.sfxClick) sfxClick(); };
+  if(soundBtn) soundBtn.onclick = () => { setSound(!S.settings.sound); if(window.sfxClick) sfxClick(); };
   ['pointerdown','touchstart','click','keydown'].forEach(evt =>
     document.addEventListener(evt, () => { if(window.unlockAudio) unlockAudio(); }, { passive: true })
   );
@@ -24,7 +23,6 @@ export function wire(){
   const topPro = document.getElementById('topProBtn');
   if(topPro) topPro.onclick = () => abrirModalPro();
 
-  // Bloqueio de cliques nas abas Pro
   ['#navTurmas', '#navLoja'].forEach(sel => {
     const el = document.querySelector(sel);
     if(!el) return;
