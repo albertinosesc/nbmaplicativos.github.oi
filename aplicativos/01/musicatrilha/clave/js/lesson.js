@@ -60,9 +60,7 @@ export function initLesson(song){
   buildPianoFromRange(song);
   if(window.updatePlayUI) updatePlayUI();
   if(window.metSetButton) metSetButton();
-  setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 100);
-setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 300);
-setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 800);
+setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 500);
   const reflow = () => {
     if(!L || L.finished) return;
     const pw = document.getElementById('paper');
@@ -76,7 +74,7 @@ setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 800);
   requestAnimationFrame(reflow);
   setTimeout(reflow, 150);
   setTimeout(reflow, 400);
-  if(window.metSetButton) setTimeout(() => window.metSetButton(), 500);
+  
 }
 
 function midiFromAbc(abc){
