@@ -106,11 +106,15 @@ export function wire(){
 if(metBtn) metBtn.onclick = () => {
   metToggleSound();
   if(window.metSetButton) window.metSetButton();
+  if(S.settings.metronome || S.settings.metLight){ if(window.metStart) window.metStart(); }
+  else { if(window.metStop) window.metStop(); }
 };
 const metLBtn = document.getElementById('metLightBtn');
 if(metLBtn) metLBtn.onclick = () => {
   metToggleLight();
   if(window.metSetButton) window.metSetButton();
+  if(S.settings.metronome || S.settings.metLight){ if(window.metStart) window.metStart(); }
+  else { if(window.metStop) window.metStop(); }
 };
 
   const namesSw = document.getElementById('namesSwitch');
