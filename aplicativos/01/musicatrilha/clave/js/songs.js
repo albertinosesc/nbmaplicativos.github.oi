@@ -46,21 +46,26 @@ export function extractNotes(tune){
     const st = line.staff[0];
     const voice = st && st.voices && st.voices[0];
     if(!voice) return;
+    let tiePending = false;
     voice.forEach(el => {
-      if(el.el_type !== 'note') return;
+      if(el.el_type !== 'note'){ beat += el.duration || 0; return; }
       const dur = el.duration || 0.25;
       if(el.pitches && el.pitches.length){
         const midis = el.pitches.map(pitchToMidi).filter(v => v != null);
         const midi = midis.length ? Math.max(...midis) : null;
         const elems = ((el.abselem && el.abselem.elemset) || []).flat().filter(e => e && e.classList);
-        events.push({ midi, dur, start: beat, elems });
+        // Se a nota está ligada da anterior, não conta como novo alvo
+        const tied = !!(el.startTie || el.startBeam || (el.abselem && el.abselem.startTie));
+        const isTarget = midi != null && !tied;
+        events.push({ midi, dur, start: beat, elems, target: isTarget });
+        if(el.endTie) tiePending = true; else tiePending = false;
       } else {
-        events.push({ midi: null, dur, start: beat, elems: [] });
+        events.push({ midi: null, dur, start: beat, elems: [], target: false });
       }
       beat += dur;
     });
   });
-  return { events, total: beat, targets: events.filter(e => e.midi != null) };
+  return { events, total: beat, targets: events.filter(e => e.target) };
 }
 
 export function getTempo(tune){
