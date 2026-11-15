@@ -249,8 +249,8 @@ export function metRestart(){
   else metStop();
 }
 
-export function metToggleSound(){ S.settings.metronome = !S.settings.metronome; save(); metRestart(); }
-export function metToggleLight(){ S.settings.metLight   = !S.settings.metLight;   save(); metRestart(); }
+export function metToggleSound(){ S.settings.metronome = !S.settings.metronome; save(); metRestart(); metSetButton(); }
+export function metToggleLight(){ S.settings.metLight   = !S.settings.metLight;   save(); metRestart(); metSetButton(); }
 
 // Expor no window para compatibilidade
 window.ensureAudio = ensureAudio;
