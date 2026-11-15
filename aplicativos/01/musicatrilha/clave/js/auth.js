@@ -5,7 +5,8 @@ import { S, save, isPro, applyPlanClasses, todayStr } from './state.js';
 import { DB, dbLoad, dbSave, scheduleDbSave } from './firebase.js';
 import { openModal, closeModal, toast, esc } from './ui.js';
 import { I } from './icons.js';
-import { IS_PRO_KEY, PIX_KEY } from './config.js';
+//depois coloca
+//import { IS_PRO_KEY, PIX_KEY } from './config.js';
 
 export function contaAtual(){ return S.conta && DB.contasGlobais[S.conta] ? DB.contasGlobais[S.conta] : null; }
 export function alunoSessao(){ return S.alunoSessao && DB.alunos[S.alunoSessao] ? DB.alunos[S.alunoSessao] : null; }
