@@ -227,7 +227,6 @@ async function boot(){
   makeBgNotes();
   touchToday();
   save();
-  if(window.metSetButton) window.metSetButton();
   if(window.updateSoundBtn) window.updateSoundBtn();
   wire();
 
