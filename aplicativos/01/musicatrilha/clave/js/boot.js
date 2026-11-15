@@ -15,7 +15,7 @@ import { openModal, closeModal, toast, esc } from './ui.js';
 import { initLesson } from './lesson.js';
 import { abrirModalConta, abrirModalPro, abrirLoginConta, abrirLoginTurma } from './auth.js';
 
-// ⚠️ Expor TODAS as funções no window (para o código legado)
+// ⚠️ Expor TODAS as funções no window
 window.renderTrilha = renderTrilha;
 window.renderSidebar = renderSidebar;
 window.renderBiblioteca = renderBiblioteca;
@@ -38,7 +38,7 @@ window.esc = esc;
 
 // ===== HUD =====
 function updateHUD(){
-  const j = window.jogadorAtual ? jogadorAtual() : { tipo: 'visitante', dados: null };
+  const j = window.jogadorAtual ? window.jogadorAtual() : { tipo: 'visitante', dados: null };
   const dados = j.dados;
   const s = document.getElementById('hudStreak');
   if(s) s.textContent = dados ? (dados.ofensiva || 0) : effStreak();
@@ -59,7 +59,7 @@ function updateHUD(){
   }
   const sess = document.getElementById('sessaoChip');
   if(sess){
-    const a = window.alunoSessao ? alunoSessao() : null;
+    const a = window.alunoSessao ? window.alunoSessao() : null;
     if(a){
       sess.style.display = 'inline-flex';
       const sn = document.getElementById('sessaoNome');
@@ -70,7 +70,7 @@ function updateHUD(){
   }
   const tp = document.getElementById('topProBtn');
   if(tp){
-    const c = window.contaAtual ? contaAtual() : null;
+    const c = window.contaAtual ? window.contaAtual() : null;
     tp.style.display = (c && c.pro) ? 'none' : 'inline-flex';
   }
   const cb = document.getElementById('contaBtn');
@@ -84,7 +84,7 @@ function abrirCalendarioOfensiva(){
   const dow = ['D','S','T','Q','Q','S','S'];
 
   function getDiasEstudados(){
-    const j = window.jogadorAtual ? jogadorAtual() : { tipo: 'visitante', dados: null };
+    const j = window.jogadorAtual ? window.jogadorAtual() : { tipo: 'visitante', dados: null };
     if(j.tipo === 'alunoSessao' || j.tipo === 'conta') return j.dados.diasEstudados || {};
     return S.diasEstudados || {};
   }
@@ -200,8 +200,8 @@ function abrirBoasVindas(){
     +   '<div id="welcomeChangelog" class="changelog"></div>'
     + '</div>'
   );
-  document.getElementById('bemCriar').onclick = () => { closeModal(true); if(window.abrirLoginConta) abrirLoginConta(); };
-  document.getElementById('bemTurma').onclick = () => { closeModal(true); if(window.abrirLoginTurma) abrirLoginTurma(); };
+  document.getElementById('bemCriar').onclick = () => { closeModal(true); if(window.abrirLoginConta) window.abrirLoginConta(); };
+  document.getElementById('bemTurma').onclick = () => { closeModal(true); if(window.abrirLoginTurma) window.abrirLoginTurma(); };
   document.getElementById('bemVisitante').onclick = () => { closeModal(true); };
   renderChangelog(document.getElementById('welcomeChangelog'));
 }
@@ -213,8 +213,8 @@ async function boot(){
   makeBgNotes();
   touchToday();
   save();
-  if(window.metSetButton) metSetButton();
-  if(window.updateSoundBtn) updateSoundBtn();
+  if(window.metSetButton) window.metSetButton();
+  if(window.updateSoundBtn) window.updateSoundBtn();
   wire();
 
   const ua = navigator.userAgent || '';
@@ -248,8 +248,8 @@ async function boot(){
           save();
           applyPlanClasses();
           updateHUD();
-          if(window.renderSidebar) renderSidebar();
-          if(window.renderTrilha) renderTrilha();
+          if(window.renderSidebar) window.renderSidebar();
+          if(window.renderTrilha) window.renderTrilha();
         }
         return;
       }
@@ -273,8 +273,8 @@ async function boot(){
         save();
         applyPlanClasses();
         updateHUD();
-        if(window.renderSidebar) renderSidebar();
-        if(window.renderTrilha) renderTrilha();
+        if(window.renderSidebar) window.renderSidebar();
+        if(window.renderTrilha) window.renderTrilha();
       } catch(e) {
         console.warn('onAuthStateChanged:', e);
       }
@@ -284,9 +284,8 @@ async function boot(){
   try { await loadRemoteSongs(); } catch(e) { console.warn('remote:', e); }
   try { await dbLoad(); } catch(e) { console.warn('dbLoad:', e); }
 
-  // Renderiza a trilha depois de carregar as músicas
-  if(window.renderTrilha) renderTrilha();
-  if(window.renderSidebar) renderSidebar();
+  if(window.renderTrilha) window.renderTrilha();
+  if(window.renderSidebar) window.renderSidebar();
 
   await route();
 
