@@ -61,7 +61,8 @@ export function initLesson(song){
   if(window.updatePlayUI) updatePlayUI();
   if(window.metSetButton) metSetButton();
   setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 100);
-setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 500);
+setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 300);
+setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 800);
   const reflow = () => {
     if(!L || L.finished) return;
     const pw = document.getElementById('paper');
