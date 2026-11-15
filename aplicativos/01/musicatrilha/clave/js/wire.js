@@ -311,3 +311,16 @@ if(metLBtn) metLBtn.onclick = () => {
     }, 240);
   });
 }
+
+const planoGratis = document.getElementById('planoGratis');
+if(planoGratis) planoGratis.onclick = () => { if(window.abrirLoginConta) window.abrirLoginConta(); };
+
+const planoAluno = document.getElementById('planoAluno');
+if(planoAluno) planoAluno.onclick = () => {
+  window.toast('Em breve! Entre em contato pelo WhatsApp.', { type: 'info', duration: 5000 });
+};
+
+const planoProfessor = document.getElementById('planoProfessor');
+if(planoProfessor) planoProfessor.onclick = () => {
+  window.toast('Em breve! Entre em contato pelo WhatsApp.', { type: 'info', duration: 5000 });
+};
