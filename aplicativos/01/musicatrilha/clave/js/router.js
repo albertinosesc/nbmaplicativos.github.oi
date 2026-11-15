@@ -22,6 +22,7 @@ export function updateNav(h){
   set('#navComentarios', h.startsWith('#/comentarios'));
   set('#navSobre',       h.startsWith('#/sobre'));
   set('#navVideos',      h.startsWith('#/videos'));
+  set('#navPlanos',      h.startsWith('#/planos'));
 
   const pro = window.podeAcessarPro ? podeAcessarPro() : false;
   const navTurmas = document.getElementById('navTurmas');
@@ -90,6 +91,9 @@ export async function route(){
   } else if(h.startsWith('#/videos')){
     showView('videos');
     if(window.renderVideos) window.renderVideos();
+  } else if(h.startsWith('#/planos')){
+    showView('planos');
+    if(window.injectIcons) window.injectIcons();
   } else if(h.startsWith('#/sobre')){
     showView('sobre');
     if(window.injectIcons) window.injectIcons();
