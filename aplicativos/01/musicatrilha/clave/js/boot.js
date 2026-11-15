@@ -1,22 +1,19 @@
 // ===== Boot — ponto de entrada =====
-// Carrega todos os módulos e inicializa o app
-
 import { S, load, save, touchToday, applyPlanClasses, isPro, effStreak, withStatus } from './state.js';
 import { DB, dbLoad } from './firebase.js';
 import { loadRemoteSongs } from './songs.js';
 import { updateSoundBtn, metSetButton, metStop } from './audio.js';
-import { injectIcons } from './icons.js';
+import { injectIcons, mascotSVG, I } from './icons.js';
 import { renderTrilha, renderSidebar, worldOf } from './trilha.js';
 import { renderBiblioteca } from './biblioteca.js';
 import { renderVideos } from './videos.js';
 import { renderTurmas } from './turmas.js';
 import { renderLoja } from './loja.js';
-import { route } from './router.js';
+import { route, updateNav, showView } from './router.js';
 import { wire } from './wire.js';
-import { openModal, toast, esc } from './ui.js';
-import { updateHUD, updateNav } from './router.js';
+import { openModal, closeModal, toast, esc } from './ui.js';
 
-// HUD
+// HUD — definida AQUI (não importar)
 function updateHUD(){
   const j = window.jogadorAtual ? jogadorAtual() : { tipo: 'visitante', dados: null };
   const dados = j.dados;
@@ -46,6 +43,7 @@ function updateHUD(){
   const cb = document.getElementById('contaBtn');
   if(cb) cb.classList.toggle('active-met', !!dados);
 }
+window.updateHUD = updateHUD;
 
 // Calendário de ofensiva
 function abrirCalendarioOfensiva(){
@@ -56,13 +54,17 @@ function abrirCalendarioOfensiva(){
     if(j.tipo === 'alunoSessao' || j.tipo === 'conta') return j.dados.diasEstudados || {};
     return S.diasEstudados || {};
   }
+  function todayStrLocal(){
+    const d = new Date();
+    return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+  }
   function render(){
     const dias = getDiasEstudados();
     const y = ym.getFullYear(), m = ym.getMonth();
     const primeiro = new Date(y, m, 1);
     const lastDay = new Date(y, m + 1, 0).getDate();
     const startDow = primeiro.getDay();
-    const hoje = todayStr();
+    const hoje = todayStrLocal();
     let cells = '';
     const prevLast = new Date(y, m, 0).getDate();
     for(let i = startDow - 1; i >= 0; i--) cells += '<div class="cal-day other">' + (prevLast - i) + '</div>';
@@ -98,6 +100,7 @@ function abrirCalendarioOfensiva(){
   }
   bind();
 }
+window.abrirCalendarioOfensiva = abrirCalendarioOfensiva;
 
 function makeBgNotes(){
   const glyphs = ['♪','♫','♬','♩'];
