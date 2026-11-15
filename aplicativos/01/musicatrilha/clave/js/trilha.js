@@ -168,7 +168,7 @@ const rankGlobal = todasContas
     + '<text x="36" y="41" text-anchor="middle" font-size="14" font-weight="800" fill="#F6F1FF">' + Math.round(100 * tx / goal) + '%</text></svg></div>'
     + '<div><b>Meta diária</b><p>' + (S.today.xp || 0) + '/' + goal + ' XP</p></div></div>'
     + (rankGlobal.length
-        ? '<div class="card"><h4>' + I.trophy + ' Ranking global</h4><div class="rank-list">'
+        ? '<div class="card"><h4>' + I.trophy + ' Ranking global · Top 10</h4><div class="rank-list">'
           + rankGlobal.map((r,i) =>
               '<div class="rank-row' + (r.me ? ' me' : '') + '"><span class="rank-pos">' + (i < 3 ? ['🥇','🥈','🥉'][i] : i + 1) + '</span>'
               + '<span class="rank-name">' + esc(r.nome) + '</span><b>' + r.xp + ' XP</b></div>'
