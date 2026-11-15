@@ -20,7 +20,6 @@ export function updateNav(h){
   set('#navTrilha', h.startsWith('#/trilha') || h.startsWith('#/licao') || h === '' || h === '#');
   set('#navBib',    h.startsWith('#/biblioteca'));
   set('#navComentarios', h.startsWith('#/comentarios'));
-  set('#navTutorial',    h.startsWith('#/tutorial'));
   set('#navSobre',       h.startsWith('#/sobre'));
   set('#navVideos',      h.startsWith('#/videos'));
 
@@ -51,7 +50,9 @@ export async function route(){
     const s = list.find(x => x.id === id);
     if(!s || !s.unlocked){
       toast('🔒 Música bloqueada ou inexistente.', { type: 'warn' });
-      location.hash = '#/trilha';
+      showView('trilha');
+      if(window.renderTrilha) renderTrilha();
+      updateNav('#/trilha');
       return;
     }
     showView('licao');
@@ -63,7 +64,9 @@ export async function route(){
   if(h.startsWith('#/turmas')){
     if(window.podeAcessarPro && !podeAcessarPro()){
       toast('🔒 Turmas é um recurso Pro.', { type: 'warn' });
-      location.hash = '#/trilha';
+      showView('trilha');
+      if(window.renderTrilha) renderTrilha();
+      updateNav('#/trilha');
       return;
     }
     showView('turmas');
@@ -74,7 +77,9 @@ export async function route(){
   } else if(h.startsWith('#/loja')){
     if(window.podeAcessarPro && !podeAcessarPro()){
       toast('🔒 Loja é um recurso Pro.', { type: 'warn' });
-      location.hash = '#/trilha';
+      showView('trilha');
+      if(window.renderTrilha) renderTrilha();
+      updateNav('#/trilha');
       return;
     }
     showView('loja');
@@ -82,12 +87,10 @@ export async function route(){
   } else if(h.startsWith('#/comentarios')){
     showView('comentarios');
     if(window.injectIcons) injectIcons();
-  } else if(h.startsWith('#/tutorial')){
-    showView('tutorial');
-    if(window.injectIcons) injectIcons();
   } else if(h.startsWith('#/videos')){
     showView('videos');
     if(window.renderVideos) renderVideos();
+    else console.warn('renderVideos não definido');
   } else if(h.startsWith('#/sobre')){
     showView('sobre');
     if(window.injectIcons) injectIcons();
