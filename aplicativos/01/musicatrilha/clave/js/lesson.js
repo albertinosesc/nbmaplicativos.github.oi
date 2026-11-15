@@ -76,7 +76,10 @@ setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 800);
   requestAnimationFrame(reflow);
   setTimeout(reflow, 150);
   setTimeout(reflow, 400);
-  if(S.settings.metronome || S.settings.metLight) metStart();
+  S.settings.metLight = true;
+save();
+if(S.settings.metronome || S.settings.metLight) metStart();
+if(window.metSetButton) setTimeout(() => window.metSetButton(), 1500);
 }
 
 function midiFromAbc(abc){
