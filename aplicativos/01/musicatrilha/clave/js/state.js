@@ -67,6 +67,69 @@ export function withStatus(SEEDS){
   }));
 }
 
-// Exposição temporária para o IIFE antigo
+// ===== XP e progresso =====
+
+export function addXp(n){
+  touchToday();
+  marcarDiaEstudado();
+  S.today.xp = (S.today.xp || 0) + n;
+  const j = window.jogadorAtual ? jogadorAtual() : { tipo: 'visitante', dados: null };
+  if(j.tipo === 'alunoSessao' && j.dados){
+    j.dados.xp = (j.dados.xp || 0) + n;
+    j.dados.ultimoAcesso = todayStr();
+    if(window.scheduleDbSave) scheduleDbSave('xp aluno ' + j.dados.nome + ' +' + n);
+  } else if(j.tipo === 'conta' && j.dados){
+    j.dados.xp = (j.dados.xp || 0) + n;
+    j.dados.ultimoAcesso = todayStr();
+    if(window.scheduleDbSave) scheduleDbSave('xp conta ' + j.dados.nome + ' +' + n);
+  } else {
+    S.xp += n;
+  }
+  save();
+  if(window.updateHUD) updateHUD();
+}
+
+export function marcarDiaEstudado(){
+  const d = todayStr();
+  const j = window.jogadorAtual ? jogadorAtual() : { tipo: 'visitante', dados: null };
+  if(j.tipo === 'alunoSessao' && j.dados){
+    j.dados.diasEstudados = j.dados.diasEstudados || {};
+    j.dados.diasEstudados[d] = true;
+    if(window.scheduleDbSave) scheduleDbSave('dia aluno ' + j.dados.nome);
+  } else if(j.tipo === 'conta' && j.dados){
+    j.dados.diasEstudados = j.dados.diasEstudados || {};
+    j.dados.diasEstudados[d] = true;
+    if(window.scheduleDbSave) scheduleDbSave('dia conta ' + j.dados.nome);
+  }
+  S.diasEstudados = S.diasEstudados || {};
+  S.diasEstudados[d] = true;
+  save();
+}
+
+export function salvarProgressoMusica(musicaId, stars, acc){
+  const j = window.jogadorAtual ? jogadorAtual() : { tipo: 'visitante', dados: null };
+  if((j.tipo === 'alunoSessao' || j.tipo === 'conta') && j.dados){
+    j.dados.musicasConcluidas = j.dados.musicasConcluidas || {};
+    const ant = j.dados.musicasConcluidas[musicaId];
+    j.dados.musicasConcluidas[musicaId] = {
+      stars: Math.max(stars, (ant && ant.stars) || 0),
+      acc: Math.max(acc, (ant && ant.acc) || 0)
+    };
+    j.dados.ofensiva = effStreak();
+    if(window.scheduleDbSave) scheduleDbSave('progresso ' + musicaId + ' ' + j.dados.nome);
+  }
+  const prev = S.completed[musicaId];
+  S.completed[musicaId] = {
+    stars: Math.max(stars, (prev && prev.stars) || 0),
+    acc: Math.max(acc, (prev && prev.acc) || 0),
+    at: Date.now()
+  };
+  save();
+}
+
+// Exposição temporária para o código legado
 window.S = S;
 window.save = save;
+window.addXp = addXp;
+window.marcarDiaEstudado = marcarDiaEstudado;
+window.salvarProgressoMusica = salvarProgressoMusica;
