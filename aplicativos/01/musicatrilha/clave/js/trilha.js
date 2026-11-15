@@ -29,19 +29,21 @@ function worldSvgDecor(worldId){
 }
 
 function applyMinimized(){
-  const list = withStatus(window.SEEDS);
+  const list = window.withStatus && window.SEEDS ? window.withStatus(window.SEEDS) : [];
   const currentSong = list.find(s => s.current);
   const activeWorldId = currentSong ? worldOf(currentSong.difficulty).id : null;
   const manual = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
   document.querySelectorAll('#worldStack .world').forEach(el => {
-    const wId = el.querySelector('.world-toggle')?.dataset.world;
+    const toggle = el.querySelector('.world-toggle');
+    if(!toggle) return;
+    const wId = toggle.dataset.world;
     if(!wId) return;
     let isMin;
     if(wId === activeWorldId) isMin = false;
     else isMin = !manual.includes('open:' + wId);
     el.classList.toggle('minimized', isMin);
-    const btn = el.querySelector('.world-toggle');
-    if(btn){ btn.textContent = isMin ? '+' : '−'; btn.title = isMin ? 'Expandir' : 'Minimizar'; }
+    toggle.textContent = isMin ? '+' : '−';
+    toggle.title = isMin ? 'Expandir' : 'Minimizar';
   });
 }
 
@@ -188,3 +190,9 @@ window.WORLDS = WORLDS;
 window.worldOf = worldOf;
 window.renderTrilha = renderTrilha;
 window.renderSidebar = renderSidebar;
+
+window.applyMinimized = applyMinimized;
+window.renderTrilha = renderTrilha;
+window.renderSidebar = renderSidebar;
+window.worldOf = worldOf;
+window.WORLDS = WORLDS;
