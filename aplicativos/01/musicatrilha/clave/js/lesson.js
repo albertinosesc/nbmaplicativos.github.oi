@@ -140,15 +140,13 @@ export function renderSheet(){
   paper.scrollTop = 0;
   if(!L.targets.length) paper.innerHTML += '<div class="paper-error">Nenhuma nota.</div>';
 
-  // Se a música é longa, adiciona classe para permitir rolagem
+  // 👇 ativa rolagem se a partitura for maior que o container
   const lessonEl = document.querySelector('#view-licao .lesson');
   if(lessonEl){
     const paperWrap = paper.closest('.paper-wrap');
     if(paperWrap){
-      const paperHeight = paper.scrollHeight;
-      const wrapHeight = paperWrap.clientHeight;
-      const isLong = paperHeight > wrapHeight * 1.4;
-      lessonEl.classList.toggle('lesson-scrollable', isLong);
+      const overflow = paper.scrollHeight > paperWrap.clientHeight + 10;
+      lessonEl.classList.toggle('lesson-scrollable', overflow);
     }
   }
 }
