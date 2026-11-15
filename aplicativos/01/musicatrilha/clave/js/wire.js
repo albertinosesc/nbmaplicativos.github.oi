@@ -212,14 +212,14 @@ export function wire(){
     const id = b.dataset.id, act = b.dataset.action;
     if(window.sfxClick) sfxClick();
     if(act === 'practice'){
-      location.hash = '#/licao/' + id;
-      setTimeout(() => { if(window.route) route(); }, 50);
-    }
+  location.hash = '#/licao/' + id;
+  setTimeout(() => { if(window.route) window.route(); }, 50);
+}
     else if(act === 'delete') deleteCustom(id);
     else if(act === 'preview'){
       const list = window.withStatus ? withStatus(window.SEEDS) : [];
       const song = list.find(s => s.id === id);
-      if(song) abrirPreview(song, { amostra: false });
+      if(song) window.abrirPreview(song, { amostra: false });
       else toast('Música não encontrada.', { type: 'warn' });
     }
   });
