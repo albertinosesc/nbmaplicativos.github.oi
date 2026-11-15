@@ -216,11 +216,14 @@ async function boot(){
   }
 
   try{ await loadRemoteSongs(); }catch(e){ console.warn('remote:', e); }
-  try{ await dbLoad(); }catch(e){ console.warn('dbLoad:', e); }
+try{ await dbLoad(); }catch(e){ console.warn('dbLoad:', e); }
 
-  await route();
+// ⚠️ Renderiza a trilha DEPOIS de carregar as músicas
+if(window.renderTrilha) renderTrilha();
+if(window.renderSidebar) renderSidebar();
 
-  if(!S.conta && !S.alunoSessao) abrirBoasVindas();
-}
+await route();
+
+if(!S.conta && !S.alunoSessao) abrirBoasVindas();
 
 boot().catch(e => console.error('Boot error:', e));
