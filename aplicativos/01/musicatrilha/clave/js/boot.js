@@ -17,12 +17,14 @@ import { abrirModalConta, abrirModalPro, abrirLoginConta, abrirLoginTurma } from
 
 // Silencia aviso de AudioContext
 (function(){
-  const origWarn = console.warn;
-  console.warn = function(...args){
-    const msg = args[0];
-    if(msg && typeof msg === 'string' && (msg.includes('AudioContext') || msg.includes('user gesture'))) return;
-    origWarn.apply(console, args);
-  };
+  // Silencia aviso de AudioContext
+const origWarn = console.warn;
+console.warn = function(...args){
+  const msg = args[0];
+  if(msg && typeof msg === 'string' && (msg.includes('AudioContext') || msg.includes('user gesture'))) return;
+  origWarn.apply(console, args);
+};
+window.__audioSilenced = true;
 })();
 window.metSetButton = metSetButton;
 window.updatePlayUI = updatePlayUI;
