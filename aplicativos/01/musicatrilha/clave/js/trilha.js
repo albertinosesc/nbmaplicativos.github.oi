@@ -29,15 +29,13 @@ function worldSvgDecor(worldId){
 }
 
 export function applyMinimized(){
-  const list = window.withStatus && window.SEEDS ? window.withStatus(window.SEEDS) : [];
-  const currentSong = list.find(s => s.current);
-  const activeWorldId = currentSong ? worldOf(currentSong.difficulty).id : null;
+  const manual = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
   document.querySelectorAll('#worldStack .world').forEach(el => {
     const toggle = el.querySelector('.world-toggle');
     if(!toggle) return;
     const wId = toggle.dataset.world;
     if(!wId) return;
-    const isMin = (wId !== activeWorldId);
+    const isMin = !manual.includes('open:' + wId);
     el.classList.toggle('minimized', isMin);
     toggle.textContent = isMin ? '+' : '−';
     toggle.title = isMin ? 'Expandir' : 'Minimizar';
