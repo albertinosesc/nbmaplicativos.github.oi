@@ -288,4 +288,3 @@ export function wire(){
       if(cv === 'trilha' && window.renderTrilha) renderTrilha();
     }, 240);
   });
-}
