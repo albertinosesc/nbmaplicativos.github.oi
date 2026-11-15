@@ -26,10 +26,10 @@ export const FB = {
     return snap.exists() ? snap.data() : null;
   },
   async write(obj){
-    await this.init();
-    const { db, doc, setDoc } = window.FirebaseService;
-    await setDoc(doc(db, 'clave', 'dados'), obj, { merge: false });
-  }
+  await this.init();
+  const { db, doc, setDoc } = window.FirebaseService;
+  await setDoc(doc(db, 'clave', 'dados'), obj, { merge: true });
+}
 };
 
 export async function dbLoad(){
