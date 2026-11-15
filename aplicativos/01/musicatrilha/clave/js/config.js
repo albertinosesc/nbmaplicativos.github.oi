@@ -1,5 +1,5 @@
 // ===== Configurações globais =====
-export const PIX_KEY = '66ed51c1-afa6-4d07-82c6-ab5263143bc5';
+// export const PIX_KEY = '66ed51c1-afa6-4d07-82c6-ab5263143bc5';
 export const CHANGELOG_URL = 'https://raw.githubusercontent.com/albertinosesc/nbmaplicativos.github.oi/main/aplicativos/01/musicatrilha/atualizacoes.txt';
 export const IS_PRO_KEY = 'clave.isPro';
 export const LS = 'clave.v3';
