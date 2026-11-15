@@ -3,9 +3,7 @@ import { S, save, todayStr } from './state.js';
 import { DB, dbLoad, dbSave, scheduleDbSave } from './firebase.js';
 import { openModal, closeModal, toast, esc } from './ui.js';
 import { I } from './icons.js';
-
-//depois coloca
-// import { PIX_KEY } from './config.js';
+import { PIX_KEY } from './config.js';
 
 export const LOJA = [
   { id:'loja-parabens',   title:'Parabéns pra Você', composer:'Tradicional', preco: 1.99,
