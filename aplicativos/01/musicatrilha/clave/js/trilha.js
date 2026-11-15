@@ -143,10 +143,12 @@ export function renderSidebar(){
   const tx = Math.min(S.today.xp || 0, goal);
   const C = 2 * Math.PI * 26;
   const off = C * (1 - tx / goal);
-  const rankGlobal = Object.entries(DB.contasGlobais)
-    .map(([id, cc]) => ({ id, nome: cc.nome || 'Anônimo', xp: cc.xp || 0, me: id === S.conta && !al }))
-    .sort((a,b) => b.xp - a.xp)
-    .slice(0, 10);
+  const todasContas = Object.entries(DB.contasGlobais).map(([id, cc]) => ({
+  id, nome: cc.nome || 'Anônimo', xp: cc.xp || 0, me: id === S.conta && !al
+}));
+const rankGlobal = todasContas
+  .sort((a,b) => b.xp - a.xp)
+  .slice(0, 10);
   const turma = window.turmaDoJogador ? turmaDoJogador() : null;
   const rankTurma = turma
     ? Object.values(DB.alunos).filter(a => a.turmaId === turma.id).map(a => ({ id: a.id, nome: a.nome, xp: a.xp || 0, me: S.alunoSessao === a.id })).sort((a,b) => b.xp - a.xp)
