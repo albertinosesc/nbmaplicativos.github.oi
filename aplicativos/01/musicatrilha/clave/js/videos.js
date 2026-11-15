@@ -72,6 +72,9 @@ export function getUltimoVideo(){
 export function getVideoPorTopico(topico){
   return VIDEOS.filter(v => v.topico === topico);
 }
+window.renderVideos = renderVideos;
+window.VIDEOS = VIDEOS;
+window.TOPICOS = TOPICOS;
 
 window.TOPICOS = TOPICOS;
 window.VIDEOS = VIDEOS;
