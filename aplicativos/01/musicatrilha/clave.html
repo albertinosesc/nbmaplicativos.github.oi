@@ -888,6 +888,31 @@ html.lite-mode .btn:active{transform:none !important}
     flex:1 1 auto;
     min-width:0;
   }
+
+  /* ===== Preview da biblioteca — SVG sempre visível ===== */
+#previewPaper{
+  min-height: 180px !important;
+  overflow-x: auto !important;          /* 👈 rola em vez de cortar */
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+  color: var(--paper-ink) !important;
+  box-sizing: border-box;
+  padding: 12px 10px !important;        /* 👈 reduz padding p/ caber mais */
+}
+#previewPaper svg{
+  display: block !important;
+  max-width: 100% !important;
+  height: auto !important;
+  transform: none !important;           /* 👈 desfaz o scale(1.05) do ABCJS */
+  transform-origin: 0 0 !important;
+  overflow: visible !important;
+}
+#previewPaper .paper-error{
+  color: #8A4A3A;
+  font-weight: 800;
+  text-align: center;
+  padding: 40px 16px;
+  font-size: 14px;
 }
 </style>
 
@@ -2465,7 +2490,7 @@ function abrirPreview(song, opts){
   openModal(
     '<div class="modal-head"><h3>' + esc(song.title) + '</h3><button class="icon-btn" id="pvClose">' + I.x + '</button></div>'
     + (song.composer ? '<p class="sub" style="text-align:left;margin-top:-6px">' + esc(song.composer) + '</p>' : '')
-    + '<div id="' + paperId + '" style="background:var(--paper);border-radius:12px;padding:16px 12px;margin-top:12px;max-height:46vh;overflow:auto;text-align:left"></div>'
+    + '<div id="' + paperId + '" style="background:var(--paper);border-radius:12px;padding:12px 10px;margin-top:12px;min-height:180px;max-height:50vh;overflow:auto;text-align:left"></div>'
     + (apenasAmostra ? '<p class="sub" style="text-align:left;margin-top:8px;color:var(--ink3)">Prévia gratuita — apenas os primeiros compassos.</p>' : '')
     + '<div class="modal-actions" style="margin-top:14px">'
     + '<button class="btn blue small" id="pvPlay">' + I.play + ' Ouvir</button>'
@@ -2475,8 +2500,14 @@ function abrirPreview(song, opts){
     { onClose: () => stopPlayback() }
   );
   injectIcons();
+
   const paper = document.getElementById(paperId);
   if(!paper) return;
+
+  if(!window.ABCJS){
+    paper.innerHTML = '<div class="paper-error">⚠️ abcjs não carregou.</div>';
+    return;
+  }
 
   let abc = song.abc;
   if(apenasAmostra){
@@ -2493,52 +2524,66 @@ function abrirPreview(song, opts){
     abc = out.join('\n');
   }
 
-  // ⚠️ renderização só quando o layout estiver pronto
   let ex = { events: [], total: 0 };
   let tp = { bpm: 100, q: 0.25 };
+  let tentativas = 0;
 
   function renderizar(){
-    if(!window.ABCJS){
-      paper.innerHTML = '<div class="paper-error">⚠️ abcjs não carregou.</div>';
-      return false;
-    }
-    // se ainda não tem largura real, tenta depois
-    let w = paper.clientWidth;
-    if(!w || w < 100) w = Math.max(260, window.innerWidth - 60);
-    w = Math.max(260, w - 32);
+    tentativas++;
+    const wReal = paper.clientWidth;
 
+    // Se o modal ainda não tem largura real, aguarda
+    if(!wReal || wReal < 50){
+      if(tentativas > 25){
+        paper.innerHTML = '<div class="paper-error">Não foi possível medir o modal.</div>';
+        return;
+      }
+      setTimeout(renderizar, 60);
+      return;
+    }
+
+    // 👇 largura segura: desconta padding (24) e respiro (8), com scale 1.0
+    const w = Math.max(240, Math.floor(wReal - 40));
     paper.innerHTML = '';
+
     let tunes = null;
     try{
       tunes = ABCJS.renderAbc(paper, abc, {
-        staffwidth: w, scale: 1.05, add_classes: true,
-        paddingtop: 8, paddingbottom: 8, paddingleft: 2, paddingright: 2,
+        staffwidth: w,
+        scale: 1.0,                 // 👈 sem scale, cabe certinho
+        add_classes: true,
+        paddingtop: 6,              // 👈 positivo, SEM cortar o pentagrama
+        paddingbottom: 10,
+        paddingleft: 4,
+        paddingright: 4,
         wrap: { minSpacing: 1.8, maxSpacing: 2.6, preferredMeasuresPerLine: 4 }
       });
     }catch(err){
       paper.innerHTML = '<div class="paper-error">Erro: ' + esc(err.message) + '</div>';
-      return false;
+      return;
     }
 
     const tune = tunes && tunes[0];
     ex = tune ? extractNotes(tune) : { events: [], total: 0 };
     tp = tune ? getTempo(tune) : { bpm: 100, q: 0.25 };
-    paper.scrollTop = 0;   // ⚠️ garante começo visível
-    return true;
+    paper.scrollTop = 0;
+    paper.scrollLeft = 0;
   }
 
-  // Tenta agora; se falhar (largura 0), tenta em 60ms, 200ms, 500ms
-  if(!renderizar()){
-    setTimeout(() => { renderizar() || setTimeout(() => { renderizar() || setTimeout(renderizar, 300); }, 140); }, 60);
-  }
+  renderizar();
 
-  const spw = 60 / (tp.bpm * tp.q);
+  // diagnóstico se não renderizou em 1.2s
+  setTimeout(() => {
+    if(!paper.querySelector('svg') && !paper.querySelector('.paper-error')){
+      paper.innerHTML = '<div class="paper-error">⚠️ A partitura não carregou.<br>Tente fechar e abrir novamente.</div>';
+    }
+  }, 1200);
+
   const btnPlay = document.getElementById('pvPlay');
   if(btnPlay) btnPlay.onclick = () => {
-    // ⚠️ recalcula spw com o tp já atualizado após render
-    const spwAtual = 60 / (tp.bpm * tp.q);
+    const spw = 60 / (tp.bpm * tp.q);
     if(PB.playing && PB.session && PB.session.owner === 'preview'){ stopPlayback(); return; }
-    startPlayback({ owner: 'preview', events: ex.events, total: ex.total, spw: spwAtual, paper, keys: null, onEnd: () => {} });
+    startPlayback({ owner: 'preview', events: ex.events, total: ex.total, spw, paper, keys: null, onEnd: () => {} });
   };
   const pvPr = document.getElementById('pvPraticar');
   if(pvPr) pvPr.onclick = () => { stopPlayback(); closeModal(true); location.hash = '#/licao/' + song.id; };
