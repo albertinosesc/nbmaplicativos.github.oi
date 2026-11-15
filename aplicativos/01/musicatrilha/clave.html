@@ -744,6 +744,24 @@ html.lite-mode .btn:active{transform:none !important}
   #view-licao.active .pbar{height:8px !important}
   #view-licao.active .pcount{font-size:10.5px !important}
 }
+  /* ===== Preview da biblioteca (modal) ===== */
+#previewPaper{
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+#previewPaper svg{
+  display: block !important;
+  max-width: 100% !important;
+  height: auto !important;
+  overflow: visible !important;
+}
+#previewPaper .paper-error{
+  color: #8A4A3A;
+  font-weight: 800;
+  text-align: center;
+  padding: 40px 16px;
+  font-size: 14px;
 }
 </style>
 
@@ -1512,8 +1530,14 @@ function updatePlayUI(){
 function ensureVisible(paper, ev){
   const e = ev.elems && ev.elems[0];
   if(!e || !paper) return;
-  const r = e.getBoundingClientRect(), p = paper.getBoundingClientRect();
-  if(r.bottom > p.bottom - 16 || r.top < p.top + 8) paper.scrollTop += (r.top - p.top) - p.height * 0.35;
+  const r = e.getBoundingClientRect();
+  const p = paper.getBoundingClientRect();
+  // Só scrolla se a nota estiver fora da área visível (com margem de 16px)
+  if(r.bottom > p.bottom - 16){
+    paper.scrollTop += (r.bottom - p.bottom) + 60;
+  } else if(r.top < p.top + 8){
+    paper.scrollTop -= (p.top - r.top) + 60;
+  }
 }
 
 /* ================= metrônomo ================= */
@@ -2280,11 +2304,7 @@ function abrirPreview(song, opts){
   injectIcons();
   const paper = document.getElementById(paperId);
   if(!paper) return;
-  if(!window.ABCJS){
-    paper.innerHTML = '<div class="paper-error">⚠️ abcjs não carregou.</div>';
-    return;
-  }
-  let tunes = null;
+
   let abc = song.abc;
   if(apenasAmostra){
     const linhas = abc.split('\n');
@@ -2299,24 +2319,53 @@ function abrirPreview(song, opts){
     }
     abc = out.join('\n');
   }
-  try{
-    const cs = getComputedStyle(paper);
-    const w = Math.max(260, paper.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 8);
-    tunes = ABCJS.renderAbc(paper, abc, {
-      staffwidth: w, scale: 1.05, add_classes: true,
-      paddingtop: 12, paddingbottom: 8, paddingleft: 2, paddingright: 2,
-      wrap: { minSpacing: 1.8, maxSpacing: 2.6, preferredMeasuresPerLine: 4 }
-    });
-  }catch(err){
-    paper.innerHTML = '<div class="paper-error">Erro: ' + esc(err.message) + '</div>';
+
+  // ⚠️ renderização só quando o layout estiver pronto
+  let ex = { events: [], total: 0 };
+  let tp = { bpm: 100, q: 0.25 };
+
+  function renderizar(){
+    if(!window.ABCJS){
+      paper.innerHTML = '<div class="paper-error">⚠️ abcjs não carregou.</div>';
+      return false;
+    }
+    // se ainda não tem largura real, tenta depois
+    let w = paper.clientWidth;
+    if(!w || w < 100) w = Math.max(260, window.innerWidth - 60);
+    w = Math.max(260, w - 32);
+
+    paper.innerHTML = '';
+    let tunes = null;
+    try{
+      tunes = ABCJS.renderAbc(paper, abc, {
+        staffwidth: w, scale: 1.05, add_classes: true,
+        paddingtop: 8, paddingbottom: 8, paddingleft: 2, paddingright: 2,
+        wrap: { minSpacing: 1.8, maxSpacing: 2.6, preferredMeasuresPerLine: 4 }
+      });
+    }catch(err){
+      paper.innerHTML = '<div class="paper-error">Erro: ' + esc(err.message) + '</div>';
+      return false;
+    }
+
+    const tune = tunes && tunes[0];
+    ex = tune ? extractNotes(tune) : { events: [], total: 0 };
+    tp = tune ? getTempo(tune) : { bpm: 100, q: 0.25 };
+    paper.scrollTop = 0;   // ⚠️ garante começo visível
+    return true;
   }
-  const tune = tunes && tunes[0], ex = tune ? extractNotes(tune) : { events: [], total: 0 };
-  const tp = tune ? getTempo(tune) : { bpm: 100, q: 0.25 };
+
+  // Tenta agora; se falhar (largura 0), tenta em 60ms, 200ms, 500ms
+  if(!renderizar()){
+    setTimeout(() => { renderizar() || setTimeout(() => { renderizar() || setTimeout(renderizar, 300); }, 140); }, 60);
+  }
+
   const spw = 60 / (tp.bpm * tp.q);
   const btnPlay = document.getElementById('pvPlay');
   if(btnPlay) btnPlay.onclick = () => {
+    // ⚠️ recalcula spw com o tp já atualizado após render
+    const spwAtual = 60 / (tp.bpm * tp.q);
     if(PB.playing && PB.session && PB.session.owner === 'preview'){ stopPlayback(); return; }
-    startPlayback({ owner: 'preview', events: ex.events, total: ex.total, spw, paper, keys: null, onEnd: () => {} });
+    startPlayback({ owner: 'preview', events: ex.events, total: ex.total, spw: spwAtual, paper, keys: null, onEnd: () => {} });
   };
   const pvPr = document.getElementById('pvPraticar');
   if(pvPr) pvPr.onclick = () => { stopPlayback(); closeModal(true); location.hash = '#/licao/' + song.id; };
