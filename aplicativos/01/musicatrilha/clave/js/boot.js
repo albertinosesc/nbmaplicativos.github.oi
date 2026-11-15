@@ -1,39 +1,45 @@
 // ===== Boot — ponto de entrada =====
-import { S, load, save, touchToday, applyPlanClasses, isPro, effStreak, withStatus } from './state.js';
+import { S, save, touchToday, applyPlanClasses, effStreak } from './state.js';
 import { DB, dbLoad } from './firebase.js';
 import { loadRemoteSongs } from './songs.js';
-import { updateSoundBtn, metSetButton, metStop } from './audio.js';
+import { updateSoundBtn, metSetButton } from './audio.js';
 import { injectIcons, mascotSVG, I } from './icons.js';
-import { renderTrilha, renderSidebar, worldOf } from './trilha.js';
-import { renderBiblioteca } from './biblioteca.js';
-import { renderVideos } from './videos.js';
-import { renderTurmas } from './turmas.js';
-import { renderLoja } from './loja.js';
-import { route, updateNav, showView } from './router.js';
+import { renderTrilha, renderSidebar } from './trilha.js';
+import { route } from './router.js';
 import { wire } from './wire.js';
-import { openModal, closeModal, toast, esc } from './ui.js';
+import { openModal, closeModal, esc } from './ui.js';
 
-// HUD — definida AQUI (não importar)
+// ===== HUD =====
 function updateHUD(){
   const j = window.jogadorAtual ? jogadorAtual() : { tipo: 'visitante', dados: null };
   const dados = j.dados;
-  const s = document.getElementById('hudStreak'); if(s) s.textContent = dados ? (dados.ofensiva || 0) : effStreak();
-  const x = document.getElementById('hudXp');     if(x) x.textContent = dados ? (dados.xp || 0)      : S.xp;
-  const g = document.getElementById('hudGems');   if(g) g.textContent = S.gems;
+  const s = document.getElementById('hudStreak');
+  if(s) s.textContent = dados ? (dados.ofensiva || 0) : effStreak();
+  const x = document.getElementById('hudXp');
+  if(x) x.textContent = dados ? (dados.xp || 0) : S.xp;
+  const g = document.getElementById('hudGems');
+  if(g) g.textContent = S.gems;
   const ha = document.getElementById('hudConta');
   if(ha){
     if(dados){
       ha.style.display = 'inline-flex';
       ha.querySelector('.hud-avatar').textContent = j.tipo === 'alunoSessao' ? '🎓' : (dados.pro ? '👨‍🏫' : '🎹');
-      ha.querySelector('.hud-nome').textContent   = dados.nome;
+      ha.querySelector('.hud-nome').textContent = dados.nome;
       ha.title = dados.nome;
-    } else { ha.style.display = 'none'; }
+    } else {
+      ha.style.display = 'none';
+    }
   }
   const sess = document.getElementById('sessaoChip');
   if(sess){
     const a = window.alunoSessao ? alunoSessao() : null;
-    if(a){ sess.style.display = 'inline-flex'; const sn = document.getElementById('sessaoNome'); if(sn) sn.textContent = a.nome; }
-    else { sess.style.display = 'none'; }
+    if(a){
+      sess.style.display = 'inline-flex';
+      const sn = document.getElementById('sessaoNome');
+      if(sn) sn.textContent = a.nome;
+    } else {
+      sess.style.display = 'none';
+    }
   }
   const tp = document.getElementById('topProBtn');
   if(tp){
@@ -45,19 +51,22 @@ function updateHUD(){
 }
 window.updateHUD = updateHUD;
 
-// Calendário de ofensiva
+// ===== Calendário =====
 function abrirCalendarioOfensiva(){
   let ym = new Date();
   const dow = ['D','S','T','Q','Q','S','S'];
+
   function getDiasEstudados(){
     const j = window.jogadorAtual ? jogadorAtual() : { tipo: 'visitante', dados: null };
     if(j.tipo === 'alunoSessao' || j.tipo === 'conta') return j.dados.diasEstudados || {};
     return S.diasEstudados || {};
   }
+
   function todayStrLocal(){
     const d = new Date();
     return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
   }
+
   function render(){
     const dias = getDiasEstudados();
     const y = ym.getFullYear(), m = ym.getMonth();
@@ -71,7 +80,7 @@ function abrirCalendarioOfensiva(){
     for(let d = 1; d <= lastDay; d++){
       const iso = y + '-' + String(m + 1).padStart(2,'0') + '-' + String(d).padStart(2,'0');
       const isFuture = iso > hoje;
-      const isToday  = iso === hoje;
+      const isToday = iso === hoje;
       let cls = 'cal-day';
       if(isFuture) cls += ' future';
       else if(dias[iso]) cls += ' studied';
@@ -90,18 +99,29 @@ function abrirCalendarioOfensiva(){
       + '<div class="cal-legend"><span><i class="lg-s"></i> Estudou</span><span><i class="lg-m"></i> Não estudou</span><span><i class="lg-n"></i> Futuro</span></div>'
     );
   }
+
   openModal(render(), { onClose: () => {} });
-  function refresh(){ const bd = document.querySelector('#modalRoot .modal'); if(!bd) return; bd.innerHTML = render(); bind(); }
+
+  function refresh(){
+    const bd = document.querySelector('#modalRoot .modal');
+    if(!bd) return;
+    bd.innerHTML = render();
+    bind();
+  }
+
   function bind(){
-    const cl = document.getElementById('mClose'); if(cl) cl.onclick = () => closeModal();
+    const cl = document.getElementById('mClose');
+    if(cl) cl.onclick = () => closeModal();
     const pv = document.getElementById('calPrev'), nx = document.getElementById('calNext');
     if(pv) pv.onclick = () => { ym = new Date(ym.getFullYear(), ym.getMonth() - 1, 1); refresh(); };
     if(nx) nx.onclick = () => { ym = new Date(ym.getFullYear(), ym.getMonth() + 1, 1); refresh(); };
   }
+
   bind();
 }
 window.abrirCalendarioOfensiva = abrirCalendarioOfensiva;
 
+// ===== Notas de fundo =====
 function makeBgNotes(){
   const glyphs = ['♪','♫','♬','♩'];
   const host = document.getElementById('bgNotes');
@@ -117,6 +137,7 @@ function makeBgNotes(){
   host.innerHTML = html;
 }
 
+// ===== Changelog =====
 async function renderChangelog(host){
   if(!host) return;
   host.innerHTML = '<div style="color:var(--ink3);font-size:13px;font-weight:700">Carregando…</div>';
@@ -136,6 +157,7 @@ async function renderChangelog(host){
   }
 }
 
+// ===== Boas-vindas =====
 function abrirBoasVindas(){
   openModal(
     '<div class="mascot-wrap mascot">' + mascotSVG('welcome') + '</div>'
@@ -157,6 +179,7 @@ function abrirBoasVindas(){
   renderChangelog(document.getElementById('welcomeChangelog'));
 }
 
+// ===== Boot =====
 async function boot(){
   injectIcons();
   applyPlanClasses();
@@ -174,30 +197,43 @@ async function boot(){
 
   if(!window.ABCJS) await new Promise(r => window.addEventListener('load', r, { once: true }));
 
-  try{ await window.FB.init(); }catch(e){ console.warn('FB init:', e); }
+  try {
+    await window.FB.init();
+  } catch(e) {
+    console.warn('FB init:', e);
+  }
 
   if(window.FirebaseService && window.FirebaseService.auth){
     const { auth, db, doc, getDoc } = window.FirebaseService;
     auth.onAuthStateChanged(async (user) => {
       if(!user){
         if(S.conta){
-          S.conta = null; S.alunoSessao = null;
-          S.xp = 0; S.compras = []; S.completed = {}; S.streak = 0; S.lastDay = null; S.diasEstudados = {}; S.custom = [];
+          S.conta = null;
+          S.alunoSessao = null;
+          S.xp = 0;
+          S.compras = [];
+          S.completed = {};
+          S.streak = 0;
+          S.lastDay = null;
+          S.diasEstudados = {};
+          S.custom = [];
           localStorage.removeItem('clave.isPro');
-          save(); applyPlanClasses();
+          save();
+          applyPlanClasses();
           updateHUD();
           if(window.renderSidebar) renderSidebar();
           if(window.renderTrilha) renderTrilha();
         }
         return;
       }
-      try{
+      try {
         const snap = await getDoc(doc(db, 'clave', 'dados'));
         const dados = snap.exists() ? snap.data() : null;
         const conta = dados && dados.contasGlobais && dados.contasGlobais[user.uid];
         if(!conta) return;
         DB.contasGlobais = dados.contasGlobais;
-        S.conta = user.uid; S.alunoSessao = null;
+        S.conta = user.uid;
+        S.alunoSessao = null;
         S.xp = conta.xp || 0;
         S.compras = Array.isArray(conta.compras) ? [...conta.compras] : [];
         S.completed = { ...(conta.musicasConcluidas || {}) };
@@ -207,18 +243,21 @@ async function boot(){
         S.custom = S.custom.filter(s => !s.comprada || S.compras.includes(s.id));
         if(conta.pro) localStorage.setItem('clave.isPro', 'true');
         else localStorage.removeItem('clave.isPro');
-        save(); applyPlanClasses();
+        save();
+        applyPlanClasses();
         updateHUD();
         if(window.renderSidebar) renderSidebar();
         if(window.renderTrilha) renderTrilha();
-      }catch(e){ console.warn('onAuthStateChanged:', e); }
+      } catch(e) {
+        console.warn('onAuthStateChanged:', e);
+      }
     });
   }
 
-  try{ await loadRemoteSongs(); }catch(e){ console.warn('remote:', e); }
-  try{ await dbLoad(); }catch(e){ console.warn('dbLoad:', e); }
+  try { await loadRemoteSongs(); } catch(e) { console.warn('remote:', e); }
+  try { await dbLoad(); } catch(e) { console.warn('dbLoad:', e); }
 
-  // ⚠️ Renderiza a trilha DEPOIS de carregar as músicas
+  // Renderiza a trilha depois de carregar as músicas
   if(window.renderTrilha) renderTrilha();
   if(window.renderSidebar) renderSidebar();
 
