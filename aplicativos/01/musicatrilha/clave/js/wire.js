@@ -1,8 +1,8 @@
 // ===== Todos os event listeners =====
 import { S, save } from './state.js';
+import { setSound, metToggleSound, metToggleLight } from './audio.js';
 import { toast, closeModal } from './ui.js';
 import { setLibView, deleteCustom, abrirPreview } from './biblioteca.js';
-import { setSound, metToggleSound, metToggleLight } from './audio.js';
 import { requestExit, toggleListen, initLesson } from './lesson.js';
 import { sairSessaoAluno } from './turmas.js';
 import { abrirModalConta, abrirModalPro } from './auth.js';
