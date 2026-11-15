@@ -31,4 +31,31 @@ user:'<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7
 
 export const I = {};
 for(const k in P){
-  I[k] = '<
+  I[k] = '<svg class="ic" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + P[k] + '</svg>';
+}
+
+export function injectIcons(){
+  document.querySelectorAll('[data-icon]').forEach(n => {
+    n.innerHTML = I[n.dataset.icon] || '';
+  });
+}
+
+export function mascotSVG(uid){
+  return '<svg viewBox="0 0 130 150" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">'
+    + '<defs><linearGradient id="mg'+uid+'" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFE08A"/><stop offset=".55" stop-color="#FFC93C"/><stop offset="1" stop-color="#F0A627"/></linearGradient></defs>'
+    + '<ellipse cx="62" cy="141" rx="30" ry="6" fill="rgba(0,0,0,.28)"/>'
+    + '<text x="10" y="44" font-size="17" fill="#FFC93C" opacity=".85">♪</text><text x="104" y="28" font-size="14" fill="#E560FF" opacity=".8">♫</text>'
+    + '<path d="M86 20c15 7 21 22 12 40-1-13-6-21-12-26z" fill="#F0A627"/>'
+    + '<rect x="79" y="18" width="7" height="84" rx="3.5" fill="url(#mg'+uid+')"/>'
+    + '<ellipse cx="60" cy="106" rx="27" ry="20" transform="rotate(-16 60 106)" fill="url(#mg'+uid+')" stroke="#C98F1B" stroke-width="2"/>'
+    + '<circle cx="23" cy="93" r="7.5" fill="#FFFDF7" stroke="#D9CDB8" stroke-width="1.5"/><circle cx="100" cy="75" r="7.5" fill="#FFFDF7" stroke="#D9CDB8" stroke-width="1.5"/>'
+    + '<circle cx="50" cy="100" r="6.6" fill="#fff"/><circle cx="68" cy="96" r="6.6" fill="#fff"/>'
+    + '<circle cx="51.5" cy="101" r="3.1" fill="#2A1B4E"/><circle cx="69.5" cy="97" r="3.1" fill="#2A1B4E"/>'
+    + '<circle cx="53" cy="99" r="1.1" fill="#fff"/><circle cx="71" cy="95" r="1.1" fill="#fff"/>'
+    + '<path d="M52 112Q60 118 68 110" stroke="#7A4E12" stroke-width="2.6" fill="none" stroke-linecap="round"/></svg>';
+}
+
+window.P = P;
+window.I = I;
+window.injectIcons = injectIcons;
+window.mascotSVG = mascotSVG;
