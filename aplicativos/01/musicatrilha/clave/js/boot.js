@@ -260,7 +260,7 @@ async function boot(){
         const dados = snap.exists() ? snap.data() : null;
         const conta = dados && dados.contasGlobais && dados.contasGlobais[user.uid];
         if(!conta) return;
-        DB.contasGlobais = dados.contasGlobais;
+        DB.contasGlobais = { ...DB.contasGlobais, ...dados.contasGlobais };
         S.conta = user.uid;
         S.alunoSessao = null;
         S.xp = conta.xp || 0;
