@@ -102,10 +102,16 @@ export function wire(){
   if(listenBtn) listenBtn.onclick = toggleListen;
   const restartBtn = document.getElementById('restartBtn');
   if(restartBtn) restartBtn.onclick = () => { if(window.L){ initLesson(window.L.song); toast('Reiniciada.', { type: 'info' }); } };
-  const metBtn = document.getElementById('metronomeBtn');
-  if(metBtn) metBtn.onclick = metToggleSound;
-  const metLBtn = document.getElementById('metLightBtn');
-  if(metLBtn) metLBtn.onclick = metToggleLight;
+ const metBtn = document.getElementById('metronomeBtn');
+if(metBtn) metBtn.onclick = () => {
+  metToggleSound();
+  if(window.metSetButton) window.metSetButton();
+};
+const metLBtn = document.getElementById('metLightBtn');
+if(metLBtn) metLBtn.onclick = () => {
+  metToggleLight();
+  if(window.metSetButton) window.metSetButton();
+};
 
   const namesSw = document.getElementById('namesSwitch');
   if(namesSw) namesSw.onclick = () => {
