@@ -60,25 +60,24 @@ export function wire(){
     if(cancel) cancel.onclick = () => closeModal();
   };
 
-    const songGrid = document.getElementById('songGrid');
-  if(songGrid) songGrid.addEventListener('click', e => {
-    const b = e.target.closest('[data-action]');
-    if(!b || b.disabled) return;
-    const id = b.dataset.id, act = b.dataset.action;
-    if(window.sfxClick) sfxClick();
-    if(act === 'practice'){
-      location.hash = '#/licao/' + id;
-      setTimeout(() => { if(window.route) route(); }, 50);
-    }
-    else if(act === 'delete') deleteCustom(id);
-    else if(act === 'preview'){
+  // ===== TRILHA =====
+  const worldStack = document.getElementById('worldStack');
+  if(worldStack){
+    worldStack.addEventListener('click', e => {
+      const b = e.target.closest('.w-node');
+      if(!b) return;
       const list = window.withStatus ? withStatus(window.SEEDS) : [];
-      const song = list.find(s => s.id === id);
-      if(song) abrirPreview(song, { amostra: false });
-      else toast('Música não encontrada.', { type: 'warn' });
-    }
-  });
-  
+      const s = list.find(x => x.id === b.dataset.id);
+      if(!s) return;
+      if(s.unlocked){
+        if(window.sfxClick) sfxClick();
+        location.hash = '#/licao/' + s.id;
+        setTimeout(() => { if(window.route) route(); }, 50);
+      } else {
+        const prev = list[s.idx - 1];
+        toast('🔒 Complete “' + (prev ? prev.title : 'a anterior') + '”.', { type: 'warn' });
+      }
+    });
     worldStack.addEventListener('click', e => {
       const b = e.target.closest('.world-toggle');
       if(!b) return;
@@ -94,6 +93,7 @@ export function wire(){
     });
   }
 
+  // ===== LIÇÃO =====
   const backBtn = document.getElementById('backBtn');
   if(backBtn) backBtn.onclick = requestExit;
   const listenBtn = document.getElementById('listenBtn');
@@ -153,6 +153,7 @@ export function wire(){
     if(k && window.pressKey) pressKey(midi, k);
   });
 
+  // ===== LIMPAR CACHE =====
   const limparBtn = document.getElementById('limparCacheBtn');
   if(limparBtn) limparBtn.onclick = () => {
     if(window.openModal) openModal(
@@ -179,6 +180,7 @@ export function wire(){
     };
   };
 
+  // ===== OFENSIVA =====
   const hudStreakEl = document.getElementById('hudStreak');
   const hudStreakChip = hudStreakEl && hudStreakEl.closest('.chip');
   if(hudStreakChip){
@@ -188,6 +190,7 @@ export function wire(){
     hudStreakChip.onclick = () => { if(window.abrirCalendarioOfensiva) abrirCalendarioOfensiva(); };
   }
 
+  // ===== BIBLIOTECA =====
   const libSearch = document.getElementById('libSearch');
   if(libSearch) libSearch.addEventListener('input', () => { if(window.renderBiblioteca) renderBiblioteca(); });
   const libTab = document.getElementById('libTab');
@@ -208,15 +211,20 @@ export function wire(){
     if(!b || b.disabled) return;
     const id = b.dataset.id, act = b.dataset.action;
     if(window.sfxClick) sfxClick();
-    if(act === 'practice') location.hash = '#/licao/' + id;
+    if(act === 'practice'){
+      location.hash = '#/licao/' + id;
+      setTimeout(() => { if(window.route) route(); }, 50);
+    }
     else if(act === 'delete') deleteCustom(id);
     else if(act === 'preview'){
       const list = window.withStatus ? withStatus(window.SEEDS) : [];
       const song = list.find(s => s.id === id);
       if(song) abrirPreview(song, { amostra: false });
+      else toast('Música não encontrada.', { type: 'warn' });
     }
   });
 
+  // ===== TURMAS =====
   const novaTurmaBtn = document.getElementById('novaTurmaBtn');
   if(novaTurmaBtn) novaTurmaBtn.onclick = () => {
     if(window.isProfessor && !isProfessor()){ toast('🔒 Recurso Pro.', { type: 'warn' }); return; }
@@ -272,9 +280,11 @@ export function wire(){
     if(entrar){ if(window.sfxClick) sfxClick(); if(window.entrarComoSessaoAluno) entrarComoSessaoAluno(entrar.dataset.entrar); return; }
   });
 
+  // ===== COMENTÁRIOS =====
   const cmtBtn = document.getElementById('cmtEnviar');
   if(cmtBtn) cmtBtn.onclick = () => { if(window.enviarComentario) enviarComentario(); };
 
+  // ===== RESIZE =====
   let rzT = 0;
   window.addEventListener('resize', () => {
     clearTimeout(rzT);
@@ -288,3 +298,4 @@ export function wire(){
       if(cv === 'trilha' && window.renderTrilha) renderTrilha();
     }, 240);
   });
+}
