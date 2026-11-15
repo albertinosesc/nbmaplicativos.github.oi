@@ -132,7 +132,8 @@ export function renderSheet(){
   }
   const tune = tunes && tunes[0], ex = extractNotes(tune);
   L.events  = ex.events;
-  L.targets = ex.targets;
+ L.targets = ex.targets;
+ L.events = ex.events;
   L.total   = ex.total;
   const tp = getTempo(tune);
   L.spw = 60 / (tp.bpm * tp.q);
