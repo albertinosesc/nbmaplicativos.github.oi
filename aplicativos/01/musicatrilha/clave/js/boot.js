@@ -14,6 +14,16 @@ import { wire } from './wire.js';
 import { openModal, closeModal, toast, esc } from './ui.js';
 import { initLesson } from './lesson.js';
 import { abrirModalConta, abrirModalPro, abrirLoginConta, abrirLoginTurma } from './auth.js';
+
+// Silencia aviso de AudioContext
+(function(){
+  const origWarn = console.warn;
+  console.warn = function(...args){
+    const msg = args[0];
+    if(msg && typeof msg === 'string' && (msg.includes('AudioContext') || msg.includes('user gesture'))) return;
+    origWarn.apply(console, args);
+  };
+})();
 window.metSetButton = metSetButton;
 window.updatePlayUI = updatePlayUI;
 
