@@ -60,20 +60,25 @@ export function wire(){
     if(cancel) cancel.onclick = () => closeModal();
   };
 
-  const worldStack = document.getElementById('worldStack');
-  if(worldStack){
-    worldStack.addEventListener('click', e => {
-      const b = e.target.closest('.w-node');
-      if(!b) return;
+    const songGrid = document.getElementById('songGrid');
+  if(songGrid) songGrid.addEventListener('click', e => {
+    const b = e.target.closest('[data-action]');
+    if(!b || b.disabled) return;
+    const id = b.dataset.id, act = b.dataset.action;
+    if(window.sfxClick) sfxClick();
+    if(act === 'practice'){
+      location.hash = '#/licao/' + id;
+      setTimeout(() => { if(window.route) route(); }, 50);
+    }
+    else if(act === 'delete') deleteCustom(id);
+    else if(act === 'preview'){
       const list = window.withStatus ? withStatus(window.SEEDS) : [];
-      const s = list.find(x => x.id === b.dataset.id);
-      if(!s) return;
-      if(s.unlocked){ if(window.sfxClick) sfxClick(); location.hash = '#/licao/' + s.id; }
-      else {
-        const prev = list[s.idx - 1];
-        toast('🔒 Complete “' + (prev ? prev.title : 'a anterior') + '”.', { type: 'warn' });
-      }
-    });
+      const song = list.find(s => s.id === id);
+      if(song) abrirPreview(song, { amostra: false });
+      else toast('Música não encontrada.', { type: 'warn' });
+    }
+  });
+  
     worldStack.addEventListener('click', e => {
       const b = e.target.closest('.world-toggle');
       if(!b) return;
