@@ -139,16 +139,6 @@ export function renderSheet(){
   L.anchorAC = 0;
   paper.scrollTop = 0;
   if(!L.targets.length) paper.innerHTML += '<div class="paper-error">Nenhuma nota.</div>';
-
-  // 👇 ativa rolagem se a partitura for maior que o container
-  const lessonEl = document.querySelector('#view-licao .lesson');
-  if(lessonEl){
-    const paperWrap = paper.closest('.paper-wrap');
-    if(paperWrap){
-      const overflow = paper.scrollHeight > paperWrap.clientHeight + 10;
-      lessonEl.classList.toggle('lesson-scrollable', overflow);
-    }
-  }
 }
 
 export function buildPiano(notes){
