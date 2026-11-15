@@ -14,6 +14,7 @@ import { wire } from './wire.js';
 import { openModal, closeModal, toast, esc } from './ui.js';
 import { initLesson } from './lesson.js';
 import { abrirModalConta, abrirModalPro, abrirLoginConta, abrirLoginTurma } from './auth.js';
+window.metSetButton = metSetButton;
 
 // ⚠️ Expor TODAS as funções no window
 window.renderTrilha = renderTrilha;
