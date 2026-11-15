@@ -60,6 +60,7 @@ export function initLesson(song){
   buildPianoFromRange(song);
   if(window.updatePlayUI) updatePlayUI();
   if(window.metSetButton) metSetButton();
+  setTimeout(() => { if(window.metSetButton) window.metSetButton(); }, 100);
   const reflow = () => {
     if(!L || L.finished) return;
     const pw = document.getElementById('paper');
