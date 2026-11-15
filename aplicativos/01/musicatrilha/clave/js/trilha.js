@@ -51,6 +51,15 @@ export function renderTrilha(){
   WORLDS.forEach(w => byWorld[w.id] = []);
   list.forEach(s => byWorld[worldOf(s.difficulty).id].push(s));
 
+  // 🔽 Abre só o mundo atual (dentro da função!)
+  const currentSong = list.find(s => s.current);
+  const activeWorld = currentSong ? worldOf(currentSong.difficulty).id : null;
+  if(activeWorld){
+    const manual = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
+    if(!manual.includes('open:' + activeWorld)){ manual.push('open:' + activeWorld); }
+    localStorage.setItem('clave.minimized', JSON.stringify(manual));
+  }
+
   WORLDS.forEach((w, wi) => {
     const songs = byWorld[w.id];
     const done = songs.filter(s => s.done).length;
