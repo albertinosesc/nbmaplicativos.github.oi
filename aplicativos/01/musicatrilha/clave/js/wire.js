@@ -78,19 +78,21 @@ export function wire(){
         toast('🔒 Complete “' + (prev ? prev.title : 'a anterior') + '”.', { type: 'warn' });
       }
     });
-    worldStack.addEventListener('click', e => {
-      const b = e.target.closest('.world-toggle');
-      if(!b) return;
-      const wId = b.dataset.world;
-      const manual = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
-      const key = 'open:' + wId;
-      const isOpenManually = manual.includes(key);
-      if(isOpenManually) manual.splice(manual.indexOf(key), 1);
-      else manual.push(key);
-      localStorage.setItem('clave.minimized', JSON.stringify(manual));
-      if(window.applyMinimized) applyMinimized();
-      if(window.sfxClick) sfxClick();
-    });
+   worldStack.addEventListener('click', e => {
+  const b = e.target.closest('.world-toggle');
+  if(!b) return;
+  e.preventDefault();
+  e.stopPropagation();
+  const wId = b.dataset.world;
+  const manual = JSON.parse(localStorage.getItem('clave.minimized') || '[]');
+  const key = 'open:' + wId;
+  const isOpenManually = manual.includes(key);
+  if(isOpenManually) manual.splice(manual.indexOf(key), 1);
+  else manual.push(key);
+  localStorage.setItem('clave.minimized', JSON.stringify(manual));
+  if(window.applyMinimized) window.applyMinimized();
+  if(window.sfxClick) window.sfxClick();
+});
   }
 
   // ===== LIÇÃO =====
