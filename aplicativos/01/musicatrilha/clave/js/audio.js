@@ -1,5 +1,6 @@
 // ===== Web Audio, playback, metrônomo =====
 // Depende de: state.js (S)
+import { I } from './icons.js';
 import { S } from './state.js';
 
 export let AC = null;
@@ -162,14 +163,14 @@ export function metSetButton(){
     bSound.setAttribute('aria-pressed', String(!!S.settings.metronome));
     bSound.classList.toggle('active-met', !!S.settings.metronome);
     const ico = bSound.querySelector('.icw');
-    if(ico) ico.innerHTML = S.settings.metronome ? '🔊' : '🔇';
+    if(ico) ico.innerHTML = S.settings.metronome ? I.volume : I.mute;
   }
   const bLight = document.getElementById('metLightBtn');
   if(bLight){
     bLight.setAttribute('aria-pressed', String(!!S.settings.metLight));
     const host = document.getElementById('metLamps');
     if(host){
-      const bpb = 4;
+      const bpb = (window.L && window.L.beatsPerBar) ? window.L.beatsPerBar : 4;
       if(host.children.length !== bpb){
         let html = '';
         for(let i = 0; i < bpb; i++) html += '<span class="met-lamp' + (i === 0 ? '' : ' weak') + '"></span>';
