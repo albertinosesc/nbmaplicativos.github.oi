@@ -1,13 +1,40 @@
 // ===== Boot — ponto de entrada =====
-import { S, save, touchToday, applyPlanClasses, effStreak } from './state.js';
+import { S, save, touchToday, applyPlanClasses, effStreak, withStatus } from './state.js';
 import { DB, dbLoad } from './firebase.js';
 import { loadRemoteSongs } from './songs.js';
 import { updateSoundBtn, metSetButton } from './audio.js';
 import { injectIcons, mascotSVG, I } from './icons.js';
-import { renderTrilha, renderSidebar } from './trilha.js';
+import { renderTrilha, renderSidebar, worldOf } from './trilha.js';
+import { renderBiblioteca, abrirPreview } from './biblioteca.js';
+import { renderVideos } from './videos.js';
+import { renderTurmas } from './turmas.js';
+import { renderLoja } from './loja.js';
 import { route } from './router.js';
 import { wire } from './wire.js';
-import { openModal, closeModal, esc } from './ui.js';
+import { openModal, closeModal, toast, esc } from './ui.js';
+import { initLesson } from './lesson.js';
+import { abrirModalConta, abrirModalPro, abrirLoginConta, abrirLoginTurma } from './auth.js';
+
+// ⚠️ Expor TODAS as funções no window (para o código legado)
+window.renderTrilha = renderTrilha;
+window.renderSidebar = renderSidebar;
+window.renderBiblioteca = renderBiblioteca;
+window.renderVideos = renderVideos;
+window.renderTurmas = renderTurmas;
+window.renderLoja = renderLoja;
+window.abrirPreview = abrirPreview;
+window.initLesson = initLesson;
+window.abrirModalConta = abrirModalConta;
+window.abrirModalPro = abrirModalPro;
+window.abrirLoginConta = abrirLoginConta;
+window.abrirLoginTurma = abrirLoginTurma;
+window.withStatus = withStatus;
+window.worldOf = worldOf;
+window.injectIcons = injectIcons;
+window.openModal = openModal;
+window.closeModal = closeModal;
+window.toast = toast;
+window.esc = esc;
 
 // ===== HUD =====
 function updateHUD(){
