@@ -202,7 +202,6 @@ export function metSetButton(){
 
 export function metStart(){
   if(!window.L) return;
-  if(!S.settings.metLight && !S.settings.metronome) return;
   const ctx = ensureAudio(); if(!ctx) return;
   cancelAnimationFrame(MET.raf);
   MET.token = (MET.token || 0) + 1;
