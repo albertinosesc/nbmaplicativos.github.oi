@@ -46,57 +46,56 @@ export async function route(){
   const mLicao = h.match(/^#\/licao\/(.+)$/);
   if(mLicao){
     const id = decodeURIComponent(mLicao[1]);
-    const list = window.withStatus ? withStatus(window.SEEDS) : [];
+    const list = window.withStatus ? window.withStatus(window.SEEDS) : [];
     const s = list.find(x => x.id === id);
     if(!s || !s.unlocked){
       toast('🔒 Música bloqueada ou inexistente.', { type: 'warn' });
       showView('trilha');
-      if(window.renderTrilha) renderTrilha();
+      if(window.renderTrilha) window.renderTrilha();
       updateNav('#/trilha');
       return;
     }
     showView('licao');
     updateNav(h);
-    if(window.initLesson) initLesson(s);
+    if(window.initLesson) window.initLesson(s);
     return;
   }
 
   if(h.startsWith('#/turmas')){
-    if(window.podeAcessarPro && !podeAcessarPro()){
+    if(window.podeAcessarPro && !window.podeAcessarPro()){
       toast('🔒 Turmas é um recurso Pro.', { type: 'warn' });
       showView('trilha');
-      if(window.renderTrilha) renderTrilha();
+      if(window.renderTrilha) window.renderTrilha();
       updateNav('#/trilha');
       return;
     }
     showView('turmas');
-    if(window.renderTurmas) renderTurmas();
+    if(window.renderTurmas) window.renderTurmas();
   } else if(h.startsWith('#/biblioteca')){
     showView('biblioteca');
-    if(window.renderBiblioteca) renderBiblioteca();
+    if(window.renderBiblioteca) window.renderBiblioteca();
   } else if(h.startsWith('#/loja')){
-    if(window.podeAcessarPro && !podeAcessarPro()){
+    if(window.podeAcessarPro && !window.podeAcessarPro()){
       toast('🔒 Loja é um recurso Pro.', { type: 'warn' });
       showView('trilha');
-      if(window.renderTrilha) renderTrilha();
+      if(window.renderTrilha) window.renderTrilha();
       updateNav('#/trilha');
       return;
     }
     showView('loja');
-    if(window.renderLoja) renderLoja();
+    if(window.renderLoja) window.renderLoja();
   } else if(h.startsWith('#/comentarios')){
     showView('comentarios');
-    if(window.injectIcons) injectIcons();
+    if(window.injectIcons) window.injectIcons();
   } else if(h.startsWith('#/videos')){
     showView('videos');
-    if(window.renderVideos) renderVideos();
-    else console.warn('renderVideos não definido');
+    if(window.renderVideos) window.renderVideos();
   } else if(h.startsWith('#/sobre')){
     showView('sobre');
-    if(window.injectIcons) injectIcons();
+    if(window.injectIcons) window.injectIcons();
   } else {
     showView('trilha');
-    if(window.renderTrilha) renderTrilha();
+    if(window.renderTrilha) window.renderTrilha();
   }
   updateNav(h);
 }
