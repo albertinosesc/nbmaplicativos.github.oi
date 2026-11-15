@@ -2,7 +2,7 @@
 import { S, save, touchToday, applyPlanClasses, effStreak, withStatus } from './state.js';
 import { DB, dbLoad } from './firebase.js';
 import { loadRemoteSongs } from './songs.js';
-import { updateSoundBtn, metSetButton } from './audio.js';
+import { updateSoundBtn, metSetButton, updatePlayUI } from './audio.js';
 import { injectIcons, mascotSVG, I } from './icons.js';
 import { renderTrilha, renderSidebar, worldOf } from './trilha.js';
 import { renderBiblioteca, abrirPreview } from './biblioteca.js';
@@ -15,6 +15,7 @@ import { openModal, closeModal, toast, esc } from './ui.js';
 import { initLesson } from './lesson.js';
 import { abrirModalConta, abrirModalPro, abrirLoginConta, abrirLoginTurma } from './auth.js';
 window.metSetButton = metSetButton;
+window.updatePlayUI = updatePlayUI;
 
 // ⚠️ Expor TODAS as funções no window
 window.renderTrilha = renderTrilha;
