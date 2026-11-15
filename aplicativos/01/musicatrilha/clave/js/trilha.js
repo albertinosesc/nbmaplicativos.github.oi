@@ -28,7 +28,7 @@ function worldSvgDecor(worldId){
   return '';
 }
 
-function applyMinimized(){
+export function applyMinimized(){
   const list = window.withStatus && window.SEEDS ? window.withStatus(window.SEEDS) : [];
   const currentSong = list.find(s => s.current);
   const activeWorldId = currentSong ? worldOf(currentSong.difficulty).id : null;
@@ -73,7 +73,6 @@ export function renderTrilha(){
         + '</div></div>';
     }).join('');
 
-    // Se o mundo está vazio, mostra mensagem + botão "Em breve"
     const vazioHtml = !songs.length
       ? '<div class="w-empty"><span class="w-empty-emoji">' + w.emblem + '</span><b>Em breve!</b><span>Novas músicas chegando neste mundo.</span></div>'
       : '';
@@ -96,7 +95,6 @@ export function renderTrilha(){
   });
 
   if(!WORLDS.some(w => byWorld[w.id].length)){
-    // Só cai aqui se NENHUM mundo tiver música
     stack.innerHTML = '<div class="empty-state" style="margin-top:20px">Nenhuma música carregada. 🎵</div>';
     return;
   }
@@ -190,9 +188,4 @@ window.WORLDS = WORLDS;
 window.worldOf = worldOf;
 window.renderTrilha = renderTrilha;
 window.renderSidebar = renderSidebar;
-
 window.applyMinimized = applyMinimized;
-window.renderTrilha = renderTrilha;
-window.renderSidebar = renderSidebar;
-window.worldOf = worldOf;
-window.WORLDS = WORLDS;
