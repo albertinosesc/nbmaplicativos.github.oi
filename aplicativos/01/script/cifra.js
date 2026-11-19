@@ -403,6 +403,134 @@
         return { bar, btnModal };
     }
 
+    // ============================================================
+    // CONVERSOR: CIFRA TRADICIONAL (ACORDES EM CIMA) -> [CIFRA]
+    // ============================================================
+    function parecerLinhaDeAcordes(linha) {
+        const limpa = String(linha || '').trim();
+        if (!limpa) return false;
+
+        if (/^(titulo|tom|capotraste|ritmo|intro|verso|refrao|refrão|ponte)\s*:/i.test(limpa)) {
+            return false;
+        }
+
+        const tokens = limpa.split(/\s+/).filter(Boolean);
+        if (tokens.length === 0) return false;
+
+        const regexAcorde = /^[A-G][#b]?(?:m|maj|min|dim|aug|m7M|7M|add\d*|sus\d*|\d)*(?:\([^)]*\))?(?:\/[A-G][#b]?)?$/;
+        let acordesValidos = 0;
+
+        for (const tk of tokens) {
+            const semBarra = tk.replace(/^[|(]+|[|)]+$/g, '');
+            if (regexAcorde.test(semBarra)) {
+                acordesValidos++;
+            } else if (!/^[|\-–—]+$/.test(tk)) {
+                return false;
+            }
+        }
+
+        return acordesValidos > 0;
+    }
+
+    function extrairAcordesComColuna(linhaAcordes) {
+        const acordes = [];
+        const regex = /\S+/g;
+        let match;
+
+        while ((match = regex.exec(linhaAcordes)) !== null) {
+            const token = match[0];
+            if (/^[|\-–—]+$/.test(token)) continue;
+            const limpo = token.replace(/^[|(]+|[|)]+$/g, '');
+            if (!limpo) continue;
+
+            acordes.push({
+                chord: limpo,
+                col: match.index
+            });
+        }
+
+        return acordes;
+    }
+
+    function mesclarAcordesNaLetra(linhaAcordes, linhaLetra) {
+        const acordes = extrairAcordesComColuna(linhaAcordes);
+        const letraBase = String(linhaLetra || '');
+
+        if (acordes.length === 0) {
+            return letraBase.trimEnd();
+        }
+
+        if (!letraBase.trim()) {
+            return acordes.map(a => `[${a.chord}]`).join(' ');
+        }
+
+        const lenAcordes = Math.max(
+            linhaAcordes.length,
+            acordes[acordes.length - 1].col + acordes[acordes.length - 1].chord.length
+        );
+        const lenLetra = letraBase.length;
+
+        const insercoes = acordes.map((item) => {
+            let idx;
+            if (lenAcordes <= 1 || lenLetra <= 1) {
+                idx = Math.min(item.col, lenLetra);
+            } else {
+                const proporcao = item.col / Math.max(1, lenAcordes - 1);
+                const posProporcional = Math.round(proporcao * Math.max(0, lenLetra - 1));
+                idx = item.col <= lenLetra ? item.col : posProporcional;
+            }
+            return {
+                chord: item.chord,
+                idx: Math.max(0, Math.min(idx, lenLetra))
+            };
+        });
+
+        insercoes.sort((a, b) => b.idx - a.idx);
+
+        let resultado = letraBase;
+        for (const ins of insercoes) {
+            resultado = resultado.slice(0, ins.idx) + `[${ins.chord}]` + resultado.slice(ins.idx);
+        }
+
+        return resultado.trim();
+    }
+
+    function converterCifraTradicionalParaTag(textoBruto) {
+        const raw = String(textoBruto || '').replace(/\u200B/g, '').trim();
+        if (!raw) return '';
+
+        if (/^\[CIFRA[^\]]*\]/i.test(raw)) {
+            return raw;
+        }
+
+        const linhas = raw.split(/\r?\n/);
+        const saida = [];
+        let i = 0;
+
+        while (i < linhas.length) {
+            const atual = linhas[i];
+            const proxima = i + 1 < linhas.length ? linhas[i + 1] : null;
+
+            if (parecerLinhaDeAcordes(atual)) {
+                if (proxima !== null && proxima.trim() !== '' && !parecerLinhaDeAcordes(proxima)) {
+                    saida.push(mesclarAcordesNaLetra(atual, proxima));
+                    i += 2;
+                    continue;
+                } else {
+                    const acordesSoltos = extrairAcordesComColuna(atual).map(a => `[${a.chord}]`).join(' ');
+                    if (acordesSoltos) saida.push(acordesSoltos);
+                    i += 1;
+                    continue;
+                }
+            }
+
+            saida.push(atual.trim());
+            i += 1;
+        }
+
+        return `[CIFRA]\n${saida.join('\n').trim()}\n[/CIFRA]`;
+    }
+
     function criarEditorCifraMinimizado(initialRawCode, onApply) {
         const wrap = document.createElement('div');
         wrap.className = 'cifra-editor-minimized-wrap';
@@ -422,6 +550,7 @@
         const actions = document.createElement('div');
         actions.className = 'cifra-editor-actions';
         actions.style.display = 'flex';
+        actions.style.flexWrap = 'wrap';
         actions.style.gap = '8px';
         actions.style.marginTop = '6px';
 
@@ -429,6 +558,33 @@
         btnApply.type = 'button';
         btnApply.className = 'btn-apply-cifra';
         btnApply.textContent = '✓ Aplicar na cifra';
+
+        const btnConvert = document.createElement('button');
+        btnConvert.type = 'button';
+        btnConvert.className = 'btn-convert-cifra';
+        btnConvert.textContent = '🔄 Converter';
+        btnConvert.title = 'Converte cifra tradicional (acordes em cima) para [ACORDE] na letra';
+        btnConvert.onclick = () => {
+            const start = typeof textarea.selectionStart === 'number' ? textarea.selectionStart : 0;
+            const end = typeof textarea.selectionEnd === 'number' ? textarea.selectionEnd : 0;
+            const atual = textarea.value || '';
+
+            const limparEnvoltorio = (str) =>
+                converterCifraTradicionalParaTag(str)
+                    .replace(/^\[CIFRA[^\]]*\]\s*/i, '')
+                    .replace(/\s*\[\/CIFRA\]$/i, '');
+
+            if (end > start) {
+                const trecho = atual.slice(start, end);
+                const convertido = limparEnvoltorio(trecho);
+                textarea.value = atual.slice(0, start) + convertido + atual.slice(end);
+                textarea.focus();
+                textarea.setSelectionRange(start, start + convertido.length);
+            } else {
+                textarea.value = limparEnvoltorio(atual);
+                textarea.focus();
+            }
+        };
 
         const btnMinimize = document.createElement('button');
         btnMinimize.type = 'button';
@@ -465,6 +621,7 @@
         };
 
         actions.appendChild(btnApply);
+        actions.appendChild(btnConvert);
         actions.appendChild(btnMinimize);
         box.appendChild(textarea);
         box.appendChild(actions);
@@ -479,10 +636,12 @@
         };
     }
 
-    // Expõe globalmente para o módulo ABC (e outros módulos) abrirem o mesmo modal de violão
+    // Expõe globalmente para o módulo ABC e para o script.js / painel Admin
     window.abrirModalViolaoPorCifra = function (cifraBruta, triggerEl = null) {
         abrirOuAtualizarModalAcorde(cifraBruta, null);
     };
+
+    window.converterCifraTradicionalParaTag = converterCifraTradicionalParaTag;
 
     window.CifraModule = {
         render(rawInner, fullMatch = '') {
