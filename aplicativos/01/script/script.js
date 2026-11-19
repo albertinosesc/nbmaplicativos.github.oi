@@ -234,9 +234,13 @@ function renderLesson(text) {
     }
 
     const content = document.getElementById('lesson-content');
-    content.innerHTML = '';
+    renderLessonIntoContainer(text, content, 'lesson-abc');
+}
 
-    // Reconhece [ABC]...[/ABC], [CIFRA]...[/CIFRA] (ou [CIFRA]...[CIFRA]), [MD]...[/MD], [LINK]...[/LINK], [VIDEO]...[/VIDEO]
+function renderLessonIntoContainer(text, container, idPrefix = 'abc') {
+    if (!container) return;
+    container.innerHTML = '';
+
     const tokenRegex = /\[(ABC|CIFRA(?:\s+[^\]]*)?|MD|LINK|VIDEO)\]([\s\S]*?)\[\/(ABC|CIFRA|MD|LINK|VIDEO)\]/g;
     let lastIndex = 0;
     let match;
@@ -245,32 +249,33 @@ function renderLesson(text) {
     while ((match = tokenRegex.exec(text)) !== null) {
         const textBefore = text.substring(lastIndex, match.index);
         if (textBefore.trim()) {
-            content.appendChild(parseText(textBefore));
+            container.appendChild(parseText(textBefore));
         }
 
         const rawTag = match[1].trim();
-const tagType = rawTag.split(/\s+/)[0].toUpperCase();
-const innerContent = match[2];
+        const tagType = rawTag.split(/\s+/)[0].toUpperCase();
+        const innerContent = match[2];
 
-if (tagType === 'ABC' && window.AbcModule) {
-    content.appendChild(window.AbcModule.render(innerContent, abcCounter++));
-} else if (tagType === 'CIFRA' && window.CifraModule) {
-    content.appendChild(window.CifraModule.render(innerContent, match[0]));
-} else if (tagType === 'MD' && window.MarkdownModule) {
-    content.appendChild(window.MarkdownModule.render(innerContent));
-} else if (tagType === 'LINK' && window.LinksModule) {
-    content.appendChild(window.LinksModule.render(innerContent));
-} else if (tagType === 'VIDEO' && window.VideoModule) {
-    content.appendChild(window.VideoModule.render(innerContent));
-} else {
-    content.appendChild(parseText(innerContent));
-}
+        if (tagType === 'ABC' && window.AbcModule) {
+            container.appendChild(window.AbcModule.render(innerContent, `${idPrefix}-${abcCounter++}`));
+        } else if (tagType === 'CIFRA' && window.CifraModule) {
+            container.appendChild(window.CifraModule.render(innerContent, match[0]));
+        } else if (tagType === 'MD' && window.MarkdownModule) {
+            container.appendChild(window.MarkdownModule.render(innerContent));
+        } else if (tagType === 'LINK' && window.LinksModule) {
+            container.appendChild(window.LinksModule.render(innerContent));
+        } else if (tagType === 'VIDEO' && window.VideoModule) {
+            container.appendChild(window.VideoModule.render(innerContent));
+        } else {
+            container.appendChild(parseText(innerContent));
+        }
+
         lastIndex = match.index + match[0].length;
     }
 
     const textAfter = text.substring(lastIndex);
     if (textAfter.trim()) {
-        content.appendChild(parseText(textAfter));
+        container.appendChild(parseText(textAfter));
     }
 }
 
@@ -320,6 +325,8 @@ function updateCategoryDatalist() {
     });
 }
 
+let adminPreviewTimer = null;
+
 function renderAdminPanel() {
     const panel = document.getElementById('admin-panel');
     const savedToken = sessionStorage.getItem(TOKEN_STORAGE_KEY) || '';
@@ -367,9 +374,23 @@ function renderAdminPanel() {
             </div>
         </div>
 
-        <div class="admin-field">
-            <label for="lesson-body">Conteúdo da Lição (.txt)</label>
-            <textarea id="lesson-body" placeholder="<h2>Nova Lição</h2>\n<p>Texto explicativo...</p>\n\n[ABC]\nX:1\nT:Exemplo\nM:4/4\nL:1/4\nK:C\nCDEF|GABC|\n%%play\n[/ABC]"></textarea>
+        <div class="admin-workspace">
+            <div class="admin-editor-col">
+                <div class="admin-field">
+                    <label for="lesson-body">Conteúdo da Lição (.txt)</label>
+                    <textarea id="lesson-body" placeholder="<h2>Nova Lição</h2>\n<p>Texto explicativo...</p>\n\n[ABC]\nX:1\nT:Exemplo\nM:4/4\nL:1/4\nK:C\nCDEF|GABC|\n%%play\n[/ABC]\n\n[CIFRA]\n[C]Exemplo de [G]cifra\n[/CIFRA]"></textarea>
+                </div>
+            </div>
+
+            <div class="admin-preview-col">
+                <div class="admin-preview-header">
+                    <span>👁️ Pré-visualização em Tempo Real</span>
+                    <button type="button" id="btn-refresh-preview" class="btn-mini-preview">↻ Atualizar agora</button>
+                </div>
+                <div id="admin-live-preview" class="admin-live-preview">
+                    <p class="admin-preview-empty">Digite no editor ao lado para visualizar todas as tags antes de salvar.</p>
+                </div>
+            </div>
         </div>
 
         <label class="admin-checkbox">
@@ -385,8 +406,44 @@ function renderAdminPanel() {
         <div id="admin-status"></div>
     `;
 
+    const bodyTextarea = document.getElementById('lesson-body');
+    const refreshBtn = document.getElementById('btn-refresh-preview');
+
+    bodyTextarea.addEventListener('input', () => {
+        scheduleAdminPreview();
+    });
+
+    if (refreshBtn) {
+        refreshBtn.onclick = () => renderAdminLivePreview();
+    }
+
     document.getElementById('btn-save-lesson').onclick = handleSaveToGithub;
     document.getElementById('btn-load-existing').onclick = handleLoadExistingLesson;
+
+    renderAdminLivePreview();
+}
+
+function scheduleAdminPreview() {
+    if (adminPreviewTimer) {
+        clearTimeout(adminPreviewTimer);
+    }
+    adminPreviewTimer = setTimeout(() => {
+        renderAdminLivePreview();
+    }, 150);
+}
+
+function renderAdminLivePreview() {
+    const textarea = document.getElementById('lesson-body');
+    const previewEl = document.getElementById('admin-live-preview');
+    if (!textarea || !previewEl) return;
+
+    const text = textarea.value || '';
+    if (!text.trim()) {
+        previewEl.innerHTML = '<p class="admin-preview-empty">Digite no editor ao lado para visualizar todas as tags antes de salvar.</p>';
+        return;
+    }
+
+    renderLessonIntoContainer(text, previewEl, 'admin-abc');
 }
 
 function setAdminStatus(message, isError = false) {
