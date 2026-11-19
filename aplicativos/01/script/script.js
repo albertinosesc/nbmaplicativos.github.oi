@@ -868,7 +868,6 @@ async function handleSaveToGithub() {
         setAdminStatus(`Falha ao salvar no GitHub: ${err.message}`, true);
     }
 }
-
 // ============================================================
 // BARRA DE ATALHOS DE TAGS NO EDITOR DO ADMIN
 // ============================================================
@@ -899,8 +898,8 @@ const TAGS_EDITOR_ADMIN = [
     },
     {
         label: '🖼️ Imagem',
-        title: 'Inserir bloco de imagem',
-        insert: '[IMAGEM]\nURL_DA_IMAGEM\n[/IMAGEM]\n',
+        title: 'Inserir bloco de imagem (pasta local ou URL)',
+        insert: '[IMAGEM]\nimagens/001.png\nLegenda da imagem\n[/IMAGEM]\n',
         wrapSelection: true
     },
     {
@@ -921,7 +920,6 @@ function inserirTagNoTextarea(textarea, tagConfig) {
 
     let textoInserido = tagConfig.insert;
 
-    // Se o usuário selecionou um trecho de texto, envolve com as tags de abertura/fechamento
     if (tagConfig.wrapSelection && selecionado.trim()) {
         const matchTags = tagConfig.insert.match(/^(\[[A-Z0-9_]+[^\]]*\])([\s\S]*?)(\[\/[A-Z0-9_]+\])(\n?)$/i);
         if (matchTags) {
@@ -934,7 +932,6 @@ function inserirTagNoTextarea(textarea, tagConfig) {
 
     textarea.value = textoAtual.slice(0, start) + textoInserido + textoAtual.slice(end);
 
-    // Posiciona o cursor logo após o texto inserido e dispara input para atualizar prévia (se houver)
     const novaPosicao = start + textoInserido.length;
     textarea.focus();
     textarea.setSelectionRange(novaPosicao, novaPosicao);
@@ -958,4 +955,67 @@ function montarBarraTagsAdmin(textarea, toolbarContainer) {
     });
 
     toolbarContainer.dataset.initialized = 'true';
+}
+
+function encontrarTextareaEditorAdmin() {
+    const candidatos = [
+        '#adminLessonContent',
+        '#lessonContent',
+        '#editorTextarea',
+        '#admin-editor-textarea',
+        'textarea[name*="conteudo" i]',
+        'textarea[name*="content" i]',
+        'textarea[id*="admin" i]',
+        'textarea[id*="lesson" i]',
+        'textarea[id*="editor" i]',
+        'textarea'
+    ];
+
+    for (const seletor of candidatos) {
+        const el = document.querySelector(seletor);
+        if (el && el.tagName === 'TEXTAREA') {
+            return el;
+        }
+    }
+    return null;
+}
+
+function obterOuCriarContainerBarraAdmin(textarea) {
+    if (!textarea) return null;
+
+    let toolbar = document.getElementById('admin-tag-toolbar');
+    if (!toolbar && textarea.parentElement) {
+        toolbar = document.createElement('div');
+        toolbar.id = 'admin-tag-toolbar';
+        toolbar.className = 'admin-tag-toolbar';
+        textarea.parentElement.insertBefore(toolbar, textarea);
+    }
+    return toolbar;
+}
+
+function sincronizarBarraTagsAdmin() {
+    const textarea = encontrarTextareaEditorAdmin();
+    if (!textarea) return;
+
+    const toolbar = obterOuCriarContainerBarraAdmin(textarea);
+    if (!toolbar) return;
+
+    montarBarraTagsAdmin(textarea, toolbar);
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+    sincronizarBarraTagsAdmin();
+
+    const observer = new MutationObserver(() => {
+        sincronizarBarraTagsAdmin();
+    });
+
+    observer.observe(document.body || document.documentElement, {
+        childList: true,
+        subtree: true
+    });
+});
+
+if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    sincronizarBarraTagsAdmin();
 }
