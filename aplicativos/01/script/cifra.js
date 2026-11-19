@@ -193,3 +193,181 @@
         }
     };
 })();
+
+// ============================================================
+// TRANSPOSIÇÃO DE CIFRAS DENTRO DO CIFRA.JS
+// ============================================================
+const NOTAS_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const NOTAS_BEMOL = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+const MAPA_SEMITONS = {
+    'C': 0, 'B#': 0,
+    'C#': 1, 'Db': 1,
+    'D': 2,
+    'D#': 3, 'Eb': 3,
+    'E': 4, 'Fb': 4,
+    'F': 5, 'E#': 5,
+    'F#': 6, 'Gb': 6,
+    'G': 7,
+    'G#': 8, 'Ab': 8,
+    'A': 9,
+    'A#': 10, 'Bb': 10,
+    'B': 11, 'Cb': 11
+};
+
+function transporNota(notaStr, semitons, usarBemol = false) {
+    const match = String(notaStr || '').trim().match(/^([A-Ga-g])([#b]?)$/);
+    if (!match) return notaStr;
+
+    const letra = match[1].toUpperCase();
+    const acidente = match[2] || '';
+    const chave = `${letra}${acidente}`;
+    const baseIdx = MAPA_SEMITONS[chave];
+    if (baseIdx === undefined) return notaStr;
+
+    const novoIdx = (((baseIdx + semitons) % 12) + 12) % 12;
+    const preferirBemol = acidente === 'b' || (usarBemol && acidente !== '#');
+    const escala = preferirBemol ? NOTAS_BEMOL : NOTAS_SHARP;
+
+    return escala[novoIdx];
+}
+
+function transporAcordeTexto(acordeTexto, semitons) {
+    if (!semitons) return acordeTexto;
+
+    const preferirBemol = semitons < 0;
+    const partes = String(acordeTexto).split('/');
+
+    return partes.map((parte, idx) => {
+        const trimmed = parte.trim();
+        if (!trimmed) return parte;
+
+        const m = trimmed.match(/^([A-Ga-g][#b]?)(.*)$/);
+        if (!m) return parte;
+
+        const novaNota = transporNota(m[1], semitons, preferirBemol);
+        return `${novaNota}${m[2]}`;
+    }).join('/');
+}
+
+function pareceAcordeMusical(texto) {
+    const t = String(texto || '').trim();
+    if (!t || t.length > 16) return false;
+    return /^[A-G][#b]?(?:m|maj|min|dim|aug|sus|add|\d|\/|[#b()+°ø])*$/i.test(t);
+}
+
+function coletarTextNodesCifra(raiz) {
+    const walker = document.createTreeWalker(
+        raiz,
+        NodeFilter.SHOW_TEXT,
+        {
+            acceptNode(node) {
+                if (!node.parentElement) return NodeFilter.FILTER_REJECT;
+                if (node.parentElement.closest('.cifra-transpose-bar')) {
+                    return NodeFilter.FILTER_REJECT;
+                }
+                if (!node.nodeValue || !node.nodeValue.trim()) {
+                    return NodeFilter.FILTER_SKIP;
+                }
+                return NodeFilter.FILTER_ACCEPT;
+            }
+        }
+    );
+
+    const nodes = [];
+    let current;
+    while ((current = walker.nextNode())) {
+        nodes.push(current);
+    }
+    return nodes;
+}
+
+function aplicarTransposicaoNoContainer(corpoCifra, baseTexts, semitons) {
+    const nodes = coletarTextNodesCifra(corpoCifra);
+    nodes.forEach((node, idx) => {
+        const original = baseTexts[idx];
+        if (typeof original !== 'string') return;
+
+        const trimmed = original.trim();
+        if (pareceAcordeMusical(trimmed)) {
+            const transposto = transporAcordeTexto(trimmed, semitons);
+            node.nodeValue = original.replace(trimmed, transposto);
+            return;
+        }
+
+        node.nodeValue = original.replace(/\[([^\]]+)\]/g, (full, dentro) => {
+            if (!pareceAcordeMusical(dentro.trim())) return full;
+            return `[${transporAcordeTexto(dentro.trim(), semitons)}]`;
+        });
+    });
+}
+
+function envolverComTranspose(conteudoRenderizado) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'cifra-block-wrapper';
+
+    const corpo = document.createElement('div');
+    corpo.className = 'cifra-body';
+
+    if (conteudoRenderizado instanceof Node) {
+        corpo.appendChild(conteudoRenderizado);
+    } else {
+        corpo.innerHTML = String(conteudoRenderizado ?? '');
+    }
+
+    const baseTexts = coletarTextNodesCifra(corpo).map(n => n.nodeValue);
+    let semitonsAtual = 0;
+
+    const bar = document.createElement('div');
+    bar.className = 'cifra-transpose-bar';
+
+    const btnDown = document.createElement('button');
+    btnDown.type = 'button';
+    btnDown.className = 'cifra-transpose-btn';
+    btnDown.title = 'Baixar meio tom (-1 semitom)';
+    btnDown.textContent = '⬅️ -1';
+
+    const statusSpan = document.createElement('span');
+    statusSpan.className = 'cifra-transpose-status';
+    statusSpan.textContent = 'Tom original (0)';
+
+    const btnUp = document.createElement('button');
+    btnUp.type = 'button';
+    btnUp.className = 'cifra-transpose-btn';
+    btnUp.title = 'Subir meio tom (+1 semitom)';
+    btnUp.textContent = '+1 ➡️';
+
+    const btnReset = document.createElement('button');
+    btnReset.type = 'button';
+    btnReset.className = 'cifra-transpose-btn cifra-transpose-reset';
+    btnReset.title = 'Voltar ao tom original';
+    btnReset.textContent = 'Reset';
+    btnReset.style.display = 'none';
+
+    const atualizar = (novoSemitons) => {
+        semitonsAtual = novoSemitons;
+        aplicarTransposicaoNoContainer(corpo, baseTexts, semitonsAtual);
+
+        if (semitonsAtual === 0) {
+            statusSpan.textContent = 'Tom original (0)';
+            btnReset.style.display = 'none';
+        } else {
+            const sinal = semitonsAtual > 0 ? `+${semitonsAtual}` : `${semitonsAtual}`;
+            statusSpan.textContent = `${sinal} semitom${Math.abs(semitonsAtual) > 1 ? 's' : ''}`;
+            btnReset.style.display = 'inline-block';
+        }
+    };
+
+    btnDown.onclick = () => atualizar(semitonsAtual - 1);
+    btnUp.onclick = () => atualizar(semitonsAtual + 1);
+    btnReset.onclick = () => atualizar(0);
+
+    bar.appendChild(btnDown);
+    bar.appendChild(statusSpan);
+    bar.appendChild(btnUp);
+    bar.appendChild(btnReset);
+
+    wrapper.appendChild(bar);
+    wrapper.appendChild(corpo);
+    return wrapper;
+}
