@@ -241,20 +241,34 @@ function renderLessonIntoContainer(text, container, idPrefix = 'abc') {
     if (!container) return;
     container.innerHTML = '';
 
-    const tokenRegex = /\[(ABC|CIFRA(?:\s+[^\]]*)?|MD|LINK|VIDEO|VIOLAO)\]([\s\S]*?)\[\/(ABC|CIFRA|MD|LINK|VIDEO|VIOLAO)\]/g;
+    const codeBlocks = [];
+    // 1. Protege qualquer trecho dentro de <code>...</code> ou <pre>...</pre>
+    const protectedText = String(text || '').replace(
+        /<(code|pre)(\b[^>]*)>([\s\S]*?)<\/\1>/gi,
+        (fullMatch) => {
+            const token = `@@CODEBLOCK_${codeBlocks.length}@@`;
+            codeBlocks.push(fullMatch);
+            return token;
+        }
+    );
+
+    const restoreCodeBlocks = (str) =>
+        String(str || '').replace(/@@CODEBLOCK_(\d+)@@/g, (_, idx) => codeBlocks[Number(idx)] ?? '');
+
+    const tokenRegex = /\[(ABC|CIFRA(?:\s+[^\]]*)?|MD|LINK|VIDEO|VIOLAO)\]([\s\S]*?)\[\/(ABC|CIFRA|MD|LINK|VIDEO|VIOLAO)\]/gi;
     let lastIndex = 0;
     let match;
     let abcCounter = 0;
 
-    while ((match = tokenRegex.exec(text)) !== null) {
-        const textBefore = text.substring(lastIndex, match.index);
+    while ((match = tokenRegex.exec(protectedText)) !== null) {
+        const textBefore = restoreCodeBlocks(protectedText.substring(lastIndex, match.index));
         if (textBefore.trim()) {
             container.appendChild(parseText(textBefore));
         }
 
         const rawTag = match[1].trim();
         const tagType = rawTag.split(/\s+/)[0].toUpperCase();
-        const innerContent = match[2];
+        const innerContent = restoreCodeBlocks(match[2]);
 
         if (tagType === 'ABC' && window.AbcModule) {
             container.appendChild(window.AbcModule.render(innerContent, `${idPrefix}-${abcCounter++}`));
@@ -275,7 +289,7 @@ function renderLessonIntoContainer(text, container, idPrefix = 'abc') {
         lastIndex = match.index + match[0].length;
     }
 
-    const textAfter = text.substring(lastIndex);
+    const textAfter = restoreCodeBlocks(protectedText.substring(lastIndex));
     if (textAfter.trim()) {
         container.appendChild(parseText(textAfter));
     }
