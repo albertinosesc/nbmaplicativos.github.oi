@@ -1,10 +1,7 @@
 // ============================================================
-// CONFIGURAÇÃO - Altere aqui para apontar para sua pasta no GitHub
+// CONFIGURAÇÃO
 // ============================================================
 const CONFIG = {
-    // URL base dos arquivos de tutorial (pode ser GitHub raw ou GitHub Pages)
-    // Exemplo GitHub raw: 'https://raw.githubusercontent.com/USUARIO/REPO/main/tutorials/'
-    // Exemplo GitHub Pages: 'tutorials/' (se estiver na mesma estrutura)
     baseUrl: 'tutorials/',
     indexFile: 'index.json'
 };
@@ -16,6 +13,7 @@ let lessons = [];
 let currentLesson = null;
 let currentSynth = null;
 let isPlaying = false;
+let visualObjs = {}; // Guarda os visualObj de cada bloco ABC
 
 // ============================================================
 // INICIALIZAÇÃO
@@ -24,7 +22,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     await loadLessonIndex();
 });
 
-// Carrega o índice de lições
 async function loadLessonIndex() {
     try {
         const response = await fetch(CONFIG.baseUrl + CONFIG.indexFile);
@@ -41,7 +38,6 @@ async function loadLessonIndex() {
     }
 }
 
-// Renderiza a navegação
 function renderNavigation() {
     const nav = document.getElementById('lesson-nav');
     nav.innerHTML = '';
@@ -54,12 +50,10 @@ function renderNavigation() {
     });
 }
 
-// Carrega uma lição específica
 async function loadLesson(fileName) {
     const content = document.getElementById('lesson-content');
     content.innerHTML = '<p class="loading">Carregando lição...</p>';
 
-    // Atualiza navegação ativa
     document.querySelectorAll('#lesson-nav button').forEach(btn => {
         btn.classList.toggle('active', btn.dataset.file === fileName);
     });
@@ -68,6 +62,7 @@ async function loadLesson(fileName) {
         const response = await fetch(CONFIG.baseUrl + fileName);
         if (!response.ok) throw new Error('Lição não encontrada');
         const text = await response.text();
+        visualObjs = {}; // Limpa visualObjs anteriores
         renderLesson(text);
     } catch (error) {
         content.innerHTML = `<div class="error">Erro: ${error.message}</div>`;
@@ -75,26 +70,23 @@ async function loadLesson(fileName) {
 }
 
 // ============================================================
-// PARSER - Converte texto da lição em HTML
+// PARSER
 // ============================================================
 function renderLesson(text) {
     const content = document.getElementById('lesson-content');
     content.innerHTML = '';
 
-    // Regex para encontrar blocos [ABC]...[/ABC]
     const abcRegex = /\[ABC\]([\s\S]*?)\[\/ABC\]/g;
     let lastIndex = 0;
     let match;
     let blockCounter = 0;
 
     while ((match = abcRegex.exec(text)) !== null) {
-        // Texto explicativo ANTES do bloco ABC
         const textBefore = text.substring(lastIndex, match.index);
         if (textBefore.trim()) {
             content.appendChild(parseText(textBefore));
         }
 
-        // Bloco ABC
         const abcCode = match[1];
         content.appendChild(createAbcBlock(abcCode, blockCounter));
         blockCounter++;
@@ -102,34 +94,24 @@ function renderLesson(text) {
         lastIndex = match.index + match[0].length;
     }
 
-    // Texto restante após o último bloco
     const textAfter = text.substring(lastIndex);
     if (textAfter.trim()) {
         content.appendChild(parseText(textAfter));
     }
 }
 
-// Parser simples de texto (suporta HTML puro + algumas tags simples)
 function parseText(text) {
     const container = document.createElement('div');
     container.className = 'text-content';
-
-    // Permite HTML direto nos arquivos .txt
-    // Se quiser Markdown, pode substituir por uma lib como marked.js
     container.innerHTML = text;
-
     return container;
 }
 
-// Cria um bloco ABC com partitura renderizada
 function createAbcBlock(abcCode, blockId) {
     const block = document.createElement('div');
     block.className = 'abc-block';
 
-    // Verifica se há flag %%play no código
     const hasPlay = /%%play\b/.test(abcCode);
-
-    // Remove a flag %%play do código antes de renderizar
     const cleanCode = abcCode.replace(/%%play\s*/g, '').trim();
 
     // Container da partitura
@@ -138,9 +120,9 @@ function createAbcBlock(abcCode, blockId) {
     sheetContainer.id = `abc-sheet-${blockId}`;
     block.appendChild(sheetContainer);
 
-    // Renderiza a partitura com abcjs
+    // Renderiza a partitura E guarda o visualObj para tocar depois
     try {
-        ABCJS.renderAbc(sheetContainer, cleanCode, {
+        const renderResult = ABCJS.renderAbc(sheetContainer, cleanCode, {
             responsive: 'resize',
             scale: 0.75,
             staffwidth: 700,
@@ -148,6 +130,11 @@ function createAbcBlock(abcCode, blockId) {
             paddingbottom: 10,
             add_classes: true
         });
+        
+        // Guarda o visualObj para usar no play
+        if (renderResult && renderResult[0]) {
+            visualObjs[blockId] = renderResult[0];
+        }
     } catch (error) {
         sheetContainer.innerHTML = `<div class="error">Erro ao renderizar: ${error.message}</div>`;
     }
@@ -173,7 +160,7 @@ function createAbcBlock(abcCode, blockId) {
         block.appendChild(controls);
     }
 
-    // Mostra o código ABC abaixo da partitura (opcional, para fins didáticos)
+    // Mostra o código ABC
     const codeView = document.createElement('pre');
     codeView.className = 'abc-code';
     codeView.textContent = cleanCode;
@@ -183,61 +170,72 @@ function createAbcBlock(abcCode, blockId) {
 }
 
 // ============================================================
-// REPRODUTOR DE ÁUDIO (abcjs synth)
+// REPRODUTOR DE ÁUDIO (CORRIGIDO)
 // ============================================================
 async function playAbc(abcCode, btnPlay, blockId) {
     if (isPlaying) return;
+
+    const btnStop = btnPlay.nextElementSibling;
 
     try {
         // Para qualquer reprodução anterior
         if (currentSynth) {
             currentSynth.stop();
+            currentSynth = null;
         }
 
-        // Parseia o ABC
-        const visualObj = ABCJS.renderAbc('temp-' + blockId, abcCode, {
-            responsive: 'resize',
-            scale: 0.75,
-            generateDownload: false
-        })[0];
+        // Pega o visualObj já renderizado
+        let visualObj = visualObjs[blockId];
 
-        if (!visualObj) throw new Error('Não foi possível processar a partitura');
-
-        // Inicializa o sintetizador
-        currentSynth = new ABCJS.synth.CreateSynth();
-        await currentSynth.init({ visualObj: visualObj });
+        // Se por algum motivo não tiver, parseia de novo
+        if (!visualObj) {
+            const parsed = ABCJS.parseOnly(abcCode);
+            if (!parsed || parsed.length === 0) {
+                throw new Error('Código ABC inválido');
+            }
+            visualObj = parsed[0];
+        }
 
         // Atualiza UI
         btnPlay.disabled = true;
-        btnPlay.innerHTML = '⏳ Carregando...';
-        const btnStop = btnPlay.nextElementSibling;
+        btnPlay.innerHTML = '⏳ Inicializando áudio...';
         btnStop.style.display = 'inline-block';
         isPlaying = true;
 
-        // Toca
+        // Cria o sintetizador
+        currentSynth = new ABCJS.synth.CreateSynth();
+        
+        // Inicializa com o visualObj
+        await currentSynth.init({ visualObj: visualObj });
+
+        // Prepara o áudio (precisa do clique do usuário - já temos!)
         await currentSynth.prime();
-        currentSynth.start();
 
         btnPlay.innerHTML = '🔊 Tocando...';
 
+        // Toca
+        currentSynth.start();
+
         // Quando terminar, restaura UI
-        const duration = visualObj.duration * 1000;
+        const duration = (visualObj.duration || 10) * 1000;
         setTimeout(() => {
             if (isPlaying) {
                 resetPlayUI(btnPlay, btnStop);
             }
-        }, duration + 500);
+        }, duration + 1000);
 
     } catch (error) {
         console.error('Erro ao tocar:', error);
-        alert('Erro ao reproduzir áudio: ' + error.message);
-        resetPlayUI(btnPlay, btnPlay.nextElementSibling);
+        alert('Erro ao reproduzir áudio: ' + error.message + 
+              '\n\nDica: Verifique se o código ABC está correto e tente novamente.');
+        resetPlayUI(btnPlay, btnStop);
     }
 }
 
 function stopAbc(btnPlay, btnStop) {
     if (currentSynth) {
         currentSynth.stop();
+        currentSynth = null;
     }
     resetPlayUI(btnPlay, btnStop);
 }
