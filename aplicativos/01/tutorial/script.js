@@ -329,14 +329,15 @@ function createAbcBlock(abcCode, blockId) {
 
     return block;
 }
+
 // ============================================================
-// REPRODUTOR DE ÁUDIO (CORRIGIDO)
+// REPRODUTOR DE ÁUDIO (BASEADO NO TESTE QUE FUNCIONOU)
 // ============================================================
 async function playAbc(abcCode, btnPlay, blockId) {
     const btnStop = btnPlay ? btnPlay.nextElementSibling : null;
 
-    // Se já estiver tocando algo, para primeiro e permite iniciar o novo
-    if (isPlaying || currentSynth) {
+    // Se já houver algo tocando, para antes de iniciar o novo
+    if (currentSynth) {
         stopCurrentPlayback();
     }
 
@@ -345,25 +346,21 @@ async function playAbc(abcCode, btnPlay, blockId) {
             throw new Error('Seu navegador não suporta reprodução de áudio WebAudio.');
         }
 
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
         if (!audioContext) {
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
             audioContext = new AudioCtx();
         }
         if (audioContext.state === 'suspended') {
             await audioContext.resume();
         }
 
-        // Garante um visualObj renderizado
-        let visualObj = visualObjs[blockId];
-        if (!visualObj || !Array.isArray(visualObj.lines)) {
-            const tempDiv = document.createElement('div');
-            const rendered = ABCJS.renderAbc(tempDiv, abcCode);
-            if (!rendered || !rendered[0]) {
-                throw new Error('Não foi possível preparar a partitura para áudio.');
-            }
-            visualObj = rendered[0];
-            visualObjs[blockId] = visualObj;
+        // Gera o visualObj fresco exatamente como no teste do console
+        const tempDiv = document.createElement('div');
+        const rendered = ABCJS.renderAbc(tempDiv, abcCode);
+        if (!rendered || !rendered[0]) {
+            throw new Error('Não foi possível preparar a partitura para áudio.');
         }
+        const visualObj = rendered[0];
 
         activeBtnPlay = btnPlay;
         activeBtnStop = btnStop;
@@ -389,7 +386,7 @@ async function playAbc(abcCode, btnPlay, blockId) {
 
         await synth.prime();
 
-        // Se o usuário clicou em Parar durante o carregamento, não inicia
+        // Caso o usuário tenha clicado em Parar durante o carregamento
         if (!isPlaying || currentSynth !== synth) {
             return;
         }
@@ -400,22 +397,18 @@ async function playAbc(abcCode, btnPlay, blockId) {
 
         synth.start();
 
-        // Calcula duração real com base no synth ou visualObj (com margem de segurança)
-        const synthSeconds = typeof synth.duration === 'number' && synth.duration > 0
+        // Duração segura para o botão Parar ficar visível até o fim da música
+        const totalSec = (typeof synth.duration === 'number' && synth.duration > 0)
             ? synth.duration
-            : 0;
-        const visualSeconds = typeof visualObj.getTotalTime === 'function'
-            ? visualObj.getTotalTime()
-            : 0;
-
-        const totalSeconds = Math.max(synthSeconds, visualSeconds, 8);
-        const durationMs = (totalSeconds * 1000) + 1500;
+            : (typeof visualObj.getTotalTime === 'function' && visualObj.getTotalTime() > 0)
+                ? visualObj.getTotalTime()
+                : 15;
 
         playTimeout = setTimeout(() => {
             if (currentSynth === synth) {
                 stopCurrentPlayback();
             }
-        }, durationMs);
+        }, (totalSec * 1000) + 2000);
 
     } catch (error) {
         console.error('Erro ao tocar:', error);
@@ -438,7 +431,7 @@ function stopCurrentPlayback() {
         try {
             currentSynth.stop();
         } catch (e) {
-            // Ignora erro caso já tenha parado
+            // Ignora se já tiver parado
         }
         currentSynth = null;
     }
