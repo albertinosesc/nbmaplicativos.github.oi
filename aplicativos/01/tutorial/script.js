@@ -172,22 +172,33 @@ function createAbcBlock(abcCode, blockId) {
 // ============================================================
 // REPRODUTOR DE ÁUDIO (CORRIGIDO)
 // ============================================================
+let audioContext = null;
+let playTimeout = null;
+
 async function playAbc(abcCode, btnPlay, blockId) {
     if (isPlaying) return;
 
     const btnStop = btnPlay.nextElementSibling;
 
     try {
-        // Para qualquer reprodução anterior
-        if (currentSynth) {
-            currentSynth.stop();
-            currentSynth = null;
+        // 1. Verifica se o navegador suporta áudio WebAudio
+        if (!ABCJS.synth.supportsAudio()) {
+            throw new Error('Seu navegador não suporta reprodução de áudio WebAudio.');
         }
+
+        // 2. Cria ou ativa o AudioContext dentro do clique do usuário
+        if (!audioContext) {
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') {
+            await audioContext.resume();
+        }
+
+        // Para qualquer reprodução anterior
+        stopAbc(btnPlay, btnStop);
 
         // Pega o visualObj já renderizado
         let visualObj = visualObjs[blockId];
-
-        // Se por algum motivo não tiver, parseia de novo
         if (!visualObj) {
             const parsed = ABCJS.parseOnly(abcCode);
             if (!parsed || parsed.length === 0) {
@@ -198,41 +209,50 @@ async function playAbc(abcCode, btnPlay, blockId) {
 
         // Atualiza UI
         btnPlay.disabled = true;
-        btnPlay.innerHTML = '⏳ Inicializando áudio...';
+        btnPlay.innerHTML = '⏳ Carregando timbres...';
         btnStop.style.display = 'inline-block';
         isPlaying = true;
 
-        // Cria o sintetizador
+        // 3. Cria e inicializa o sintetizador passando o audioContext
         currentSynth = new ABCJS.synth.CreateSynth();
         
-        // Inicializa com o visualObj
-        await currentSynth.init({ visualObj: visualObj });
+        await currentSynth.init({
+            visualObj: visualObj,
+            audioContext: audioContext,
+            millisecondsPerMeasure: visualObj.millisecondsPerMeasure()
+        });
 
-        // Prepara o áudio (precisa do clique do usuário - já temos!)
+        // Prepara os buffers de áudio (baixa o soundfont do instrumento)
         await currentSynth.prime();
 
         btnPlay.innerHTML = '🔊 Tocando...';
 
-        // Toca
+        // Inicia o áudio
         currentSynth.start();
 
-        // Quando terminar, restaura UI
-        const duration = (visualObj.duration || 10) * 1000;
-        setTimeout(() => {
+        // 4. Calcula a duração real em milissegundos usando getTotalTime()
+        const durationSeconds = typeof visualObj.getTotalTime === 'function' 
+            ? visualObj.getTotalTime() 
+            : 10;
+
+        playTimeout = setTimeout(() => {
             if (isPlaying) {
                 resetPlayUI(btnPlay, btnStop);
             }
-        }, duration + 1000);
+        }, (durationSeconds * 1000) + 500);
 
     } catch (error) {
         console.error('Erro ao tocar:', error);
-        alert('Erro ao reproduzir áudio: ' + error.message + 
-              '\n\nDica: Verifique se o código ABC está correto e tente novamente.');
+        alert('Erro ao reproduzir áudio: ' + error.message);
         resetPlayUI(btnPlay, btnStop);
     }
 }
 
 function stopAbc(btnPlay, btnStop) {
+    if (playTimeout) {
+        clearTimeout(playTimeout);
+        playTimeout = null;
+    }
     if (currentSynth) {
         currentSynth.stop();
         currentSynth = null;
