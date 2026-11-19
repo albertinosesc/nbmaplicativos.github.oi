@@ -329,28 +329,31 @@ function createAbcBlock(abcCode, blockId) {
 
     return block;
 }
-
 // ============================================================
-// REPRODUTOR DE ÁUDIO
+// REPRODUTOR DE ÁUDIO (CORRIGIDO)
 // ============================================================
 async function playAbc(abcCode, btnPlay, blockId) {
-    if (isPlaying) return;
-    const btnStop = btnPlay.nextElementSibling;
+    const btnStop = btnPlay ? btnPlay.nextElementSibling : null;
+
+    // Se já estiver tocando algo, para primeiro e permite iniciar o novo
+    if (isPlaying || currentSynth) {
+        stopCurrentPlayback();
+    }
 
     try {
-        if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) {
+        if (!window.ABCJS || !ABCJS.synth || !ABCJS.synth.supportsAudio()) {
             throw new Error('Seu navegador não suporta reprodução de áudio WebAudio.');
         }
 
         if (!audioContext) {
-            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const AudioCtx = window.AudioContext || window.webkitAudioContext;
+            audioContext = new AudioCtx();
         }
         if (audioContext.state === 'suspended') {
             await audioContext.resume();
         }
 
-        stopCurrentPlayback();
-
+        // Garante um visualObj renderizado
         let visualObj = visualObjs[blockId];
         if (!visualObj || !Array.isArray(visualObj.lines)) {
             const tempDiv = document.createElement('div');
@@ -366,40 +369,57 @@ async function playAbc(abcCode, btnPlay, blockId) {
         activeBtnStop = btnStop;
         isPlaying = true;
 
-        btnPlay.disabled = true;
-        btnPlay.innerHTML = '⏳ Carregando timbres...';
-
+        if (btnPlay) {
+            btnPlay.disabled = true;
+            btnPlay.innerHTML = '⏳ Carregando...';
+        }
         if (btnStop) {
             btnStop.disabled = false;
             btnStop.style.display = 'inline-block';
         }
 
-        currentSynth = new ABCJS.synth.CreateSynth();
+        const synth = new ABCJS.synth.CreateSynth();
+        currentSynth = synth;
 
-        await currentSynth.init({
+        await synth.init({
             visualObj: visualObj,
             audioContext: audioContext,
             options: {}
         });
 
-        await currentSynth.prime();
+        await synth.prime();
 
-        if (!isPlaying || !currentSynth) return;
+        // Se o usuário clicou em Parar durante o carregamento, não inicia
+        if (!isPlaying || currentSynth !== synth) {
+            return;
+        }
 
-        btnPlay.innerHTML = '🔊 Tocando...';
-        currentSynth.start();
+        if (btnPlay) {
+            btnPlay.innerHTML = '🔊 Tocando...';
+        }
 
-        const rawDuration = typeof visualObj.getTotalTime === 'function'
+        synth.start();
+
+        // Calcula duração real com base no synth ou visualObj (com margem de segurança)
+        const synthSeconds = typeof synth.duration === 'number' && synth.duration > 0
+            ? synth.duration
+            : 0;
+        const visualSeconds = typeof visualObj.getTotalTime === 'function'
             ? visualObj.getTotalTime()
-            : 10;
-        const durationMs = Math.max(rawDuration * 1000, 3000) + 800;
+            : 0;
+
+        const totalSeconds = Math.max(synthSeconds, visualSeconds, 8);
+        const durationMs = (totalSeconds * 1000) + 1500;
 
         playTimeout = setTimeout(() => {
-            stopCurrentPlayback();
+            if (currentSynth === synth) {
+                stopCurrentPlayback();
+            }
         }, durationMs);
+
     } catch (error) {
         console.error('Erro ao tocar:', error);
-        alert('Erro ao reproduzir áudio: ' + error.message);
+        alert('Erro ao reproduzir áudio: ' + (error && error.message ? error.message : error));
         stopCurrentPlayback();
     }
 }
