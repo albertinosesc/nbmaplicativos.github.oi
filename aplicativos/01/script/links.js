@@ -2,59 +2,53 @@
 // MÓDULO LINKS (links.js)
 // ============================================================
 (function () {
-    function parseLinkLine(line) {
-        const trimmed = line.trim();
-        if (!trimmed) return null;
-
-        const parts = trimmed.split('|');
-        if (parts.length >= 2) {
-            const label = parts[0].trim();
-            const url = parts.slice(1).join('|').trim();
-            return { label: label || url, url };
-        }
-        return { label: trimmed, url: trimmed };
-    }
-
-    function isSafeUrl(url) {
-        return /^https?:\/\//i.test(url);
+    function normalizarUrl(rawUrl) {
+        const url = String(rawUrl || '').trim();
+        if (!url) return '';
+        if (/^https?:\/\//i.test(url)) return url;
+        return `https://${url}`;
     }
 
     window.LinksModule = {
-        render(rawText) {
-            const lines = String(rawText || '')
+        render(rawInner) {
+            const linhas = String(rawInner || '')
                 .split(/\r?\n/)
-                .map(parseLinkLine)
-                .filter(item => item && isSafeUrl(item.url));
+                .map(l => l.trim())
+                .filter(Boolean);
 
-            const box = document.createElement('div');
-            box.className = 'links-block';
+            const block = document.createElement('div');
+            block.className = 'links-block';
 
-            const title = document.createElement('div');
-            title.className = 'links-title';
-            title.textContent = '🔗 Links de Referência';
-            box.appendChild(title);
+            const header = document.createElement('div');
+            header.className = 'links-header';
+            header.textContent = '🔗 Links e Referências';
+            block.appendChild(header);
 
-            if (lines.length === 0) {
-                box.innerHTML += '<p class="error">Nenhum link válido (http/https) encontrado.</p>';
-                return box;
-            }
+            const list = document.createElement('ul');
+            list.className = 'links-list';
 
-            const ul = document.createElement('ul');
-            ul.className = 'links-list';
+            linhas.forEach((linha) => {
+                const partes = linha.split('|').map(p => p.trim());
+                const href = normalizarUrl(partes[0]);
+                if (!href) return;
 
-            lines.forEach(({ label, url }) => {
-                const li = document.createElement('li');
-                const a = document.createElement('a');
-                a.href = url;
-                a.target = '_blank';
-                a.rel = 'noopener noreferrer';
-                a.textContent = label;
-                li.appendChild(a);
-                ul.appendChild(li);
+                const textoLink = partes[1] || partes[0];
+
+                const item = document.createElement('li');
+                item.className = 'links-item';
+
+                const anchor = document.createElement('a');
+                anchor.href = href;
+                anchor.textContent = textoLink;
+                anchor.target = '_blank';
+                anchor.rel = 'noopener noreferrer';
+
+                item.appendChild(anchor);
+                list.appendChild(item);
             });
 
-            box.appendChild(ul);
-            return box;
+            block.appendChild(list);
+            return block;
         }
     };
 })();
