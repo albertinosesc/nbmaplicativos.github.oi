@@ -2,9 +2,27 @@
 // MÓDULO PDF (pdf.js)
 // ============================================================
 (function () {
+    const PASTA_PADRAO_PDF = 'pdf';
+
     function extrairTituloDaTag(fullMatch) {
         const match = String(fullMatch || '').match(/^\[PDF[^\]]*(?:titulo|title)\s*=\s*["']?([^"'\]]+)["']?[^\]]*\]/i);
         return match ? match[1].trim() : '';
+    }
+
+    function resolverCaminhoPdf(rawUrl) {
+        const valor = String(rawUrl || '').trim().replace(/^["']|["']$/g, '');
+        if (!valor) return '';
+
+        if (/^(https?:\/\/|data:|blob:)/i.test(valor)) {
+            return valor;
+        }
+
+        if (/^(\.\/|\/)/.test(valor) || valor.includes('/')) {
+            return valor.replace(/^\//, '');
+        }
+
+        const pasta = PASTA_PADRAO_PDF.replace(/^\/+|\/+$/g, '');
+        return pasta ? `${pasta}/${valor}` : valor;
     }
 
     function extrairUrlETitulo(rawInner, fullMatch) {
@@ -14,7 +32,7 @@
             .map((l) => l.trim())
             .filter(Boolean);
 
-        const url = linhas[0] || '';
+        const url = resolverCaminhoPdf(linhas[0] || '');
         const tituloAttr = extrairTituloDaTag(fullMatch);
         const tituloLinha = linhas.slice(1).join(' ').trim();
 
