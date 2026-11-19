@@ -20,6 +20,7 @@
         'E':     { nome: 'Mi Maior',      pestana: false, casaInicial: 1, cordas: [0, 2, 2, 1, 0, 0], dedos: [0, 2, 3, 1, 0, 0] },
         'Em':    { nome: 'Mi Menor',      pestana: false, casaInicial: 1, cordas: [0, 2, 2, 0, 0, 0], dedos: [0, 2, 3, 0, 0, 0] },
         'F':     { nome: 'Fá Maior',      pestana: true,  casaInicial: 1, cordas: [1, 3, 3, 2, 1, 1], dedos: [1, 3, 4, 2, 1, 1] },
+        'F#m':   { nome: 'Fá# Menor',     pestana: true,  casaInicial: 2, cordas: [2, 4, 4, 2, 2, 2], dedos: [1, 3, 4, 1, 1, 1] },
         'G':     { nome: 'Sol Maior',     pestana: false, casaInicial: 1, cordas: [3, 2, 0, 0, 0, 3], dedos: [2, 1, 0, 0, 0, 3] },
         'A':     { nome: 'Lá Maior',      pestana: false, casaInicial: 1, cordas: ['X', 0, 2, 2, 2, 0], dedos: [0, 0, 1, 2, 3, 0] },
         'Am':    { nome: 'Lá Menor',      pestana: false, casaInicial: 1, cordas: ['X', 0, 2, 2, 1, 0], dedos: [0, 0, 2, 3, 1, 0] },
@@ -52,9 +53,9 @@
     };
 
     function resolverLinhaAcorde(linha) {
-        const partes = linha.split('|').map(p => p.trim());
-        const espec = partes[0];
-        const labelCustom = partes[1] || '';
+        const partes = linha.split('|').map(p => p.trim()).filter(Boolean);
+        const espec = partes[0] || '';
+        const labelCustom = partes.find(p => !p.includes('=') && p !== espec) || '';
 
         // 1. Formato dinâmico: "formaId;casa" (ex: "1;5")
         if (/^\d+\s*;\s*\d+/.test(espec)) {
@@ -79,21 +80,26 @@
             };
         }
 
-        // 2. Formato inline customizado: "Nome: cordas=0,2,2,1,0,0 | dedos=0,2,3,1,0,0 | casa=1 | pestana=false"
+        // 2. Formato inline customizado: "F#m: cordas=2,4,4,2,2,2 | dedos=1,3,4,1,1,1 | casa=2 | pestana=true"
         if (espec.includes(':')) {
-            const [nomeParte, resto] = espec.split(':');
-            const sigla = labelCustom || nomeParte.trim();
+            const idxDoisPontos = espec.indexOf(':');
+            const nomeAcorde = espec.slice(0, idxDoisPontos).trim();
+            const primeiroParam = espec.slice(idxDoisPontos + 1).trim();
+
+            const sigla = labelCustom || nomeAcorde;
             const cordas = ['X', 'X', 'X', 'X', 'X', 'X'];
             const dedos = [0, 0, 0, 0, 0, 0];
             let casaInicial = 1;
             let pestana = false;
 
-            const props = [espec, ...partes.slice(1)].join('|').split('|');
-            props.forEach(token => {
-                const [kRaw, vRaw] = token.split('=');
-                if (!kRaw || !vRaw) return;
-                const k = kRaw.trim().toLowerCase();
-                const v = vRaw.trim();
+            const todosParams = [primeiroParam, ...partes.slice(1)];
+            todosParams.forEach(token => {
+                const idxIgual = token.indexOf('=');
+                if (idxIgual === -1) return;
+
+                const k = token.slice(0, idxIgual).trim().toLowerCase();
+                const v = token.slice(idxIgual + 1).trim();
+
                 if (k === 'cordas') {
                     v.split(',').slice(0, 6).forEach((val, idx) => {
                         const t = val.trim().toUpperCase();
@@ -113,9 +119,12 @@
             return { sigla, subtitulo: '', casaInicial, pestana, cordas, dedos };
         }
 
-        // 3. Sigla direta do dicionário (ex: "C", "Am", "D7")
-        const chave = ACORDES_DIREITOS[espec] ? espec : espec.toUpperCase();
-        const base = ACORDES_DIREITOS[chave];
+        // 3. Sigla direta do dicionário (ex: "C", "Am", "D7", "F#m")
+        const chave = ACORDES_DIREITOS[espec]
+            ? espec
+            : Object.keys(ACORDES_DIREITOS).find(k => k.toLowerCase() === espec.toLowerCase());
+
+        const base = chave ? ACORDES_DIREITOS[chave] : null;
         if (!base) {
             return { erro: `Acorde "${espec}" não encontrado no dicionário.` };
         }
@@ -198,15 +207,15 @@
         });
 
         // Pestana
-        let casaPestanaRelativa = null;
+        let menorCasaPestana = null;
         if (cfg.pestana) {
             const casasPositivas = cfg.cordas.filter(c => typeof c === 'number' && c > 0);
             if (casasPositivas.length > 0) {
-                const menorCasa = Math.min(...casasPositivas);
-                casaPestanaRelativa = menorCasa - casaInicial + 1;
+                menorCasaPestana = Math.min(...casasPositivas);
+                const casaPestanaRelativa = menorCasaPestana - casaInicial + 1;
                 if (casaPestanaRelativa >= 1 && casaPestanaRelativa <= numTrastes) {
                     const cordasNaPestana = cfg.cordas
-                        .map((c, idx) => (c === menorCasa ? idx : -1))
+                        .map((c, idx) => (c === menorCasaPestana ? idx : -1))
                         .filter(idx => idx !== -1);
                     if (cordasNaPestana.length >= 2) {
                         const xIni = xInicial + Math.min(...cordasNaPestana) * espCordas;
@@ -231,7 +240,10 @@
             if (typeof status !== 'number' || status <= 0) return;
             const casaRel = status - casaInicial + 1;
             if (casaRel < 1 || casaRel > numTrastes) return;
-            if (cfg.pestana && casaRel === casaPestanaRelativa) return;
+
+            const dedo = cfg.dedos && cfg.dedos[idx] ? cfg.dedos[idx] : 0;
+            const fazParteDaPestana = cfg.pestana && status === menorCasaPestana && (!dedo || dedo === 1);
+            if (fazParteDaPestana) return;
 
             const x = xInicial + idx * espCordas;
             const y = yInicial + (casaRel - 0.5) * espTrastes;
@@ -241,7 +253,6 @@
             ctx.arc(x, y, 8, 0, Math.PI * 2);
             ctx.fill();
 
-            const dedo = cfg.dedos && cfg.dedos[idx] ? cfg.dedos[idx] : 0;
             if (dedo > 0) {
                 ctx.fillStyle = '#ffffff';
                 ctx.font = 'bold 11px Arial, sans-serif';
