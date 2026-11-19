@@ -237,7 +237,7 @@ function renderLesson(text) {
     content.innerHTML = '';
 
     // Reconhece [ABC]...[/ABC], [CIFRA]...[/CIFRA] (ou [CIFRA]...[CIFRA]), [MD]...[/MD], [LINK]...[/LINK], [VIDEO]...[/VIDEO]
-    const tokenRegex = /\[(ABC|CIFRA|MD|LINK|VIDEO)\]([\s\S]*?)(?:\[\/\1\]|\[CIFRA\])/g;
+    const tokenRegex = /\[(ABC|CIFRA(?:\s+[^\]]*)?|MD|LINK|VIDEO)\]([\s\S]*?)\[\/(ABC|CIFRA|MD|LINK|VIDEO)\]/g;
     let lastIndex = 0;
     let match;
     let abcCounter = 0;
@@ -248,23 +248,23 @@ function renderLesson(text) {
             content.appendChild(parseText(textBefore));
         }
 
-        const tagType = match[1].toUpperCase();
-        const innerContent = match[2];
+        const rawTag = match[1].trim();
+const tagType = rawTag.split(/\s+/)[0].toUpperCase();
+const innerContent = match[2];
 
-        if (tagType === 'ABC' && window.AbcModule) {
-            content.appendChild(window.AbcModule.render(innerContent, abcCounter++));
-        } else if (tagType === 'CIFRA' && window.CifraModule) {
-            content.appendChild(window.CifraModule.render(innerContent));
-        } else if (tagType === 'MD' && window.MarkdownModule) {
-            content.appendChild(window.MarkdownModule.render(innerContent));
-        } else if (tagType === 'LINK' && window.LinksModule) {
-            content.appendChild(window.LinksModule.render(innerContent));
-        } else if (tagType === 'VIDEO' && window.VideoModule) {
-            content.appendChild(window.VideoModule.render(innerContent));
-        } else {
-            content.appendChild(parseText(innerContent));
-        }
-
+if (tagType === 'ABC' && window.AbcModule) {
+    content.appendChild(window.AbcModule.render(innerContent, abcCounter++));
+} else if (tagType === 'CIFRA' && window.CifraModule) {
+    content.appendChild(window.CifraModule.render(innerContent, match[0]));
+} else if (tagType === 'MD' && window.MarkdownModule) {
+    content.appendChild(window.MarkdownModule.render(innerContent));
+} else if (tagType === 'LINK' && window.LinksModule) {
+    content.appendChild(window.LinksModule.render(innerContent));
+} else if (tagType === 'VIDEO' && window.VideoModule) {
+    content.appendChild(window.VideoModule.render(innerContent));
+} else {
+    content.appendChild(parseText(innerContent));
+}
         lastIndex = match.index + match[0].length;
     }
 
