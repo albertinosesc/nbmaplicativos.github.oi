@@ -379,6 +379,10 @@ function toggleAdmin(show) {
     content.style.display = show ? 'none' : 'block';
     if (actionsBar) actionsBar.style.display = show ? 'none' : 'flex';
     if (adminBtn) adminBtn.classList.toggle('active', show);
+
+    if (show) {
+        sincronizarBarraTagsAdmin();
+    }
 }
 
 async function loadLesson(fileName) {
@@ -440,7 +444,7 @@ function renderLessonIntoContainer(text, container, idPrefix = 'abc') {
     const restoreCodeBlocks = (str) =>
         String(str || '').replace(/@@CODEBLOCK_(\d+)@@/g, (_, idx) => codeBlocks[Number(idx)] ?? '');
 
-    const tokenRegex = /\[(ABC|CIFRA(?:\s+[^\]]*)?|MD|LINK|VIDEO|VIOLAO)\]([\s\S]*?)\[\/(ABC|CIFRA|MD|LINK|VIDEO|VIOLAO)\]/gi;
+    const tokenRegex = /\[(ABC|CIFRA(?:\s+[^\]]*)?|MD|LINK|VIDEO|VIOLAO|IMAGEM(?:\s+[^\]]*)?|PDF(?:\s+[^\]]*)?)\]([\s\S]*?)\[\/(ABC|CIFRA|MD|LINK|VIDEO|VIOLAO|IMAGEM|PDF)\]/gi;
     let lastIndex = 0;
     let match;
     let abcCounter = 0;
@@ -458,12 +462,12 @@ function renderLessonIntoContainer(text, container, idPrefix = 'abc') {
         if (tagType === 'ABC' && window.AbcModule) {
             container.appendChild(window.AbcModule.render(innerContent, `${idPrefix}-${abcCounter++}`));
         } else if (tagType === 'CIFRA' && window.CifraModule) {
-    container.appendChild(window.CifraModule.render(innerContent, match[0]));
+            container.appendChild(window.CifraModule.render(innerContent, match[0]));
         } else if (tagType === 'MD' && window.MarkdownModule) {
             container.appendChild(window.MarkdownModule.render(innerContent));
         } else if (tagType === 'LINK' && window.LinksModule) {
             container.appendChild(window.LinksModule.render(innerContent));
-            } else if (tagType === 'IMAGEM' && window.ImagemModule) {
+        } else if (tagType === 'IMAGEM' && window.ImagemModule) {
             container.appendChild(window.ImagemModule.render(innerContent, match[0]));
         } else if (tagType === 'PDF' && window.PdfModule) {
             container.appendChild(window.PdfModule.render(innerContent, match[0]));
@@ -583,6 +587,7 @@ function renderAdminPanel() {
             <div class="admin-editor-col">
                 <div class="admin-field">
                     <label for="lesson-body">Conteúdo da Lição (.txt)</label>
+                    <div id="admin-tag-toolbar" class="admin-tag-toolbar"></div>
                     <textarea id="lesson-body" placeholder="<h2>Nova Lição</h2>\n<p>Texto explicativo...</p>\n\n[ABC]\nX:1\nT:Exemplo\nM:4/4\nL:1/4\nK:C\nCDEF|GABC|\n%%play\n[/ABC]\n\n[CIFRA]\n[C]Exemplo de [G]cifra\n[/CIFRA]"></textarea>
                 </div>
             </div>
@@ -612,7 +617,12 @@ function renderAdminPanel() {
     `;
 
     const bodyTextarea = document.getElementById('lesson-body');
+    const toolbarEl = document.getElementById('admin-tag-toolbar');
     const refreshBtn = document.getElementById('btn-refresh-preview');
+
+    if (bodyTextarea && toolbarEl) {
+        montarBarraTagsAdmin(bodyTextarea, toolbarEl);
+    }
 
     bodyTextarea.addEventListener('input', () => {
         window.currentLessonRawText = bodyTextarea.value;
@@ -764,6 +774,7 @@ async function handleLoadExistingLesson() {
             document.getElementById('lesson-title').value = foundMeta.title;
         }
         document.getElementById('lesson-body').value = text;
+        renderAdminLivePreview();
         setAdminStatus(`Lição "${fileName}" carregada no editor.`);
     } catch (err) {
         setAdminStatus(`Erro ao carregar lição: ${err.message}`, true);
@@ -868,6 +879,7 @@ async function handleSaveToGithub() {
         setAdminStatus(`Falha ao salvar no GitHub: ${err.message}`, true);
     }
 }
+
 // ============================================================
 // BARRA DE ATALHOS DE TAGS NO EDITOR DO ADMIN
 // ============================================================
@@ -875,7 +887,7 @@ const TAGS_EDITOR_ADMIN = [
     {
         label: '📝 MD',
         title: 'Inserir bloco Markdown',
-        insert: '### Título da seção\n\nTexto em **negrito** ou *itálico*.\n',
+        insert: '[MD]\n### Título da seção\n\nTexto em **negrito** ou *itálico*.\n[/MD]\n',
         wrapSelection: true
     },
     {
@@ -965,16 +977,11 @@ function montarBarraTagsAdmin(textarea, toolbarContainer) {
 
 function encontrarTextareaEditorAdmin() {
     const candidatos = [
+        '#lesson-body',
         '#adminLessonContent',
         '#lessonContent',
         '#editorTextarea',
-        '#admin-editor-textarea',
-        'textarea[name*="conteudo" i]',
-        'textarea[name*="content" i]',
-        'textarea[id*="admin" i]',
-        'textarea[id*="lesson" i]',
-        'textarea[id*="editor" i]',
-        'textarea'
+        '#admin-editor-textarea'
     ];
 
     for (const seletor of candidatos) {
@@ -1007,23 +1014,6 @@ function sincronizarBarraTagsAdmin() {
     if (!toolbar) return;
 
     montarBarraTagsAdmin(textarea, toolbar);
-}
-
-document.addEventListener('DOMContentLoaded', () => {
-    sincronizarBarraTagsAdmin();
-
-    const observer = new MutationObserver(() => {
-        sincronizarBarraTagsAdmin();
-    });
-
-    observer.observe(document.body || document.documentElement, {
-        childList: true,
-        subtree: true
-    });
-});
-
-if (document.readyState === 'complete' || document.readyState === 'interactive') {
-    sincronizarBarraTagsAdmin();
 }
 
 // ============================================================
