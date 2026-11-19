@@ -139,48 +139,6 @@ function exportarLicaoAtualPdf() {
         return;
     }
 
-    const cloneArticle = article.cloneNode(true);
-
-    // Preserva o conteúdo visual de cada <canvas> usando imagem PNG
-    const origCanvases = [...article.querySelectorAll('canvas')];
-    const clonedCanvases = [...cloneArticle.querySelectorAll('canvas')];
-
-    origCanvases.forEach((origCanvas, idx) => {
-        const destCanvas = clonedCanvases[idx];
-        if (!destCanvas || origCanvas.width === 0 || origCanvas.height === 0) return;
-
-        try {
-            const dataUrl = origCanvas.toDataURL('image/png');
-            const img = document.createElement('img');
-            img.src = dataUrl;
-            img.style.width = `${origCanvas.getBoundingClientRect().width || origCanvas.width}px`;
-            img.style.height = `${origCanvas.getBoundingClientRect().height || origCanvas.height}px`;
-            img.style.maxWidth = '100%';
-            img.style.display = 'block';
-            destCanvas.replaceWith(img);
-        } catch {
-            destCanvas.width = origCanvas.width;
-            destCanvas.height = origCanvas.height;
-            const ctx = destCanvas.getContext('2d');
-            if (ctx) ctx.drawImage(origCanvas, 0, 0);
-        }
-    });
-
-    // Garante que <svg> mantenha dimensões visíveis caso não tenha width/height explícitos
-    const origSvgs = [...article.querySelectorAll('svg')];
-    const clonedSvgs = [...cloneArticle.querySelectorAll('svg')];
-    origSvgs.forEach((origSvg, idx) => {
-        const destSvg = clonedSvgs[idx];
-        if (!destSvg) return;
-        const rect = origSvg.getBoundingClientRect();
-        if (!destSvg.getAttribute('width') && rect.width > 0) {
-            destSvg.setAttribute('width', Math.round(rect.width));
-        }
-        if (!destSvg.getAttribute('height') && rect.height > 0) {
-            destSvg.setAttribute('height', Math.round(rect.height));
-        }
-    });
-
     const estilosAtuais = [...document.querySelectorAll('link[rel="stylesheet"], style')]
         .map(el => el.outerHTML)
         .join('\n');
@@ -215,8 +173,17 @@ function exportarLicaoAtualPdf() {
                     width: 100% !important;
                     max-width: 100% !important;
                 }
-                svg, canvas, img {
-                    max-width: 100% !important;
+                .violao-grid {
+                    display: flex !important;
+                    flex-wrap: wrap !important;
+                    gap: 12px !important;
+                }
+                .violao-card {
+                    break-inside: avoid !important;
+                    page-break-inside: avoid !important;
+                }
+                canvas.violao-canvas {
+                    display: block !important;
                     visibility: visible !important;
                 }
                 @media print {
@@ -226,24 +193,54 @@ function exportarLicaoAtualPdf() {
                 }
             </style>
         </head>
-        <body>
-            <article id="lesson-content">${cloneArticle.innerHTML}</article>
-            <script>
-                (async function () {
-                    try {
-                        if (document.fonts && document.fonts.ready) {
-                            await document.fonts.ready;
-                        }
-                    } catch (_) {}
-                    setTimeout(function () {
-                        window.print();
-                    }, 700);
-                })();
-            <\/script>
-        </body>
+        <body></body>
         </html>
     `);
     janelaPdf.document.close();
+
+    // Clona o nó diretamente no contexto da janela de impressão para preservar os <canvas>
+    const cloneArticle = janelaPdf.document.importNode(article, true);
+    janelaPdf.document.body.appendChild(cloneArticle);
+
+    const origCanvases = [...article.querySelectorAll('canvas')];
+    const clonedCanvases = [...cloneArticle.querySelectorAll('canvas')];
+
+    origCanvases.forEach((origCanvas, idx) => {
+        const destCanvas = clonedCanvases[idx];
+        if (!destCanvas || origCanvas.width === 0 || origCanvas.height === 0) return;
+
+        destCanvas.width = origCanvas.width;
+        destCanvas.height = origCanvas.height;
+
+        const rect = origCanvas.getBoundingClientRect();
+        if (rect.width > 0) destCanvas.style.width = `${Math.round(rect.width)}px`;
+        if (rect.height > 0) destCanvas.style.height = `${Math.round(rect.height)}px`;
+
+        const ctx = destCanvas.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, destCanvas.width, destCanvas.height);
+            ctx.drawImage(origCanvas, 0, 0);
+        }
+    });
+
+    const dispararImpressao = async () => {
+        try {
+            if (janelaPdf.document.fonts && janelaPdf.document.fonts.ready) {
+                await janelaPdf.document.fonts.ready;
+            }
+        } catch (_) {}
+
+        setTimeout(() => {
+            janelaPdf.focus();
+            janelaPdf.print();
+        }, 500);
+    };
+
+    if (janelaPdf.document.readyState === 'complete') {
+        dispararImpressao();
+    } else {
+        janelaPdf.addEventListener('load', dispararImpressao, { once: true });
+    }
 }
 
 function getLessonCategory(lesson) {
