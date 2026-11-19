@@ -458,7 +458,7 @@ function renderLessonIntoContainer(text, container, idPrefix = 'abc') {
         if (tagType === 'ABC' && window.AbcModule) {
             container.appendChild(window.AbcModule.render(innerContent, `${idPrefix}-${abcCounter++}`));
         } else if (tagType === 'CIFRA' && window.CifraModule) {
-            container.appendChild(window.CifraModule.render(innerContent, match[0]));
+    container.appendChild(window.CifraModule.render(innerContent, match[0]));
         } else if (tagType === 'MD' && window.MarkdownModule) {
             container.appendChild(window.MarkdownModule.render(innerContent));
         } else if (tagType === 'LINK' && window.LinksModule) {
