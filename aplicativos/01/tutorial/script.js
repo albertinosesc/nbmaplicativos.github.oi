@@ -5,10 +5,10 @@ const CONFIG = {
     baseUrl: 'tutorials/',
     indexFile: 'index.json',
     github: {
-        owner: 'SEU_USUARIO_GITHUB', // Ex: 'joaosilva'
-        repo: 'NOME_DO_REPOSITORIO', // Ex: 'abc-tutorial'
-        branch: 'main',              // Ou 'master'
-        tutorialsFolder: 'tutorials'
+        owner: 'albertinosesc',
+        repo: 'nbmaplicativos.github.oi',
+        branch: 'main', // Altere para 'master' caso seu repositório use master
+        tutorialsFolder: 'aplicativos/01/tutorial/tutorials'
     }
 };
 
@@ -19,6 +19,8 @@ let lessons = [];
 let currentSynth = null;
 let audioContext = null;
 let playTimeout = null;
+let activeBtnPlay = null;
+let activeBtnStop = null;
 let isPlaying = false;
 let visualObjs = {};
 let isAdminOpen = false;
@@ -33,7 +35,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 async function loadLessonIndex() {
     try {
-        // Cache-busting evita ler index.json antigo após salvar no GitHub
         const response = await fetch(`${CONFIG.baseUrl}${CONFIG.indexFile}?t=${Date.now()}`);
         if (!response.ok) throw new Error('Não foi possível carregar o índice');
         lessons = await response.json();
@@ -197,13 +198,8 @@ function createAbcBlock(abcCode, blockId) {
 }
 
 // ============================================================
-// REPRODUTOR DE ÁUDIO (BOTÃO PARAR CORRIGIDO)
+// REPRODUTOR DE ÁUDIO
 // ============================================================
-let audioContext = null;
-let playTimeout = null;
-let activeBtnPlay = null;
-let activeBtnStop = null;
-
 async function playAbc(abcCode, btnPlay, blockId) {
     if (isPlaying) return;
     const btnStop = btnPlay.nextElementSibling;
@@ -220,7 +216,6 @@ async function playAbc(abcCode, btnPlay, blockId) {
             await audioContext.resume();
         }
 
-        // Para qualquer reprodução anterior antes de iniciar uma nova
         stopCurrentPlayback();
 
         let visualObj = visualObjs[blockId];
@@ -256,13 +251,11 @@ async function playAbc(abcCode, btnPlay, blockId) {
 
         await currentSynth.prime();
 
-        // Se o usuário clicou em Parar enquanto carregava os timbres, aborta antes de tocar
         if (!isPlaying || !currentSynth) return;
 
         btnPlay.innerHTML = '🔊 Tocando...';
         currentSynth.start();
 
-        // Duração em segundos (garante ao menos 3s para o botão Parar ficar acessível)
         const rawDuration = typeof visualObj.getTotalTime === 'function'
             ? visualObj.getTotalTime()
             : 10;
