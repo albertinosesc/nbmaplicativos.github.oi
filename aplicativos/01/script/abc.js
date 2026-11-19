@@ -117,12 +117,19 @@
     }
 
     function abrirModalViolaoDaCifra(cifra, triggerEl) {
+        const limpo = String(cifra || '').replace(/^"+|"+$/g, '').trim();
+        if (!limpo) return;
+
         if (typeof window.abrirModalViolaoPorCifra === 'function') {
-            window.abrirModalViolaoPorCifra(cifra, triggerEl);
-        } else if (typeof window.abrirModalCifra === 'function') {
-            window.abrirModalCifra(cifra, triggerEl);
-        } else if (typeof window.mostrarDiagramaViolao === 'function') {
-            window.mostrarDiagramaViolao(cifra, triggerEl);
+            window.abrirModalViolaoPorCifra(limpo, triggerEl);
+            return;
+        }
+        if (typeof window.abrirModalCifra === 'function') {
+            window.abrirModalCifra(limpo, triggerEl);
+            return;
+        }
+        if (typeof window.mostrarDiagramaViolao === 'function') {
+            window.mostrarDiagramaViolao(limpo, triggerEl);
         }
     }
 
@@ -132,20 +139,29 @@
         // Regex para cifras comuns (ex.: C, Cm, C#m7, Bb/D, G7(9), F#dim, Asus4)
         const regexAcorde = /^[A-G][#b]?(?:m|maj|min|dim|aug|sus\d*|add\d*|\d)*(?:\/[A-G][#b]?)?$/;
 
-        const elementos = sheetContainer.querySelectorAll('.abcjs-chord, svg text, svg tspan');
-        elementos.forEach((el) => {
-            const isAbcChord = el.classList && el.classList.contains('abcjs-chord');
-            const texto = String(el.textContent || '').trim().replace(/^"+|"+$/g, '');
+        const candidatos = sheetContainer.querySelectorAll('.abcjs-chord, svg text, svg tspan');
+        candidatos.forEach((el) => {
+            const isAbcChord =
+                (el.classList && el.classList.contains('abcjs-chord')) ||
+                Boolean(el.closest && el.closest('.abcjs-chord'));
 
-            if (!texto) return;
-            if (!isAbcChord && !regexAcorde.test(texto)) return;
+            const textoLimpo = String(el.textContent || '')
+                .replace(/^"+|"+$/g, '')
+                .trim();
+
+            if (!textoLimpo) return;
+            if (!isAbcChord && !regexAcorde.test(textoLimpo)) return;
 
             el.style.cursor = 'pointer';
-            if (el.tagName && el.tagName.toLowerCase() !== 'text' && el.tagName.toLowerCase() !== 'tspan') {
-                el.title = `Ver diagrama de violão: ${texto}`;
-            } else {
+            el.style.pointerEvents = 'all';
+            if (el.tagName && ['text', 'tspan'].includes(el.tagName.toLowerCase())) {
                 el.style.fill = '#b91c1c';
                 el.style.fontWeight = '700';
+            }
+            if (!el.getAttribute('title')) {
+                try {
+                    el.setAttribute('title', `Ver diagrama de violão: ${textoLimpo}`);
+                } catch (_) {}
             }
 
             if (el.dataset.chordModalBound === 'true') return;
@@ -154,19 +170,20 @@
             el.addEventListener('click', (ev) => {
                 ev.preventDefault();
                 ev.stopPropagation();
-                abrirModalViolaoDaCifra(texto, el);
+                abrirModalViolaoDaCifra(textoLimpo, el);
             });
         });
     }
 
-    function criarAreaEdicaoMinimizada(initialCode, onApplyCode) {
+    function criarEditorAbcMinimizado(initialCode, onApplyCode) {
         const wrapper = document.createElement('div');
         wrapper.className = 'abc-editor-minimized-wrap';
 
         const toggleBtn = document.createElement('button');
         toggleBtn.type = 'button';
         toggleBtn.className = 'btn-edit abc-edit-toggle';
-        toggleBtn.innerHTML = '✏️ Editar ABC (minimizado)';
+        toggleBtn.textContent = '✏️ Editar';
+        toggleBtn.title = 'Abrir ou minimizar o editor ABC';
         toggleBtn.setAttribute('aria-expanded', 'false');
 
         const editorBox = document.createElement('div');
@@ -176,7 +193,7 @@
 
         const textarea = document.createElement('textarea');
         textarea.className = 'abc-inline-textarea';
-        textarea.rows = 7;
+        textarea.rows = 8;
         textarea.value = initialCode;
         textarea.style.width = '100%';
         textarea.style.fontFamily = 'monospace';
@@ -200,7 +217,7 @@
         const setMinimized = (minimized) => {
             editorBox.style.display = minimized ? 'none' : 'block';
             toggleBtn.setAttribute('aria-expanded', String(!minimized));
-            toggleBtn.innerHTML = minimized ? '✏️ Editar ABC (minimizado)' : '▼ Editando ABC';
+            toggleBtn.innerHTML = minimized ? '✏️ Editar' : '— Minimizar';
             if (!minimized) {
                 textarea.focus();
             }
@@ -214,9 +231,8 @@
         btnMinimizar.onclick = () => setMinimized(true);
 
         btnAplicar.onclick = () => {
-            const novoCodigo = textarea.value;
             if (typeof onApplyCode === 'function') {
-                onApplyCode(novoCodigo);
+                onApplyCode(textarea.value);
             }
         };
 
@@ -225,11 +241,11 @@
         editorBox.appendChild(textarea);
         editorBox.appendChild(actionsRow);
 
-        wrapper.appendChild(toggleBtn);
         wrapper.appendChild(editorBox);
 
         return {
-            wrapper,
+            toggleBtn,
+            editorWrap: wrapper,
             setCode(novoCodigo) {
                 textarea.value = novoCodigo;
             }
@@ -242,9 +258,6 @@
             const block = document.createElement('div');
             block.className = 'abc-block';
 
-            const hasPlay = /%%play\b/.test(rawCode);
-            let currentCleanCode = rawCode.replace(/%%play\s*/g, '').trim();
-
             const sheetContainer = document.createElement('div');
             sheetContainer.className = 'abc-sheet';
             sheetContainer.id = `abc-sheet-${blockId}`;
@@ -252,13 +265,15 @@
 
             const controls = document.createElement('div');
             controls.className = 'abc-controls';
-            controls.style.display = hasPlay ? 'flex' : 'none';
+            controls.style.display = 'none';
 
             const btnPlay = document.createElement('button');
+            btnPlay.type = 'button';
             btnPlay.className = 'btn-play';
             btnPlay.innerHTML = '▶ Tocar';
 
             const btnStop = document.createElement('button');
+            btnStop.type = 'button';
             btnStop.className = 'btn-stop';
             btnStop.innerHTML = '■ Parar';
             btnStop.style.display = 'none';
@@ -268,24 +283,33 @@
             controls.appendChild(btnStop);
             block.appendChild(controls);
 
+            const codeHeader = document.createElement('div');
+            codeHeader.className = 'abc-code-header';
+
+            const codeLabel = document.createElement('span');
+            codeLabel.className = 'abc-code-label';
+            codeLabel.textContent = 'Código ABC';
+
             const codeView = document.createElement('pre');
             codeView.className = 'abc-code';
-            codeView.style.display = 'none'; // fica oculto/minimizado até abrir a edição
+            codeView.style.display = 'none'; // fica minimizado/oculto por padrão
 
             let editorApi = null;
+            let codigoComPlayAtual = String(rawCode || '').trim();
 
-            const renderPartitura = (codigoParaRenderizar) => {
+            const renderPartitura = (codigoEntrada) => {
                 stopCurrentPlayback();
-                const hasPlayAtual = /%%play\b/.test(codigoParaRenderizar);
-                currentCleanCode = codigoParaRenderizar.replace(/%%play\s*/g, '').trim();
+                codigoComPlayAtual = String(codigoEntrada || '').trim();
+                const hasPlayAtual = /%%play\b/.test(codigoComPlayAtual);
+                const cleanCode = codigoComPlayAtual.replace(/%%play\s*/g, '').trim();
 
                 controls.style.display = hasPlayAtual ? 'flex' : 'none';
-                btnPlay.onclick = () => playAbc(currentCleanCode, btnPlay);
-                codeView.textContent = currentCleanCode;
+                btnPlay.onclick = () => playAbc(cleanCode, btnPlay);
+                codeView.textContent = cleanCode;
 
                 try {
                     if (window.ABCJS && typeof ABCJS.renderAbc === 'function') {
-                        ABCJS.renderAbc(sheetContainer, currentCleanCode, {
+                        ABCJS.renderAbc(sheetContainer, cleanCode, {
                             responsive: 'resize',
                             scale: 0.75,
                             staffwidth: 700,
@@ -305,18 +329,22 @@
                 }
 
                 if (editorApi) {
-                    editorApi.setCode(currentCleanCode);
+                    editorApi.setCode(codigoComPlayAtual);
                 }
             };
 
-            editorApi = criarAreaEdicaoMinimizada(currentCleanCode, (novoCodigo) => {
+            editorApi = criarEditorAbcMinimizado(codigoComPlayAtual, (novoCodigo) => {
                 renderPartitura(novoCodigo);
             });
 
-            renderPartitura(rawCode);
+            codeHeader.appendChild(codeLabel);
+            codeHeader.appendChild(editorApi.toggleBtn);
 
-            block.appendChild(editorApi.wrapper);
+            block.appendChild(codeHeader);
+            block.appendChild(editorApi.editorWrap);
             block.appendChild(codeView);
+
+            renderPartitura(codigoComPlayAtual);
 
             return block;
         }
