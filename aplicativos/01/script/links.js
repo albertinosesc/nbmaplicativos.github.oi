@@ -2,16 +2,28 @@
 // MÓDULO LINKS (links.js)
 // ============================================================
 (function () {
-    function parecerUrl(str) {
-        return /^(https?:\/\/|www\.|[a-z0-9-]+\.[a-z]{2,})/i.test(str.trim());
+    function extrairUrl(texto) {
+        const match = String(texto || '').match(/(https?:\/\/[^\s|]+|www\.[^\s|]+|[a-z0-9-]+(?:\.[a-z0-9-]+)+[^\s|]*)/i);
+        return match ? match[0].trim() : '';
     }
 
     function normalizarUrl(rawUrl) {
-        const url = String(rawUrl || '').trim();
+        let url = String(rawUrl || '').trim();
         if (!url) return '';
-        if (/^https?:\/\//i.test(url)) return url;
-        if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../')) return url;
-        return `https://${url}`;
+
+        // Remove pontuação solta no final caso alguém tenha colado com vírgula ou ponto final
+        url = url.replace(/[),.;]+$/g, '');
+
+        if (/^https?:\/\//i.test(url)) {
+            return url;
+        }
+        if (/^www\./i.test(url) || /^[a-z0-9-]+(?:\.[a-z0-9-]+)+/i.test(url)) {
+            return `https://${url}`;
+        }
+        if (url.startsWith('/') || url.startsWith('./') || url.startsWith('../')) {
+            return url;
+        }
+        return '';
     }
 
     window.LinksModule = {
@@ -32,51 +44,54 @@
             const list = document.createElement('ul');
             list.className = 'links-list';
 
-            let itensAdicionados = 0;
+            let adicionados = 0;
 
             linhas.forEach((linha) => {
-                const partes = linha.split('|').map(p => p.trim()).filter(Boolean);
-                let urlRaw = '';
-                let label = '';
+                let urlBruta = '';
+                let titulo = '';
 
-                if (partes.length >= 2) {
-                    if (parecerUrl(partes[0])) {
-                        urlRaw = partes[0];
-                        label = partes.slice(1).join(' | ');
-                    } else if (parecerUrl(partes[partes.length - 1])) {
-                        urlRaw = partes[partes.length - 1];
-                        label = partes.slice(0, -1).join(' | ');
+                if (linha.includes('|')) {
+                    const partes = linha.split('|').map(p => p.trim()).filter(Boolean);
+                    const urlNaPrimeira = extrairUrl(partes[0]);
+                    const urlNaUltima = extrairUrl(partes[partes.length - 1]);
+
+                    if (urlNaPrimeira) {
+                        urlBruta = urlNaPrimeira;
+                        titulo = partes.slice(1).join(' - ').trim();
+                    } else if (urlNaUltima) {
+                        urlBruta = urlNaUltima;
+                        titulo = partes.slice(0, -1).join(' - ').trim();
                     } else {
-                        urlRaw = partes[0];
-                        label = partes.slice(1).join(' | ');
+                        urlBruta = extrairUrl(linha);
+                        titulo = linha.replace(urlBruta, '').replace(/\|/g, '').trim();
                     }
                 } else {
-                    urlRaw = partes[0] || '';
-                    label = urlRaw;
+                    urlBruta = extrairUrl(linha);
+                    titulo = linha.replace(urlBruta, '').trim();
                 }
 
-                const href = normalizarUrl(urlRaw);
+                const href = normalizarUrl(urlBruta);
                 if (!href) return;
 
                 const item = document.createElement('li');
                 item.className = 'links-item';
 
-                const anchor = document.createElement('a');
-                anchor.href = href;
-                anchor.textContent = label || href;
-                anchor.target = '_blank';
-                anchor.rel = 'noopener noreferrer';
+                const linkEl = document.createElement('a');
+                linkEl.href = href;
+                linkEl.textContent = titulo || href;
+                linkEl.target = '_blank';
+                linkEl.rel = 'noopener noreferrer';
 
-                item.appendChild(anchor);
+                item.appendChild(linkEl);
                 list.appendChild(item);
-                itensAdicionados++;
+                adicionados++;
             });
 
-            if (itensAdicionados === 0) {
-                const vazio = document.createElement('p');
-                vazio.className = 'links-empty';
-                vazio.textContent = 'Nenhum link encontrado no bloco [LINK].';
-                block.appendChild(vazio);
+            if (adicionados === 0) {
+                const msg = document.createElement('p');
+                msg.className = 'links-empty';
+                msg.textContent = 'Nenhum link encontrado neste bloco.';
+                block.appendChild(msg);
             } else {
                 block.appendChild(list);
             }
