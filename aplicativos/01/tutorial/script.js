@@ -91,7 +91,6 @@ async function loadLessonIndex() {
         if (!response.ok) throw new Error('Não foi possível carregar o índice');
         lessons = await response.json();
 
-        // Abre a categoria da primeira lição por padrão
         if (lessons.length > 0 && openCategories.size === 0) {
             openCategories.add(getLessonCategory(lessons[0]));
         }
@@ -113,7 +112,6 @@ function renderNavigation() {
     const nav = document.getElementById('lesson-nav');
     nav.innerHTML = '';
 
-    // Agrupa lições por categoria (Pai -> Filhos) preservando a ordem do index.json
     const groupsMap = new Map();
 
     lessons.forEach((lesson) => {
@@ -144,7 +142,6 @@ function renderNavigation() {
         const groupDiv = document.createElement('div');
         groupDiv.className = `tree-group${isOpen ? ' open' : ''}`;
 
-        // Botão Pai (Categoria)
         const parentBtn = document.createElement('button');
         parentBtn.type = 'button';
         parentBtn.className = 'tree-parent';
@@ -160,14 +157,11 @@ function renderNavigation() {
             if (openCategories.has(categoryName)) {
                 openCategories.delete(categoryName);
             } else {
-                // Abre a categoria clicada (se quiser fechar as outras automaticamente, descomente a linha abaixo)
-                // openCategories.clear();
                 openCategories.add(categoryName);
             }
             renderNavigation();
         };
 
-        // Lista de Filhos (Tópicos da categoria)
         const childrenUl = document.createElement('ul');
         childrenUl.className = 'tree-children';
 
@@ -176,8 +170,12 @@ function renderNavigation() {
             const childBtn = document.createElement('button');
             childBtn.type = 'button';
             childBtn.className = `tree-child-btn${lesson.file === currentFile ? ' active' : ''}`;
-            childBtn.textContent = lesson.title;
             childBtn.dataset.file = lesson.file;
+            childBtn.title = `${lesson.title} (${lesson.file})`;
+            childBtn.innerHTML = `
+                <span class="tree-child-title">${escapeHtml(lesson.title)}</span>
+                <span class="tree-child-file">${escapeHtml(lesson.file)}</span>
+            `;
             childBtn.onclick = () => {
                 toggleAdmin(false);
                 loadLesson(lesson.file);
@@ -195,7 +193,7 @@ function renderNavigation() {
 }
 
 function escapeHtml(str) {
-    return str
+    return String(str)
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -218,7 +216,6 @@ async function loadLesson(fileName) {
     const content = document.getElementById('lesson-content');
     content.innerHTML = '<p class="loading">Carregando lição...</p>';
 
-    // Garante que a categoria da lição ativa esteja aberta e atualiza destaque
     const lessonMeta = lessons.find(l => l.file === fileName);
     if (lessonMeta) {
         openCategories.add(getLessonCategory(lessonMeta));
@@ -322,6 +319,24 @@ function createAbcBlock(abcCode, blockId) {
         block.appendChild(controls);
     }
 
+    // Cabeçalho do código ABC + Botão Copiar
+    const codeHeader = document.createElement('div');
+    codeHeader.className = 'abc-code-header';
+
+    const codeLabel = document.createElement('span');
+    codeLabel.className = 'abc-code-label';
+    codeLabel.textContent = 'Código ABC';
+
+    const btnCopy = document.createElement('button');
+    btnCopy.type = 'button';
+    btnCopy.className = 'btn-copy';
+    btnCopy.innerHTML = '📋 Copiar';
+    btnCopy.onclick = () => copyAbcCode(cleanCode, btnCopy);
+
+    codeHeader.appendChild(codeLabel);
+    codeHeader.appendChild(btnCopy);
+    block.appendChild(codeHeader);
+
     const codeView = document.createElement('pre');
     codeView.className = 'abc-code';
     codeView.textContent = cleanCode;
@@ -330,13 +345,38 @@ function createAbcBlock(abcCode, blockId) {
     return block;
 }
 
+async function copyAbcCode(codeText, btnCopy) {
+    try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            await navigator.clipboard.writeText(codeText);
+        } else {
+            const tempArea = document.createElement('textarea');
+            tempArea.value = codeText;
+            document.body.appendChild(tempArea);
+            tempArea.select();
+            document.execCommand('copy');
+            document.body.removeChild(tempArea);
+        }
+
+        const originalHtml = btnCopy.innerHTML;
+        btnCopy.innerHTML = '✓ Copiado!';
+        btnCopy.classList.add('copied');
+
+        setTimeout(() => {
+            btnCopy.innerHTML = originalHtml;
+            btnCopy.classList.remove('copied');
+        }, 1800);
+    } catch (err) {
+        alert('Não foi possível copiar o código: ' + err.message);
+    }
+}
+
 // ============================================================
-// REPRODUTOR DE ÁUDIO (BASEADO NO TESTE QUE FUNCIONOU)
+// REPRODUTOR DE ÁUDIO
 // ============================================================
 async function playAbc(abcCode, btnPlay, blockId) {
     const btnStop = btnPlay ? btnPlay.nextElementSibling : null;
 
-    // Se já houver algo tocando, para antes de iniciar o novo
     if (currentSynth) {
         stopCurrentPlayback();
     }
@@ -354,7 +394,6 @@ async function playAbc(abcCode, btnPlay, blockId) {
             await audioContext.resume();
         }
 
-        // Gera o visualObj fresco exatamente como no teste do console
         const tempDiv = document.createElement('div');
         const rendered = ABCJS.renderAbc(tempDiv, abcCode);
         if (!rendered || !rendered[0]) {
@@ -386,7 +425,6 @@ async function playAbc(abcCode, btnPlay, blockId) {
 
         await synth.prime();
 
-        // Caso o usuário tenha clicado em Parar durante o carregamento
         if (!isPlaying || currentSynth !== synth) {
             return;
         }
@@ -397,7 +435,6 @@ async function playAbc(abcCode, btnPlay, blockId) {
 
         synth.start();
 
-        // Duração segura para o botão Parar ficar visível até o fim da música
         const totalSec = (typeof synth.duration === 'number' && synth.duration > 0)
             ? synth.duration
             : (typeof visualObj.getTotalTime === 'function' && visualObj.getTotalTime() > 0)
@@ -456,6 +493,29 @@ function stopCurrentPlayback() {
 // ============================================================
 const TOKEN_STORAGE_KEY = 'abc_github_pat';
 
+function normalizeTxtFilename(rawInput) {
+    const cleaned = String(rawInput || '')
+        .trim()
+        .replace(/^\/+|\/+$/g, '')
+        .replace(/\.txt$/i, '');
+    return cleaned ? `${cleaned}.txt` : '';
+}
+
+function formatIndexJson(entries) {
+    if (!Array.isArray(entries) || entries.length === 0) {
+        return '[\n]\n';
+    }
+    const lines = entries.map((item) => {
+        const obj = {
+            category: String(item.category || item.parent || 'Geral'),
+            title: String(item.title || ''),
+            file: String(item.file || '')
+        };
+        return `    ${JSON.stringify(obj)}`;
+    });
+    return `[\n${lines.join(',\n')}\n]\n`;
+}
+
 function updateCategoryDatalist() {
     const datalist = document.getElementById('category-suggestions');
     if (!datalist) return;
@@ -506,8 +566,11 @@ function renderAdminPanel() {
                 <input id="lesson-title" type="text" placeholder="Ex: Intensidade (p, mf, f)" />
             </div>
             <div class="admin-field">
-                <label for="lesson-filename">Nome do arquivo .txt</label>
-                <input id="lesson-filename" type="text" placeholder="Ex: 04-dinamica.txt" />
+                <label for="lesson-filename">Nome do arquivo (extensão .txt automática)</label>
+                <div class="filename-input-wrap">
+                    <input id="lesson-filename" type="text" placeholder="Ex: 04-dinamica" />
+                    <span class="filename-ext-badge">.txt</span>
+                </div>
             </div>
         </div>
 
@@ -620,13 +683,13 @@ async function upsertFile(owner, repo, path, contentStr, commitMessage, branch, 
 }
 
 async function handleLoadExistingLesson() {
-    const rawFile = document.getElementById('lesson-filename').value.trim();
-    if (!rawFile) {
-        setAdminStatus('Digite o nome do arquivo .txt (ex: 01-introducao.txt) para carregar.', true);
+    const rawFile = document.getElementById('lesson-filename').value;
+    const fileName = normalizeTxtFilename(rawFile);
+    if (!fileName) {
+        setAdminStatus('Digite o nome do arquivo (ex: 01-introducao) para carregar.', true);
         return;
     }
 
-    const fileName = rawFile.endsWith('.txt') ? rawFile : `${rawFile}.txt`;
     const foundMeta = lessons.find(item => item.file === fileName);
 
     try {
@@ -634,7 +697,7 @@ async function handleLoadExistingLesson() {
         if (!res.ok) throw new Error('Arquivo não encontrado em tutorials/');
         const text = await res.text();
 
-        document.getElementById('lesson-filename').value = fileName;
+        document.getElementById('lesson-filename').value = fileName.replace(/\.txt$/i, '');
         if (foundMeta) {
             document.getElementById('lesson-category').value = getLessonCategory(foundMeta);
             document.getElementById('lesson-title').value = foundMeta.title;
@@ -653,7 +716,8 @@ async function handleSaveToGithub() {
     const token = document.getElementById('gh-token').value.trim();
     const category = document.getElementById('lesson-category').value.trim() || 'Geral';
     const title = document.getElementById('lesson-title').value.trim();
-    let fileName = document.getElementById('lesson-filename').value.trim();
+    const rawFileName = document.getElementById('lesson-filename').value;
+    const fileName = normalizeTxtFilename(rawFileName);
     const bodyText = document.getElementById('lesson-body').value;
     const shouldUpdateIndex = document.getElementById('update-index-json').checked;
 
@@ -666,12 +730,8 @@ async function handleSaveToGithub() {
         return;
     }
     if (!fileName) {
-        setAdminStatus('Informe o nome do arquivo .txt (ex: 04-dinamica.txt).', true);
+        setAdminStatus('Informe o nome do arquivo (ex: 04-dinamica).', true);
         return;
-    }
-    if (!fileName.endsWith('.txt')) {
-        fileName += '.txt';
-        document.getElementById('lesson-filename').value = fileName;
     }
     if (shouldUpdateIndex && !title) {
         setAdminStatus('Informe o título do tópico para atualizar o index.json.', true);
@@ -718,7 +778,7 @@ async function handleSaveToGithub() {
                 currentIndex.push(newEntry);
             }
 
-            const formattedJson = JSON.stringify(currentIndex, null, 4) + '\n';
+            const formattedJson = formatIndexJson(currentIndex);
 
             await upsertFile(
                 owner,
