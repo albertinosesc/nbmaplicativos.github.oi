@@ -8,7 +8,7 @@ const CONFIG = {
         owner: 'albertinosesc',
         repo: 'nbmaplicativos.github.oi',
         branch: 'main',
-        tutorialsFolder: 'aplicativos/01/tutorial/tutorials'
+        tutorialsFolder: 'aplicativos/01/script/tutorials'
     }
 };
 
