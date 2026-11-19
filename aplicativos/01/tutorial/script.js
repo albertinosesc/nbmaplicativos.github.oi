@@ -204,7 +204,7 @@ async function playAbc(abcCode, btnPlay, blockId) {
     const btnStop = btnPlay.nextElementSibling;
 
     try {
-        if (!ABCJS.synth.supportsAudio()) {
+        if (!ABCJS.synth || !ABCJS.synth.supportsAudio()) {
             throw new Error('Seu navegador não suporta reprodução de áudio WebAudio.');
         }
 
@@ -215,15 +215,25 @@ async function playAbc(abcCode, btnPlay, blockId) {
             await audioContext.resume();
         }
 
-        stopAbc(btnPlay, btnStop);
+        if (playTimeout) {
+            clearTimeout(playTimeout);
+            playTimeout = null;
+        }
+        if (currentSynth) {
+            currentSynth.stop();
+            currentSynth = null;
+        }
 
+        // Garante um visualObj válido renderizado pelo ABCJS
         let visualObj = visualObjs[blockId];
-        if (!visualObj) {
-            const parsed = ABCJS.parseOnly(abcCode);
-            if (!parsed || parsed.length === 0) {
-                throw new Error('Código ABC inválido');
+        if (!visualObj || !Array.isArray(visualObj.lines)) {
+            const tempDiv = document.createElement('div');
+            const rendered = ABCJS.renderAbc(tempDiv, abcCode);
+            if (!rendered || !rendered[0]) {
+                throw new Error('Não foi possível preparar a partitura para áudio.');
             }
-            visualObj = parsed[0];
+            visualObj = rendered[0];
+            visualObjs[blockId] = visualObj;
         }
 
         btnPlay.disabled = true;
@@ -232,13 +242,16 @@ async function playAbc(abcCode, btnPlay, blockId) {
         isPlaying = true;
 
         currentSynth = new ABCJS.synth.CreateSynth();
+
+        // Passa 'options: {}' explicitamente para evitar 'swing' em options undefined
         await currentSynth.init({
             visualObj: visualObj,
             audioContext: audioContext,
-            millisecondsPerMeasure: visualObj.millisecondsPerMeasure()
+            options: {}
         });
 
         await currentSynth.prime();
+
         btnPlay.innerHTML = '🔊 Tocando...';
         currentSynth.start();
 
