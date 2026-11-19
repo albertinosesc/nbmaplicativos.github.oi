@@ -21,11 +21,15 @@ let openCategories = new Set(); // Guarda quais pastas "Pai" estão abertas
 let searchTerm = '';
 let isAdminOpen = false;
 
+window.currentLessonRawText = '';
+window.currentLessonTitle = 'Licao';
+
 // ============================================================
 // INICIALIZAÇÃO
 // ============================================================
 document.addEventListener('DOMContentLoaded', async () => {
     setupSidebarControls();
+    setupLessonActionButtons();
     renderAdminPanel();
     await loadLessonIndex();
 });
@@ -66,6 +70,128 @@ function setupSidebarControls() {
             renderNavigation();
         };
     }
+}
+
+function setupLessonActionButtons() {
+    const copyBtn = document.getElementById('btn-copy-txt');
+    const pdfBtn = document.getElementById('btn-export-pdf');
+
+    if (copyBtn) {
+        copyBtn.onclick = () => copiarLicaoTxtOriginal(copyBtn);
+    }
+
+    if (pdfBtn) {
+        pdfBtn.onclick = () => exportarLicaoAtualPdf();
+    }
+}
+
+async function copiarLicaoTxtOriginal(btnEl) {
+    const rawText = window.currentLessonRawText;
+    if (typeof rawText !== 'string' || rawText.length === 0) {
+        alert('Nenhum conteúdo .txt carregado para copiar.');
+        return;
+    }
+
+    let copiou = false;
+    try {
+        if (navigator.clipboard && typeof navigator.clipboard.writeText === 'function') {
+            await navigator.clipboard.writeText(rawText);
+            copiou = true;
+        }
+    } catch {
+        copiou = false;
+    }
+
+    if (!copiou) {
+        const tempArea = document.createElement('textarea');
+        tempArea.value = rawText;
+        tempArea.setAttribute('readonly', '');
+        tempArea.style.position = 'fixed';
+        tempArea.style.top = '-9999px';
+        tempArea.style.left = '-9999px';
+        document.body.appendChild(tempArea);
+        tempArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(tempArea);
+    }
+
+    if (btnEl) {
+        const textoOriginal = btnEl.dataset.originalLabel || btnEl.textContent;
+        btnEl.dataset.originalLabel = textoOriginal;
+        btnEl.textContent = '✅ .TXT Copiado!';
+        setTimeout(() => {
+            btnEl.textContent = btnEl.dataset.originalLabel || textoOriginal;
+        }, 1600);
+    }
+}
+
+function exportarLicaoAtualPdf() {
+    const article = document.getElementById('lesson-content');
+    if (!article || !article.innerHTML.trim()) {
+        alert('Nenhuma lição carregada para exportar em PDF.');
+        return;
+    }
+
+    const titulo = window.currentLessonTitle || currentFile || 'Licao';
+    const janelaPdf = window.open('', '_blank', 'width=980,height=740');
+    if (!janelaPdf) {
+        alert('Permita pop-ups no navegador para gerar o PDF da lição.');
+        return;
+    }
+
+    const estilosAtuais = [...document.querySelectorAll('link[rel="stylesheet"], style')]
+        .map(el => el.outerHTML)
+        .join('\n');
+
+    janelaPdf.document.open();
+    janelaPdf.document.write(`
+        <!DOCTYPE html>
+        <html lang="pt-BR">
+        <head>
+            <meta charset="UTF-8">
+            <title>${escapeHtml(titulo)}</title>
+            ${estilosAtuais}
+            <style>
+                body {
+                    background: #ffffff !important;
+                    color: #000000 !important;
+                    margin: 0 !important;
+                    padding: 20px !important;
+                }
+                .lesson-actions,
+                #lesson-actions-bar,
+                .sidebar,
+                header,
+                footer,
+                #admin-panel,
+                button {
+                    display: none !important;
+                }
+                #lesson-content {
+                    display: block !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                }
+                @media print {
+                    body {
+                        padding: 0 !important;
+                    }
+                }
+            </style>
+        </head>
+        <body>
+            <article id="lesson-content">${article.innerHTML}</article>
+            <script>
+                window.onload = function () {
+                    setTimeout(function () {
+                        window.print();
+                    }, 350);
+                };
+            <\/script>
+        </body>
+        </html>
+    `);
+    janelaPdf.document.close();
 }
 
 function getLessonCategory(lesson) {
@@ -197,10 +323,12 @@ function toggleAdmin(show) {
     isAdminOpen = show;
     const panel = document.getElementById('admin-panel');
     const content = document.getElementById('lesson-content');
+    const actionsBar = document.getElementById('lesson-actions-bar');
     const adminBtn = document.getElementById('btn-admin-tab');
 
     panel.style.display = show ? 'block' : 'none';
     content.style.display = show ? 'none' : 'block';
+    if (actionsBar) actionsBar.style.display = show ? 'none' : 'flex';
     if (adminBtn) adminBtn.classList.toggle('active', show);
 }
 
@@ -210,6 +338,8 @@ async function loadLesson(fileName) {
     content.innerHTML = '<p class="loading">Carregando lição...</p>';
 
     const lessonMeta = lessons.find(l => l.file === fileName);
+    window.currentLessonTitle = lessonMeta?.title || fileName.replace(/\.txt$/i, '');
+
     if (lessonMeta) {
         openCategories.add(getLessonCategory(lessonMeta));
     }
@@ -219,8 +349,10 @@ async function loadLesson(fileName) {
         const response = await fetch(`${CONFIG.baseUrl}${fileName}?t=${Date.now()}`);
         if (!response.ok) throw new Error('Lição não encontrada');
         const text = await response.text();
+        window.currentLessonRawText = text;
         renderLesson(text);
     } catch (error) {
+        window.currentLessonRawText = '';
         content.innerHTML = `<div class="error">Erro: ${error.message}</div>`;
     }
 }
@@ -229,6 +361,10 @@ async function loadLesson(fileName) {
 // ORQUESTRADOR DE RENDERIZAÇÃO DE BLOCOS
 // ============================================================
 function renderLesson(text) {
+    if (typeof text === 'string') {
+        window.currentLessonRawText = text;
+    }
+
     if (window.AbcModule && typeof window.AbcModule.resetPlayback === 'function') {
         window.AbcModule.resetPlayback();
     }
@@ -426,6 +562,7 @@ function renderAdminPanel() {
     const refreshBtn = document.getElementById('btn-refresh-preview');
 
     bodyTextarea.addEventListener('input', () => {
+        window.currentLessonRawText = bodyTextarea.value;
         scheduleAdminPreview();
     });
 
@@ -563,6 +700,11 @@ async function handleLoadExistingLesson() {
         if (!res.ok) throw new Error('Arquivo não encontrado em tutorials/');
         const text = await res.text();
 
+        window.currentLessonRawText = text;
+        if (foundMeta) {
+            window.currentLessonTitle = foundMeta.title;
+        }
+
         document.getElementById('lesson-filename').value = fileName.replace(/\.txt$/i, '');
         if (foundMeta) {
             document.getElementById('lesson-category').value = getLessonCategory(foundMeta);
@@ -655,6 +797,11 @@ async function handleSaveToGithub() {
                 branch,
                 token
             );
+        }
+
+        window.currentLessonRawText = bodyText;
+        if (title) {
+            window.currentLessonTitle = title;
         }
 
         openCategories.add(category);
