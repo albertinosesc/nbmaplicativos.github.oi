@@ -139,6 +139,22 @@ function exportarLicaoAtualPdf() {
         return;
     }
 
+    // Clona o conteúdo da lição preservando os desenhos de <canvas>
+    const cloneArticle = article.cloneNode(true);
+    const origCanvases = article.querySelectorAll('canvas');
+    const clonedCanvases = cloneArticle.querySelectorAll('canvas');
+
+    origCanvases.forEach((origCanvas, idx) => {
+        const destCanvas = clonedCanvases[idx];
+        if (!destCanvas) return;
+        destCanvas.width = origCanvas.width;
+        destCanvas.height = origCanvas.height;
+        const ctx = destCanvas.getContext('2d');
+        if (ctx && origCanvas.width > 0 && origCanvas.height > 0) {
+            ctx.drawImage(origCanvas, 0, 0);
+        }
+    });
+
     const estilosAtuais = [...document.querySelectorAll('link[rel="stylesheet"], style')]
         .map(el => el.outerHTML)
         .join('\n');
@@ -157,6 +173,8 @@ function exportarLicaoAtualPdf() {
                     color: #000000 !important;
                     margin: 0 !important;
                     padding: 20px !important;
+                    -webkit-print-color-adjust: exact !important;
+                    print-color-adjust: exact !important;
                 }
                 .lesson-actions,
                 #lesson-actions-bar,
@@ -172,6 +190,10 @@ function exportarLicaoAtualPdf() {
                     width: 100% !important;
                     max-width: 100% !important;
                 }
+                svg, canvas {
+                    max-width: 100% !important;
+                    visibility: visible !important;
+                }
                 @media print {
                     body {
                         padding: 0 !important;
@@ -180,12 +202,12 @@ function exportarLicaoAtualPdf() {
             </style>
         </head>
         <body>
-            <article id="lesson-content">${article.innerHTML}</article>
+            <article id="lesson-content">${cloneArticle.innerHTML}</article>
             <script>
                 window.onload = function () {
                     setTimeout(function () {
                         window.print();
-                    }, 350);
+                    }, 600);
                 };
             <\/script>
         </body>
