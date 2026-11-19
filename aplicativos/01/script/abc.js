@@ -1,219 +1,195 @@
 // ============================================================
-// MÓDULO ABC (abc.js)
+// MÓDULO CIFRA (cifra.js)
 // ============================================================
 (function () {
-    let currentSynth = null;
-    let audioContext = null;
-    let playTimeout = null;
-    let activeBtnPlay = null;
-    let activeBtnStop = null;
-    let isPlaying = false;
-
-    function stopCurrentPlayback() {
-        if (playTimeout) {
-            clearTimeout(playTimeout);
-            playTimeout = null;
-        }
-
-        if (currentSynth) {
-            try {
-                currentSynth.stop();
-            } catch (e) {}
-            currentSynth = null;
-        }
-
-        isPlaying = false;
-
-        if (activeBtnPlay) {
-            activeBtnPlay.disabled = false;
-            activeBtnPlay.innerHTML = '▶ Tocar';
-        }
-        if (activeBtnStop) {
-            activeBtnStop.disabled = false;
-            activeBtnStop.style.display = 'none';
-        }
-
-        activeBtnPlay = null;
-        activeBtnStop = null;
+    function escapeHtml(str) {
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
     }
 
-    async function playAbc(abcCode, btnPlay) {
-        const btnStop = btnPlay ? btnPlay.nextElementSibling : null;
+    function parseStyleList(rawList) {
+        const styles = {};
+        if (!rawList) return styles;
 
-        if (currentSynth) {
-            stopCurrentPlayback();
-        }
+        rawList.split(',').forEach((item) => {
+            const idx = item.indexOf(':');
+            if (idx === -1) return;
+            const prop = item.slice(0, idx).trim();
+            const val = item.slice(idx + 1).trim().replace(/^["']|["']$/g, '');
 
-        try {
-            if (!window.ABCJS || !ABCJS.synth || !ABCJS.synth.supportsAudio()) {
-                throw new Error('Seu navegador não suporta reprodução de áudio WebAudio.');
+            if (/^[a-zA-Z\-]+$/.test(prop) && val && !/[<>{};]/.test(val)) {
+                styles[prop] = val;
             }
+        });
 
-            const AudioCtx = window.AudioContext || window.webkitAudioContext;
-            if (!audioContext) {
-                audioContext = new AudioCtx();
-            }
-            if (audioContext.state === 'suspended') {
-                await audioContext.resume();
-            }
-
-            const tempDiv = document.createElement('div');
-            const rendered = ABCJS.renderAbc(tempDiv, abcCode);
-            if (!rendered || !rendered[0]) {
-                throw new Error('Não foi possível preparar a partitura para áudio.');
-            }
-            const visualObj = rendered[0];
-
-            activeBtnPlay = btnPlay;
-            activeBtnStop = btnStop;
-            isPlaying = true;
-
-            if (btnPlay) {
-                btnPlay.disabled = true;
-                btnPlay.innerHTML = '⏳ Carregando...';
-            }
-            if (btnStop) {
-                btnStop.disabled = false;
-                btnStop.style.display = 'inline-block';
-            }
-
-            const synth = new ABCJS.synth.CreateSynth();
-            currentSynth = synth;
-
-            await synth.init({
-                visualObj: visualObj,
-                audioContext: audioContext,
-                options: {}
-            });
-
-            await synth.prime();
-
-            if (!isPlaying || currentSynth !== synth) {
-                return;
-            }
-
-            if (btnPlay) {
-                btnPlay.innerHTML = '🔊 Tocando...';
-            }
-
-            synth.start();
-
-            const totalSec = (typeof synth.duration === 'number' && synth.duration > 0)
-                ? synth.duration
-                : (typeof visualObj.getTotalTime === 'function' && visualObj.getTotalTime() > 0)
-                    ? visualObj.getTotalTime()
-                    : 15;
-
-            playTimeout = setTimeout(() => {
-                if (currentSynth === synth) {
-                    stopCurrentPlayback();
-                }
-            }, (totalSec * 1000) + 2000);
-        } catch (error) {
-            console.error('Erro ao tocar:', error);
-            alert('Erro ao reproduzir áudio: ' + (error && error.message ? error.message : error));
-            stopCurrentPlayback();
-        }
+        return styles;
     }
 
-    async function copyCode(codeText, btnCopy) {
+    function stylesToAttr(stylesObj) {
+        const entries = Object.entries(stylesObj).map(([k, v]) => `${k}: ${v}`);
+        return entries.length > 0 ? ` style="${entries.join('; ')}"` : '';
+    }
+
+    function parseCifraTagStyles(rawSegment) {
+        const tagMatch = String(rawSegment || '').match(/^\[CIFRA([^\]]*)\]/i);
+        const attrsStr = tagMatch ? tagMatch[1] : '';
+
+        const keysPattern = '(?:style|letra-style|titulo-style)\\s*=';
+
+        const tituloMatch = attrsStr.match(new RegExp(`titulo-style\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
+        const letraMatch = attrsStr.match(new RegExp(`letra-style\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
+        const acordeMatch = attrsStr.match(new RegExp(`(?:^|\\s)style\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
+
+        const tituloRaw = tituloMatch ? tituloMatch[1].trim().replace(/,$/, '') : '';
+        const letraRaw = letraMatch ? letraMatch[1].trim().replace(/,$/, '') : '';
+        const acordeRaw = acordeMatch ? acordeMatch[1].trim().replace(/,$/, '') : '';
+
+        return {
+            chordAttr: stylesToAttr(parseStyleList(acordeRaw)),
+            lyricAttr: stylesToAttr(parseStyleList(letraRaw)),
+            titleAttr: stylesToAttr(parseStyleList(tituloRaw))
+        };
+    }
+
+    function extractTitleAndBody(rawInner) {
+        let text = String(rawInner || '').replace(/^\[CIFRA[^\]]*\]/i, '').trim();
+        let titulo = '';
+
+        // Formato 1: [TITULO]...[/TITULO]
+        const tagTitleMatch = text.match(/\[TITULO\]([\s\S]*?)\[\/TITULO\]/i);
+        if (tagTitleMatch) {
+            titulo = tagTitleMatch[1].trim();
+            text = text.replace(/\[TITULO\][\s\S]*?\[\/TITULO\]/i, '').trim();
+        } else {
+            // Formato 2: primeira linha começando com "titulo:"
+            const lines = text.split(/\r?\n/);
+            if (lines.length > 0 && /^titulo\s*:/i.test(lines[0].trim())) {
+                titulo = lines[0].trim().replace(/^titulo\s*:/i, '').trim();
+                text = lines.slice(1).join('\n').trim();
+            }
+        }
+
+        return { titulo, bodyText: text };
+    }
+
+    function formatChordLine(line, chordAttr, lyricAttr) {
+        if (!line.trim()) {
+            return '<div class="cifra-break"></div>';
+        }
+
+        const tokens = [];
+        const regex = /\[([^\]]+)\]([^\[]*)/g;
+        let lastIndex = 0;
+        let match;
+
+        while ((match = regex.exec(line)) !== null) {
+            if (match.index > lastIndex) {
+                const prefix = line.slice(lastIndex, match.index);
+                tokens.push(
+                    `<span class="lyric no-chord"><span class="lyric-text"${lyricAttr}>${escapeHtml(prefix)}</span></span>`
+                );
+            }
+
+            const chord = match[1].trim();
+            const lyricPart = match[2] || '';
+
+            tokens.push(
+                `<span class="lyric">` +
+                    `<span class="chord"${chordAttr}>${escapeHtml(chord)}</span>` +
+                    `<span class="lyric-text"${lyricAttr}>${escapeHtml(lyricPart)}</span>` +
+                `</span>`
+            );
+
+            lastIndex = match.index + match[0].length;
+        }
+
+        if (tokens.length === 0) {
+            return `<div class="cifra-plain-line"${lyricAttr}>${escapeHtml(line)}</div>`;
+        }
+
+        if (lastIndex < line.length) {
+            const tail = line.slice(lastIndex);
+            tokens.push(
+                `<span class="lyric no-chord"><span class="lyric-text"${lyricAttr}>${escapeHtml(tail)}</span></span>`
+            );
+        }
+
+        return `<div class="cifra-line">${tokens.join('')}</div>`;
+    }
+
+    async function copyCifra(copySourceText, btn) {
         try {
             if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(codeText);
+                await navigator.clipboard.writeText(copySourceText);
             } else {
                 const ta = document.createElement('textarea');
-                ta.value = codeText;
+                ta.value = copySourceText;
                 document.body.appendChild(ta);
                 ta.select();
                 document.execCommand('copy');
                 document.body.removeChild(ta);
             }
-            const oldText = btnCopy.innerHTML;
-            btnCopy.innerHTML = '✓ Copiado!';
-            btnCopy.classList.add('copied');
+            const old = btn.innerHTML;
+            btn.innerHTML = '✓ Copiado!';
+            btn.classList.add('copied');
             setTimeout(() => {
-                btnCopy.innerHTML = oldText;
-                btnCopy.classList.remove('copied');
+                btn.innerHTML = old;
+                btn.classList.remove('copied');
             }, 1800);
         } catch (err) {
-            alert('Não foi possível copiar: ' + err.message);
+            alert('Erro ao copiar cifra: ' + err.message);
         }
     }
 
-    window.AbcModule = {
-        resetPlayback: stopCurrentPlayback,
-        render(rawCode, blockId) {
-            const block = document.createElement('div');
-            block.className = 'abc-block';
+    window.CifraModule = {
+        render(rawInner, fullMatch = '') {
+            const { chordAttr, lyricAttr, titleAttr } = parseCifraTagStyles(fullMatch);
+            const { titulo, bodyText } = extractTitleAndBody(rawInner);
 
-            const hasPlay = /%%play\b/.test(rawCode);
-            const cleanCode = rawCode.replace(/%%play\s*/g, '').trim();
+            const lines = bodyText ? bodyText.split(/\r?\n/) : [];
+            const htmlLines = lines.map((line) => formatChordLine(line, chordAttr, lyricAttr));
+            const fullCopyText = titulo ? `${titulo}\n\n${bodyText}` : bodyText;
 
-            const sheetContainer = document.createElement('div');
-            sheetContainer.className = 'abc-sheet';
-            sheetContainer.id = `abc-sheet-${blockId}`;
-            block.appendChild(sheetContainer);
+            const box = document.createElement('div');
+            box.className = 'cifra-block';
 
-            try {
-                if (window.ABCJS && typeof ABCJS.renderAbc === 'function') {
-                    ABCJS.renderAbc(sheetContainer, cleanCode, {
-                        responsive: 'resize',
-                        scale: 0.75,
-                        staffwidth: 700,
-                        paddingtop: 10,
-                        paddingbottom: 10,
-                        add_classes: true
-                    });
-                } else {
-                    sheetContainer.innerHTML = '<div class="error">Biblioteca ABCJS não carregada.</div>';
-                }
-            } catch (error) {
-                sheetContainer.innerHTML = `<div class="error">Erro ao renderizar ABC: ${error.message}</div>`;
-            }
+            const header = document.createElement('div');
+            header.className = 'cifra-header';
 
-            if (hasPlay) {
-                const controls = document.createElement('div');
-                controls.className = 'abc-controls';
-
-                const btnPlay = document.createElement('button');
-                btnPlay.className = 'btn-play';
-                btnPlay.innerHTML = '▶ Tocar';
-                btnPlay.onclick = () => playAbc(cleanCode, btnPlay);
-
-                const btnStop = document.createElement('button');
-                btnStop.className = 'btn-stop';
-                btnStop.innerHTML = '■ Parar';
-                btnStop.style.display = 'none';
-                btnStop.onclick = () => stopCurrentPlayback();
-
-                controls.appendChild(btnPlay);
-                controls.appendChild(btnStop);
-                block.appendChild(controls);
-            }
-
-            const codeHeader = document.createElement('div');
-            codeHeader.className = 'abc-code-header';
-
-            const codeLabel = document.createElement('span');
-            codeLabel.className = 'abc-code-label';
-            codeLabel.textContent = 'Código ABC';
+            const label = document.createElement('span');
+            label.className = 'cifra-label';
+            label.textContent = '🎸 Cifra';
 
             const btnCopy = document.createElement('button');
             btnCopy.type = 'button';
             btnCopy.className = 'btn-copy';
             btnCopy.innerHTML = '📋 Copiar';
-            btnCopy.onclick = () => copyCode(cleanCode, btnCopy);
+            btnCopy.onclick = () => copyCifra(fullCopyText, btnCopy);
 
-            codeHeader.appendChild(codeLabel);
-            codeHeader.appendChild(btnCopy);
-            block.appendChild(codeHeader);
+            header.appendChild(label);
+            header.appendChild(btnCopy);
+            box.appendChild(header);
 
-            const codeView = document.createElement('pre');
-            codeView.className = 'abc-code';
-            codeView.textContent = cleanCode;
-            block.appendChild(codeView);
+            const contentDiv = document.createElement('div');
+            contentDiv.className = 'cifra-content';
 
-            return block;
+            if (titulo) {
+                const titleEl = document.createElement('div');
+                titleEl.className = 'cifra-title';
+                if (titleAttr) {
+                    titleEl.setAttribute('style', titleAttr.replace(/^ style="|"$|^ style='|'$/g, ''));
+                }
+                titleEl.textContent = titulo;
+                contentDiv.appendChild(titleEl);
+            }
+
+            contentDiv.innerHTML += htmlLines.join('');
+            box.appendChild(contentDiv);
+
+            return box;
         }
     };
 })();
