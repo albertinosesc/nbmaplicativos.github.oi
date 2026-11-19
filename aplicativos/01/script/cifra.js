@@ -523,3 +523,166 @@
         }
     };
 })();
+
+// ============================================================
+    // MODAL FLUTUANTE E ARRASTÁVEL DE DIAGRAMA DE ACORDE
+    // ============================================================
+    let modalState = {
+        el: null,
+        titleEl: null,
+        bodyEl: null,
+        toggleBtnRef: null
+    };
+
+    function renderDiagramaNoContainer(chordNome, targetContainer) {
+        targetContainer.innerHTML = '';
+
+        // Tenta usar o ViolaoModule caso exista e aceite renderização de um único acorde
+        if (window.ViolaoModule && typeof window.ViolaoModule.render === 'function') {
+            try {
+                const node = window.ViolaoModule.render(chordNome);
+                if (node instanceof Node) {
+                    targetContainer.appendChild(node);
+                    // Se o ViolaoModule não gerou canvas nem svg visível, mostra fallback legível
+                    const hasVisual = node.querySelector('canvas, svg, .violao-card');
+                    if (!hasVisual) {
+                        const info = document.createElement('div');
+                        info.className = 'cifra-modal-fallback';
+                        info.textContent = `Acorde selecionado: ${chordNome}`;
+                        targetContainer.appendChild(info);
+                    }
+                    return;
+                }
+            } catch (_) {
+                // Cai no fallback abaixo
+            }
+        }
+
+        const fallback = document.createElement('div');
+        fallback.className = 'cifra-modal-fallback';
+        fallback.textContent = `Acorde selecionado: ${chordNome}`;
+        targetContainer.appendChild(fallback);
+    }
+
+    function garantirModalAcorde() {
+        if (modalState.el) return modalState;
+
+        const modal = document.createElement('div');
+        modal.id = 'cifra-chord-modal';
+        modal.className = 'cifra-chord-modal';
+        modal.style.display = 'none';
+        modal.style.left = '24px';
+        modal.style.top = '90px';
+
+        const header = document.createElement('div');
+        header.className = 'cifra-chord-modal-header';
+        header.title = 'Arraste para mover o modal';
+
+        const titleEl = document.createElement('span');
+        titleEl.className = 'cifra-chord-modal-title';
+        titleEl.textContent = '🎸 Acorde';
+
+        const btnClose = document.createElement('button');
+        btnClose.type = 'button';
+        btnClose.className = 'cifra-chord-modal-close';
+        btnClose.title = 'Fechar';
+        btnClose.textContent = '✕';
+        btnClose.onclick = () => fecharModalAcorde();
+
+        header.appendChild(titleEl);
+        header.appendChild(btnClose);
+
+        const bodyEl = document.createElement('div');
+        bodyEl.className = 'cifra-chord-modal-body';
+
+        modal.appendChild(header);
+        modal.appendChild(bodyEl);
+        document.body.appendChild(modal);
+
+        // Arrastar livre em qualquer direção (mouse e touch)
+        let dragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        const iniciarArraste = (clientX, clientY, target) => {
+            if (target === btnClose || btnClose.contains(target)) return;
+            dragging = true;
+            const rect = modal.getBoundingClientRect();
+            offsetX = clientX - rect.left;
+            offsetY = clientY - rect.top;
+            modal.classList.add('dragging');
+        };
+
+        const moverArraste = (clientX, clientY) => {
+            if (!dragging) return;
+            const maxX = Math.max(8, window.innerWidth - modal.offsetWidth - 8);
+            const maxY = Math.max(8, window.innerHeight - modal.offsetHeight - 8);
+            const novaLeft = Math.min(Math.max(8, clientX - offsetX), maxX);
+            const novaTop = Math.min(Math.max(8, clientY - offsetY), maxY);
+            modal.style.left = `${Math.round(novaLeft)}px`;
+            modal.style.top = `${Math.round(novaTop)}px`;
+        };
+
+        const encerrarArraste = () => {
+            if (!dragging) return;
+            dragging = false;
+            modal.classList.remove('dragging');
+        };
+
+        header.addEventListener('mousedown', (e) => {
+            if (e.button !== 0) return;
+            iniciarArraste(e.clientX, e.clientY, e.target);
+        });
+
+        window.addEventListener('mousemove', (e) => moverArraste(e.clientX, e.clientY));
+        window.addEventListener('mouseup', encerrarArraste);
+
+        header.addEventListener('touchstart', (e) => {
+            const touch = e.touches[0];
+            if (!touch) return;
+            iniciarArraste(touch.clientX, touch.clientY, e.target);
+        }, { passive: true });
+
+        window.addEventListener('touchmove', (e) => {
+            if (!dragging) return;
+            const touch = e.touches[0];
+            if (!touch) return;
+            moverArraste(touch.clientX, touch.clientY);
+        }, { passive: true });
+
+        window.addEventListener('touchend', encerrarArraste);
+
+        modalState = { el: modal, titleEl, bodyEl, toggleBtnRef: null };
+        return modalState;
+    }
+
+    function abrirOuAtualizarModalAcorde(chordNome, toggleBtn = null) {
+        const state = garantirModalAcorde();
+        state.toggleBtnRef = toggleBtn;
+        state.titleEl.textContent = `🎸 Acorde: ${chordNome}`;
+        renderDiagramaNoContainer(chordNome, state.bodyEl);
+        state.el.style.display = 'block';
+        if (toggleBtn) toggleBtn.classList.add('active');
+    }
+
+    function fecharModalAcorde() {
+        if (!modalState.el) return;
+        modalState.el.style.display = 'none';
+        if (modalState.toggleBtnRef) {
+            modalState.toggleBtnRef.classList.remove('active');
+        }
+    }
+
+    function alternarModalAcorde(contentDiv, toggleBtn) {
+        const state = garantirModalAcorde();
+        const estaVisivel = state.el.style.display !== 'none';
+
+        if (estaVisivel) {
+            fecharModalAcorde();
+            return;
+        }
+
+        const primeiroChord = contentDiv.querySelector('.chord');
+        const acordeInicial = primeiroChord ? primeiroChord.textContent.trim() : 'C';
+        abrirOuAtualizarModalAcorde(acordeInicial || 'C', toggleBtn);
+    }
