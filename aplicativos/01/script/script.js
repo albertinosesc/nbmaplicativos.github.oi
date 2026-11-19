@@ -241,7 +241,7 @@ function renderLessonIntoContainer(text, container, idPrefix = 'abc') {
     if (!container) return;
     container.innerHTML = '';
 
-    const tokenRegex = /\[(ABC|CIFRA(?:\s+[^\]]*)?|MD|LINK|VIDEO)\]([\s\S]*?)\[\/(ABC|CIFRA|MD|LINK|VIDEO)\]/g;
+    const tokenRegex = /\[(ABC|CIFRA(?:\s+[^\]]*)?|MD|LINK|VIDEO|VIOLAO)\]([\s\S]*?)\[\/(ABC|CIFRA|MD|LINK|VIDEO|VIOLAO)\]/g;
     let lastIndex = 0;
     let match;
     let abcCounter = 0;
@@ -266,6 +266,8 @@ function renderLessonIntoContainer(text, container, idPrefix = 'abc') {
             container.appendChild(window.LinksModule.render(innerContent));
         } else if (tagType === 'VIDEO' && window.VideoModule) {
             container.appendChild(window.VideoModule.render(innerContent));
+        } else if (tagType === 'VIOLAO' && window.ViolaoModule) {
+            container.appendChild(window.ViolaoModule.render(innerContent));
         } else {
             container.appendChild(parseText(innerContent));
         }
