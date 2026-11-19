@@ -562,16 +562,16 @@ function renderAdminPanel() {
 
         <div class="admin-grid">
             <div class="admin-field">
-                <label for="lesson-category">Categoria / Tópico Pai</label>
+                <label for="lesson-category">Categoria</label>
                 <input id="lesson-category" list="category-suggestions" type="text" placeholder="Ex: Dinâmica ou Propriedades do Som" />
                 <datalist id="category-suggestions"></datalist>
             </div>
             <div class="admin-field">
-                <label for="lesson-title">Título do Tópico (Filho)</label>
+                <label for="lesson-title">Título do Tópico </label>
                 <input id="lesson-title" type="text" placeholder="Ex: Intensidade (p, mf, f)" />
             </div>
             <div class="admin-field">
-                <label for="lesson-filename">Nome do arquivo (extensão .txt automática)</label>
+                <label for="lesson-filename">Nome do arquivo </label>
                 <div class="filename-input-wrap">
                     <input id="lesson-filename" type="text" placeholder="Ex: 04-dinamica" />
                     <span class="filename-ext-badge">.txt</span>
