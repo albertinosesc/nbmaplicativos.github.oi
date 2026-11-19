@@ -197,8 +197,13 @@ function createAbcBlock(abcCode, blockId) {
 }
 
 // ============================================================
-// REPRODUTOR DE ÁUDIO
+// REPRODUTOR DE ÁUDIO (BOTÃO PARAR CORRIGIDO)
 // ============================================================
+let audioContext = null;
+let playTimeout = null;
+let activeBtnPlay = null;
+let activeBtnStop = null;
+
 async function playAbc(abcCode, btnPlay, blockId) {
     if (isPlaying) return;
     const btnStop = btnPlay.nextElementSibling;
@@ -215,16 +220,9 @@ async function playAbc(abcCode, btnPlay, blockId) {
             await audioContext.resume();
         }
 
-        if (playTimeout) {
-            clearTimeout(playTimeout);
-            playTimeout = null;
-        }
-        if (currentSynth) {
-            currentSynth.stop();
-            currentSynth = null;
-        }
+        // Para qualquer reprodução anterior antes de iniciar uma nova
+        stopCurrentPlayback();
 
-        // Garante um visualObj válido renderizado pelo ABCJS
         let visualObj = visualObjs[blockId];
         if (!visualObj || !Array.isArray(visualObj.lines)) {
             const tempDiv = document.createElement('div');
@@ -236,14 +234,20 @@ async function playAbc(abcCode, btnPlay, blockId) {
             visualObjs[blockId] = visualObj;
         }
 
+        activeBtnPlay = btnPlay;
+        activeBtnStop = btnStop;
+        isPlaying = true;
+
         btnPlay.disabled = true;
         btnPlay.innerHTML = '⏳ Carregando timbres...';
-        btnStop.style.display = 'inline-block';
-        isPlaying = true;
+
+        if (btnStop) {
+            btnStop.disabled = false;
+            btnStop.style.display = 'inline-block';
+        }
 
         currentSynth = new ABCJS.synth.CreateSynth();
 
-        // Passa 'options: {}' explicitamente para evitar 'swing' em options undefined
         await currentSynth.init({
             visualObj: visualObj,
             audioContext: audioContext,
@@ -252,42 +256,60 @@ async function playAbc(abcCode, btnPlay, blockId) {
 
         await currentSynth.prime();
 
+        // Se o usuário clicou em Parar enquanto carregava os timbres, aborta antes de tocar
+        if (!isPlaying || !currentSynth) return;
+
         btnPlay.innerHTML = '🔊 Tocando...';
         currentSynth.start();
 
-        const durationSeconds = typeof visualObj.getTotalTime === 'function'
+        // Duração em segundos (garante ao menos 3s para o botão Parar ficar acessível)
+        const rawDuration = typeof visualObj.getTotalTime === 'function'
             ? visualObj.getTotalTime()
             : 10;
+        const durationMs = Math.max(rawDuration * 1000, 3000) + 800;
 
         playTimeout = setTimeout(() => {
-            if (isPlaying) {
-                resetPlayUI(btnPlay, btnStop);
-            }
-        }, (durationSeconds * 1000) + 500);
+            stopCurrentPlayback();
+        }, durationMs);
     } catch (error) {
         console.error('Erro ao tocar:', error);
         alert('Erro ao reproduzir áudio: ' + error.message);
-        resetPlayUI(btnPlay, btnStop);
+        stopCurrentPlayback();
     }
 }
 
 function stopAbc(btnPlay, btnStop) {
+    stopCurrentPlayback();
+}
+
+function stopCurrentPlayback() {
     if (playTimeout) {
         clearTimeout(playTimeout);
         playTimeout = null;
     }
+
     if (currentSynth) {
-        currentSynth.stop();
+        try {
+            currentSynth.stop();
+        } catch (e) {
+            // Ignora erro caso já tenha parado
+        }
         currentSynth = null;
     }
-    resetPlayUI(btnPlay, btnStop);
-}
 
-function resetPlayUI(btnPlay, btnStop) {
     isPlaying = false;
-    btnPlay.disabled = false;
-    btnPlay.innerHTML = '▶ Tocar';
-    btnStop.style.display = 'none';
+
+    if (activeBtnPlay) {
+        activeBtnPlay.disabled = false;
+        activeBtnPlay.innerHTML = '▶ Tocar';
+    }
+    if (activeBtnStop) {
+        activeBtnStop.disabled = false;
+        activeBtnStop.style.display = 'none';
+    }
+
+    activeBtnPlay = null;
+    activeBtnStop = null;
 }
 
 // ============================================================
