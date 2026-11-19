@@ -873,6 +873,12 @@ async function handleSaveToGithub() {
 // ============================================================
 const TAGS_EDITOR_ADMIN = [
     {
+        label: '📝 MD',
+        title: 'Inserir bloco Markdown',
+        insert: '### Título da seção\n\nTexto em **negrito** ou *itálico*.\n',
+        wrapSelection: true
+    },
+    {
         label: '🎬 Vídeo',
         title: 'Inserir bloco de vídeo',
         insert: '[VIDEO]\nhttps://www.youtube.com/watch?v=\n[/VIDEO]\n',
@@ -898,14 +904,14 @@ const TAGS_EDITOR_ADMIN = [
     },
     {
         label: '🖼️ Imagem',
-        title: 'Inserir bloco de imagem (pasta local ou URL)',
-        insert: '[IMAGEM]\nimagens/001.png\nLegenda da imagem\n[/IMAGEM]\n',
+        title: 'Inserir bloco de imagem',
+        insert: '[IMAGEM]\nminha-foto.jpg\nLegenda da imagem\n[/IMAGEM]\n',
         wrapSelection: true
     },
     {
         label: '📄 PDF',
         title: 'Inserir bloco de PDF',
-        insert: '[PDF]\nURL_DO_PDF\n[/PDF]\n',
+        insert: '[PDF]\n1.pdf\nMaterial em PDF\n[/PDF]\n',
         wrapSelection: true
     }
 ];
@@ -1018,4 +1024,73 @@ document.addEventListener('DOMContentLoaded', () => {
 
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
     sincronizarBarraTagsAdmin();
+}
+
+// ============================================================
+// RENDERIZADOR DE CONTEÚDO COM [IMAGEM] E [PDF]
+// ============================================================
+function renderizarConteudoComMidia(rawText, container, renderTextoFallbackFn) {
+    if (!container) return;
+    container.innerHTML = '';
+
+    const texto = String(rawText || '');
+    const regexBlocos = /\[(IMAGEM|PDF)([^\]]*)\]([\s\S]*?)\[\/\1\]/gi;
+
+    let ultimoIndice = 0;
+    let match;
+
+    const flushTexto = (trecho) => {
+        if (!trecho || !trecho.trim()) return;
+
+        if (typeof renderTextoFallbackFn === 'function') {
+            const resultado = renderTextoFallbackFn(trecho);
+            if (resultado instanceof Node) {
+                container.appendChild(resultado);
+            } else if (typeof resultado === 'string') {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'lesson-text-block';
+                wrapper.innerHTML = resultado;
+                container.appendChild(wrapper);
+            }
+            return;
+        }
+
+        if (window.MarkdownModule && typeof window.MarkdownModule.render === 'function') {
+            const mdNode = window.MarkdownModule.render(trecho);
+            if (mdNode instanceof Node) {
+                container.appendChild(mdNode);
+                return;
+            }
+        }
+
+        const p = document.createElement('div');
+        p.className = 'lesson-text-block';
+        p.style.whiteSpace = 'pre-wrap';
+        p.textContent = trecho;
+        container.appendChild(p);
+    };
+
+    while ((match = regexBlocos.exec(texto)) !== null) {
+        if (match.index > ultimoIndice) {
+            flushTexto(texto.slice(ultimoIndice, match.index));
+        }
+
+        const tagNome = String(match[1] || '').toUpperCase();
+        const fullTag = match[0];
+        const innerContent = match[3] || '';
+
+        if (tagNome === 'IMAGEM' && window.ImagemModule && typeof window.ImagemModule.render === 'function') {
+            container.appendChild(window.ImagemModule.render(innerContent, fullTag));
+        } else if (tagNome === 'PDF' && window.PdfModule && typeof window.PdfModule.render === 'function') {
+            container.appendChild(window.PdfModule.render(innerContent, fullTag));
+        } else {
+            flushTexto(fullTag);
+        }
+
+        ultimoIndice = match.index + fullTag.length;
+    }
+
+    if (ultimoIndice < texto.length) {
+        flushTexto(texto.slice(ultimoIndice));
+    }
 }
