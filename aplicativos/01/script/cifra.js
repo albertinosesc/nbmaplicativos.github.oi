@@ -59,46 +59,80 @@
         return entries.length > 0 ? ` style="${entries.join('; ')}"` : '';
     }
 
+    function cleanInlineStyle(attrStr) {
+        return String(attrStr || '').replace(/^ style="|"$|^ style='|'$/g, '');
+    }
+
     function parseCifraTagStyles(rawSegment) {
         const tagMatch = String(rawSegment || '').match(/^\[CIFRA([^\]]*)\]/i);
         const attrsStr = tagMatch ? tagMatch[1] : '';
 
-        const keysPattern = '(?:style|letra-style|titulo-style)\\s*=';
+        const keysPattern = '(?:style|letra-style|titulo-style|autor-style|compositor-style)\\s*=';
 
         const tituloMatch = attrsStr.match(new RegExp(`titulo-style\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
+        const autorMatch = attrsStr.match(new RegExp(`(?:autor-style|compositor-style)\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
         const letraMatch = attrsStr.match(new RegExp(`letra-style\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
         const acordeMatch = attrsStr.match(new RegExp(`(?:^|\\s)style\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
 
         const tituloRaw = tituloMatch ? tituloMatch[1].trim().replace(/,$/, '') : '';
+        const autorRaw = autorMatch ? autorMatch[1].trim().replace(/,$/, '') : '';
         const letraRaw = letraMatch ? letraMatch[1].trim().replace(/,$/, '') : '';
         const acordeRaw = acordeMatch ? acordeMatch[1].trim().replace(/,$/, '') : '';
 
         return {
             chordAttr: stylesToAttr(parseStyleList(acordeRaw)),
             lyricAttr: stylesToAttr(parseStyleList(letraRaw)),
-            titleAttr: stylesToAttr(parseStyleList(tituloRaw))
+            titleAttr: stylesToAttr(parseStyleList(tituloRaw)),
+            authorAttr: stylesToAttr(parseStyleList(autorRaw))
         };
     }
 
-    function extractTitleAndBody(rawInner) {
+    function extractMetadataAndBody(rawInner) {
         let text = String(rawInner || '').replace(/^\[CIFRA[^\]]*\]/i, '').trim();
         let titulo = '';
+        let autor = '';
 
-        // Formato 1: [TITULO]...[/TITULO]
+        // 1. Extrai [TITULO]...[/TITULO] ou linha "titulo: ..."
         const tagTitleMatch = text.match(/\[TITULO\]([\s\S]*?)\[\/TITULO\]/i);
         if (tagTitleMatch) {
             titulo = tagTitleMatch[1].trim();
             text = text.replace(/\[TITULO\][\s\S]*?\[\/TITULO\]/i, '').trim();
-        } else {
-            // Formato 2: primeira linha começando com "titulo:"
-            const lines = text.split(/\r?\n/);
-            if (lines.length > 0 && /^titulo\s*:/i.test(lines[0].trim())) {
-                titulo = lines[0].trim().replace(/^titulo\s*:/i, '').trim();
-                text = lines.slice(1).join('\n').trim();
+        }
+
+        // 2. Extrai [AUTOR]...[/AUTOR] ou [COMPOSITOR]...[/COMPOSITOR]
+        const tagAuthorMatch = text.match(/\[(?:AUTOR|COMPOSITOR)\]([\s\S]*?)\[\/(?:AUTOR|COMPOSITOR)\]/i);
+        if (tagAuthorMatch) {
+            autor = tagAuthorMatch[1].trim();
+            text = text.replace(/\[(?:AUTOR|COMPOSITOR)\][\s\S]*?\[\/(?:AUTOR|COMPOSITOR)\]/i, '').trim();
+        }
+
+        // 3. Suporte alternativo por linhas iniciais "titulo: ..." ou "autor/compositor: ..."
+        let lines = text.split(/\r?\n/);
+        while (lines.length > 0 && !lines[0].trim()) {
+            lines.shift();
+        }
+
+        let consumed = 0;
+        while (consumed < lines.length && consumed < 2) {
+            const lineTrim = lines[consumed].trim();
+            if (!titulo && /^titulo\s*:/i.test(lineTrim)) {
+                titulo = lineTrim.replace(/^titulo\s*:/i, '').trim();
+                consumed++;
+            } else if (!autor && /^(?:autor|compositor)\s*:/i.test(lineTrim)) {
+                autor = lineTrim.replace(/^(?:autor|compositor)\s*:/i, '').trim();
+                consumed++;
+            } else {
+                break;
             }
         }
 
-        return { titulo, bodyText: text };
+        if (consumed > 0) {
+            text = lines.slice(consumed).join('\n').trim();
+        } else {
+            text = lines.join('\n').trim();
+        }
+
+        return { titulo, autor, bodyText: text };
     }
 
     function transporNota(notaStr, semitons, usarBemol = false) {
@@ -410,7 +444,7 @@
         const limpa = String(linha || '').trim();
         if (!limpa) return false;
 
-        if (/^(titulo|tom|capotraste|ritmo|intro|verso|refrao|refrão|ponte)\s*:/i.test(limpa)) {
+        if (/^(titulo|autor|compositor|tom|capotraste|ritmo|intro|verso|refrao|refrão|ponte)\s*:/i.test(limpa)) {
             return false;
         }
 
@@ -542,7 +576,7 @@
 
         const textarea = document.createElement('textarea');
         textarea.className = 'cifra-inline-textarea';
-        textarea.rows = 8;
+        textarea.rows = 9;
         textarea.value = initialRawCode;
         textarea.style.width = '100%';
         textarea.style.fontFamily = 'monospace';
@@ -645,7 +679,7 @@
 
     window.CifraModule = {
         render(rawInner, fullMatch = '') {
-            const { chordAttr, lyricAttr, titleAttr } = parseCifraTagStyles(fullMatch);
+            const { chordAttr, lyricAttr, titleAttr, authorAttr } = parseCifraTagStyles(fullMatch);
 
             const box = document.createElement('div');
             box.className = 'cifra-block';
@@ -665,21 +699,43 @@
             let editorApi = null;
 
             const renderizarConteudo = (textoBruto) => {
-                const { titulo, bodyText } = extractTitleAndBody(textoBruto);
+                const { titulo, autor, bodyText } = extractMetadataAndBody(textoBruto);
                 const lines = bodyText ? bodyText.split(/\r?\n/) : [];
                 const htmlLines = lines.map((line) => formatChordLine(line, chordAttr, lyricAttr));
 
                 semitonsAtual = 0;
                 contentDiv.innerHTML = '';
 
-                if (titulo) {
-                    const titleEl = document.createElement('div');
-                    titleEl.className = 'cifra-title';
-                    if (titleAttr) {
-                        titleEl.setAttribute('style', titleAttr.replace(/^ style="|"$|^ style='|'$/g, ''));
+                if (titulo || autor) {
+                    const metaHeader = document.createElement('div');
+                    metaHeader.className = 'cifra-meta-header';
+                    metaHeader.style.cssText = 'margin-bottom: 14px; padding-bottom: 8px; border-bottom: 1px solid rgba(148, 163, 184, 0.28);';
+
+                    if (titulo) {
+                        const titleEl = document.createElement('div');
+                        titleEl.className = 'cifra-title';
+                        titleEl.style.cssText = 'font-size: 1.25rem; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em;';
+                        const customTitle = cleanInlineStyle(titleAttr);
+                        if (customTitle) {
+                            titleEl.setAttribute('style', `${titleEl.getAttribute('style')}; ${customTitle}`);
+                        }
+                        titleEl.textContent = titulo;
+                        metaHeader.appendChild(titleEl);
                     }
-                    titleEl.textContent = titulo;
-                    contentDiv.appendChild(titleEl);
+
+                    if (autor) {
+                        const authorEl = document.createElement('div');
+                        authorEl.className = 'cifra-author';
+                        authorEl.style.cssText = `margin-top: ${titulo ? '3px' : '0'}; font-size: 0.9rem; font-style: italic; opacity: 0.82;`;
+                        const customAuthor = cleanInlineStyle(authorAttr);
+                        if (customAuthor) {
+                            authorEl.setAttribute('style', `${authorEl.getAttribute('style')}; ${customAuthor}`);
+                        }
+                        authorEl.textContent = `Compositor: ${autor}`;
+                        metaHeader.appendChild(authorEl);
+                    }
+
+                    contentDiv.appendChild(metaHeader);
                 }
 
                 contentDiv.innerHTML += htmlLines.join('');
