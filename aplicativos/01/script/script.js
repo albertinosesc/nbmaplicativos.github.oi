@@ -463,6 +463,10 @@ function renderLessonIntoContainer(text, container, idPrefix = 'abc') {
             container.appendChild(window.MarkdownModule.render(innerContent));
         } else if (tagType === 'LINK' && window.LinksModule) {
             container.appendChild(window.LinksModule.render(innerContent));
+            } else if (tagType === 'IMAGEM' && window.ImagemModule) {
+            container.appendChild(window.ImagemModule.render(innerContent, match[0]));
+        } else if (tagType === 'PDF' && window.PdfModule) {
+            container.appendChild(window.PdfModule.render(innerContent, match[0]));
         } else if (tagType === 'VIDEO' && window.VideoModule) {
             container.appendChild(window.VideoModule.render(innerContent));
         } else if (tagType === 'VIOLAO' && window.ViolaoModule) {
@@ -863,4 +867,95 @@ async function handleSaveToGithub() {
         console.error(err);
         setAdminStatus(`Falha ao salvar no GitHub: ${err.message}`, true);
     }
+}
+
+// ============================================================
+// BARRA DE ATALHOS DE TAGS NO EDITOR DO ADMIN
+// ============================================================
+const TAGS_EDITOR_ADMIN = [
+    {
+        label: '🎬 Vídeo',
+        title: 'Inserir bloco de vídeo',
+        insert: '[VIDEO]\nhttps://www.youtube.com/watch?v=\n[/VIDEO]\n',
+        wrapSelection: false
+    },
+    {
+        label: '🎼 ABC',
+        title: 'Inserir partitura ABC',
+        insert: '[ABC]\nX:1\nT:Título\nM:4/4\nL:1/4\nK:C\nC D E F |\n[/ABC]\n',
+        wrapSelection: true
+    },
+    {
+        label: '🎸 Cifra',
+        title: 'Inserir cifra com acordes entre colchetes',
+        insert: '[CIFRA]\n[TITULO]Nome da Música[/TITULO]\n[C]Exemplo de letra com [G]acorde\n[/CIFRA]\n',
+        wrapSelection: true
+    },
+    {
+        label: '🪕 Violão',
+        title: 'Inserir diagramas de violão',
+        insert: '[VIOLAO]\nC, Am, F, G7\n[/VIOLAO]\n',
+        wrapSelection: true
+    },
+    {
+        label: '🖼️ Imagem',
+        title: 'Inserir bloco de imagem',
+        insert: '[IMAGEM]\nURL_DA_IMAGEM\n[/IMAGEM]\n',
+        wrapSelection: true
+    },
+    {
+        label: '📄 PDF',
+        title: 'Inserir bloco de PDF',
+        insert: '[PDF]\nURL_DO_PDF\n[/PDF]\n',
+        wrapSelection: true
+    }
+];
+
+function inserirTagNoTextarea(textarea, tagConfig) {
+    if (!textarea) return;
+
+    const start = typeof textarea.selectionStart === 'number' ? textarea.selectionStart : textarea.value.length;
+    const end = typeof textarea.selectionEnd === 'number' ? textarea.selectionEnd : textarea.value.length;
+    const textoAtual = textarea.value;
+    const selecionado = textoAtual.slice(start, end);
+
+    let textoInserido = tagConfig.insert;
+
+    // Se o usuário selecionou um trecho de texto, envolve com as tags de abertura/fechamento
+    if (tagConfig.wrapSelection && selecionado.trim()) {
+        const matchTags = tagConfig.insert.match(/^(\[[A-Z0-9_]+[^\]]*\])([\s\S]*?)(\[\/[A-Z0-9_]+\])(\n?)$/i);
+        if (matchTags) {
+            const abre = matchTags[1];
+            const fecha = matchTags[3];
+            const quebraFinal = matchTags[4] || '';
+            textoInserido = `${abre}\n${selecionado}\n${fecha}${quebraFinal}`;
+        }
+    }
+
+    textarea.value = textoAtual.slice(0, start) + textoInserido + textoAtual.slice(end);
+
+    // Posiciona o cursor logo após o texto inserido e dispara input para atualizar prévia (se houver)
+    const novaPosicao = start + textoInserido.length;
+    textarea.focus();
+    textarea.setSelectionRange(novaPosicao, novaPosicao);
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function montarBarraTagsAdmin(textarea, toolbarContainer) {
+    if (!textarea || !toolbarContainer) return;
+    if (toolbarContainer.dataset.initialized === 'true') return;
+
+    toolbarContainer.innerHTML = '';
+
+    TAGS_EDITOR_ADMIN.forEach((cfg) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'admin-tag-btn';
+        btn.title = cfg.title;
+        btn.textContent = cfg.label;
+        btn.onclick = () => inserirTagNoTextarea(textarea, cfg);
+        toolbarContainer.appendChild(btn);
+    });
+
+    toolbarContainer.dataset.initialized = 'true';
 }
