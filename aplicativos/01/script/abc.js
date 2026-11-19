@@ -116,28 +116,124 @@
         }
     }
 
-    async function copyCode(codeText, btnCopy) {
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(codeText);
-            } else {
-                const ta = document.createElement('textarea');
-                ta.value = codeText;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-            }
-            const oldText = btnCopy.innerHTML;
-            btnCopy.innerHTML = '✓ Copiado!';
-            btnCopy.classList.add('copied');
-            setTimeout(() => {
-                btnCopy.innerHTML = oldText;
-                btnCopy.classList.remove('copied');
-            }, 1800);
-        } catch (err) {
-            alert('Não foi possível copiar: ' + err.message);
+    function abrirModalViolaoDaCifra(cifra, triggerEl) {
+        if (typeof window.abrirModalViolaoPorCifra === 'function') {
+            window.abrirModalViolaoPorCifra(cifra, triggerEl);
+        } else if (typeof window.abrirModalCifra === 'function') {
+            window.abrirModalCifra(cifra, triggerEl);
+        } else if (typeof window.mostrarDiagramaViolao === 'function') {
+            window.mostrarDiagramaViolao(cifra, triggerEl);
         }
+    }
+
+    function habilitarCliqueAcordesNoAbc(sheetContainer) {
+        if (!sheetContainer) return;
+
+        // Regex para cifras comuns (ex.: C, Cm, C#m7, Bb/D, G7(9), F#dim, Asus4)
+        const regexAcorde = /^[A-G][#b]?(?:m|maj|min|dim|aug|sus\d*|add\d*|\d)*(?:\/[A-G][#b]?)?$/;
+
+        const elementos = sheetContainer.querySelectorAll('.abcjs-chord, svg text, svg tspan');
+        elementos.forEach((el) => {
+            const isAbcChord = el.classList && el.classList.contains('abcjs-chord');
+            const texto = String(el.textContent || '').trim().replace(/^"+|"+$/g, '');
+
+            if (!texto) return;
+            if (!isAbcChord && !regexAcorde.test(texto)) return;
+
+            el.style.cursor = 'pointer';
+            if (el.tagName && el.tagName.toLowerCase() !== 'text' && el.tagName.toLowerCase() !== 'tspan') {
+                el.title = `Ver diagrama de violão: ${texto}`;
+            } else {
+                el.style.fill = '#b91c1c';
+                el.style.fontWeight = '700';
+            }
+
+            if (el.dataset.chordModalBound === 'true') return;
+            el.dataset.chordModalBound = 'true';
+
+            el.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                abrirModalViolaoDaCifra(texto, el);
+            });
+        });
+    }
+
+    function criarAreaEdicaoMinimizada(initialCode, onApplyCode) {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'abc-editor-minimized-wrap';
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'btn-edit abc-edit-toggle';
+        toggleBtn.innerHTML = '✏️ Editar ABC (minimizado)';
+        toggleBtn.setAttribute('aria-expanded', 'false');
+
+        const editorBox = document.createElement('div');
+        editorBox.className = 'abc-editor-box';
+        editorBox.style.display = 'none';
+        editorBox.style.marginTop = '8px';
+
+        const textarea = document.createElement('textarea');
+        textarea.className = 'abc-inline-textarea';
+        textarea.rows = 7;
+        textarea.value = initialCode;
+        textarea.style.width = '100%';
+        textarea.style.fontFamily = 'monospace';
+
+        const actionsRow = document.createElement('div');
+        actionsRow.className = 'abc-editor-actions';
+        actionsRow.style.display = 'flex';
+        actionsRow.style.gap = '8px';
+        actionsRow.style.marginTop = '6px';
+
+        const btnAplicar = document.createElement('button');
+        btnAplicar.type = 'button';
+        btnAplicar.className = 'btn-apply-abc';
+        btnAplicar.textContent = '✓ Aplicar na partitura';
+
+        const btnMinimizar = document.createElement('button');
+        btnMinimizar.type = 'button';
+        btnMinimizar.className = 'btn-minimize-abc';
+        btnMinimizar.textContent = '— Minimizar';
+
+        const setMinimized = (minimized) => {
+            editorBox.style.display = minimized ? 'none' : 'block';
+            toggleBtn.setAttribute('aria-expanded', String(!minimized));
+            toggleBtn.innerHTML = minimized ? '✏️ Editar ABC (minimizado)' : '▼ Editando ABC';
+            if (!minimized) {
+                textarea.focus();
+            }
+        };
+
+        toggleBtn.onclick = () => {
+            const estaMinimizado = editorBox.style.display === 'none';
+            setMinimized(!estaMinimizado);
+        };
+
+        btnMinimizar.onclick = () => setMinimized(true);
+
+        btnAplicar.onclick = () => {
+            const novoCodigo = textarea.value;
+            if (typeof onApplyCode === 'function') {
+                onApplyCode(novoCodigo);
+            }
+        };
+
+        actionsRow.appendChild(btnAplicar);
+        actionsRow.appendChild(btnMinimizar);
+        editorBox.appendChild(textarea);
+        editorBox.appendChild(actionsRow);
+
+        wrapper.appendChild(toggleBtn);
+        wrapper.appendChild(editorBox);
+
+        return {
+            wrapper,
+            setCode(novoCodigo) {
+                textarea.value = novoCodigo;
+            }
+        };
     }
 
     window.AbcModule = {
@@ -147,70 +243,79 @@
             block.className = 'abc-block';
 
             const hasPlay = /%%play\b/.test(rawCode);
-            const cleanCode = rawCode.replace(/%%play\s*/g, '').trim();
+            let currentCleanCode = rawCode.replace(/%%play\s*/g, '').trim();
 
             const sheetContainer = document.createElement('div');
             sheetContainer.className = 'abc-sheet';
             sheetContainer.id = `abc-sheet-${blockId}`;
             block.appendChild(sheetContainer);
 
-            try {
-                if (window.ABCJS && typeof ABCJS.renderAbc === 'function') {
-                    ABCJS.renderAbc(sheetContainer, cleanCode, {
-                        responsive: 'resize',
-                        scale: 0.75,
-                        staffwidth: 700,
-                        paddingtop: 10,
-                        paddingbottom: 10,
-                        add_classes: true
-                    });
-                } else {
-                    sheetContainer.innerHTML = '<div class="error">Biblioteca ABCJS não carregada.</div>';
-                }
-            } catch (error) {
-                sheetContainer.innerHTML = `<div class="error">Erro ao renderizar ABC: ${error.message}</div>`;
-            }
+            const controls = document.createElement('div');
+            controls.className = 'abc-controls';
+            controls.style.display = hasPlay ? 'flex' : 'none';
 
-            if (hasPlay) {
-                const controls = document.createElement('div');
-                controls.className = 'abc-controls';
+            const btnPlay = document.createElement('button');
+            btnPlay.className = 'btn-play';
+            btnPlay.innerHTML = '▶ Tocar';
 
-                const btnPlay = document.createElement('button');
-                btnPlay.className = 'btn-play';
-                btnPlay.innerHTML = '▶ Tocar';
-                btnPlay.onclick = () => playAbc(cleanCode, btnPlay);
+            const btnStop = document.createElement('button');
+            btnStop.className = 'btn-stop';
+            btnStop.innerHTML = '■ Parar';
+            btnStop.style.display = 'none';
+            btnStop.onclick = () => stopCurrentPlayback();
 
-                const btnStop = document.createElement('button');
-                btnStop.className = 'btn-stop';
-                btnStop.innerHTML = '■ Parar';
-                btnStop.style.display = 'none';
-                btnStop.onclick = () => stopCurrentPlayback();
-
-                controls.appendChild(btnPlay);
-                controls.appendChild(btnStop);
-                block.appendChild(controls);
-            }
-
-            const codeHeader = document.createElement('div');
-            codeHeader.className = 'abc-code-header';
-
-            const codeLabel = document.createElement('span');
-            codeLabel.className = 'abc-code-label';
-            codeLabel.textContent = 'Código ABC';
-
-            const btnCopy = document.createElement('button');
-            btnCopy.type = 'button';
-            btnCopy.className = 'btn-copy';
-            btnCopy.innerHTML = '📋 Copiar';
-            btnCopy.onclick = () => copyCode(cleanCode, btnCopy);
-
-            codeHeader.appendChild(codeLabel);
-            codeHeader.appendChild(btnCopy);
-            block.appendChild(codeHeader);
+            controls.appendChild(btnPlay);
+            controls.appendChild(btnStop);
+            block.appendChild(controls);
 
             const codeView = document.createElement('pre');
             codeView.className = 'abc-code';
-            codeView.textContent = cleanCode;
+            codeView.style.display = 'none'; // fica oculto/minimizado até abrir a edição
+
+            let editorApi = null;
+
+            const renderPartitura = (codigoParaRenderizar) => {
+                stopCurrentPlayback();
+                const hasPlayAtual = /%%play\b/.test(codigoParaRenderizar);
+                currentCleanCode = codigoParaRenderizar.replace(/%%play\s*/g, '').trim();
+
+                controls.style.display = hasPlayAtual ? 'flex' : 'none';
+                btnPlay.onclick = () => playAbc(currentCleanCode, btnPlay);
+                codeView.textContent = currentCleanCode;
+
+                try {
+                    if (window.ABCJS && typeof ABCJS.renderAbc === 'function') {
+                        ABCJS.renderAbc(sheetContainer, currentCleanCode, {
+                            responsive: 'resize',
+                            scale: 0.75,
+                            staffwidth: 700,
+                            paddingtop: 10,
+                            paddingbottom: 10,
+                            add_classes: true
+                        });
+                        habilitarCliqueAcordesNoAbc(sheetContainer);
+                        if (typeof window.ativarAcordesClicaveisNoAbc === 'function') {
+                            window.ativarAcordesClicaveisNoAbc(sheetContainer);
+                        }
+                    } else {
+                        sheetContainer.innerHTML = '<div class="error">Biblioteca ABCJS não carregada.</div>';
+                    }
+                } catch (error) {
+                    sheetContainer.innerHTML = `<div class="error">Erro ao renderizar ABC: ${error.message}</div>`;
+                }
+
+                if (editorApi) {
+                    editorApi.setCode(currentCleanCode);
+                }
+            };
+
+            editorApi = criarAreaEdicaoMinimizada(currentCleanCode, (novoCodigo) => {
+                renderPartitura(novoCodigo);
+            });
+
+            renderPartitura(rawCode);
+
+            block.appendChild(editorApi.wrapper);
             block.appendChild(codeView);
 
             return block;
