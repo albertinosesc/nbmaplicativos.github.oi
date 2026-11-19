@@ -410,24 +410,24 @@
         const btnDown = document.createElement('button');
         btnDown.type = 'button';
         btnDown.className = 'cifra-transpose-btn';
-        btnDown.title = 'Baixar meio tom (-1 semitom)';
-        btnDown.textContent = '⬅️ -1';
+        btnDown.title = 'Baixar 1 semitom';
+        btnDown.textContent = '‹ -1';
 
         const statusSpan = document.createElement('span');
         statusSpan.className = 'cifra-transpose-status';
-        statusSpan.textContent = 'Tom original (0)';
+        statusSpan.textContent = 'Tom: 0';
 
         const btnUp = document.createElement('button');
         btnUp.type = 'button';
         btnUp.className = 'cifra-transpose-btn';
-        btnUp.title = 'Subir meio tom (+1 semitom)';
-        btnUp.textContent = '+1 ➡️';
+        btnUp.title = 'Subir 1 semitom';
+        btnUp.textContent = '+1 ›';
 
         const btnReset = document.createElement('button');
         btnReset.type = 'button';
         btnReset.className = 'cifra-transpose-btn cifra-transpose-reset';
         btnReset.title = 'Voltar ao tom original';
-        btnReset.textContent = 'Reset';
+        btnReset.textContent = 'Original';
         btnReset.style.display = 'none';
 
         const aplicar = (novoSemitons) => {
@@ -439,11 +439,11 @@
             });
 
             if (novoSemitons === 0) {
-                statusSpan.textContent = 'Tom original (0)';
+                statusSpan.textContent = 'Tom: 0';
                 btnReset.style.display = 'none';
             } else {
                 const sinal = novoSemitons > 0 ? `+${novoSemitons}` : `${novoSemitons}`;
-                statusSpan.textContent = `${sinal} semitom${Math.abs(novoSemitons) > 1 ? 's' : ''}`;
+                statusSpan.textContent = `Tom: ${sinal}`;
                 btnReset.style.display = 'inline-block';
             }
         };
