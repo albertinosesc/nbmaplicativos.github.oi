@@ -136,15 +136,6 @@
         }).join('/');
     }
 
-    function transporTextoComColchetes(texto, semitons) {
-        if (!semitons) return texto;
-        return String(texto).replace(/\[([^\]]+)\]/g, (full, dentro) => {
-            const limpo = dentro.trim();
-            if (!/^[A-G][#b]?/i.test(limpo)) return full;
-            return `[${transporAcordeTexto(limpo, semitons)}]`;
-        });
-    }
-
     function formatChordLine(line, chordAttr, lyricAttr) {
         if (!line.trim()) {
             return '<div class="cifra-break"></div>';
@@ -188,31 +179,6 @@
         }
 
         return `<div class="cifra-line">${tokens.join('')}</div>`;
-    }
-
-    async function copyCifra(getCopyTextFn, btn) {
-        const copySourceText = typeof getCopyTextFn === 'function' ? getCopyTextFn() : String(getCopyTextFn || '');
-        try {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                await navigator.clipboard.writeText(copySourceText);
-            } else {
-                const ta = document.createElement('textarea');
-                ta.value = copySourceText;
-                document.body.appendChild(ta);
-                ta.select();
-                document.execCommand('copy');
-                document.body.removeChild(ta);
-            }
-            const old = btn.innerHTML;
-            btn.innerHTML = '✓ Copiado!';
-            btn.classList.add('copied');
-            setTimeout(() => {
-                btn.innerHTML = old;
-                btn.classList.remove('copied');
-            }, 1800);
-        } catch (err) {
-            alert('Erro ao copiar cifra: ' + err.message);
-        }
     }
 
     function renderDiagramaNoContainer(chordNome, targetContainer) {
@@ -336,13 +302,16 @@
     }
 
     function abrirOuAtualizarModalAcorde(chordNome, toggleBtn = null) {
+        const limpo = String(chordNome || '').replace(/^"+|"+$/g, '').trim();
+        if (!limpo) return;
+
         const state = garantirModalAcorde();
         if (state.toggleBtnRef && state.toggleBtnRef !== toggleBtn) {
             state.toggleBtnRef.classList.remove('active');
         }
         state.toggleBtnRef = toggleBtn;
-        state.titleEl.textContent = `🎸 Acorde: ${chordNome}`;
-        renderDiagramaNoContainer(chordNome, state.bodyEl);
+        state.titleEl.textContent = `🎸 Acorde: ${limpo}`;
+        renderDiagramaNoContainer(limpo, state.bodyEl);
         state.el.style.display = 'block';
         if (toggleBtn) toggleBtn.classList.add('active');
     }
@@ -434,19 +403,90 @@
         return { bar, btnModal };
     }
 
+    function criarEditorCifraMinimizado(initialRawCode, onApply) {
+        const wrap = document.createElement('div');
+        wrap.className = 'cifra-editor-minimized-wrap';
+
+        const box = document.createElement('div');
+        box.className = 'cifra-editor-box';
+        box.style.display = 'none';
+        box.style.marginTop = '8px';
+
+        const textarea = document.createElement('textarea');
+        textarea.className = 'cifra-inline-textarea';
+        textarea.rows = 8;
+        textarea.value = initialRawCode;
+        textarea.style.width = '100%';
+        textarea.style.fontFamily = 'monospace';
+
+        const actions = document.createElement('div');
+        actions.className = 'cifra-editor-actions';
+        actions.style.display = 'flex';
+        actions.style.gap = '8px';
+        actions.style.marginTop = '6px';
+
+        const btnApply = document.createElement('button');
+        btnApply.type = 'button';
+        btnApply.className = 'btn-apply-cifra';
+        btnApply.textContent = '✓ Aplicar na cifra';
+
+        const btnMinimize = document.createElement('button');
+        btnMinimize.type = 'button';
+        btnMinimize.className = 'btn-minimize-cifra';
+        btnMinimize.textContent = '— Minimizar';
+
+        const toggleBtn = document.createElement('button');
+        toggleBtn.type = 'button';
+        toggleBtn.className = 'btn-edit cifra-edit-toggle';
+        toggleBtn.textContent = '✏️ Editar';
+        toggleBtn.title = 'Abrir ou minimizar o editor da cifra';
+        toggleBtn.setAttribute('aria-expanded', 'false');
+
+        const setMinimized = (minimized) => {
+            box.style.display = minimized ? 'none' : 'block';
+            toggleBtn.setAttribute('aria-expanded', String(!minimized));
+            toggleBtn.innerHTML = minimized ? '✏️ Editar' : '— Minimizar';
+            if (!minimized) {
+                textarea.focus();
+            }
+        };
+
+        toggleBtn.onclick = () => {
+            const estaMinimizado = box.style.display === 'none';
+            setMinimized(!estaMinimizado);
+        };
+
+        btnMinimize.onclick = () => setMinimized(true);
+
+        btnApply.onclick = () => {
+            if (typeof onApply === 'function') {
+                onApply(textarea.value);
+            }
+        };
+
+        actions.appendChild(btnApply);
+        actions.appendChild(btnMinimize);
+        box.appendChild(textarea);
+        box.appendChild(actions);
+        wrap.appendChild(box);
+
+        return {
+            toggleBtn,
+            editorWrap: wrap,
+            setCode(novoRaw) {
+                textarea.value = novoRaw;
+            }
+        };
+    }
+
+    // Expõe globalmente para o módulo ABC (e outros módulos) abrirem o mesmo modal de violão
+    window.abrirModalViolaoPorCifra = function (cifraBruta, triggerEl = null) {
+        abrirOuAtualizarModalAcorde(cifraBruta, null);
+    };
+
     window.CifraModule = {
         render(rawInner, fullMatch = '') {
             const { chordAttr, lyricAttr, titleAttr } = parseCifraTagStyles(fullMatch);
-            const { titulo, bodyText } = extractTitleAndBody(rawInner);
-
-            const lines = bodyText ? bodyText.split(/\r?\n/) : [];
-            const htmlLines = lines.map((line) => formatChordLine(line, chordAttr, lyricAttr));
-
-            let semitonsAtual = 0;
-            const getCopyText = () => {
-                const corpoAtual = transporTextoComColchetes(bodyText, semitonsAtual);
-                return titulo ? `${titulo}\n\n${corpoAtual}` : corpoAtual;
-            };
 
             const box = document.createElement('div');
             box.className = 'cifra-block';
@@ -458,51 +498,70 @@
             label.className = 'cifra-label';
             label.textContent = '🎸 Cifra';
 
-            const btnCopy = document.createElement('button');
-            btnCopy.type = 'button';
-            btnCopy.className = 'btn-copy';
-            btnCopy.innerHTML = '📋 Copiar';
-            btnCopy.onclick = () => copyCifra(getCopyText, btnCopy);
-
-            header.appendChild(label);
-            header.appendChild(btnCopy);
-            box.appendChild(header);
-
             const contentDiv = document.createElement('div');
             contentDiv.className = 'cifra-content';
 
-            if (titulo) {
-                const titleEl = document.createElement('div');
-                titleEl.className = 'cifra-title';
-                if (titleAttr) {
-                    titleEl.setAttribute('style', titleAttr.replace(/^ style="|"$|^ style='|'$/g, ''));
-                }
-                titleEl.textContent = titulo;
-                contentDiv.appendChild(titleEl);
-            }
+            let semitonsAtual = 0;
+            let btnModalRef = null;
+            let editorApi = null;
 
-            contentDiv.innerHTML += htmlLines.join('');
+            const renderizarConteudo = (textoBruto) => {
+                const { titulo, bodyText } = extractTitleAndBody(textoBruto);
+                const lines = bodyText ? bodyText.split(/\r?\n/) : [];
+                const htmlLines = lines.map((line) => formatChordLine(line, chordAttr, lyricAttr));
+
+                semitonsAtual = 0;
+                contentDiv.innerHTML = '';
+
+                if (titulo) {
+                    const titleEl = document.createElement('div');
+                    titleEl.className = 'cifra-title';
+                    if (titleAttr) {
+                        titleEl.setAttribute('style', titleAttr.replace(/^ style="|"$|^ style='|'$/g, ''));
+                    }
+                    titleEl.textContent = titulo;
+                    contentDiv.appendChild(titleEl);
+                }
+
+                contentDiv.innerHTML += htmlLines.join('');
+
+                contentDiv.querySelectorAll('.chord').forEach((chordEl) => {
+                    chordEl.classList.add('chord-clickable');
+                    chordEl.title = 'Clique para ver o diagrama do acorde';
+                    chordEl.onclick = (e) => {
+                        e.stopPropagation();
+                        const acordeAtual = chordEl.textContent.trim();
+                        if (acordeAtual) {
+                            abrirOuAtualizarModalAcorde(acordeAtual, btnModalRef);
+                        }
+                    };
+                });
+
+                if (editorApi) {
+                    editorApi.setCode(textoBruto);
+                }
+            };
+
+            editorApi = criarEditorCifraMinimizado(String(rawInner || '').trim(), (novoTexto) => {
+                renderizarConteudo(novoTexto);
+            });
+
+            header.appendChild(label);
+            header.appendChild(editorApi.toggleBtn);
+            box.appendChild(header);
 
             const { bar: transposeBar, btnModal } = criarBarraTranspose(
                 contentDiv,
                 () => semitonsAtual,
                 (val) => { semitonsAtual = val; }
             );
-
-            contentDiv.querySelectorAll('.chord').forEach((chordEl) => {
-                chordEl.classList.add('chord-clickable');
-                chordEl.title = 'Clique para ver o diagrama do acorde';
-                chordEl.onclick = (e) => {
-                    e.stopPropagation();
-                    const acordeAtual = chordEl.textContent.trim();
-                    if (acordeAtual) {
-                        abrirOuAtualizarModalAcorde(acordeAtual, btnModal);
-                    }
-                };
-            });
+            btnModalRef = btnModal;
 
             box.appendChild(transposeBar);
             box.appendChild(contentDiv);
+            box.appendChild(editorApi.editorWrap);
+
+            renderizarConteudo(String(rawInner || '').trim());
 
             return box;
         }
