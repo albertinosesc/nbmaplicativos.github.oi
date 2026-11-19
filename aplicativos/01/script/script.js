@@ -925,6 +925,12 @@ const TAGS_EDITOR_ADMIN = [
         title: 'Inserir bloco de PDF',
         insert: '[PDF]\n1.pdf\nMaterial em PDF\n[/PDF]\n',
         wrapSelection: true
+    },
+    {
+    label: '📑 Índice',
+    title: 'Inserir índice com âncoras',
+    insert: '<div class="info-box" id="indice-licao">\n    <strong>Índice:</strong>\n    <ul>\n        <li><a href="#secao-1">Seção 1</a></li>\n        <li><a href="#secao-2">Seção 2</a></li>\n    </ul>\n</div>\n\n<h3 id="secao-1">Seção 1</h3>\n',
+    wrapSelection: false
     }
 ];
 
@@ -1084,3 +1090,22 @@ function renderizarConteudoComMidia(rawText, container, renderTextoFallbackFn) {
         flushTexto(texto.slice(ultimoIndice));
     }
 }
+
+document.addEventListener('click', (e) => {
+    const link = e.target.closest('a[href^="#"]');
+    if (!link) return;
+
+    const rawHash = link.getAttribute('href') || '';
+    const targetId = rawHash.slice(1).trim();
+    if (!targetId) return;
+
+    const escopo = link.closest('#admin-live-preview, #lesson-content') || document;
+    const alvo =
+        escopo.querySelector(`[id="${CSS.escape(targetId)}"]`) ||
+        document.getElementById(targetId);
+
+    if (alvo) {
+        e.preventDefault();
+        alvo.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+});
