@@ -30,9 +30,9 @@
 
     const FORMAS_DINAMICAS = {
         // Corda base 6 (Mi)
-        '1':  { nome: 'Maior',   cordas: [1, 3, 3, 2, 1, 1],     dedos: [1, 3, 4, 2, 1, 1], pestana: true },
-        '2':  { nome: 'Menor',   cordas: [1, 3, 3, 1, 1, 1],     dedos: [1, 3, 4, 1, 1, 1], pestana: true },
-        '3':  { nome: 'Sétima',  cordas: [1, 3, 1, 2, 4, 1],     dedos: [1, 3, 1, 2, 4, 1], pestana: true },
+        '1':  { nome: '',        cordas: [1, 3, 3, 2, 1, 1],     dedos: [1, 3, 4, 2, 1, 1], pestana: true },
+        '2':  { nome: 'm',       cordas: [1, 3, 3, 1, 1, 1],     dedos: [1, 3, 4, 1, 1, 1], pestana: true },
+        '3':  { nome: '7',       cordas: [1, 3, 1, 2, 4, 1],     dedos: [1, 3, 1, 2, 4, 1], pestana: true },
         '10': { nome: '7+',      cordas: [1, 'X', 2, 2, 1, 'X'], dedos: [1, 0, 3, 4, 2, 0], pestana: false },
         '11': { nome: 'm7',      cordas: [1, 'X', 1, 1, 1, 'X'], dedos: [1, 0, 2, 3, 4, 0], pestana: false },
         '12': { nome: 'm7(b5)',  cordas: [2, 'X', 2, 2, 1, 'X'], dedos: [2, 0, 3, 4, 1, 0], pestana: false },
@@ -42,22 +42,83 @@
         '16': { nome: '°7',      cordas: [2, 'X', 1, 2, 1, 'X'], dedos: [3, 0, 1, 4, 2, 0], pestana: false },
 
         // Corda base 5 (Lá)
-        '4':  { nome: 'Maior',   cordas: ['X', 1, 3, 3, 3, 1],     dedos: [0, 1, 3, 4, 2, 1], pestana: true },
-        '5':  { nome: 'Menor',   cordas: ['X', 1, 3, 3, 2, 1],     dedos: [0, 1, 3, 4, 2, 1], pestana: true },
-        '6':  { nome: 'Sétima',  cordas: ['X', 1, 3, 1, 3, 1],     dedos: [0, 1, 3, 1, 4, 1], pestana: true },
+        '4':  { nome: '',        cordas: ['X', 1, 3, 3, 3, 1],     dedos: [0, 1, 3, 4, 2, 1], pestana: true },
+        '5':  { nome: 'm',       cordas: ['X', 1, 3, 3, 2, 1],     dedos: [0, 1, 3, 4, 2, 1], pestana: true },
+        '6':  { nome: '7',       cordas: ['X', 1, 3, 1, 3, 1],     dedos: [0, 1, 3, 1, 4, 1], pestana: true },
 
         // Corda base 4 (Ré)
-        '7':  { nome: 'Maior',   cordas: ['X', 'X', 1, 3, 4, 3], dedos: [0, 0, 1, 3, 4, 2], pestana: false },
-        '8':  { nome: 'Menor',   cordas: ['X', 'X', 1, 3, 4, 2], dedos: [0, 0, 1, 3, 4, 2], pestana: false },
-        '9':  { nome: 'Sétima',  cordas: ['X', 'X', 1, 3, 2, 3], dedos: [0, 0, 1, 3, 2, 4], pestana: false }
+        '7':  { nome: '',        cordas: ['X', 'X', 1, 3, 4, 3], dedos: [0, 0, 1, 3, 4, 2], pestana: false },
+        '8':  { nome: 'm',       cordas: ['X', 'X', 1, 3, 4, 2], dedos: [0, 0, 1, 3, 4, 2], pestana: false },
+        '9':  { nome: '7',       cordas: ['X', 'X', 1, 3, 2, 3], dedos: [0, 0, 1, 3, 2, 4], pestana: false }
     };
+
+    function parseEstiloViolao(rawEstilo) {
+        const cfg = {
+            cifraX: null,
+            cifraY: 24,
+            cifraCor: '#1e293b',
+            cifraTamanho: 18,
+            cifraFonte: 'Arial, sans-serif',
+            cifraAlinhar: 'branco', // 'branco' (centro das 6 cordas), 'canvas' (centro do canvas), 'esquerda', 'direita'
+            xInicial: 32,
+            yInicial: 52
+        };
+
+        if (!rawEstilo) return cfg;
+
+        // Aceita tanto "[VIOLAO style: cifra-y=20, cifra-cor=#b91c1c]" quanto "[VIOLAO style='...']"
+        const limpo = String(rawEstilo)
+            .replace(/^\[VIOLAO\s+style\s*[:=]\s*/i, '')
+            .replace(/\]$/, '')
+            .trim()
+            .replace(/^["']|["']$/g, '');
+
+        const partes = limpo.split(/[;,]/).map(p => p.trim()).filter(Boolean);
+        partes.forEach((parte) => {
+            const idx = parte.indexOf(':');
+            const sepIdx = idx !== -1 ? idx : parte.indexOf('=');
+            if (sepIdx === -1) return;
+
+            const chave = parte.slice(0, sepIdx).trim().toLowerCase().replace(/\s+/g, '-');
+            const valor = parte.slice(sepIdx + 1).trim().replace(/^["']|["']$/g, '');
+            if (!valor || /[<>{}]/.test(valor)) return;
+
+            if (chave === 'cifra-x' || chave === 'x-cifra' || chave === 'acorde-x') {
+                const num = parseFloat(valor);
+                if (!Number.isNaN(num)) cfg.cifraX = num;
+            } else if (chave === 'cifra-y' || chave === 'y-cifra' || chave === 'acorde-y') {
+                const num = parseFloat(valor);
+                if (!Number.isNaN(num)) cfg.cifraY = num;
+            } else if (chave === 'cifra-cor' || chave === 'color' || chave === 'cor') {
+                cfg.cifraCor = valor;
+            } else if (chave === 'cifra-tamanho' || chave === 'font-size' || chave === 'tamanho') {
+                const num = parseFloat(valor);
+                if (!Number.isNaN(num) && num > 0) cfg.cifraTamanho = num;
+            } else if (chave === 'cifra-fonte' || chave === 'font-family' || chave === 'fonte') {
+                cfg.cifraFonte = valor;
+            } else if (chave === 'cifra-alinhar' || chave === 'alinhar' || chave === 'align') {
+                const v = valor.toLowerCase();
+                if (['branco', 'cordas', 'canvas', 'centro', 'esquerda', 'direita'].includes(v)) {
+                    cfg.cifraAlinhar = v === 'centro' ? 'canvas' : (v === 'cordas' ? 'branco' : v);
+                }
+            } else if (chave === 'x-inicial' || chave === 'braço-x' || chave === 'braco-x') {
+                const num = parseFloat(valor);
+                if (!Number.isNaN(num)) cfg.xInicial = num;
+            } else if (chave === 'y-inicial' || chave === 'braço-y' || chave === 'braco-y') {
+                const num = parseFloat(valor);
+                if (!Number.isNaN(num)) cfg.yInicial = num;
+            }
+        });
+
+        return cfg;
+    }
 
     function resolverLinhaAcorde(linha) {
         const partes = linha.split('|').map(p => p.trim()).filter(Boolean);
         const espec = partes[0] || '';
         const labelCustom = partes.find(p => !p.includes('=') && p !== espec) || '';
 
-        // 1. Formato dinâmico: "formaId;casa" (ex: "1;5")
+        // 1. Formato dinâmico: "formaId;casa" (ex: "3;5")
         if (/^\d+\s*;\s*\d+/.test(espec)) {
             const [formaId, casaRaw] = espec.split(';').map(s => s.trim());
             const casa = Math.max(1, parseInt(casaRaw, 10) || 1);
@@ -69,10 +130,10 @@
             const notasBase5 = ['A#', 'B', 'C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A'];
             const idxNota = (casa - 1) % 12;
             const notaRaiz = ['4', '5', '6'].includes(formaId) ? notasBase5[idxNota] : notasBase6[idxNota];
+            const sufixo = forma.nome ? `${forma.nome}` : '';
 
             return {
-                sigla: labelCustom || `${notaRaiz} (${forma.nome})`,
-                subtitulo: `${casa}ª casa`,
+                sigla: labelCustom || `${notaRaiz}${sufixo}`,
                 casaInicial: casa,
                 pestana: Boolean(forma.pestana),
                 cordas,
@@ -116,7 +177,7 @@
                 }
             });
 
-            return { sigla, subtitulo: '', casaInicial, pestana, cordas, dedos };
+            return { sigla, casaInicial, pestana, cordas, dedos };
         }
 
         // 3. Sigla direta do dicionário (ex: "C", "Am", "D7", "F#m")
@@ -131,7 +192,6 @@
 
         return {
             sigla: labelCustom || chave,
-            subtitulo: base.nome,
             casaInicial: base.casaInicial || 1,
             pestana: Boolean(base.pestana),
             cordas: [...base.cordas],
@@ -139,10 +199,10 @@
         };
     }
 
-    function criarCanvasAcorde(cfg) {
+    function criarCanvasAcorde(cfg, estiloCfg) {
         const canvas = document.createElement('canvas');
         canvas.width = 150;
-        canvas.height = 185;
+        canvas.height = 170;
         canvas.className = 'violao-canvas';
 
         const ctx = canvas.getContext('2d');
@@ -151,19 +211,41 @@
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-        // Título da cifra
-        ctx.fillStyle = '#1e293b';
-        ctx.font = 'bold 18px Arial, sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'alphabetic';
-        ctx.fillText(cfg.sigla, 75, 24);
-
-        const xInicial = 30;
-        const yInicial = 52;
+        const xInicial = estiloCfg.xInicial;
+        const yInicial = estiloCfg.yInicial;
         const espCordas = 18;
         const espTrastes = 24;
         const numTrastes = 4;
         const casaInicial = cfg.casaInicial || 1;
+        const centroBracoX = xInicial + (2.5 * espCordas);
+
+        // Posição e alinhamento da cifra em relação ao diagrama
+        let cifraX = estiloCfg.cifraX;
+        let cifraAlign = 'center';
+
+        if (cifraX === null) {
+            if (estiloCfg.cifraAlinhar === 'canvas') {
+                cifraX = canvas.width / 2;
+                cifraAlign = 'center';
+            } else if (estiloCfg.cifraAlinhar === 'esquerda') {
+                cifraX = xInicial;
+                cifraAlign = 'left';
+            } else if (estiloCfg.cifraAlinhar === 'direita') {
+                cifraX = xInicial + (5 * espCordas);
+                cifraAlign = 'right';
+            } else {
+                // 'branco': centraliza exatamente sobre as 6 cordas do diagrama
+                cifraX = centroBracoX;
+                cifraAlign = 'center';
+            }
+        }
+
+        // Desenho da cifra
+        ctx.fillStyle = estiloCfg.cifraCor;
+        ctx.font = `bold ${estiloCfg.cifraTamanho}px ${estiloCfg.cifraFonte}`;
+        ctx.textAlign = cifraAlign;
+        ctx.textBaseline = 'alphabetic';
+        ctx.fillText(cfg.sigla, cifraX, estiloCfg.cifraY);
 
         // Número da casa inicial quando > 1
         if (casaInicial > 1) {
@@ -266,11 +348,30 @@
     }
 
     window.ViolaoModule = {
-        render(rawInner) {
-            const linhas = String(rawInner || '')
+        render(rawInner, fullMatch = '') {
+            const textoBruto = String(rawInner || '');
+            let estiloRaw = '';
+
+            // Permite [VIOLAO style: ...] tanto em fullMatch quanto na primeira linha caso venha colado
+            const matchTag = String(fullMatch || '').match(/^\[VIOLAO\s+style\s*[:=]\s*([^\]]+)\]/i);
+            if (matchTag) {
+                estiloRaw = matchTag[1];
+            }
+
+            const linhas = textoBruto
                 .split(/\r?\n/)
                 .map(l => l.trim())
-                .filter(Boolean);
+                .filter((l) => {
+                    if (!l) return false;
+                    const matchLinhaEstilo = l.match(/^style\s*[:=]\s*(.+)$/i);
+                    if (matchLinhaEstilo) {
+                        estiloRaw = matchLinhaEstilo[1];
+                        return false;
+                    }
+                    return true;
+                });
+
+            const estiloCfg = parseEstiloViolao(estiloRaw);
 
             const block = document.createElement('div');
             block.className = 'violao-block';
@@ -291,13 +392,7 @@
                 if (res.erro) {
                     card.innerHTML = `<span class="error">${res.erro}</span>`;
                 } else {
-                    card.appendChild(criarCanvasAcorde(res));
-                    if (res.subtitulo) {
-                        const sub = document.createElement('div');
-                        sub.className = 'violao-subtitulo';
-                        sub.textContent = res.subtitulo;
-                        card.appendChild(sub);
-                    }
+                    card.appendChild(criarCanvasAcorde(res, estiloCfg));
                 }
 
                 grid.appendChild(card);
