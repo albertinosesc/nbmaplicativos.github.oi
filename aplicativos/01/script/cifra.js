@@ -24,7 +24,14 @@
         el: null,
         titleEl: null,
         bodyEl: null,
+        orientBtn: null,
+        expandBtn: null,
         toggleBtnRef: null,
+        currentChord: 'C',
+        sourceContext: null,
+        orientation: 'vertical',
+        expanded: false,
+        savedPos: null,
         listenersAttached: false
     };
 
@@ -67,12 +74,10 @@
         const tagMatch = String(rawSegment || '').match(/^\[CIFRA([^\]]*)\]/i);
         const attrsStr = tagMatch ? tagMatch[1] : '';
 
-        const keysPattern = '(?:style|letra-style|titulo-style|autor-style|compositor-style)\\s*=';
-
-        const tituloMatch = attrsStr.match(new RegExp(`titulo-style\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
-        const autorMatch = attrsStr.match(new RegExp(`(?:autor-style|compositor-style)\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
-        const letraMatch = attrsStr.match(new RegExp(`letra-style\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
-        const acordeMatch = attrsStr.match(new RegExp(`(?:^|\\s)style\\s*=\\s*(.+?)(?=\\s+${keysPattern}|$)`, 'i'));
+        const tituloMatch = attrsStr.match(/titulo-style\s*=\s*(.+?)(?=\s+(?:style|letra-style|titulo-style|autor-style|compositor-style)\s*=|$)/i);
+        const autorMatch = attrsStr.match(/(?:autor-style|compositor-style)\s*=\s*(.+?)(?=\s+(?:style|letra-style|titulo-style|autor-style|compositor-style)\s*=|$)/i);
+        const letraMatch = attrsStr.match(/letra-style\s*=\s*(.+?)(?=\s+(?:style|letra-style|titulo-style|autor-style|compositor-style)\s*=|$)/i);
+        const acordeMatch = attrsStr.match(/(?:^|\s)style\s*=\s*(.+?)(?=\s+(?:style|letra-style|titulo-style|autor-style|compositor-style)\s*=|$)/i);
 
         const tituloRaw = tituloMatch ? tituloMatch[1].trim().replace(/,$/, '') : '';
         const autorRaw = autorMatch ? autorMatch[1].trim().replace(/,$/, '') : '';
@@ -88,25 +93,25 @@
     }
 
     function extractMetadataAndBody(rawInner) {
-        let text = String(rawInner || '').replace(/^\[CIFRA[^\]]*\]/i, '').trim();
+        let text = String(rawInner || '')
+            .replace(/\[\/?CIFRA[^\]]*\]/gi, '')
+            .trim();
+
         let titulo = '';
         let autor = '';
 
-        // 1. Extrai [TITULO]...[/TITULO] ou linha "titulo: ..."
-        const tagTitleMatch = text.match(/\[TITULO\]([\s\S]*?)\[\/TITULO\]/i);
-        if (tagTitleMatch) {
-            titulo = tagTitleMatch[1].trim();
-            text = text.replace(/\[TITULO\][\s\S]*?\[\/TITULO\]/i, '').trim();
-        }
+        text = text.replace(/\[TITULO\]([\s\S]*?)(?:\[\/TITULO\]|$)/gi, (_, p1) => {
+            if (!titulo) titulo = String(p1 || '').trim();
+            return ' ';
+        });
 
-        // 2. Extrai [AUTOR]...[/AUTOR] ou [COMPOSITOR]...[/COMPOSITOR]
-        const tagAuthorMatch = text.match(/\[(?:AUTOR|COMPOSITOR)\]([\s\S]*?)\[\/(?:AUTOR|COMPOSITOR)\]/i);
-        if (tagAuthorMatch) {
-            autor = tagAuthorMatch[1].trim();
-            text = text.replace(/\[(?:AUTOR|COMPOSITOR)\][\s\S]*?\[\/(?:AUTOR|COMPOSITOR)\]/i, '').trim();
-        }
+        text = text.replace(/\[(?:AUTOR|COMPOSITOR)\]([\s\S]*?)(?:\[\/(?:AUTOR|COMPOSITOR)\]|$)/gi, (_, p1) => {
+            if (!autor) autor = String(p1 || '').trim();
+            return ' ';
+        });
 
-        // 3. Suporte alternativo por linhas iniciais "titulo: ..." ou "autor/compositor: ..."
+        text = text.replace(/[ \t]{2,}/g, ' ').trim();
+
         let lines = text.split(/\r?\n/);
         while (lines.length > 0 && !lines[0].trim()) {
             lines.shift();
@@ -126,11 +131,7 @@
             }
         }
 
-        if (consumed > 0) {
-            text = lines.slice(consumed).join('\n').trim();
-        } else {
-            text = lines.join('\n').trim();
-        }
+        text = (consumed > 0 ? lines.slice(consumed) : lines).join('\n').trim();
 
         return { titulo, autor, bodyText: text };
     }
@@ -170,6 +171,25 @@
         }).join('/');
     }
 
+    function extrairAcordesDaCifra(textoBruto) {
+        const { bodyText } = extractMetadataAndBody(textoBruto);
+        const acordes = [];
+        const vistos = new Set();
+        const regex = /\[([^\]]+)\]/g;
+        let match;
+
+        while ((match = regex.exec(bodyText || '')) !== null) {
+            const limpo = String(match[1] || '').trim();
+            if (!limpo || /^(?:\/?TITULO|\/?AUTOR|\/?COMPOSITOR|\/?CIFRA)$/i.test(limpo)) continue;
+            if (!vistos.has(limpo)) {
+                vistos.add(limpo);
+                acordes.push(limpo);
+            }
+        }
+
+        return acordes;
+    }
+
     function formatChordLine(line, chordAttr, lyricAttr) {
         if (!line.trim()) {
             return '<div class="cifra-break"></div>';
@@ -191,12 +211,18 @@
             const chord = match[1].trim();
             const lyricPart = match[2] || '';
 
-            tokens.push(
-                `<span class="lyric">` +
-                    `<span class="chord"${chordAttr} data-original-chord="${escapeHtml(chord)}">${escapeHtml(chord)}</span>` +
-                    `<span class="lyric-text"${lyricAttr}>${escapeHtml(lyricPart)}</span>` +
-                `</span>`
-            );
+            if (/^(?:\/?TITULO|\/?AUTOR|\/?COMPOSITOR|\/?CIFRA)$/i.test(chord)) {
+                tokens.push(
+                    `<span class="lyric no-chord"><span class="lyric-text"${lyricAttr}>${escapeHtml(lyricPart)}</span></span>`
+                );
+            } else {
+                tokens.push(
+                    `<span class="lyric">` +
+                        `<span class="chord"${chordAttr} data-original-chord="${escapeHtml(chord)}">${escapeHtml(chord)}</span>` +
+                        `<span class="lyric-text"${lyricAttr}>${escapeHtml(lyricPart)}</span>` +
+                    `</span>`
+                );
+            }
 
             lastIndex = match.index + match[0].length;
         }
@@ -215,35 +241,237 @@
         return `<div class="cifra-line">${tokens.join('')}</div>`;
     }
 
-    function renderDiagramaNoContainer(chordNome, targetContainer) {
-        targetContainer.innerHTML = '';
+    function aplicarTamanhoEPosicaoModal(modal, expanded, orientacao = 'vertical') {
+        if (!modal) return;
+        modal.style.boxSizing = 'border-box';
+        modal.style.maxHeight = expanded ? '92vh' : '85vh';
+        modal.style.overflow = 'hidden';
+
+        if (expanded) {
+            if (!modalState.savedPos) {
+                modalState.savedPos = {
+                    left: modal.style.left || '24px',
+                    top: modal.style.top || '90px'
+                };
+            }
+            modal.style.left = '2.5vw';
+            modal.style.top = '4vh';
+            modal.style.width = '95vw';
+            modal.style.maxWidth = '95vw';
+        } else {
+            const pos = modalState.savedPos || { left: '24px', top: '90px' };
+            modalState.savedPos = null;
+            modal.style.left = pos.left;
+            modal.style.top = pos.top;
+            if (orientacao === 'horizontal') {
+                modal.style.width = 'min(92vw, 760px)';
+                modal.style.maxWidth = 'min(92vw, 760px)';
+            } else {
+                modal.style.width = 'auto';
+                modal.style.maxWidth = '340px';
+            }
+        }
+    }
+
+    function aplicarOrientacaoBody(bodyEl, orientacao, expanded = false) {
+        if (!bodyEl) return;
+        bodyEl.style.boxSizing = 'border-box';
+        bodyEl.style.display = 'flex';
+        bodyEl.style.maxHeight = expanded ? 'calc(92vh - 46px)' : 'calc(85vh - 46px)';
+        bodyEl.style.padding = '10px';
+        bodyEl.style.gap = '10px';
+        bodyEl.style.webkitOverflowScrolling = 'touch';
+        bodyEl.style.width = '100%';
+
+        if (expanded) {
+            bodyEl.style.overflowX = 'hidden';
+            bodyEl.style.overflowY = 'auto';
+            bodyEl.style.flexDirection = 'row';
+            bodyEl.style.flexWrap = 'wrap';
+            bodyEl.style.alignItems = 'flex-start';
+            bodyEl.style.justifyContent = 'flex-start';
+            bodyEl.style.maxWidth = '95vw';
+        } else if (orientacao === 'horizontal') {
+            bodyEl.style.overflowX = 'auto';
+            bodyEl.style.overflowY = 'auto';
+            bodyEl.style.flexDirection = 'row';
+            bodyEl.style.flexWrap = 'nowrap';
+            bodyEl.style.alignItems = 'flex-start';
+            bodyEl.style.justifyContent = 'flex-start';
+            bodyEl.style.maxWidth = 'min(92vw, 760px)';
+        } else {
+            bodyEl.style.overflowX = 'auto';
+            bodyEl.style.overflowY = 'auto';
+            bodyEl.style.flexDirection = 'column';
+            bodyEl.style.flexWrap = 'nowrap';
+            bodyEl.style.alignItems = 'center';
+            bodyEl.style.justifyContent = 'flex-start';
+            bodyEl.style.maxWidth = '340px';
+        }
+    }
+
+    function criarElementoVisualAcorde(chordExibido, varItemBase = null) {
+        if (window.ViolaoModule && typeof window.ViolaoModule.resolverVariacoesAcorde === 'function' && typeof window.ViolaoModule.criarCanvasAcorde === 'function') {
+            try {
+                const vars = window.ViolaoModule.resolverVariacoesAcorde(chordExibido) || [];
+                const escolhida = varItemBase
+                    ? { ...varItemBase, nome: chordExibido, acorde: chordExibido }
+                    : (vars[0] || { nome: chordExibido, acorde: chordExibido });
+                const canvas = window.ViolaoModule.criarCanvasAcorde(escolhida);
+                if (canvas instanceof Node) {
+                    canvas.style.maxWidth = '100%';
+                    canvas.style.height = 'auto';
+                    canvas.style.display = 'block';
+                    canvas.style.margin = '0 auto';
+                    return canvas;
+                }
+            } catch (_) {}
+        }
 
         if (window.ViolaoModule && typeof window.ViolaoModule.render === 'function') {
             try {
-                const node = window.ViolaoModule.render(chordNome);
-                if (node instanceof Node) {
-                    targetContainer.appendChild(node);
-                    const hasVisual = node.querySelector('canvas, svg, .violao-card');
-                    if (!hasVisual) {
-                        const info = document.createElement('div');
-                        info.className = 'cifra-modal-fallback';
-                        info.textContent = `Acorde: ${chordNome}`;
-                        targetContainer.appendChild(info);
-                    }
-                    return;
-                }
+                const node = window.ViolaoModule.render(chordExibido);
+                if (node instanceof Node) return node;
             } catch (_) {}
         }
 
         const fallback = document.createElement('div');
         fallback.className = 'cifra-modal-fallback';
-        fallback.textContent = `Acorde: ${chordNome}`;
-        targetContainer.appendChild(fallback);
+        fallback.style.fontWeight = '700';
+        fallback.style.padding = '8px 4px';
+        fallback.textContent = chordExibido;
+        return fallback;
+    }
+
+    function renderDiagramaNoContainer(chordNome, targetContainer, orientacao = 'vertical', expanded = false, sourceContext = null) {
+        if (!targetContainer) return;
+        targetContainer.replaceChildren();
+        aplicarOrientacaoBody(targetContainer, orientacao, expanded);
+
+        const semitons = sourceContext && typeof sourceContext.getSemitons === 'function'
+            ? sourceContext.getSemitons()
+            : 0;
+        const acordeTransposto = transporAcordeTexto(chordNome, semitons);
+
+        if (window.ViolaoModule && typeof window.ViolaoModule.resolverVariacoesAcorde === 'function' && typeof window.ViolaoModule.criarCanvasAcorde === 'function') {
+            try {
+                const variacoes = window.ViolaoModule.resolverVariacoesAcorde(acordeTransposto) || [];
+                if (variacoes.length > 0) {
+                    variacoes.forEach((varItem, idx) => {
+                        const itemBox = document.createElement('div');
+                        itemBox.className = 'cifra-modal-var-item';
+                        itemBox.style.boxSizing = 'border-box';
+                        itemBox.style.border = idx === 0 ? '2px solid #f59e0b' : '1px solid #cbd5e1';
+                        itemBox.style.borderRadius = '8px';
+                        itemBox.style.padding = '8px';
+                        itemBox.style.background = '#ffffff';
+                        itemBox.style.textAlign = 'center';
+                        itemBox.style.flexShrink = '0';
+                        itemBox.style.minWidth = '164px';
+                        itemBox.style.width = (expanded || orientacao === 'horizontal') ? '180px' : 'auto';
+
+                        const canvas = window.ViolaoModule.criarCanvasAcorde(varItem);
+                        if (canvas instanceof Node) {
+                            canvas.style.maxWidth = '100%';
+                            canvas.style.height = 'auto';
+                            canvas.style.display = 'block';
+                            canvas.style.margin = '0 auto';
+                            itemBox.appendChild(canvas);
+                        }
+
+                        if (varItem && varItem.descricao) {
+                            const desc = document.createElement('div');
+                            desc.textContent = varItem.descricao;
+                            desc.style.fontSize = '11px';
+                            desc.style.color = '#475569';
+                            desc.style.marginTop = '4px';
+                            itemBox.appendChild(desc);
+                        }
+
+                        const btnPref = document.createElement('button');
+                        btnPref.type = 'button';
+                        const ehPreferida = Boolean(varItem && varItem.preferida);
+                        btnPref.textContent = ehPreferida ? '★ Preferência' : '☆ Preferência';
+                        btnPref.title = 'Definir preferência e enviar este acorde para o modal da música';
+                        btnPref.style.marginTop = '6px';
+                        btnPref.style.cursor = 'pointer';
+                        btnPref.style.fontSize = '11px';
+                        btnPref.style.padding = '3px 8px';
+                        btnPref.style.borderRadius = '4px';
+                        btnPref.style.border = ehPreferida ? '1px solid #f59e0b' : '1px solid #cbd5e1';
+                        btnPref.style.background = ehPreferida ? '#fef3c7' : '#f8fafc';
+                        btnPref.style.color = ehPreferida ? '#92400e' : '#1e293b';
+
+                        btnPref.addEventListener('click', (ev) => {
+                            ev.stopPropagation();
+                            try {
+                                if (typeof window.ViolaoModule.definirPreferenciaAcorde === 'function' && varItem && varItem.id !== undefined) {
+                                    window.ViolaoModule.definirPreferenciaAcorde(acordeTransposto, varItem.id);
+                                }
+                            } catch (_) {}
+
+                            const ctx = modalState.sourceContext || sourceContext;
+                            const semAtual = ctx && typeof ctx.getSemitons === 'function' ? ctx.getSemitons() : 0;
+                            const acordeOriginalParaMusica = semAtual !== 0
+                                ? transporAcordeTexto(acordeTransposto, -semAtual)
+                                : chordNome;
+
+                            if (ctx && typeof ctx.addChordToLocalModal === 'function') {
+                                ctx.addChordToLocalModal(acordeOriginalParaMusica, varItem, true);
+                            }
+
+                            targetContainer.querySelectorAll('.cifra-modal-var-item button').forEach((b) => {
+                                b.textContent = '☆ Preferência';
+                                b.style.border = '1px solid #cbd5e1';
+                                b.style.background = '#f8fafc';
+                                b.style.color = '#1e293b';
+                            });
+                            btnPref.textContent = '★ Preferência';
+                            btnPref.style.border = '1px solid #f59e0b';
+                            btnPref.style.background = '#fef3c7';
+                            btnPref.style.color = '#92400e';
+                        });
+
+                        itemBox.appendChild(btnPref);
+                        targetContainer.appendChild(itemBox);
+                    });
+
+                    targetContainer.scrollTop = 0;
+                    targetContainer.scrollLeft = 0;
+                    return;
+                }
+            } catch (_) {}
+        }
+
+        const node = criarElementoVisualAcorde(acordeTransposto);
+        targetContainer.appendChild(node);
+        targetContainer.scrollTop = 0;
+        targetContainer.scrollLeft = 0;
+    }
+
+    function atualizarBotaoOrientacao(btnEl, orientacao) {
+        if (!btnEl) return;
+        btnEl.textContent = orientacao === 'horizontal' ? '↔ Horizontal' : '↕ Vertical';
+        btnEl.title = orientacao === 'horizontal'
+            ? 'Alternar para disposição vertical'
+            : 'Alternar para disposição horizontal';
+    }
+
+    function atualizarBotaoExpandir(btnEl, expanded) {
+        if (!btnEl) return;
+        btnEl.textContent = expanded ? '↙ Reduzir' : '⛶ Expandir';
+        btnEl.title = expanded ? 'Voltar ao tamanho normal do modal' : 'Expandir o modal para ver mais acordes';
     }
 
     function garantirModalAcorde() {
         const existente = document.getElementById('cifra-chord-modal');
-        if (existente && modalState.el === existente) return modalState;
+        if (existente && modalState.el === existente && document.body.contains(existente)) {
+            return modalState;
+        }
+
+        if (existente) {
+            existente.remove();
+        }
 
         const modal = document.createElement('div');
         modal.id = 'cifra-chord-modal';
@@ -255,10 +483,73 @@
         const header = document.createElement('div');
         header.className = 'cifra-chord-modal-header';
         header.title = 'Arraste para mover o modal';
+        header.style.display = 'flex';
+        header.style.alignItems = 'center';
+        header.style.justifyContent = 'space-between';
+        header.style.gap = '6px';
+        header.style.flexWrap = 'wrap';
+        header.style.boxSizing = 'border-box';
 
         const titleEl = document.createElement('span');
         titleEl.className = 'cifra-chord-modal-title';
         titleEl.textContent = '🎸 Acorde';
+
+        const rightActions = document.createElement('div');
+        rightActions.style.display = 'flex';
+        rightActions.style.alignItems = 'center';
+        rightActions.style.gap = '5px';
+
+        const btnOrient = document.createElement('button');
+        btnOrient.type = 'button';
+        btnOrient.className = 'cifra-chord-modal-orient';
+        btnOrient.style.cursor = 'pointer';
+        btnOrient.style.fontSize = '11px';
+        btnOrient.style.padding = '3px 7px';
+        btnOrient.style.borderRadius = '4px';
+        btnOrient.style.border = '1px solid #cbd5e1';
+        btnOrient.style.background = '#ffffff';
+        btnOrient.style.color = '#1e293b';
+        atualizarBotaoOrientacao(btnOrient, modalState.orientation);
+
+        btnOrient.onclick = (e) => {
+            e.stopPropagation();
+            modalState.orientation = modalState.orientation === 'vertical' ? 'horizontal' : 'vertical';
+            atualizarBotaoOrientacao(btnOrient, modalState.orientation);
+            aplicarTamanhoEPosicaoModal(modal, modalState.expanded, modalState.orientation);
+            renderDiagramaNoContainer(
+                modalState.currentChord,
+                bodyEl,
+                modalState.orientation,
+                modalState.expanded,
+                modalState.sourceContext
+            );
+        };
+
+        const btnExpand = document.createElement('button');
+        btnExpand.type = 'button';
+        btnExpand.className = 'cifra-chord-modal-expand';
+        btnExpand.style.cursor = 'pointer';
+        btnExpand.style.fontSize = '11px';
+        btnExpand.style.padding = '3px 7px';
+        btnExpand.style.borderRadius = '4px';
+        btnExpand.style.border = '1px solid #cbd5e1';
+        btnExpand.style.background = '#ffffff';
+        btnExpand.style.color = '#1e293b';
+        atualizarBotaoExpandir(btnExpand, modalState.expanded);
+
+        btnExpand.onclick = (e) => {
+            e.stopPropagation();
+            modalState.expanded = !modalState.expanded;
+            atualizarBotaoExpandir(btnExpand, modalState.expanded);
+            aplicarTamanhoEPosicaoModal(modal, modalState.expanded, modalState.orientation);
+            renderDiagramaNoContainer(
+                modalState.currentChord,
+                bodyEl,
+                modalState.orientation,
+                modalState.expanded,
+                modalState.sourceContext
+            );
+        };
 
         const btnClose = document.createElement('button');
         btnClose.type = 'button';
@@ -267,11 +558,15 @@
         btnClose.textContent = '✕';
         btnClose.onclick = () => fecharModalAcorde();
 
+        rightActions.appendChild(btnOrient);
+        rightActions.appendChild(btnExpand);
+        rightActions.appendChild(btnClose);
         header.appendChild(titleEl);
-        header.appendChild(btnClose);
+        header.appendChild(rightActions);
 
         const bodyEl = document.createElement('div');
         bodyEl.className = 'cifra-chord-modal-body';
+        aplicarOrientacaoBody(bodyEl, modalState.orientation, modalState.expanded);
 
         modal.appendChild(header);
         modal.appendChild(bodyEl);
@@ -282,7 +577,12 @@
         let offsetY = 0;
 
         const iniciarArraste = (clientX, clientY, target) => {
-            if (target === btnClose || btnClose.contains(target)) return;
+            if (modalState.expanded) return;
+            if (
+                target === btnClose || btnClose.contains(target) ||
+                target === btnOrient || btnOrient.contains(target) ||
+                target === btnExpand || btnExpand.contains(target)
+            ) return;
             dragging = true;
             const rect = modal.getBoundingClientRect();
             offsetX = clientX - rect.left;
@@ -291,19 +591,19 @@
         };
 
         const moverArraste = (clientX, clientY) => {
-            if (!dragging) return;
-            const maxX = Math.max(8, window.innerWidth - modal.offsetWidth - 8);
-            const maxY = Math.max(8, window.innerHeight - modal.offsetHeight - 8);
+            if (!dragging || !modalState.el) return;
+            const maxX = Math.max(8, window.innerWidth - modalState.el.offsetWidth - 8);
+            const maxY = Math.max(8, window.innerHeight - modalState.el.offsetHeight - 8);
             const novaLeft = Math.min(Math.max(8, clientX - offsetX), maxX);
             const novaTop = Math.min(Math.max(8, clientY - offsetY), maxY);
-            modal.style.left = `${Math.round(novaLeft)}px`;
-            modal.style.top = `${Math.round(novaTop)}px`;
+            modalState.el.style.left = `${Math.round(novaLeft)}px`;
+            modalState.el.style.top = `${Math.round(novaTop)}px`;
         };
 
         const encerrarArraste = () => {
             if (!dragging) return;
             dragging = false;
-            modal.classList.remove('dragging');
+            if (modalState.el) modalState.el.classList.remove('dragging');
         };
 
         header.addEventListener('mousedown', (e) => {
@@ -332,20 +632,35 @@
         modalState.el = modal;
         modalState.titleEl = titleEl;
         modalState.bodyEl = bodyEl;
+        modalState.orientBtn = btnOrient;
+        modalState.expandBtn = btnExpand;
         return modalState;
     }
 
-    function abrirOuAtualizarModalAcorde(chordNome, toggleBtn = null) {
+    function abrirOuAtualizarModalAcorde(chordNome, toggleBtn = null, sourceContext = null) {
         const limpo = String(chordNome || '').replace(/^"+|"+$/g, '').trim();
         if (!limpo) return;
 
         const state = garantirModalAcorde();
+        state.currentChord = limpo;
+        if (sourceContext) {
+            state.sourceContext = sourceContext;
+        }
         if (state.toggleBtnRef && state.toggleBtnRef !== toggleBtn) {
             state.toggleBtnRef.classList.remove('active');
         }
         state.toggleBtnRef = toggleBtn;
-        state.titleEl.textContent = `🎸 Acorde: ${limpo}`;
-        renderDiagramaNoContainer(limpo, state.bodyEl);
+
+        const semAtual = state.sourceContext && typeof state.sourceContext.getSemitons === 'function'
+            ? state.sourceContext.getSemitons()
+            : 0;
+        const tituloAcorde = transporAcordeTexto(limpo, semAtual);
+
+        state.titleEl.textContent = `🎸 Acorde: ${tituloAcorde}`;
+        atualizarBotaoOrientacao(state.orientBtn, state.orientation);
+        atualizarBotaoExpandir(state.expandBtn, state.expanded);
+        aplicarTamanhoEPosicaoModal(state.el, state.expanded, state.orientation);
+        renderDiagramaNoContainer(limpo, state.bodyEl, state.orientation, state.expanded, state.sourceContext);
         state.el.style.display = 'block';
         if (toggleBtn) toggleBtn.classList.add('active');
     }
@@ -358,21 +673,23 @@
         }
     }
 
-    function alternarModalAcorde(contentDiv, toggleBtn) {
+    function alternarModalAcorde(contentDiv, toggleBtn, sourceContext = null) {
         const state = garantirModalAcorde();
         const estaVisivel = state.el.style.display !== 'none';
 
-        if (estaVisivel) {
+        if (estaVisivel && state.toggleBtnRef === toggleBtn) {
             fecharModalAcorde();
             return;
         }
 
-        const primeiroChord = contentDiv.querySelector('.chord');
-        const acordeInicial = primeiroChord ? primeiroChord.textContent.trim() : 'C';
-        abrirOuAtualizarModalAcorde(acordeInicial || 'C', toggleBtn);
+        const primeiroChord = contentDiv ? contentDiv.querySelector('.chord') : null;
+        const acordeInicial = primeiroChord
+            ? (primeiroChord.getAttribute('data-original-chord') || primeiroChord.textContent.trim())
+            : 'C';
+        abrirOuAtualizarModalAcorde(acordeInicial || 'C', toggleBtn, sourceContext);
     }
 
-    function criarBarraTranspose(contentDiv, getSemitons, setSemitons) {
+    function criarBarraTranspose(contentDiv, getSemitons, setSemitons, onTransposeChange, sourceContext, onToggleLocalModal) {
         const bar = document.createElement('div');
         bar.className = 'cifra-transpose-bar';
 
@@ -404,7 +721,18 @@
         btnModal.className = 'cifra-transpose-btn cifra-modal-toggle';
         btnModal.title = 'Abrir ou fechar janela flutuante do acorde';
         btnModal.textContent = 'Diagrama';
-        btnModal.onclick = () => alternarModalAcorde(contentDiv, btnModal);
+        btnModal.onclick = () => alternarModalAcorde(contentDiv, btnModal, sourceContext);
+
+        const btnLocalModal = document.createElement('button');
+        btnLocalModal.type = 'button';
+        btnLocalModal.className = 'cifra-transpose-btn cifra-local-modal-toggle';
+        btnLocalModal.title = 'Abrir ou fechar modal com os acordes desta música';
+        btnLocalModal.textContent = 'Acordes da música';
+        btnLocalModal.onclick = () => {
+            if (typeof onToggleLocalModal === 'function') {
+                onToggleLocalModal(btnLocalModal);
+            }
+        };
 
         const aplicar = (novoSemitons) => {
             setSemitons(novoSemitons);
@@ -422,6 +750,10 @@
                 statusSpan.textContent = `Tom: ${sinal}`;
                 btnReset.style.display = 'inline-block';
             }
+
+            if (typeof onTransposeChange === 'function') {
+                onTransposeChange(novoSemitons);
+            }
         };
 
         btnDown.onclick = () => aplicar(getSemitons() - 1);
@@ -433,13 +765,11 @@
         bar.appendChild(btnUp);
         bar.appendChild(btnReset);
         bar.appendChild(btnModal);
+        bar.appendChild(btnLocalModal);
 
-        return { bar, btnModal };
+        return { bar, btnModal, btnLocalModal };
     }
 
-    // ============================================================
-    // CONVERSOR: CIFRA TRADICIONAL (ACORDES EM CIMA) -> [CIFRA]
-    // ============================================================
     function parecerLinhaDeAcordes(linha) {
         const limpa = String(linha || '').trim();
         if (!limpa) return false;
@@ -565,7 +895,7 @@
         return `[CIFRA]\n${saida.join('\n').trim()}\n[/CIFRA]`;
     }
 
-    function criarEditorCifraMinimizado(initialRawCode, onApply) {
+    function criarEditorCifraMinimizado(initialRawCode, onApply, onPreview) {
         const wrap = document.createElement('div');
         wrap.className = 'cifra-editor-minimized-wrap';
 
@@ -580,6 +910,12 @@
         textarea.value = initialRawCode;
         textarea.style.width = '100%';
         textarea.style.fontFamily = 'monospace';
+
+        textarea.addEventListener('input', () => {
+            if (typeof onPreview === 'function') {
+                onPreview(textarea.value);
+            }
+        });
 
         const actions = document.createElement('div');
         actions.className = 'cifra-editor-actions';
@@ -617,6 +953,9 @@
             } else {
                 textarea.value = limparEnvoltorio(atual);
                 textarea.focus();
+            }
+            if (typeof onPreview === 'function') {
+                onPreview(textarea.value);
             }
         };
 
@@ -665,14 +1004,15 @@
             toggleBtn,
             editorWrap: wrap,
             setCode(novoRaw) {
-                textarea.value = novoRaw;
+                if (textarea.value !== novoRaw) {
+                    textarea.value = novoRaw;
+                }
             }
         };
     }
 
-    // Expõe globalmente para o módulo ABC e para o script.js / painel Admin
     window.abrirModalViolaoPorCifra = function (cifraBruta, triggerEl = null) {
-        abrirOuAtualizarModalAcorde(cifraBruta, null);
+        abrirOuAtualizarModalAcorde(cifraBruta, null, null);
     };
 
     window.converterCifraTradicionalParaTag = converterCifraTradicionalParaTag;
@@ -695,16 +1035,36 @@
             contentDiv.className = 'cifra-content';
 
             let semitonsAtual = 0;
+            let tituloAtualMusica = '';
             let btnModalRef = null;
             let editorApi = null;
 
-            const renderizarConteudo = (textoBruto) => {
+            const extensaoAcordes = window.CifraAcordesMusica
+                ? window.CifraAcordesMusica.registrar(box, {
+                    getSemitons: () => semitonsAtual,
+                    getTitulo: () => tituloAtualMusica,
+                    transpor: transporAcordeTexto,
+                    criarVisual: criarElementoVisualAcorde,
+                    abrirDiagrama: abrirOuAtualizarModalAcorde
+                })
+                : null;
+
+            const sourceContext = extensaoAcordes ? extensaoAcordes.contexto : {
+                getSemitons: () => semitonsAtual,
+                addChordToLocalModal: null
+            };
+
+            const renderizarConteudo = (textoBruto, syncEditor = true, resetTranspose = true) => {
                 const { titulo, autor, bodyText } = extractMetadataAndBody(textoBruto);
+                tituloAtualMusica = titulo || '';
                 const lines = bodyText ? bodyText.split(/\r?\n/) : [];
                 const htmlLines = lines.map((line) => formatChordLine(line, chordAttr, lyricAttr));
 
-                semitonsAtual = 0;
-                contentDiv.innerHTML = '';
+                if (resetTranspose) {
+                    semitonsAtual = 0;
+                }
+
+                contentDiv.replaceChildren();
 
                 if (titulo || autor) {
                     const metaHeader = document.createElement('div');
@@ -738,28 +1098,42 @@
                     contentDiv.appendChild(metaHeader);
                 }
 
-                contentDiv.innerHTML += htmlLines.join('');
+                const temp = document.createElement('div');
+                temp.innerHTML = htmlLines.join('');
+                while (temp.firstChild) {
+                    contentDiv.appendChild(temp.firstChild);
+                }
+
+                if (extensaoAcordes) {
+                    extensaoAcordes.definirDaMusica(extrairAcordesDaCifra(textoBruto));
+                }
 
                 contentDiv.querySelectorAll('.chord').forEach((chordEl) => {
+                    const original = chordEl.getAttribute('data-original-chord') || chordEl.textContent.trim();
+                    if (semitonsAtual !== 0) {
+                        chordEl.textContent = transporAcordeTexto(original, semitonsAtual);
+                    }
                     chordEl.classList.add('chord-clickable');
                     chordEl.title = 'Clique para ver o diagrama do acorde';
                     chordEl.onclick = (e) => {
                         e.stopPropagation();
-                        const acordeAtual = chordEl.textContent.trim();
-                        if (acordeAtual) {
-                            abrirOuAtualizarModalAcorde(acordeAtual, btnModalRef);
+                        const acordeOriginal = chordEl.getAttribute('data-original-chord') || chordEl.textContent.trim();
+                        if (acordeOriginal) {
+                            abrirOuAtualizarModalAcorde(acordeOriginal, btnModalRef, sourceContext);
                         }
                     };
                 });
 
-                if (editorApi) {
+                if (syncEditor && editorApi) {
                     editorApi.setCode(textoBruto);
                 }
             };
 
-            editorApi = criarEditorCifraMinimizado(String(rawInner || '').trim(), (novoTexto) => {
-                renderizarConteudo(novoTexto);
-            });
+            editorApi = criarEditorCifraMinimizado(
+                String(rawInner || '').trim(),
+                (novoTexto) => renderizarConteudo(novoTexto, true, true),
+                (textoDigitado) => renderizarConteudo(textoDigitado, false, false)
+            );
 
             header.appendChild(label);
             header.appendChild(editorApi.toggleBtn);
@@ -768,7 +1142,25 @@
             const { bar: transposeBar, btnModal } = criarBarraTranspose(
                 contentDiv,
                 () => semitonsAtual,
-                (val) => { semitonsAtual = val; }
+                (val) => { semitonsAtual = val; },
+                () => {
+                    if (extensaoAcordes) {
+                        extensaoAcordes.atualizarTransposicao();
+                    }
+                    if (modalState.el && modalState.el.style.display !== 'none' && modalState.currentChord) {
+                        abrirOuAtualizarModalAcorde(
+                            modalState.currentChord,
+                            modalState.toggleBtnRef,
+                            modalState.sourceContext
+                        );
+                    }
+                },
+                sourceContext,
+                (btnLocal) => {
+                    if (extensaoAcordes) {
+                        extensaoAcordes.alternar(btnLocal);
+                    }
+                }
             );
             btnModalRef = btnModal;
 
@@ -776,7 +1168,7 @@
             box.appendChild(contentDiv);
             box.appendChild(editorApi.editorWrap);
 
-            renderizarConteudo(String(rawInner || '').trim());
+            renderizarConteudo(String(rawInner || '').trim(), true, true);
 
             return box;
         }
