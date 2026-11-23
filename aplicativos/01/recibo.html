@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gestão de Mensalidades — NBM Escola de Música</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', system-ui, sans-serif; }
+  body { background: #f3f4f6; color: #1f2937; padding: 20px; line-height: 1.5; }
+  .container { max-width: 1240px; margin: 0 auto; }
+
+  header {
+    background: linear-gradient(135deg, #4f46e5, #7c3aed);
+    color: white; padding: 24px; border-radius: 12px; margin-bottom: 20px;
+    box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+    display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;
+  }
+  header h1 { font-size: 1.7rem; font-weight: 700; }
+  header p { opacity: 0.92; font-size: 0.92rem; }
+
+  .header-acoes { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+  .badge-conexao {
+    background: rgba(255,255,255,0.18); padding: 6px 12px; border-radius: 999px;
+    font-size: 0.82rem; font-weight: 600;
+  }
+
+  .alerta-banner {
+    background: #fef2f2; border: 1px solid #fecaca; border-left: 5px solid #ef4444;
+    color: #991b1b; padding: 14px 18px; border-radius: 10px; margin-bottom: 20px;
+    display: none; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .alerta-banner.visivel { display: flex; }
+
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 14px; margin-bottom: 20px;
+  }
+  .stat-card {
+    background: white; padding: 16px 18px; border-radius: 12px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.05); border-left: 4px solid #4f46e5;
+  }
+  .stat-card.green { border-left-color: #10b981; }
+  .stat-card.amber { border-left-color: #f59e0b; }
+  .stat-card.red { border-left-color: #ef4444; }
+  .stat-card span { font-size: 0.78rem; color: #6b7280; font-weight: 700; text-transform: uppercase; }
+  .stat-card strong { display: block; font-size: 1.45rem; margin-top: 4px; color: #111827; }
+
+  .card {
+    background: white; padding: 20px; border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05); margin-bottom: 20px;
+  }
+  .card h2 { margin-bottom: 14px; color: #374151; font-size: 1.15rem; }
+
+  .form-grid {
+    display: grid; grid-template-columns: 2fr 1.2fr 1.5fr 1.2fr 1fr 0.9fr; gap: 10px;
+  }
+  .form-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+  input, select, textarea {
+    padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px;
+    font-size: 0.92rem; width: 100%; background: white;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: #4f46e5; box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.14);
+  }
+
+  button {
+    padding: 9px 14px; border: none; border-radius: 8px; cursor: pointer;
+    font-weight: 600; transition: all 0.18s; font-size: 0.88rem;
+  }
+  button:disabled { opacity: 0.6; cursor: not-allowed; }
+  .btn-primary { background: #4f46e5; color: white; }
+  .btn-primary:hover:not(:disabled) { background: #4338ca; }
+  .btn-success { background: #10b981; color: white; }
+  .btn-success:hover:not(:disabled) { background: #059669; }
+  .btn-whats { background: #16a34a; color: white; }
+  .btn-whats:hover:not(:disabled) { background: #15803d; }
+  .btn-warning { background: #f59e0b; color: white; }
+  .btn-danger { background: #ef4444; color: white; }
+  .btn-secondary { background: #e5e7eb; color: #374151; }
+  .btn-secondary:hover:not(:disabled) { background: #d1d5db; }
+  .btn-sm { padding: 6px 10px; font-size: 0.8rem; }
+
+  .toolbar { display: flex; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; align-items: center; }
+  .toolbar input { flex: 1; min-width: 210px; }
+  .toolbar select, .toolbar input[type="month"] { width: auto; min-width: 165px; }
+
+  .table-responsive { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; margin-top: 6px; }
+  th, td { padding: 11px 10px; text-align: left; border-bottom: 1px solid #f3f4f6; font-size: 0.9rem; }
+  th { background: #f9fafb; color: #4b5563; font-size: 0.78rem; text-transform: uppercase; }
+  tr.linha-atrasada { background: #fff5f5; }
+  tr:hover { background: #f9fafb; }
+  tr.linha-atrasada:hover { background: #fee2e2; }
+
+  .status {
+    padding: 4px 10px; border-radius: 999px; font-size: 0.78rem;
+    font-weight: 700; display: inline-block; text-transform: capitalize;
+  }
+  .status.pago { background: #d1fae5; color: #065f46; }
+  .status.pendente { background: #fef3c7; color: #92400e; }
+  .status.atrasado { background: #fee2e2; color: #991b1b; }
+
+  .actions { display: flex; gap: 5px; flex-wrap: wrap; }
+
+  /* Calendário de Vencimentos */
+  .calendario-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin-top: 10px;
+  }
+  .dia-semana {
+    text-align: center; font-size: 0.78rem; font-weight: 700; color: #6b7280; padding: 4px;
+  }
+  .dia-celula {
+    min-height: 78px; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 6px; background: #fafafa; font-size: 0.82rem;
+  }
+  .dia-celula.hoje { border-color: #4f46e5; background: #eef2ff; }
+  .dia-celula .num { font-weight: 700; color: #374151; margin-bottom: 4px; display: block; }
+  .venc-tag {
+    display: block; padding: 2px 6px; border-radius: 5px; font-size: 0.72rem;
+    margin-bottom: 3px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .venc-tag.pago { background: #d1fae5; color: #065f46; }
+  .venc-tag.pendente { background: #fef3c7; color: #92400e; }
+  .venc-tag.atrasado { background: #fee2e2; color: #991b1b; }
+
+  /* Modal */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(17, 24, 39, 0.55);
+    display: none; align-items: center; justify-content: center; z-index: 9000; padding: 16px;
+  }
+  .modal-backdrop.aberto { display: flex; }
+  .modal {
+    background: white; border-radius: 12px; max-width: 780px; width: 100%;
+    max-height: 92vh; overflow-y: auto; padding: 22px; box-shadow: 0 20px 40px rgba(0,0,0,0.2);
+  }
+  .modal-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid #e5e7eb;
+  }
+  .modal-footer { margin-top: 16px; display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+
+  /* Recibo e Relatório alinhados à esquerda */
+  .recibo-box {
+    border: 2px solid #4f46e5; border-radius: 10px; padding: 20px; background: #ffffff;
+    text-align: left; page-break-inside: avoid; break-inside: avoid;
+  }
+  .recibo-emitente {
+    padding-bottom: 12px; margin-bottom: 12px; border-bottom: 1px solid #d1d5db;
+    text-align: left;
+  }
+  .recibo-emitente h3 {
+    color: #4f46e5; margin-bottom: 4px; text-align: left; font-size: 1.1rem;
+  }
+  .recibo-emitente p {
+    font-size: 0.88rem; color: #374151; text-align: left;
+  }
+  .recibo-linha {
+    display: flex; justify-content: flex-start; align-items: baseline;
+    gap: 8px; padding: 6px 0; border-bottom: 1px solid #f3f4f6; text-align: left;
+  }
+  .recibo-linha > span:first-child {
+    min-width: 150px; color: #4b5563;
+  }
+
+  .editor-recibo {
+    margin-top: 14px; padding: 14px; border: 1px solid #e5e7eb; border-radius: 10px; background: #f9fafb;
+    text-align: left;
+  }
+  .editor-recibo h4 { font-size: 0.9rem; color: #374151; margin-bottom: 10px; }
+  .editor-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .editor-grid label { font-size: 0.78rem; font-weight: 600; color: #4b5563; display: block; margin-bottom: 3px; }
+  .editor-full { grid-column: 1 / -1; }
+
+  .toast {
+    position: fixed; bottom: 20px; right: 20px; padding: 13px 18px;
+    border-radius: 8px; color: white; font-weight: 600; z-index: 9999;
+    opacity: 0; transition: opacity 0.25s; box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .toast.show { opacity: 1; }
+  .toast.success { background: #10b981; }
+  .toast.error { background: #ef4444; }
+  .toast.warn { background: #f59e0b; }
+
+  @media (max-width: 980px) {
+    .form-grid { grid-template-columns: 1fr 1fr; }
+    .calendario-grid { grid-template-columns: repeat(2, 1fr); }
+    .dia-semana { display: none; }
+    .editor-grid { grid-template-columns: 1fr; }
+  }
+  @media (max-width: 560px) {
+    .form-grid { grid-template-columns: 1fr; }
+  }
+
+  @media print {
+    @page { size: A4 portrait; margin: 12mm; }
+    html, body {
+      background: #ffffff !important;
+      padding: 0 !important;
+      margin: 0 !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+    .container, .modal-backdrop, .toast, header, .alerta-banner, .stats-grid, .card, .modal-header, .modal-footer, .no-print {
+      display: none !important;
+    }
+    .modal-backdrop.aberto {
+      display: block !important;
+      position: static !important;
+      background: transparent !important;
+      padding: 0 !important;
+    }
+    .modal {
+      display: block !important;
+      position: static !important;
+      max-width: 100% !important;
+      width: 100% !important;
+      max-height: none !important;
+      overflow: visible !important;
+      box-shadow: none !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+      margin: 0 !important;
+    }
+    #areaImpressao {
+      display: block !important;
+      width: 100% !important;
+      page-break-inside: avoid !important;
+      break-inside: avoid !important;
+    }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <div>
+      <h1>📚 Gestão de Mensalidades</h1>
+      <p>NBM Escola de Música — Cobrança após 3 dias do vencimento, recibo editável em 1 página e relatório de meses pagos</p>
+    </div>
+    <div class="header-acoes">
+      <button type="button" class="btn-secondary btn-sm" id="btnExportarBackup">💾 Backup JSON</button>
+      <button type="button" class="btn-secondary btn-sm" id="btnImportarBackup">📂 Restaurar</button>
+      <input type="file" id="inputArquivoBackup" accept="application/json" style="display:none;">
+      <span class="badge-conexao" id="badgeConexao">Conectando...</span>
+    </div>
+  </header>
+
+  <div class="alerta-banner" id="alertaAtraso">
+    <div>
+      <strong>⚠️ Alerta de Atraso (&gt; 3 dias após vencimento):</strong>
+      <span id="textoAlertaAtraso"></span>
+    </div>
+    <button type="button" class="btn-danger btn-sm" id="btnNotificarTodosAtrasados">
+      📧 Notificar Atrasados
+    </button>
+  </div>
+
+  <div class="stats-grid">
+    <div class="stat-card green">
+      <span>Receita Prevista (Mês)</span>
+      <strong id="statReceita">R$ 0,00</strong>
+    </div>
+    <div class="stat-card">
+      <span>Pagos no Mês</span>
+      <strong id="statPagos">0</strong>
+    </div>
+    <div class="stat-card amber">
+      <span>Pendentes / Em Carência (3d)</span>
+      <strong id="statPendentes">0</strong>
+    </div>
+    <div class="stat-card red">
+      <span>Atrasados (&gt; 3 dias)</span>
+      <strong id="statAtrasados">0</strong>
+    </div>
+  </div>
+
+  <!-- Formulário de Cadastro Único -->
+  <div class="card">
+    <h2 id="formTitulo">➕ Cadastrar / Editar Aluno (Cadastro Único)</h2>
+    <form id="formAluno">
+      <input type="hidden" id="alunoId">
+      <div class="form-grid">
+        <input type="text" id="nome" placeholder="Nome completo do aluno" required>
+        <input type="text" id="instrumento" placeholder="Curso / Instrumento (ex.: Violão)">
+        <input type="email" id="email" placeholder="E-mail do aluno / responsável">
+        <input type="tel" id="telefone" placeholder="(71) 98679-7547" maxlength="15">
+        <input type="number" id="valor" placeholder="Mensalidade (R$)" step="0.01" min="0" required>
+        <input type="number" id="diaVenc" placeholder="Dia venc." min="1" max="28" value="12" required>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn-primary" id="btnSalvar">Salvar Aluno</button>
+        <button type="button" class="btn-secondary" id="btnCancelar" style="display:none;">Cancelar Edição</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Lista e Controles -->
+  <div class="card">
+    <h2>👥 Alunos e Mensalidades</h2>
+    <div class="toolbar">
+      <input type="month" id="mesReferencia" title="Mês de referência">
+      <input type="text" id="busca" placeholder="🔍 Buscar por nome, curso, e-mail ou telefone...">
+      <select id="filtroSituacao">
+        <option value="">Todas as situações</option>
+        <option value="atrasado">Atrasados (&gt; 3 dias)</option>
+        <option value="pendente">Pendentes / Em Carência</option>
+        <option value="pago">Pagos</option>
+      </select>
+      <button type="button" class="btn-secondary" id="btnAtualizar">🔄 Atualizar</button>
+    </div>
+    <div class="table-responsive" id="tabelaContainer"></div>
+  </div>
+
+  <!-- Calendário de Vencimentos -->
+  <div class="card">
+    <h2>📅 Calendário de Vencimentos</h2>
+    <div class="calendario-grid" id="calendarioCabecalho">
+      <div class="dia-semana">Dom</div>
+      <div class="dia-semana">Seg</div>
+      <div class="dia-semana">Ter</div>
+      <div class="dia-semana">Qua</div>
+      <div class="dia-semana">Qui</div>
+      <div class="dia-semana">Sex</div>
+      <div class="dia-semana">Sáb</div>
+    </div>
+    <div class="calendario-grid" id="calendarioGrid"></div>
+  </div>
+
+</div>
+
+<!-- Modal Relatório e Recibo -->
+<div class="modal-backdrop" id="modalBackdrop">
+  <div class="modal">
+    <div class="modal-header">
+      <h3 id="modalTitulo">Detalhes do Aluno</h3>
+      <button type="button" class="btn-secondary btn-sm" id="btnFecharModal">✕</button>
+    </div>
+    <div id="areaImpressao"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn-secondary btn-sm" id="btnRestaurarRecibo" style="display:none;">↺ Restaurar Padrão</button>
+      <button type="button" class="btn-primary btn-sm" id="btnImprimirPdf">📄 Baixar / Imprimir PDF (1 página)</button>
+      <button type="button" class="btn-secondary btn-sm" id="btnFecharModalRodape">Fechar</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  const URL_API = 'https://script.google.com/macros/s/AKfycbxRI8r6ErRgaNf6YCUs_4bxbZcrwfGE2aSSb31iE4XNO2w-I74-_Iwi-EVU6aA9gJOR/exec';
+
+
+
+  const CHAVE_CACHE = 'gestao_mensalidades_cache_v5';
+  const CHAVE_EMITENTE = 'gestao_mensalidades_emitente_v1';
+  const DIAS_TOLERANCIA_COBRANCA = 3;
+
+  const EMITENTE_PADRAO = {
+    escola: 'NBM Escola de Música',
+    professor: 'Prof: Albertino Moura Barbosa Filho',
+    telefone: 'Tel: 71 98679-7547'
+  };
+
+  const DADOS_EXEMPLO = [
+    {
+      id: '1',
+      nome: 'Ana Clara Souza',
+      instrumento: 'Violão',
+      email: 'ana.souza@exemplo.com',
+      telefone: '(71) 99123-4567',
+      valorMensalidade: 180,
+      diaVencimento: 12,
+      mesesPagos: [
+        { mes: '2026-10', periodo: '12/10/26 à 12/11/26', valor: 180, pagoEm: '10/10/2026' }
+      ]
+    },
+    {
+      id: '2',
+      nome: 'Lucas Ferreira',
+      instrumento: 'Teclado',
+      email: 'lucas.ferreira@exemplo.com',
+      telefone: '(71) 99876-5432',
+      valorMensalidade: 220,
+      diaVencimento: 10,
+      mesesPagos: [
+        { mes: '2026-10', periodo: '10/10/26 à 10/11/26', valor: 220, pagoEm: '09/10/2026' }
+      ]
+    },
+    {
+      id: '3',
+      nome: 'Mariana Oliveira',
+      instrumento: 'Canto',
+      email: 'mariana.oli@exemplo.com',
+      telefone: '(71) 98765-1122',
+      valorMensalidade: 150,
+      diaVencimento: 12,
+      mesesPagos: []
+    }
+  ];
+
+  let alunos = [];
+  let modoOffline = false;
+  let alunoReciboAtual = null;
+
+  function obterEmitente() {
+    try {
+      const raw = localStorage.getItem(CHAVE_EMITENTE);
+      return raw ? { ...EMITENTE_PADRAO, ...JSON.parse(raw) } : { ...EMITENTE_PADRAO };
+    } catch {
+      return { ...EMITENTE_PADRAO };
+    }
+  }
+
+  function salvarEmitente(dados) {
+    localStorage.setItem(CHAVE_EMITENTE, JSON.stringify(dados));
+  }
+
+  const formatarMoeda = (v) =>
+    new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(v) || 0);
+
+  const escaparHTML = (str) => {
+    const div = document.createElement('div');
+    div.textContent = str ?? '';
+    return div.innerHTML;
+  };
+
+  function formatarDataCurta(dateObj) {
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const a = String(dateObj.getFullYear()).slice(-2);
+    return `${d}/${m}/${a}`;
+  }
+
+  function calcularPeriodoReferencia(mesRef, diaVencimento) {
+    const [ano, mes] = (mesRef || '2026-11').split('-').map(Number);
+    const dia = Math.min(Math.max(Number(diaVencimento) || 12, 1), 28);
+    const inicio = new Date(ano, mes - 1, dia);
+    const fim = new Date(ano, mes, dia);
+    return `${formatarDataCurta(inicio)} à ${formatarDataCurta(fim)}`;
+  }
+
+  function toast(msg, tipo = 'success') {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.className = `toast show ${tipo}`;
+    clearTimeout(toast.timer);
+    toast.timer = setTimeout(() => t.classList.remove('show'), 3500);
+  }
+
+  function salvarCache() {
+    localStorage.setItem(CHAVE_CACHE, JSON.stringify(alunos));
+  }
+
+  function carregarCache() {
+    try {
+      const raw = localStorage.getItem(CHAVE_CACHE);
+      return raw ? JSON.parse(raw) : DADOS_EXEMPLO;
+    } catch {
+      return DADOS_EXEMPLO;
+    }
+  }
+
+  async function api(acao, payload = {}) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    try {
+      const res = await fetch(URL_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ acao, ...payload }),
+        redirect: 'follow',
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (err) {
+      clearTimeout(timeoutId);
+      throw err;
+    }
+  }
+
+  function estaPagoNoMes(aluno, mesRef) {
+    const pagos = Array.isArray(aluno.mesesPagos) ? aluno.mesesPagos : [];
+    return pagos.some(item => item.mes === mesRef);
+  }
+
+  // Cobrança e status de atraso somente após 3 dias do vencimento
+  function obterSituacaoCalculada(aluno, mesRef = document.getElementById('mesReferencia').value) {
+    if (estaPagoNoMes(aluno, mesRef)) return 'pago';
+
+    const hoje = new Date();
+    const anoAtual = hoje.getFullYear();
+    const mesAtual = String(hoje.getMonth() + 1).padStart(2, '0');
+    const diaAtual = hoje.getDate();
+    const refAtual = `${anoAtual}-${mesAtual}`;
+    const diaVenc = Number(aluno.diaVencimento) || 12;
+    const limiteAtraso = diaVenc + DIAS_TOLERANCIA_COBRANCA;
+
+    if (mesRef < refAtual) return 'atrasado';
+    if (mesRef === refAtual && diaAtual > limiteAtraso) return 'atrasado';
+    return 'pendente';
+  }
+
+  function atualizarDashboard() {
+    const mesRef = document.getElementById('mesReferencia').value;
+    const listaComStatus = alunos.map(a => ({ ...a, statusCalculado: obterSituacaoCalculada(a, mesRef) }));
+    const receita = listaComStatus.reduce((acc, a) => acc + (Number(a.valorMensalidade) || 0), 0);
+    const pagos = listaComStatus.filter(a => a.statusCalculado === 'pago').length;
+    const pendentes = listaComStatus.filter(a => a.statusCalculado === 'pendente').length;
+    const atrasados = listaComStatus.filter(a => a.statusCalculado === 'atrasado');
+
+    document.getElementById('statReceita').textContent = formatarMoeda(receita);
+    document.getElementById('statPagos').textContent = pagos;
+    document.getElementById('statPendentes').textContent = pendentes;
+    document.getElementById('statAtrasados').textContent = atrasados.length;
+
+    const banner = document.getElementById('alertaAtraso');
+    if (atrasados.length > 0) {
+      banner.classList.add('visivel');
+      document.getElementById('textoAlertaAtraso').textContent =
+        `${atrasados.length} aluno(s) apto(s) à cobrança (${atrasados.map(a => `${a.nome} [venc. dia ${a.diaVencimento} + 3d]`).join(', ')}).`;
+    } else {
+      banner.classList.remove('visivel');
+    }
+  }
+
+  async function carregarAlunos() {
+    const badge = document.getElementById('badgeConexao');
+    try {
+      const r = await api('listar');
+      if (r && r.ok && Array.isArray(r.alunos)) {
+        alunos = r.alunos.map(a => ({
+          ...a,
+          instrumento: a.instrumento || '',
+          diaVencimento: Number(a.diaVencimento) || 12,
+          mesesPagos: Array.isArray(a.mesesPagos) ? a.mesesPagos : []
+        }));
+        modoOffline = false;
+        salvarCache();
+        badge.textContent = '🟢 Planilha Conectada';
+      } else {
+        throw new Error(r?.erro || 'Resposta inválida');
+      }
+    } catch {
+      alunos = carregarCache();
+      modoOffline = true;
+      badge.textContent = '🟡 Modo Local (Falha na Planilha)';
+      toast('Falha na conexão com a planilha. Usando dados locais.', 'warn');
+    }
+
+    atualizarDashboard();
+    renderizarTabela();
+    renderizarCalendario();
+  }
+
+  function renderizarTabela() {
+    const mesRef = document.getElementById('mesReferencia').value;
+    const busca = document.getElementById('busca').value.toLowerCase().trim();
+    const filtro = document.getElementById('filtroSituacao').value;
+
+    const filtrados = alunos
+      .map(a => ({ ...a, statusCalculado: obterSituacaoCalculada(a, mesRef) }))
+      .filter(a => {
+        const matchTexto =
+          (a.nome || '').toLowerCase().includes(busca) ||
+          (a.instrumento || '').toLowerCase().includes(busca) ||
+          (a.email || '').toLowerCase().includes(busca) ||
+          (a.telefone || '').toLowerCase().includes(busca);
+        const matchSit = !filtro || a.statusCalculado === filtro;
+        return matchTexto && matchSit;
+      });
+
+    if (filtrados.length === 0) {
+      document.getElementById('tabelaContainer').innerHTML =
+        '<p style="text-align:center;color:#6b7280;padding:20px;">Nenhum aluno encontrado.</p>';
+      return;
+    }
+
+    const linhas = filtrados.map(a => {
+      const classeLinha = a.statusCalculado === 'atrasado' ? 'linha-atrasada' : '';
+      return `
+        <tr class="${classeLinha}">
+          <td>
+            <strong>${escaparHTML(a.nome)}</strong>
+            ${a.instrumento ? `<br><small style="color:#4f46e5;font-weight:600">${escaparHTML(a.instrumento)}</small>` : ''}
+            ${a.email ? `<br><small style="color:#6b7280">${escaparHTML(a.email)}</small>` : ''}
+          </td>
+          <td>${escaparHTML(a.telefone || '-')}</td>
+          <td>Dia ${escaparHTML(a.diaVencimento)} <small style="color:#6b7280">(cobrança após +3d)</small></td>
+          <td>${formatarMoeda(a.valorMensalidade)}</td>
+          <td><span class="status ${a.statusCalculado}">${a.statusCalculado}</span></td>
+          <td class="actions">
+            ${a.statusCalculado !== 'pago'
+              ? `<button type="button" class="btn-success btn-sm" data-acao="pagar" data-id="${a.id}" title="Registrar pagamento do mês">✓ Marcar Pago</button>`
+              : ''}
+            <button type="button" class="btn-primary btn-sm" data-acao="recibo" data-id="${a.id}" title="Emitir e editar recibo em PDF">🧾 Recibo</button>
+            <button type="button" class="btn-secondary btn-sm" data-acao="relatorio" data-id="${a.id}" title="Relatório de meses pagos">📊 Relatório</button>
+            ${a.statusCalculado === 'atrasado'
+              ? `
+                <button type="button" class="btn-whats btn-sm" data-acao="whats" data-id="${a.id}" title="Cobrar no WhatsApp">💬 WhatsApp</button>
+                <button type="button" class="btn-danger btn-sm" data-acao="email" data-id="${a.id}" title="Enviar cobrança por e-mail">📧 E-mail</button>
+              `
+              : ''}
+            <button type="button" class="btn-warning btn-sm" data-acao="editar" data-id="${a.id}">✏️</button>
+            <button type="button" class="btn-danger btn-sm" data-acao="excluir" data-id="${a.id}">🗑️</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    document.getElementById('tabelaContainer').innerHTML = `
+      <table>
+        <thead>
+          <tr>
+            <th>Aluno</th>
+            <th>Telefone</th>
+            <th>Vencimento</th>
+            <th>Valor</th>
+            <th>Situação</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody>${linhas}</tbody>
+      </table>
+    `;
+  }
+
+  function renderizarCalendario() {
+    const grid = document.getElementById('calendarioGrid');
+    const mesRef = document.getElementById('mesReferencia').value;
+    const [ano, mes] = mesRef.split('-').map(Number);
+    const primeiroDiaSemana = new Date(ano, mes - 1, 1).getDay();
+    const totalDias = new Date(ano, mes, 0).getDate();
+
+    const hoje = new Date();
+    const ehMesAtual = hoje.getFullYear() === ano && (hoje.getMonth() + 1) === mes;
+    const diaHoje = hoje.getDate();
+
+    const porDia = {};
+    alunos.forEach(a => {
+      const d = Math.min(Number(a.diaVencimento) || 12, totalDias);
+      if (!porDia[d]) porDia[d] = [];
+      porDia[d].push({ ...a, statusCalculado: obterSituacaoCalculada(a, mesRef) });
+    });
+
+    let html = '';
+    for (let i = 0; i < primeiroDiaSemana; i++) {
+      html += `<div class="dia-celula" style="background:#f9fafb;opacity:0.5;"></div>`;
+    }
+
+    for (let dia = 1; dia <= totalDias; dia++) {
+      const classeHoje = ehMesAtual && dia === diaHoje ? 'hoje' : '';
+      const itens = (porDia[dia] || []).map(item =>
+        `<span class="venc-tag ${item.statusCalculado}" title="${escaparHTML(item.nome)} - ${formatarMoeda(item.valorMensalidade)}">
+          ${escaparHTML(item.nome.split(' ')[0])} (${formatarMoeda(item.valorMensalidade)})
+        </span>`
+      ).join('');
+
+      html += `
+        <div class="dia-celula ${classeHoje}">
+          <span class="num">${dia}</span>
+          ${itens}
+        </div>
+      `;
+    }
+
+    grid.innerHTML = html;
+  }
+
+  function abrirModal(titulo, conteudoHtml, mostrarRestaurar = false) {
+    document.getElementById('modalTitulo').textContent = titulo;
+    document.getElementById('areaImpressao').innerHTML = conteudoHtml;
+    document.getElementById('btnRestaurarRecibo').style.display = mostrarRestaurar ? 'inline-block' : 'none';
+    document.getElementById('modalBackdrop').classList.add('aberto');
+  }
+
+  function fecharModal() {
+    alunoReciboAtual = null;
+    document.getElementById('btnRestaurarRecibo').style.display = 'none';
+    document.getElementById('modalBackdrop').classList.remove('aberto');
+  }
+
+  function emitirRecibo(aluno) {
+    alunoReciboAtual = aluno;
+    const emitente = obterEmitente();
+    const mesRef = document.getElementById('mesReferencia').value;
+    const periodoPadrao = calcularPeriodoReferencia(mesRef, aluno.diaVencimento);
+    const emissaoPadrao = new Date().toLocaleDateString('pt-BR');
+    const valorPadrao = Number(aluno.valorMensalidade) || 0;
+    const obsPadrao = 'Documento gerado para comprovação de mensalidade referente ao período acima.';
+
+    const html = `
+      <div class="recibo-box">
+        <div class="recibo-emitente">
+          <h3 id="rec_escola">${escaparHTML(emitente.escola)}</h3>
+          <p id="rec_prof">${escaparHTML(emitente.professor)}</p>
+          <p id="rec_fone_emitente">${escaparHTML(emitente.telefone)}</p>
+        </div>
+
+        <h4 style="color:#111827;margin-bottom:8px;text-align:left;">RECIBO DE MENSALIDADE</h4>
+        <div class="recibo-linha"><span>Aluno(a):</span><strong id="rec_nome">${escaparHTML(aluno.nome)}</strong></div>
+        <div class="recibo-linha"><span>Curso / Instrumento:</span><span id="rec_inst">${escaparHTML(aluno.instrumento || '-')}</span></div>
+        <div class="recibo-linha"><span>Telefone:</span><span id="rec_tel">${escaparHTML(aluno.telefone || '-')}</span></div>
+        <div class="recibo-linha"><span>E-mail:</span><span id="rec_email">${escaparHTML(aluno.email || '-')}</span></div>
+        <div class="recibo-linha"><span>Referente:</span><strong id="rec_ref">${escaparHTML(periodoPadrao)}</strong></div>
+        <div class="recibo-linha"><span>Data de Emissão:</span><span id="rec_emissao">${escaparHTML(emissaoPadrao)}</span></div>
+        <div class="recibo-linha" style="border-bottom:none;font-size:1.1rem;margin-top:6px;">
+          <span>Valor Pago:</span><strong id="rec_valor">${formatarMoeda(valorPadrao)}</strong>
+        </div>
+        <p id="rec_obs" style="margin-top:12px;font-size:0.82rem;color:#6b7280;text-align:left;">
+          ${escaparHTML(obsPadrao)}
+        </p>
+      </div>
+
+      <div class="editor-recibo no-print">
+        <h4>✏️ Editar Dados do Emitente e do Recibo</h4>
+        <div class="editor-grid">
+          <div>
+            <label for="ed_escola">Escola / Instituição</label>
+            <input type="text" id="ed_escola" value="${escaparHTML(emitente.escola)}">
+          </div>
+          <div>
+            <label for="ed_prof">Professor / Responsável</label>
+            <input type="text" id="ed_prof" value="${escaparHTML(emitente.professor)}">
+          </div>
+          <div>
+            <label for="ed_fone_emitente">Telefone do Emitente</label>
+            <input type="text" id="ed_fone_emitente" value="${escaparHTML(emitente.telefone)}">
+          </div>
+          <div>
+            <label for="ed_nome">Aluno(a)</label>
+            <input type="text" id="ed_nome" value="${escaparHTML(aluno.nome)}">
+          </div>
+          <div>
+            <label for="ed_inst">Curso / Instrumento</label>
+            <input type="text" id="ed_inst" value="${escaparHTML(aluno.instrumento || '-')}">
+          </div>
+          <div>
+            <label for="ed_ref">Referente (ex.: 12/10/26 à 12/11/26)</label>
+            <input type="text" id="ed_ref" value="${escaparHTML(periodoPadrao)}">
+          </div>
+          <div>
+            <label for="ed_valor">Valor Pago (R$)</label>
+            <input type="number" id="ed_valor" step="0.01" min="0" value="${valorPadrao}">
+          </div>
+          <div>
+            <label for="ed_emissao">Data de Emissão</label>
+            <input type="text" id="ed_emissao" value="${escaparHTML(emissaoPadrao)}">
+          </div>
+          <div>
+            <label for="ed_tel">Telefone do Aluno</label>
+            <input type="text" id="ed_tel" value="${escaparHTML(aluno.telefone || '-')}">
+          </div>
+          <div>
+            <label for="ed_email">E-mail do Aluno</label>
+            <input type="text" id="ed_email" value="${escaparHTML(aluno.email || '-')}">
+          </div>
+          <div class="editor-full">
+            <label for="ed_obs">Observação / Rodapé do Recibo</label>
+            <input type="text" id="ed_obs" value="${escaparHTML(obsPadrao)}">
+          </div>
+        </div>
+      </div>
+    `;
+
+    abrirModal(`Recibo — ${aluno.nome}`, html, true);
+
+    const bind = (inputId, targetId, transform = (v) => v || '-') => {
+      const inp = document.getElementById(inputId);
+      const out = document.getElementById(targetId);
+      if (inp && out) {
+        inp.addEventListener('input', () => {
+          out.textContent = transform(inp.value);
+          if (['ed_escola', 'ed_prof', 'ed_fone_emitente'].includes(inputId)) {
+            salvarEmitente({
+              escola: document.getElementById('ed_escola')?.value ?? emitente.escola,
+              professor: document.getElementById('ed_prof')?.value ?? emitente.professor,
+              telefone: document.getElementById('ed_fone_emitente')?.value ?? emitente.telefone
+            });
+          }
+        });
+      }
+    };
+
+    bind('ed_escola', 'rec_escola');
+    bind('ed_prof', 'rec_prof');
+    bind('ed_fone_emitente', 'rec_fone_emitente');
+    bind('ed_nome', 'rec_nome');
+    bind('ed_inst', 'rec_inst');
+    bind('ed_ref', 'rec_ref');
+    bind('ed_valor', 'rec_valor', (v) => formatarMoeda(parseFloat(v) || 0));
+    bind('ed_emissao', 'rec_emissao');
+    bind('ed_tel', 'rec_tel');
+    bind('ed_email', 'rec_email');
+    bind('ed_obs', 'rec_obs', (v) => v || '');
+  }
+
+  function abrirRelatorioAluno(alunoId) {
+    const aluno = alunos.find(a => String(a.id) === String(alunoId));
+    if (!aluno) return;
+
+    const emitente = obterEmitente();
+    const mesRef = document.getElementById('mesReferencia').value;
+    const statusAtual = obterSituacaoCalculada(aluno, mesRef);
+    const pagos = Array.isArray(aluno.mesesPagos) ? aluno.mesesPagos : [];
+    const totalPago = pagos.reduce((acc, item) => acc + (Number(item.valor) || 0), 0);
+
+    const linhasPagos = pagos.length > 0
+      ? pagos.map(item => `
+          <tr>
+            <td><strong>${escaparHTML(item.mes)}</strong></td>
+            <td>${escaparHTML(item.periodo || calcularPeriodoReferencia(item.mes, aluno.diaVencimento))}</td>
+            <td>${formatarMoeda(item.valor)}</td>
+            <td>${escaparHTML(item.pagoEm || '-')}</td>
+            <td class="no-print">
+              <button type="button" class="btn-danger btn-sm" data-estornar-mes="${escaparHTML(item.mes)}" data-aluno-id="${escaparHTML(aluno.id)}">Estornar</button>
+            </td>
+          </tr>
+        `).join('')
+      : `<tr><td colspan="5" style="color:#6b7280;text-align:left;">Nenhum mês pago registrado até o momento.</td></tr>`;
+
+    const html = `
+      <div class="recibo-box">
+        <div class="recibo-emitente">
+          <h3>${escaparHTML(emitente.escola)}</h3>
+          <p>${escaparHTML(emitente.professor)}</p>
+          <p>${escaparHTML(emitente.telefone)}</p>
+        </div>
+
+        <h4 style="color:#111827;margin-bottom:8px;text-align:left;">RELATÓRIO DO ALUNO — MESES PAGOS</h4>
+        <div class="recibo-linha"><span>Aluno(a):</span><strong>${escaparHTML(aluno.nome)}</strong></div>
+        <div class="recibo-linha"><span>Curso / Instrumento:</span><span>${escaparHTML(aluno.instrumento || '-')}</span></div>
+        <div class="recibo-linha"><span>Dia de Vencimento:</span><span>Todo dia ${escaparHTML(aluno.diaVencimento)} (cobrança após +3 dias)</span></div>
+        <div class="recibo-linha"><span>Mensalidade Base:</span><span>${formatarMoeda(aluno.valorMensalidade)}</span></div>
+        <div class="recibo-linha"><span>Situação em ${escaparHTML(mesRef)}:</span><span class="status ${statusAtual}">${statusAtual}</span></div>
+        <div class="recibo-linha"><span>Total Já Pago:</span><strong>${formatarMoeda(totalPago)} (${pagos.length} mês/meses)</strong></div>
+
+        <h4 style="margin-top:14px;margin-bottom:8px;color:#374151;text-align:left;">Meses Pagos</h4>
+        <table>
+          <thead>
+            <tr>
+              <th>Mês</th>
+              <th>Referente</th>
+              <th>Valor</th>
+              <th>Pago em</th>
+              <th class="no-print">Ação</th>
+            </tr>
+          </thead>
+          <tbody>${linhasPagos}</tbody>
+        </table>
+      </div>
+    `;
+
+    abrirModal(`Relatório — ${aluno.nome}`, html, false);
+  }
+
+  async function estornarMesPago(alunoId, mes) {
+    const idx = alunos.findIndex(a => String(a.id) === String(alunoId));
+    if (idx === -1) return;
+
+    const aluno = alunos[idx];
+    const novosPagos = (aluno.mesesPagos || []).filter(p => p.mes !== mes);
+    const atualizado = { ...aluno, mesesPagos: novosPagos };
+    alunos[idx] = atualizado;
+
+    salvarCache();
+    atualizarDashboard();
+    renderizarTabela();
+    renderizarCalendario();
+    abrirRelatorioAluno(alunoId);
+
+    if (!modoOffline) {
+      try { await api('atualizar', { aluno: atualizado }); } catch { toast('Estorno salvo localmente.', 'warn'); }
+    }
+    toast(`Pagamento de ${mes} estornado para ${aluno.nome}.`);
+  }
+
+  function cobrarWhatsApp(aluno) {
+    const digitos = (aluno.telefone || '').replace(/\D/g, '');
+    if (!digitos) {
+      toast(`${aluno.nome} não possui telefone cadastrado.`, 'warn');
+      return;
+    }
+    const numeroIntl = digitos.startsWith('55') ? digitos : `55${digitos}`;
+    const mesRef = document.getElementById('mesReferencia').value;
+    const periodo = calcularPeriodoReferencia(mesRef, aluno.diaVencimento);
+    const msg = encodeURIComponent(
+      `Olá ${aluno.nome}, tudo bem? Aqui é da NBM Escola de Música (Prof: Albertino Moura Barbosa Filho). Passando para lembrar da mensalidade de ${formatarMoeda(aluno.valorMensalidade)} referente a ${periodo} (tolerância de 3 dias após o vencimento).`
+    );
+    window.open(`https://wa.me/${numeroIntl}?text=${msg}`, '_blank');
+  }
+
+  async function enviarNotificacaoAtraso(aluno) {
+    const mesRef = document.getElementById('mesReferencia').value;
+    const periodo = calcularPeriodoReferencia(mesRef, aluno.diaVencimento);
+    const assunto = encodeURIComponent(`NBM Escola de Música — Aviso de Mensalidade (${periodo})`);
+    const corpo = encodeURIComponent(
+      `Olá ${aluno.nome},\n\nIdentificamos que a mensalidade de ${formatarMoeda(aluno.valorMensalidade)} referente a ${periodo} encontra-se em aberto após a tolerância de 3 dias do vencimento.\n\nNBM Escola de Música\nProf: Albertino Moura Barbosa Filho\nTel: 71 98679-7547`
+    );
+
+    if (!modoOffline) {
+      try {
+        await api('notificarAtraso', { aluno, mesReferencia: mesRef, periodo });
+        toast(`Notificação enviada/registrada para ${aluno.nome}.`);
+      } catch {
+        // Fallback para cliente de e-mail
+      }
+    }
+
+    if (aluno.email) {
+      window.open(`mailto:${aluno.email}?subject=${assunto}&body=${corpo}`, '_blank');
+    } else {
+      toast(`${aluno.nome} não possui e-mail cadastrado.`, 'warn');
+    }
+  }
+
+  async function marcarComoPago(id) {
+    const idx = alunos.findIndex(a => String(a.id) === String(id));
+    if (idx === -1) return;
+
+    const mesRef = document.getElementById('mesReferencia').value;
+    const aluno = alunos[idx];
+    const pagos = Array.isArray(aluno.mesesPagos) ? [...aluno.mesesPagos] : [];
+
+    if (!pagos.some(p => p.mes === mesRef)) {
+      pagos.push({
+        mes: mesRef,
+        periodo: calcularPeriodoReferencia(mesRef, aluno.diaVencimento),
+        valor: Number(aluno.valorMensalidade) || 0,
+        pagoEm: new Date().toLocaleDateString('pt-BR')
+      });
+    }
+
+    const atualizado = { ...aluno, mesesPagos: pagos };
+    alunos[idx] = atualizado;
+    salvarCache();
+    atualizarDashboard();
+    renderizarTabela();
+    renderizarCalendario();
+
+    if (!modoOffline) {
+      try {
+        await api('atualizar', { aluno: atualizado });
+      } catch {
+        toast('Pagamento salvo localmente; falha ao sincronizar na planilha.', 'warn');
+      }
+    }
+    toast(`Mês ${mesRef} registrado como pago para ${aluno.nome}.`);
+  }
+
+  function limparForm() {
+    document.getElementById('formAluno').reset();
+    document.getElementById('alunoId').value = '';
+    document.getElementById('diaVenc').value = '12';
+    document.getElementById('formTitulo').textContent = '➕ Cadastrar / Editar Aluno (Cadastro Único)';
+    document.getElementById('btnSalvar').textContent = 'Salvar Aluno';
+    document.getElementById('btnCancelar').style.display = 'none';
+  }
+
+  document.getElementById('telefone').addEventListener('input', (e) => {
+    let v = e.target.value.replace(/\D/g, '');
+    v = v.replace(/^(\d{2})(\d)/, '($1) $2');
+    v = v.replace(/(\d)(\d{4})$/, '$1-$2');
+    e.target.value = v;
+  });
+
+  document.getElementById('formAluno').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('btnSalvar');
+    btn.disabled = true;
+
+    const idExistente = document.getElementById('alunoId').value;
+    const anterior = idExistente ? alunos.find(a => String(a.id) === String(idExistente)) : null;
+
+    const dadosAluno = {
+      id: idExistente || String(Date.now()),
+      nome: document.getElementById('nome').value.trim(),
+      instrumento: document.getElementById('instrumento').value.trim(),
+      email: document.getElementById('email').value.trim(),
+      telefone: document.getElementById('telefone').value.trim(),
+      valorMensalidade: parseFloat(document.getElementById('valor').value) || 0,
+      diaVencimento: Math.min(Math.max(parseInt(document.getElementById('diaVenc').value, 10) || 12, 1), 28),
+      mesesPagos: anterior?.mesesPagos || []
+    };
+
+    if (idExistente) {
+      const idx = alunos.findIndex(a => String(a.id) === String(idExistente));
+      if (idx !== -1) alunos[idx] = dadosAluno;
+      if (!modoOffline) {
+        try { await api('atualizar', { aluno: dadosAluno }); } catch { toast('Salvo localmente; erro na planilha.', 'warn'); }
+      }
+      toast('Cadastro do aluno atualizado.');
+    } else {
+      alunos.push(dadosAluno);
+      if (!modoOffline) {
+        try {
+          const r = await api('criar', { aluno: dadosAluno });
+          if (r?.id) dadosAluno.id = r.id;
+        } catch {
+          toast('Cadastrado localmente; erro na planilha.', 'warn');
+        }
+      }
+      toast('Aluno cadastrado.');
+    }
+
+    salvarCache();
+    limparForm();
+    atualizarDashboard();
+    renderizarTabela();
+    renderizarCalendario();
+    btn.disabled = false;
+  });
+
+  document.getElementById('tabelaContainer').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    const acao = btn.dataset.acao;
+    const aluno = alunos.find(a => String(a.id) === String(id));
+    if (!aluno) return;
+
+    if (acao === 'pagar') {
+      await marcarComoPago(id);
+    } else if (acao === 'recibo') {
+      emitirRecibo(aluno);
+    } else if (acao === 'relatorio') {
+      abrirRelatorioAluno(aluno.id);
+    } else if (acao === 'whats') {
+      cobrarWhatsApp(aluno);
+    } else if (acao === 'email') {
+      await enviarNotificacaoAtraso(aluno);
+    } else if (acao === 'editar') {
+      document.getElementById('alunoId').value = aluno.id;
+      document.getElementById('nome').value = aluno.nome || '';
+      document.getElementById('instrumento').value = aluno.instrumento || '';
+      document.getElementById('email').value = aluno.email || '';
+      document.getElementById('telefone').value = aluno.telefone || '';
+      document.getElementById('valor').value = aluno.valorMensalidade || 0;
+      document.getElementById('diaVenc').value = aluno.diaVencimento || 12;
+      document.getElementById('formTitulo').textContent = `✏️ Editando: ${aluno.nome}`;
+      document.getElementById('btnSalvar').textContent = 'Atualizar Aluno';
+      document.getElementById('btnCancelar').style.display = 'inline-block';
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else if (acao === 'excluir') {
+      if (!confirm(`Deseja excluir "${aluno.nome}"?`)) return;
+      alunos = alunos.filter(a => String(a.id) !== String(id));
+      salvarCache();
+      atualizarDashboard();
+      renderizarTabela();
+      renderizarCalendario();
+      if (!modoOffline) {
+        try { await api('excluir', { id }); } catch { toast('Removido localmente; erro na planilha.', 'warn'); }
+      }
+      toast('Aluno excluído.');
+    }
+  });
+
+  document.getElementById('areaImpressao').addEventListener('click', async (e) => {
+    const btn = e.target.closest('button[data-estornar-mes]');
+    if (!btn) return;
+    await estornarMesPago(btn.dataset.alunoId, btn.dataset.estornarMes);
+  });
+
+  document.getElementById('btnNotificarTodosAtrasados').addEventListener('click', async () => {
+    const mesRef = document.getElementById('mesReferencia').value;
+    const atrasados = alunos.filter(a => obterSituacaoCalculada(a, mesRef) === 'atrasado');
+    if (atrasados.length === 0) return;
+    const destinos = atrasados.map(a => a.email).filter(Boolean).join(',');
+    if (!modoOffline) {
+      try { await api('notificarAtrasados', { alunos: atrasados, mesReferencia: mesRef }); } catch {}
+    }
+    if (destinos) {
+      window.open(`mailto:${destinos}?subject=${encodeURIComponent(`NBM Escola de Música — Lembrete (${mesRef})`)}`, '_blank');
+    } else {
+      toast('Nenhum aluno atrasado possui e-mail cadastrado.', 'warn');
+    }
+  });
+
+  document.getElementById('btnExportarBackup').addEventListener('click', () => {
+    const payload = JSON.stringify({ emitente: obterEmitente(), alunos }, null, 2);
+    const blob = new Blob([payload], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `backup-nbm-mensalidades-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('Backup exportado em JSON.');
+  });
+
+  document.getElementById('btnImportarBackup').addEventListener('click', () => {
+    document.getElementById('inputArquivoBackup').click();
+  });
+
+  document.getElementById('inputArquivoBackup').addEventListener('change', (e) => {
+    const arquivo = e.target.files?.[0];
+    if (!arquivo) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result));
+        if (Array.isArray(parsed.alunos)) {
+          alunos = parsed.alunos;
+          salvarCache();
+        }
+        if (parsed.emitente) {
+          salvarEmitente(parsed.emitente);
+        }
+        atualizarDashboard();
+        renderizarTabela();
+        renderizarCalendario();
+        toast('Backup restaurado com sucesso.');
+      } catch {
+        toast('Arquivo de backup inválido.', 'error');
+      }
+      e.target.value = '';
+    };
+    reader.readAsText(arquivo);
+  });
+
+  document.getElementById('btnRestaurarRecibo').addEventListener('click', () => {
+    localStorage.removeItem(CHAVE_EMITENTE);
+    if (alunoReciboAtual) {
+      emitirRecibo(alunoReciboAtual);
+      toast('Campos do recibo restaurados para o padrão.');
+    }
+  });
+
+  document.getElementById('btnCancelar').addEventListener('click', limparForm);
+  document.getElementById('btnAtualizar').addEventListener('click', carregarAlunos);
+  document.getElementById('btnFecharModal').addEventListener('click', fecharModal);
+  document.getElementById('btnFecharModalRodape').addEventListener('click', fecharModal);
+  document.getElementById('btnImprimirPdf').addEventListener('click', () => window.print());
+  document.getElementById('modalBackdrop').addEventListener('click', (e) => {
+    if (e.target.id === 'modalBackdrop') fecharModal();
+  });
+
+  document.getElementById('busca').addEventListener('input', renderizarTabela);
+  document.getElementById('filtroSituacao').addEventListener('change', renderizarTabela);
+  document.getElementById('mesReferencia').addEventListener('change', () => {
+    atualizarDashboard();
+    renderizarTabela();
+    renderizarCalendario();
+  });
+
+  // Inicializa com o mês atual
+  const agora = new Date();
+  document.getElementById('mesReferencia').value =
+    `${agora.getFullYear()}-${String(agora.getMonth() + 1).padStart(2, '0')}`;
+
+  carregarAlunos();
+</script>
+</body>
+</html>
