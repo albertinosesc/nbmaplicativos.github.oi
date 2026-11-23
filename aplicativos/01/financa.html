@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>💰 Gestão Financeira + Google Sheets</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+  body {
+    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+    min-height: 100vh;
+    color: #e2e8f0;
+    padding: 20px;
+  }
+  .container { max-width: 1350px; margin: 0 auto; }
+  
+  header {
+    text-align: center;
+    margin-bottom: 25px;
+    padding: 25px;
+    background: rgba(255,255,255,0.05);
+    border-radius: 15px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  header h1 { font-size: 2em; color: #4ade80; margin-bottom: 5px; }
+  header p { color: #94a3b8; font-size: 0.95em; }
+
+  /* Barra de filtro de visualização */
+  .filtro-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    background: rgba(255,255,255,0.05);
+    padding: 15px 20px;
+    border-radius: 12px;
+    margin-bottom: 18px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .filtro-label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.95em;
+    font-weight: 600;
+    color: #e2e8f0;
+  }
+  .filtro-label span.badge {
+    font-size: 0.78em;
+    font-weight: 600;
+    padding: 3px 9px;
+    border-radius: 999px;
+    background: rgba(45, 212, 191, 0.16);
+    color: #2dd4bf;
+    border: 1px solid rgba(45, 212, 191, 0.35);
+  }
+  .filtro-controles {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+  }
+  .filtro-select {
+    min-width: 240px;
+    padding: 10px 14px;
+    background: rgba(15, 32, 39, 0.9);
+    border: 1px solid rgba(74, 222, 128, 0.4);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.95em;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  .filtro-select:focus {
+    outline: none;
+    border-color: #4ade80;
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.15);
+  }
+  .acoes-filtro {
+    display: none;
+    gap: 8px;
+  }
+  .btn-filtro-edit {
+    padding: 10px 14px;
+    background: rgba(96, 165, 250, 0.2);
+    color: #60a5fa;
+    border: 1px solid rgba(96, 165, 250, 0.4);
+    border-radius: 8px;
+    font-size: 0.88em;
+  }
+  .btn-filtro-edit:hover { background: #3b82f6; color: #fff; }
+  .btn-filtro-del {
+    padding: 10px 14px;
+    background: rgba(248, 113, 113, 0.2);
+    color: #f87171;
+    border: 1px solid rgba(248, 113, 113, 0.4);
+    border-radius: 8px;
+    font-size: 0.88em;
+  }
+  .btn-filtro-del:hover { background: #ef4444; color: #fff; }
+
+  /* Cards de resumo */
+  .resumo {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+    gap: 15px;
+    margin-bottom: 30px;
+  }
+  .card {
+    background: rgba(255,255,255,0.08);
+    padding: 20px;
+    border-radius: 12px;
+    border-left: 4px solid;
+    backdrop-filter: blur(10px);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .card:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(0,0,0,0.2); }
+  .card h3 { font-size: 0.8em; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+  .card .valor { font-size: 1.35em; font-weight: bold; }
+  
+  .card.patrimonio { border-color: #2dd4bf; background: rgba(45, 212, 191, 0.12); } 
+  .card.patrimonio .valor { color: #2dd4bf; }
+  
+  .card.saldo { border-color: #4ade80; } .card.saldo .valor { color: #4ade80; }
+  .card.cofre { border-color: #a78bfa; } .card.cofre .valor { color: #a78bfa; }
+  .card.invest { border-color: #60a5fa; } .card.invest .valor { color: #60a5fa; }
+  .card.limite { border-color: #fbbf24; } .card.limite .valor { color: #fbbf24; }
+  .card.fatura { border-color: #f87171; } .card.fatura .valor { color: #f87171; }
+
+  /* Seções */
+  .section-box {
+    background: rgba(255,255,255,0.05);
+    padding: 25px;
+    border-radius: 15px;
+    margin-bottom: 25px;
+    border: 1px solid rgba(255,255,255,0.1);
+  }
+  .section-box h2 { margin-bottom: 20px; color: #4ade80; font-size: 1.2em; display: flex; align-items: center; gap: 8px; }
+
+  /* Formulário */
+  .form-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+  }
+  .form-group label {
+    display: block;
+    font-size: 0.8em;
+    color: #94a3b8;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .form-group input {
+    width: 100%;
+    padding: 10px 12px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 8px;
+    color: #fff;
+    font-size: 0.95em;
+    transition: all 0.2s;
+  }
+  .form-group input:focus {
+    outline: none;
+    border-color: #4ade80;
+    background: rgba(0,0,0,0.5);
+    box-shadow: 0 0 0 3px rgba(74, 222, 128, 0.1);
+  }
+  .btn-group { grid-column: 1 / -1; display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  
+  button {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 0.9em;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .btn-add { background: #4ade80; color: #0f2027; }
+  .btn-add:hover { background: #22c55e; transform: translateY(-2px); }
+  .btn-fetch { background: #10b981; color: #0f2027; }
+  .btn-fetch:hover { background: #059669; color: #fff; transform: translateY(-2px); }
+  .btn-sync { background: #3b82f6; color: #fff; }
+  .btn-sync:hover { background: #2563eb; transform: translateY(-2px); }
+  .btn-export { background: #8b5cf6; color: #fff; }
+  .btn-export:hover { background: #7c3aed; transform: translateY(-2px); }
+  .btn-cancel { background: #64748b; color: #fff; }
+  .btn-cancel:hover { background: #475569; }
+
+  /* Status */
+  #statusGoogle {
+    grid-column: 1 / -1;
+    padding: 12px;
+    border-radius: 8px;
+    display: none;
+    font-size: 0.9em;
+    font-weight: 500;
+    margin-top: 10px;
+  }
+  .status-success { background: rgba(74, 222, 128, 0.15); color: #4ade80; border: 1px solid rgba(74, 222, 128, 0.3); }
+  .status-error { background: rgba(248, 113, 113, 0.15); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+  .status-loading { background: rgba(251, 191, 36, 0.15); color: #fbbf24; border: 1px solid rgba(251, 191, 36, 0.3); }
+
+  /* Tabela */
+  .table-container { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; min-width: 1000px; }
+  thead th {
+    background: rgba(74, 222, 128, 0.1);
+    padding: 14px 10px;
+    text-align: left;
+    font-size: 0.8em;
+    text-transform: uppercase;
+    color: #4ade80;
+    letter-spacing: 0.5px;
+    border-bottom: 2px solid rgba(74, 222, 128, 0.2);
+  }
+  tbody td {
+    padding: 14px 10px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    font-size: 0.9em;
+  }
+  tbody tr:hover { background: rgba(255,255,255,0.03); }
+  .acoes { display: flex; gap: 6px; }
+  .btn-edit, .btn-del {
+    padding: 6px 12px;
+    font-size: 0.85em;
+    border-radius: 6px;
+  }
+  .btn-edit { background: rgba(96, 165, 250, 0.2); color: #60a5fa; border: 1px solid rgba(96, 165, 250, 0.3); }
+  .btn-edit:hover { background: #3b82f6; color: #fff; }
+  .btn-del { background: rgba(248, 113, 113, 0.2); color: #f87171; border: 1px solid rgba(248, 113, 113, 0.3); }
+  .btn-del:hover { background: #ef4444; color: #fff; }
+  
+  .vazio { text-align: center; padding: 40px; color: #94a3b8; font-style: italic; }
+  .nome-banco { font-weight: bold; color: #4ade80; }
+  .valor-positivo { color: #4ade80; }
+  .valor-negativo { color: #f87171; }
+  .valor-total-banco { font-weight: bold; color: #2dd4bf; }
+
+  .url-info {
+    grid-column: 1 / -1;
+    background: rgba(59, 130, 246, 0.1);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    padding: 12px;
+    border-radius: 8px;
+    font-size: 0.85em;
+    color: #93c5fd;
+    margin-bottom: 10px;
+  }
+  .url-info code {
+    background: rgba(0,0,0,0.3);
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: #60a5fa;
+    word-break: break-all;
+  }
+
+  @media (max-width: 600px) {
+    header h1 { font-size: 1.5em; }
+    .card .valor { font-size: 1.2em; }
+    body { padding: 10px; }
+    .btn-group { flex-direction: column; }
+    button { width: 100%; justify-content: center; }
+    .filtro-controles, .filtro-select, .acoes-filtro { width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>💰 Gestão Financeira</h1>
+    <p>Controle completo com sincronização automática no Google Sheets</p>
+  </header>
+
+  <!-- Seletor de Visualização: Todos ou Um Banco -->
+  <div class="filtro-bar">
+    <div class="filtro-label">
+      <span>🔎 Visualizando:</span>
+      <span class="badge" id="badgeVisualizacao">Todos os Bancos</span>
+    </div>
+    <div class="filtro-controles">
+      <select id="filtroBanco" class="filtro-select" onchange="alterarVisualizacao()">
+        <option value="TODOS">🌐 Todos os Bancos (Consolidado)</option>
+      </select>
+      <div class="acoes-filtro" id="acoesFiltro">
+        <button type="button" class="btn-filtro-edit" onclick="editarSelecionado()" title="Editar este banco">✏️ Editar</button>
+        <button type="button" class="btn-filtro-del" onclick="excluirSelecionado()" title="Excluir este banco">🗑️ Excluir</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Resumo -->
+  <div class="resumo">
+    <div class="card patrimonio">
+      <h3>💎 Patrimônio Total</h3>
+      <div class="valor" id="totalGeral">R$ 0,00</div>
+    </div>
+    <div class="card saldo">
+      <h3>Saldo em Conta</h3>
+      <div class="valor" id="totalSaldo">R$ 0,00</div>
+    </div>
+    <div class="card cofre">
+      <h3>Cofrinhos</h3>
+      <div class="valor" id="totalCofrinhos">R$ 0,00</div>
+    </div>
+    <div class="card invest">
+      <h3>Investimentos</h3>
+      <div class="valor" id="totalInvestimentos">R$ 0,00</div>
+    </div>
+    <div class="card limite">
+      <h3>Limite Cartões</h3>
+      <div class="valor" id="totalLimite">R$ 0,00</div>
+    </div>
+    <div class="card fatura">
+      <h3>Faturas</h3>
+      <div class="valor" id="totalFaturas">R$ 0,00</div>
+    </div>
+  </div>
+
+  <!-- Formulário -->
+  <div class="section-box" id="boxFormulario">
+    <h2 id="formTitulo">➕ Adicionar Novo Banco</h2>
+    <form id="formBanco">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Nome do Banco</label>
+          <input type="text" id="nome" required placeholder="Ex: Nubank">
+        </div>
+        <div class="form-group">
+          <label>Saldo (R$)</label>
+          <input type="number" id="saldo" step="0.01" value="0">
+        </div>
+        <div class="form-group">
+          <label>Cofrinhos (R$)</label>
+          <input type="number" id="cofrinhos" step="0.01" value="0">
+        </div>
+        <div class="form-group">
+          <label>Investimentos (R$)</label>
+          <input type="number" id="investimento" step="0.01" value="0">
+        </div>
+        <div class="form-group">
+          <label>Limite Cartão (R$)</label>
+          <input type="number" id="limiteCartao" step="0.01" value="0">
+        </div>
+        <div class="form-group">
+          <label>Fatura Cartão (R$)</label>
+          <input type="number" id="fatura" step="0.01" value="0">
+        </div>
+        <div class="form-group">
+          <label>Melhor Dia Compra</label>
+          <input type="number" id="diaMelhorCompra" min="1" max="31" placeholder="Ex: 15">
+        </div>
+        <div class="form-group">
+          <label>Vencimento Cartão</label>
+          <input type="number" id="vencimentoCartao" min="1" max="31" placeholder="Ex: 22">
+        </div>
+        <div class="btn-group">
+          <button type="submit" class="btn-add" id="btnSalvar">💾 Salvar Banco</button>
+          <button type="button" class="btn-cancel" id="btnCancelar" style="display:none;">❌ Cancelar Edição</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <!-- Sincronização Google Sheets -->
+  <div class="section-box">
+    <h2>🔄 Sincronização com Google Sheets</h2>
+    <div class="form-grid">
+      <div class="url-info">
+        ✅ Conectado ao script: <code id="displayUrl">Carregando...</code>
+      </div>
+      <div class="btn-group">
+        <button type="button" class="btn-fetch" onclick="importarDoGoogle()">📥 Buscar / Atualizar da Planilha</button>
+        <button type="button" class="btn-sync" onclick="exportarTudoParaGoogle()">📤 Exportar Todos os Bancos</button>
+        <button type="button" class="btn-cancel" onclick="limparDadosLocais()">🗑️ Limpar Dados do Navegador</button>
+      </div>
+      <div id="statusGoogle"></div>
+    </div>
+  </div>
+
+  <!-- Tabela -->
+  <div class="section-box">
+    <h2 id="tituloTabela">🏦 Bancos Cadastrados</h2>
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th>Banco</th>
+            <th>Saldo</th>
+            <th>Cofrinhos</th>
+            <th>Investimentos</th>
+            <th>Total Acumulado</th>
+            <th>Limite Cartão</th>
+            <th>Fatura</th>
+            <th>Melhor Dia</th>
+            <th>Vencimento</th>
+            <th>Ações</th>
+          </tr>
+        </thead>
+        <tbody id="tabelaBancos"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+  const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzj15sR2xrqACBcZvePW-LIRHczrVr5YCYn-11IovfiXi1gUJ-UygEIdvWgJQHzm9Qv/exec";
+  
+  document.getElementById('displayUrl').textContent = GOOGLE_SCRIPT_URL.substring(0, 50) + "...";
+
+  let bancos = JSON.parse(localStorage.getItem('bancos')) || [];
+  let bancoSelecionado = 'TODOS';
+  let editandoId = null;
+
+  const form = document.getElementById('formBanco');
+  const tabela = document.getElementById('tabelaBancos');
+  const formTitulo = document.getElementById('formTitulo');
+  const btnCancelar = document.getElementById('btnCancelar');
+  const btnSalvar = document.getElementById('btnSalvar');
+  const filtroSelect = document.getElementById('filtroBanco');
+  const badgeVisualizacao = document.getElementById('badgeVisualizacao');
+  const tituloTabela = document.getElementById('tituloTabela');
+  const acoesFiltro = document.getElementById('acoesFiltro');
+
+  function formatarMoeda(valor) {
+    return 'R$ ' + Number(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function salvarLocal() {
+    localStorage.setItem('bancos', JSON.stringify(bancos));
+  }
+
+  function parseNumero(valor) {
+    if (typeof valor === 'number') return Number.isFinite(valor) ? valor : 0;
+    if (!valor) return 0;
+    const limpo = String(valor)
+      .replace(/R\$/gi, '')
+      .replace(/\s+/g, '')
+      .replace(/\.(?=\d{3}(?:,|$))/g, '')
+      .replace(',', '.');
+    const num = parseFloat(limpo);
+    return Number.isFinite(num) ? num : 0;
+  }
+
+  function normalizarBanco(item, indice) {
+    const src = item && item.banco && typeof item.banco === 'object' ? item.banco : item;
+    return {
+      id: src.id || src.ID || `${Date.now()}_${indice}`,
+      nome: String(src.nome || src.banco || src.Banco || `Banco ${indice + 1}`).trim(),
+      saldo: parseNumero(src.saldo ?? src.Saldo),
+      cofrinhos: parseNumero(src.cofrinhos ?? src.Cofrinhos ?? src.cofrinho),
+      investimento: parseNumero(src.investimento ?? src.investimentos ?? src.Investimentos),
+      limiteCartao: parseNumero(src.limiteCartao ?? src.limite ?? src.Limite ?? src['Limite Cartão']),
+      fatura: parseNumero(src.fatura ?? src.Fatura ?? src['Fatura Cartão']),
+      diaMelhorCompra: src.diaMelhorCompra ?? src.melhorDia ?? src['Melhor Dia'] ?? '',
+      vencimentoCartao: src.vencimentoCartao ?? src.vencimento ?? src.Vencimento ?? ''
+    };
+  }
+
+  function atualizarSeletorBancos() {
+    if (bancoSelecionado !== 'TODOS' && !bancos.some(b => String(b.id) === String(bancoSelecionado))) {
+      bancoSelecionado = 'TODOS';
+    }
+
+    filtroSelect.innerHTML = '<option value="TODOS">🌐 Todos os Bancos (Consolidado)</option>';
+    bancos.forEach(b => {
+      const option = document.createElement('option');
+      option.value = String(b.id);
+      option.textContent = `🏦 ${b.nome}`;
+      if (String(b.id) === String(bancoSelecionado)) {
+        option.selected = true;
+      }
+      filtroSelect.appendChild(option);
+    });
+
+    if (bancoSelecionado === 'TODOS') {
+      badgeVisualizacao.textContent = 'Todos os Bancos';
+      tituloTabela.textContent = '🏦 Bancos Cadastrados';
+      acoesFiltro.style.display = 'none';
+    } else {
+      const atual = bancos.find(b => String(b.id) === String(bancoSelecionado));
+      const nomeBanco = atual ? atual.nome : 'Banco';
+      badgeVisualizacao.textContent = `Apenas: ${nomeBanco}`;
+      tituloTabela.textContent = `🏦 Detalhes de: ${nomeBanco}`;
+      acoesFiltro.style.display = 'flex';
+    }
+  }
+
+  function getBancosFiltrados() {
+    if (bancoSelecionado === 'TODOS') return bancos;
+    return bancos.filter(b => String(b.id) === String(bancoSelecionado));
+  }
+
+  window.alterarVisualizacao = function() {
+    bancoSelecionado = filtroSelect.value;
+    atualizarSeletorBancos();
+    renderizarTabela();
+  };
+
+  window.editarSelecionado = function() {
+    if (bancoSelecionado !== 'TODOS') {
+      editar(bancoSelecionado);
+    }
+  };
+
+  window.excluirSelecionado = function() {
+    if (bancoSelecionado !== 'TODOS') {
+      excluir(bancoSelecionado);
+    }
+  };
+
+  function atualizarResumo(lista) {
+    let totalSaldo = 0, totalCofrinhos = 0, totalInvest = 0, totalLimite = 0, totalFaturas = 0;
+    lista.forEach(b => {
+      totalSaldo += Number(b.saldo) || 0;
+      totalCofrinhos += Number(b.cofrinhos) || 0;
+      totalInvest += Number(b.investimento) || 0;
+      totalLimite += Number(b.limiteCartao) || 0;
+      totalFaturas += Number(b.fatura) || 0;
+    });
+
+    const patrimonioTotal = totalSaldo + totalCofrinhos + totalInvest;
+
+    document.getElementById('totalGeral').textContent = formatarMoeda(patrimonioTotal);
+    document.getElementById('totalSaldo').textContent = formatarMoeda(totalSaldo);
+    document.getElementById('totalCofrinhos').textContent = formatarMoeda(totalCofrinhos);
+    document.getElementById('totalInvestimentos').textContent = formatarMoeda(totalInvest);
+    document.getElementById('totalLimite').textContent = formatarMoeda(totalLimite);
+    document.getElementById('totalFaturas').textContent = formatarMoeda(totalFaturas);
+  }
+
+  function renderizarTabela() {
+    atualizarSeletorBancos();
+    const lista = getBancosFiltrados();
+
+    if (lista.length === 0) {
+      tabela.innerHTML = '<tr><td colspan="10" class="vazio">Nenhum banco cadastrado ainda. Adicione o primeiro acima ou busque da planilha!</td></tr>';
+      atualizarResumo([]);
+      return;
+    }
+
+    tabela.innerHTML = lista.map(b => {
+      const totalBanco = (Number(b.saldo) || 0) + (Number(b.cofrinhos) || 0) + (Number(b.investimento) || 0);
+      
+      return `
+        <tr>
+          <td class="nome-banco">${b.nome}</td>
+          <td class="${b.saldo >= 0 ? 'valor-positivo' : 'valor-negativo'}">${formatarMoeda(b.saldo)}</td>
+          <td>${formatarMoeda(b.cofrinhos)}</td>
+          <td class="valor-positivo">${formatarMoeda(b.investimento)}</td>
+          <td class="valor-total-banco">${formatarMoeda(totalBanco)}</td>
+          <td>${formatarMoeda(b.limiteCartao)}</td>
+          <td class="${b.fatura > 0 ? 'valor-negativo' : ''}">${formatarMoeda(b.fatura)}</td>
+          <td>${b.diaMelhorCompra || '-'}</td>
+          <td>${b.vencimentoCartao || '-'}</td>
+          <td class="acoes">
+            <button class="btn-edit" onclick="editar('${b.id}')" title="Editar">✏️</button>
+            <button class="btn-del" onclick="excluir('${b.id}')" title="Excluir">🗑️</button>
+          </td>
+        </tr>
+      `;
+    }).join('');
+
+    atualizarResumo(lista);
+  }
+
+  window.importarDoGoogle = async function() {
+    mostrarStatus('⏳ Buscando e atualizando dados da planilha do Google...', 'loading');
+    try {
+      const sep = GOOGLE_SCRIPT_URL.includes('?') ? '&' : '?';
+      const resposta = await fetch(`${GOOGLE_SCRIPT_URL}${sep}acao=LISTAR&_t=${Date.now()}`, {
+        method: 'GET',
+        cache: 'no-store'
+      });
+
+      if (!resposta.ok) {
+        throw new Error(`HTTP ${resposta.status}`);
+      }
+
+      const payload = await resposta.json();
+      const listaBruta = Array.isArray(payload)
+        ? payload
+        : (payload.bancos || payload.dados || payload.data || payload.items || []);
+
+      if (!Array.isArray(listaBruta)) {
+        throw new Error('Formato de resposta inválido da planilha.');
+      }
+
+      bancos = listaBruta
+        .map((item, idx) => normalizarBanco(item, idx))
+        .filter(b => b.nome.length > 0);
+
+      editandoId = null;
+      form.reset();
+      formTitulo.textContent = '➕ Adicionar Novo Banco';
+      btnSalvar.textContent = '💾 Salvar Banco';
+      btnCancelar.style.display = 'none';
+
+      salvarLocal();
+      renderizarTabela();
+      mostrarStatus(`✅ Dados atualizados da planilha! (${bancos.length} banco(s) carregado(s))`, 'success');
+    } catch (erro) {
+      mostrarStatus(`❌ Não foi possível buscar da planilha: ${erro.message}. Verifique se o Apps Script possui doGet() e acesso público ("Qualquer pessoa").`, 'error');
+    }
+  };
+
+  async function enviarParaGoogle(banco, acao) {
+    mostrarStatus('⏳ Sincronizando com o Google Sheets...', 'loading');
+    try {
+      await fetch(GOOGLE_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ acao: acao, banco: banco })
+      });
+      mostrarStatus(`✅ "${banco.nome}" foi salvo na sua planilha do Google!`, 'success');
+      return true;
+    } catch (erro) {
+      mostrarStatus(`❌ Erro ao sincronizar: ${erro.message}. Os dados foram salvos apenas no navegador.`, 'error');
+      return false;
+    }
+  }
+
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const dados = {
+      nome: document.getElementById('nome').value.trim(),
+      saldo: parseFloat(document.getElementById('saldo').value) || 0,
+      cofrinhos: parseFloat(document.getElementById('cofrinhos').value) || 0,
+      investimento: parseFloat(document.getElementById('investimento').value) || 0,
+      limiteCartao: parseFloat(document.getElementById('limiteCartao').value) || 0,
+      fatura: parseFloat(document.getElementById('fatura').value) || 0,
+      diaMelhorCompra: document.getElementById('diaMelhorCompra').value || '',
+      vencimentoCartao: document.getElementById('vencimentoCartao').value || ''
+    };
+
+    if (editandoId !== null) {
+      const idx = bancos.findIndex(b => String(b.id) === String(editandoId));
+      bancos[idx] = { ...bancos[idx], ...dados };
+      const bancoAtualizado = bancos[idx];
+      editandoId = null;
+      formTitulo.textContent = '➕ Adicionar Novo Banco';
+      btnSalvar.textContent = '💾 Salvar Banco';
+      btnCancelar.style.display = 'none';
+      await enviarParaGoogle(bancoAtualizado, 'EDITADO');
+    } else {
+      dados.id = Date.now();
+      bancos.push(dados);
+      await enviarParaGoogle(dados, 'ADICIONADO');
+    }
+
+    salvarLocal();
+    renderizarTabela();
+    form.reset();
+  });
+
+  btnCancelar.addEventListener('click', () => {
+    editandoId = null;
+    form.reset();
+    formTitulo.textContent = '➕ Adicionar Novo Banco';
+    btnSalvar.textContent = '💾 Salvar Banco';
+    btnCancelar.style.display = 'none';
+  });
+
+  window.editar = function(id) {
+    const b = bancos.find(x => String(x.id) === String(id));
+    if (!b) return;
+    document.getElementById('nome').value = b.nome;
+    document.getElementById('saldo').value = b.saldo;
+    document.getElementById('cofrinhos').value = b.cofrinhos;
+    document.getElementById('investimento').value = b.investimento;
+    document.getElementById('limiteCartao').value = b.limiteCartao;
+    document.getElementById('fatura').value = b.fatura;
+    document.getElementById('diaMelhorCompra').value = b.diaMelhorCompra;
+    document.getElementById('vencimentoCartao').value = b.vencimentoCartao;
+    
+    editandoId = b.id;
+    formTitulo.textContent = '✏️ Editando: ' + b.nome;
+    btnSalvar.textContent = '💾 Atualizar Banco';
+    btnCancelar.style.display = 'inline-block';
+    document.getElementById('boxFormulario').scrollIntoView({ behavior: 'smooth' });
+  };
+
+  window.excluir = async function(id) {
+    const b = bancos.find(x => String(x.id) === String(id));
+    if (!b) return;
+    if (confirm(`Deseja realmente excluir o banco "${b.nome}"?`)) {
+      if (String(editandoId) === String(id)) {
+        editandoId = null;
+        form.reset();
+        formTitulo.textContent = '➕ Adicionar Novo Banco';
+        btnSalvar.textContent = '💾 Salvar Banco';
+        btnCancelar.style.display = 'none';
+      }
+      bancos = bancos.filter(x => String(x.id) !== String(id));
+      salvarLocal();
+      renderizarTabela();
+      await enviarParaGoogle({ nome: b.nome, id: id }, 'EXCLUIDO');
+    }
+  };
+
+  window.exportarTudoParaGoogle = async function() {
+    if (bancos.length === 0) {
+      mostrarStatus('⚠️ Nenhum banco para exportar!', 'error');
+      return;
+    }
+    mostrarStatus(`⏳ Exportando ${bancos.length} bancos para o Google Sheets...`, 'loading');
+    
+    for (const banco of bancos) {
+      await enviarParaGoogle(banco, 'EXPORTACAO_EM_MASSA');
+      await new Promise(r => setTimeout(r, 400));
+    }
+    mostrarStatus(`✅ Todos os ${bancos.length} bancos foram enviados para a planilha!`, 'success');
+  };
+
+  window.limparDadosLocais = function() {
+    if (confirm('ATENÇÃO: Isso apagará TODOS os dados salvos no seu navegador. Os dados na planilha do Google NÃO serão afetados. Deseja continuar?')) {
+      bancos = [];
+      bancoSelecionado = 'TODOS';
+      editandoId = null;
+      form.reset();
+      formTitulo.textContent = '➕ Adicionar Novo Banco';
+      btnSalvar.textContent = '💾 Salvar Banco';
+      btnCancelar.style.display = 'none';
+      salvarLocal();
+      renderizarTabela();
+      mostrarStatus('🗑️ Dados locais apagados com sucesso.', 'success');
+    }
+  };
+
+  function mostrarStatus(msg, tipo) {
+    const el = document.getElementById('statusGoogle');
+    el.textContent = msg;
+    el.style.display = 'block';
+    el.className = '';
+    
+    if (tipo === 'success') el.classList.add('status-success');
+    else if (tipo === 'error') el.classList.add('status-error');
+    else if (tipo === 'loading') el.classList.add('status-loading');
+    
+    if (tipo !== 'loading') {
+      setTimeout(() => { el.style.display = 'none'; }, 6000);
+    }
+  }
+
+  // Inicialização
+  renderizarTabela();
+</script>
+</body>
+</html>
