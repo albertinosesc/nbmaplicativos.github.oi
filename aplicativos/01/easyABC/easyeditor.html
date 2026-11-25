@@ -1016,7 +1016,8 @@
 <div class="app">
  <header>
 
-  <div class="headerTitleBlock"><h1>EasyABC Editor</h1><div id="sourceStatus" class="headerSourceStatus" role="status" aria-live="polite" aria-atomic="true" title="No tunes loaded">No tunes loaded</div></div>
+  <div class="headerTitleBlock"><h1>Editor</h1><div id="sourceStatus" class="headerSourceStatus" role="status" aria-live="polite" aria-atomic="true" title="No tunes loaded">No tunes loaded</div></div>
+<button id="githubBtn" class="corner" type="button" style="left:auto;right:110px;">GitHub</button>
   <button id="instructionsBtn" class="corner right" type="button">Instructions</button>
  </header>
  <main class="workspace">
@@ -1312,6 +1313,39 @@
     <div class="lessonStudentScroll"><div id="studentLessonInstructions" class="lessonStudentText"></div></div>
     <div class="lessonLockedNote">&nbsp;</div>
     <div class="lessonActions"><button id="studentLessonStartBtn" type="button">Start Lesson</button></div>
+  </div>
+</div>
+
+<div id="githubModal" class="lessonModal" role="dialog" aria-modal="true" aria-labelledby="githubModalTitle">
+  <div class="lessonDialog" style="width:min(560px,calc(100vw - 28px));">
+    <h2 id="githubModalTitle">GitHub</h2>
+
+    <label for="ghToken">Personal Access Token (PAT)</label>
+    <input id="ghToken" type="password" placeholder="ghp_..." autocomplete="off">
+
+    <label for="ghOwner">Usuário / Organização</label>
+    <input id="ghOwner" type="text" placeholder="ex: michaeleskin">
+
+    <label for="ghRepo">Repositório</label>
+    <input id="ghRepo" type="text" placeholder="ex: abc-tunebooks">
+
+    <label for="ghBranch">Branch</label>
+    <input id="ghBranch" type="text" value="main">
+
+    <label for="ghPath">Pasta / arquivo</label>
+    <input id="ghPath" type="text" placeholder="ex: tunes/meu-tunebook.abc">
+
+    <div class="lessonHint">O token fica salvo apenas no <code>localStorage</code> deste navegador. Use um PAT com escopo <b>repo</b> (fine-grained: <i>Contents: Read & Write</i>).</div>
+
+    <div class="lessonActions">
+      <button id="ghSaveBtn" type="button">Salvar no GitHub</button>
+      <button id="ghFetchBtn" type="button">Buscar do GitHub</button>
+      <button id="ghUpdateBtn" type="button">Atualizar</button>
+      <button id="ghDeleteBtn" type="button">Excluir</button>
+    </div>
+
+    <div class="lessonCloseRow"><button id="ghCloseBtn" type="button">Fechar</button></div>
+    <div id="ghStatus" class="lessonHint" style="text-align:center;margin-top:8px;"></div>
   </div>
 </div>
 <script>
@@ -4181,6 +4215,183 @@ function ViewerExternal_SendAll(dest,name,abc){
   timers.push(setInterval(()=>{if(tab?.closed&&!done)fail('The '+name+' window closed before transfer was confirmed.');},1000));
   timers.push(setTimeout(()=>{if(!done)fail(!ready?'The '+name+' did not report that it was ready to receive ABC tunes.':'The '+name+' did not confirm that the ABC tunes loaded. If the tunes are not visible, open the saved ABC file in that tool.');},15000));
 }
+
+/* ===================== GitHub Integration ===================== */
+const GH = {
+  token:  localStorage.getItem('gh_token')  || '',
+  owner:  localStorage.getItem('gh_owner')  || '',
+  repo:   localStorage.getItem('gh_repo')   || '',
+  branch: localStorage.getItem('gh_branch') || 'main',
+  path:   localStorage.getItem('gh_path')   || '',
+  sha:    null,
+
+  api(path) {
+    return `https://api.github.com/repos/${this.owner}/${this.repo}/contents/${encodeURIComponent(path)}`;
+  },
+
+  headers() {
+    return {
+      'Authorization': `Bearer ${this.token}`,
+      'Accept': 'application/vnd.github+json',
+      'X-GitHub-Api-Version': '2022-11-28'
+    };
+  },
+
+  // codifica UTF-8 → base64 (robusto para acentos em ABC)
+  b64encode(str) {
+    return btoa(unescape(encodeURIComponent(str)));
+  },
+  b64decode(b64) {
+    return decodeURIComponent(escape(atob(b64.replace(/\s/g, ''))));
+  },
+
+  async getSHA() {
+    try {
+      const r = await fetch(`${this.api(this.path)}?ref=${this.branch}`, { headers: this.headers() });
+      if (!r.ok) return null;
+      const j = await r.json();
+      return j.sha || null;
+    } catch { return null; }
+  },
+
+  async put(content, message) {
+    const sha = await this.getSHA();
+    const body = { message, content: this.b64encode(content), branch: this.branch };
+    if (sha) body.sha = sha;
+    const r = await fetch(this.api(this.path), {
+      method: 'PUT',
+      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error((await r.json()).message || r.statusText);
+    return r.json();
+  },
+
+  async fetchFile() {
+    const r = await fetch(`${this.api(this.path)}?ref=${this.branch}`, { headers: this.headers() });
+    if (!r.ok) throw new Error((await r.json()).message || r.statusText);
+    const j = await r.json();
+    this.sha = j.sha;
+    return this.b64decode(j.content);
+  },
+
+  async deleteFile(message = 'Delete via EasyABC Editor') {
+    const sha = await this.getSHA();
+    if (!sha) throw new Error('Arquivo não encontrado.');
+    const r = await fetch(this.api(this.path), {
+      method: 'DELETE',
+      headers: { ...this.headers(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, sha, branch: this.branch })
+    });
+    if (!r.ok) throw new Error((await r.json()).message || r.statusText);
+    return r.json();
+  }
+};
+
+/* Helpers da UI */
+const $gh = id => document.getElementById(id);
+function ghStatus(msg, ok = true) {
+  const el = $gh('ghStatus');
+  el.textContent = msg;
+  el.style.color = ok ? '#176b43' : '#b00';
+}
+function ghLoadConfig() {
+  $gh('ghToken').value  = GH.token;
+  $gh('ghOwner').value  = GH.owner;
+  $gh('ghRepo').value   = GH.repo;
+  $gh('ghBranch').value = GH.branch;
+  $gh('ghPath').value   = GH.path;
+}
+function ghSaveConfig() {
+  GH.token  = $gh('ghToken').value.trim();
+  GH.owner  = $gh('ghOwner').value.trim();
+  GH.repo   = $gh('ghRepo').value.trim();
+  GH.branch = $gh('ghBranch').value.trim() || 'main';
+  GH.path   = $gh('ghPath').value.trim();
+  localStorage.setItem('gh_token',  GH.token);
+  localStorage.setItem('gh_owner',  GH.owner);
+  localStorage.setItem('gh_repo',   GH.repo);
+  localStorage.setItem('gh_branch', GH.branch);
+  localStorage.setItem('gh_path',   GH.path);
+}
+
+/* Exporta o tunebook atual como texto ABC (mesma lógica do "Save All") */
+function ghCurrentABC() {
+  // Aproveita a estrutura existente do viewer. Ajuste se o nome for diferente.
+  // tuneData é o array com { abc, header, ... } usado pelo Save All.
+  if (typeof tuneData !== 'undefined' && Array.isArray(tuneData)) {
+    return tuneData.map(t => (t.header || '') + t.abc).join('\n\n');
+  }
+  // fallback: concatena o textarea/ABC de cada tune listado
+  const items = Array.from(document.querySelectorAll('#tuneList .tune'));
+  return items.map(() => '').join('\n\n');
+}
+
+/* Handlers */
+function ghOpen() {
+  ghLoadConfig();
+  ghStatus('');
+  $gh('githubModal').classList.add('open');
+}
+function ghClose() { $gh('githubModal').classList.remove('open'); }
+
+async function ghDoSave() {
+  try {
+    ghSaveConfig();
+    if (!GH.token || !GH.owner || !GH.repo || !GH.path) throw new Error('Preencha token, owner, repo e path.');
+    ghStatus('Enviando…');
+    const content = ghCurrentABC();
+    if (!content.trim()) throw new Error('Nenhum tune carregado para salvar.');
+    await GH.put(content, `Update ${GH.path} via EasyABC Editor`);
+    ghStatus('✅ Salvo no GitHub!');
+  } catch (e) { ghStatus('❌ ' + e.message, false); }
+}
+
+async function ghDoFetch() {
+  try {
+    ghSaveConfig();
+    ghStatus('Buscando…');
+    const abc = await GH.fetchFile();
+    // Reaproveita o fluxo de import: cria um File e joga no fileInput
+    const file = new File([abc], GH.path.split('/').pop() || 'github.abc', { type: 'text/plain' });
+    const dt = new DataTransfer();
+    dt.items.add(file);
+    const input = document.getElementById('fileInput');
+    input.files = dt.files;
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+    ghStatus('✅ Carregado do GitHub!');
+  } catch (e) { ghStatus('❌ ' + e.message, false); }
+}
+
+async function ghDoUpdate() {
+  // "Atualizar" = puxar a versão remota mantendo nada local
+  return ghDoFetch();
+}
+
+async function ghDoDelete() {
+  if (!confirm('Excluir este arquivo do repositório GitHub? Esta ação não pode ser desfeita.')) return;
+  try {
+    ghSaveConfig();
+    ghStatus('Excluindo…');
+    await GH.deleteFile(`Delete ${GH.path} via EasyABC Editor`);
+    GH.sha = null;
+    ghStatus('✅ Excluído no GitHub!');
+  } catch (e) { ghStatus('❌ ' + e.message, false); }
+}
+
+/* Wire-up (após DOMContentLoaded) */
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('githubBtn')?.addEventListener('click', ghOpen);
+  $gh('ghCloseBtn').addEventListener('click', ghClose);
+  $gh('ghSaveBtn').addEventListener('click', ghDoSave);
+  $gh('ghFetchBtn').addEventListener('click', ghDoFetch);
+  $gh('ghUpdateBtn').addEventListener('click', ghDoUpdate);
+  $gh('ghDeleteBtn').addEventListener('click', ghDoDelete);
+  // fecha ao clicar fora
+  $gh('githubModal').addEventListener('click', e => {
+    if (e.target.id === 'githubModal') ghClose();
+  });
+});
 
 </script>
 </body>
