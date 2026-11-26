@@ -1010,7 +1010,12 @@
     }
     /* Keep the tooltip active even when its associated action is disabled. */
     .shareActionRow .shareActionButtonWrap {display:block;min-width:0;}
-  </style>
+  
+#voiceButtons button {min-height:32px;padding:4px 10px;font-size:13px;}
+#voiceButtons button.active {background:#176b43;color:#fff;-webkit-text-fill-color:#fff;border-color:#0d4c2f;}
+#audioHolder #audio { display: none !important; }
+
+</style>
 </head>
 <body>
 <div class="app">
@@ -1038,7 +1043,10 @@
     </select><span id="selectedName"></span><button id="viewABCBtn" class="subtle" type="button" title="Edit the current ABC text for the selected tune" disabled>Write</button><span class="tuneTransposeButtons" role="group" aria-label="Transpose selected tune"><button id="transposeDownBtn" class="subtle" type="button" title="Transpose the tune down one semitone. Shift-click: two semitones. Alt-click: one octave." disabled>Transpose ↓</button><button id="transposeUpBtn" class="subtle" type="button" title="Transpose the tune up one semitone. Shift-click: two semitones. Alt-click: one octave." disabled>Transpose ↑</button></span><button id="instrumentsBtn" class="subtle" type="button" title="Choose the soundfont, MIDI instruments, and accompaniment volumes">Instruments</button><button id="tempoBtn" class="subtle" type="button" title="Set the playback tempo percentage" disabled>Tempo</button><button id="fullPageBtn" class="subtle" type="button" aria-pressed="false" title="Show just the notation and playback across the page">Full page</button>
    </div>
    <div id="scoreScroll"><div id="placeholder">Select a tune from the list to view its notation.</div><div id="score"></div></div>
-   <div id="audioHolder"><div id="audio" aria-label="Playback controls"></div></div>
+   <div id="audioHolder">
+     <div id="voiceButtons" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 6px;justify-content:center;"></div>
+     <div id="audio" aria-label="Playback controls"></div>
+   </div>
   </section>
  </main>
 </div>
@@ -1196,18 +1204,14 @@
 <div id="githubModal" class="lessonModal" role="dialog" aria-modal="true" aria-labelledby="githubModalTitle">
   <div class="lessonDialog" style="width:min(600px,calc(100vw - 28px));">
     <h2 id="githubModalTitle">GitHub</h2>
-
     <label for="ghToken">Token de Acesso Pessoal (PAT)</label>
     <input id="ghToken" type="password" placeholder="ghp_..." autocomplete="off">
     <div class="lessonHint">O token fica salvo apenas no <code>localStorage</code> deste navegador.</div>
-
     <input id="ghOwner"  type="hidden" value="albertinosesc">
     <input id="ghRepo"   type="hidden" value="nbmaplicativos.github.oi">
     <input id="ghBranch" type="hidden" value="main">
     <input id="ghFolder" type="hidden" value="aplicativos/01/easyABC/tunes">
-
     <div id="ghTargetInfo" class="lessonHint" style="text-align:center;margin:10px 0 4px;font-size:12px;color:#607068;"></div>
-
     <div style="margin:12px 0;">
       <label for="ghFileSelect" style="font-weight:650;">Arquivos na pasta</label>
       <div style="display:flex;gap:8px;align-items:center;">
@@ -1217,17 +1221,14 @@
         <button id="ghListBtn" type="button" class="subtle" style="min-height:36px;">Listar</button>
       </div>
     </div>
-
     <label for="ghFileName">Nome do arquivo</label>
     <input id="ghFileName" type="text" placeholder="meu-tunebook.abc" style="margin-bottom:8px;">
-
     <div class="lessonActions" style="flex-wrap:wrap;gap:8px;">
       <button id="ghSaveBtn" type="button">Salvar no GitHub</button>
       <button id="ghFetchBtn" type="button">Buscar do GitHub</button>
       <button id="ghRenameBtn" type="button">Renomear</button>
       <button id="ghDeleteBtn" type="button">Excluir</button>
     </div>
-
     <div class="lessonCloseRow"><button id="ghCloseBtn" type="button">Fechar</button></div>
     <div id="ghStatus" class="lessonHint" style="text-align:center;margin-top:8px;"></div>
   </div>
@@ -1262,6 +1263,31 @@ let abcEditTimer = null, abcEditWarningTimer = null;
 let abcEditListPending = false;
 let abcEditTuneId = null, abcEditFilePrefix = '';
 let abcEditLastValid = '', abcEditComposing = false;
+
+let tunes = [], currentIndex = -1, player = null, playbackCursor = null;
+let collectionSourceNames = [];
+let collectionSourceLabel = null;
+let originalOrderSnapshot = [], originalOrderGeneration = 0;
+let viewerDirty = false;
+let nextTuneIdentity = 0;
+let generation = 0, playing = false, needsGesture = false, unlocked = false;
+let loopEnabled = false, lastSystemTop = null;
+let transferredIds = new Set(), fileLoadSerial = 0;
+let tempoPercent = 100;
+let tuneListTextSize = 'small';
+let lastViewerSortTag = 'T';
+let savedListWidth = null, savedListWidthReference = null, savedListHeight = null;
+let paneDrag = null, lastDividerTouchTap = 0;
+let instruments = {};
+
+let tunebookShareCache = null;
+let currentTuneShareCache = null;
+let allTunesABCTTPayloadCache = null;
+let tunebookShareLoading = false;
+let shareLinkDialogKind = 'all';
+let lessonScope = 'all';
+let studentLessonMode = false;
+let lessonIntroductionPending = false;
 
 function cancelABCEditTimer(){
   if(abcEditTimer!==null){clearTimeout(abcEditTimer);abcEditTimer=null;return true;}
@@ -1414,16 +1440,6 @@ function abcModalGeometry(left,top,width,height) {
   Object.assign(dialog.style,{left:x+'px',top:y+'px',width:w+'px',height:h+'px'});
 }
 
-
-
-
-
-
-
-
-
-
-
 function savedABCModalGeometry() {
   try {
     const saved=JSON.parse(localStorage.getItem(ABC_MODAL_GEOMETRY_KEY));
@@ -1532,10 +1548,6 @@ const LIST_WIDTH_REFERENCE_KEY = 'abc-tunebook:list-width-reference-px';
 const LIST_HEIGHT_KEY = 'abc-tunebook:list-height-px';
 const VALID_MODES = new Set([...$('displayMode').options].map(option => option.value));
 
-let tunes = [], currentIndex = -1, player = null, playbackCursor = null;
-let collectionSourceNames = [];
-let collectionSourceLabel = null;
-
 function viewerSourceLabel(source) {
   if(source==='ABC Transcription Tools')return 'Transferred from ABCTT';
   if(source==='share link')return 'Share link';
@@ -1554,20 +1566,50 @@ function updateSourceStatus() {
   element.title=text;
 }
 
-let originalOrderSnapshot = [], originalOrderGeneration = 0;
-let viewerDirty = false;
-
 async function confirmDiscardViewerChanges(){
-  if(!viewerDirty || !tunes.length)return true;
-  const message="You have added, deleted, sorted, transposed, or edited tunes.<br/><br/>Loading new files will replace the current tunebook and these changes will be lost.<br/><br/>Continue?";
-  if(window.DayPilot?.Modal?.confirm){
-    const result=await DayPilot.Modal.confirm(message,{top:Math.min(125,Math.max(12,window.innerHeight*.08)),width:Math.min(520,window.innerWidth-24),scrollWithPage:false});
-    return !!(result && !result.canceled && result.result);
-  }
-  return window.confirm(message);
+  if(!viewerDirty || !tunes.length)return 'replace';
+
+  const html =
+    '<p style="text-align:center;font:15px/1.5 system-ui,sans-serif;">' +
+      'You have added, deleted, sorted, transposed, or edited tunes.<br><br>' +
+      'Loading new files can replace the current tunebook, or merge them into it.<br><br>' +
+      '<b>Replace</b> loses unsaved changes.<br>' +
+      '<b>Merge</b> appends the new tunes to the end.' +
+    '</p>' +
+    '<div style="display:flex;justify-content:center;gap:10px;margin-top:18px;flex-wrap:wrap;">' +
+      '<button type="button" id="gMerge" style="padding:8px 16px;border:1px solid #aebbb3;border-radius:6px;background:#f5f6f5;font:600 14px system-ui;cursor:pointer;">Merge</button>' +
+      '<button type="button" id="gReplace" style="padding:8px 16px;border:1px solid #176b43;border-radius:6px;background:#176b43;color:#fff;font:600 14px system-ui;cursor:pointer;">Replace</button>' +
+      '<button type="button" id="gCancel" style="padding:8px 16px;border:1px solid #aebbb3;border-radius:6px;background:#f5f6f5;font:600 14px system-ui;cursor:pointer;">Cancel</button>' +
+    '</div>';
+
+  return new Promise(resolve => {
+    DayPilot.Modal.alert(html, {
+      theme: 'modal_default',
+      top: Math.min(125, Math.max(12, window.innerHeight * 0.08)),
+      width: Math.min(520, window.innerWidth - 24),
+      scrollWithPage: false
+    });
+
+    setTimeout(() => {
+      const bind = (id, value) => {
+        const el = document.getElementById(id);
+        if (el) el.onclick = () => {
+          const dlg = el.closest('.modal_default_main');
+          const btns = dlg && dlg.querySelector('.modal_default_buttons');
+          if (btns) {
+            const btn = btns.querySelector('input[type="button"],button');
+            if (btn) btn.click();
+          }
+          resolve(value);
+        };
+      };
+      bind('gMerge', 'merge');
+      bind('gReplace', 'replace');
+      bind('gCancel', 'cancel');
+    }, 30);
+  });
 }
 
-let nextTuneIdentity=0;
 
 function makeTuneRecord(abc,index){
   return {id:++nextTuneIdentity,abc,title:tuneTitle(abc,index),info:tuneInfo(abc)};
@@ -1581,10 +1623,6 @@ function rememberOriginalOrder(items){
   lastViewerSortTag='T';
 }
 
-let generation = 0, playing = false, needsGesture = false, unlocked = false;
-let loopEnabled = false, lastSystemTop = null;
-let transferredIds = new Set(), fileLoadSerial = 0;
-
 try { loopEnabled = localStorage.getItem(LOOP_KEY) === 'true'; } catch (_) {}
 try { $('showTuneInfo').checked = localStorage.getItem(SHOW_TUNE_INFO_KEY) !== 'false'; } catch (_) {}
 
@@ -1593,7 +1631,6 @@ const TUNE_LIST_FONT_SIZES = {
   medium:{title:18,info:16}, large:{title:20,info:18},
   larger:{title:22,info:20}
 };
-let tuneListTextSize='small';
 
 function applyTuneListTextSize(value,save=false){
   const size=Object.hasOwn(TUNE_LIST_FONT_SIZES,value)?value:'small';
@@ -1610,7 +1647,7 @@ function getSavedTempo() {
   try { const n = Number(localStorage.getItem(TEMPO_KEY)); if (Number.isFinite(n) && n >= 10 && n <= 200) return Math.round(n); } catch (_) {}
   return 100;
 }
-let tempoPercent = getSavedTempo();
+tempoPercent = getSavedTempo();
 try { const m = localStorage.getItem(DISPLAY_KEY); if (VALID_MODES.has(m)) $('displayMode').value = m; } catch (_) {}
 
 const workspace = document.querySelector('.workspace');
@@ -1626,11 +1663,9 @@ function savedListSize(key) {
   } catch (_) { return null; }
 }
 
-let savedListWidth = savedListSize(LIST_WIDTH_KEY);
-let savedListWidthReference = savedListSize(LIST_WIDTH_REFERENCE_KEY);
-let savedListHeight = savedListSize(LIST_HEIGHT_KEY);
-let paneDrag = null;
-let lastDividerTouchTap = 0;
+savedListWidth = savedListSize(LIST_WIDTH_KEY);
+savedListWidthReference = savedListSize(LIST_WIDTH_REFERENCE_KEY);
+savedListHeight = savedListSize(LIST_HEIGHT_KEY);
 
 function listIsStacked() { return paneStackedQuery.matches; }
 
@@ -1801,6 +1836,7 @@ const SORT_OPERATIONS = [
   {name:'Sort by Meter (M:)',id:'M'}, {name:'Sort by Rhythm (R:)',id:'R'},
   {name:'Sort by Composer (C:)',id:'C'}, {name:'Sort by Notes (N:)',id:'N'},
   {name:'Sort by Origin (O:)',id:'O'},
+  {name:'Sort by X:',id:'X'},
   {name:'Restore to Original Order',id:'original'}
 ];
 const SORT_TITLE_PREFIXES = {
@@ -1854,7 +1890,7 @@ function sortTunebookABC(book,tag){
   }));
   indexed.sort((a,b)=>compareSortedTitles(a,b)||a.index-b.index);
   if(tag!=='T'){
-    const numeric=tag==='M';
+    const numeric = tag === 'M' || tag === 'X';
     const ignoreCase=['R','C','N','O'].includes(tag);
     indexed.forEach((item,i)=>{
       let key=firstSortTag(item.abc,tag);
@@ -1873,22 +1909,29 @@ function sortLoadedTuneEntries(entries,tag){
   if(tag==='original'||!SORT_OPERATIONS.some(op=>op.id===tag))throw new Error('Unknown sorting field.');
   const indexed=entries.map((tune,index)=>({tune,index,title:sortTitleKey(firstSortTag(tune.abc,'T'))}));
   indexed.sort((a,b)=>compareSortedTitles(a,b)||a.index-b.index);
-  if(tag!=='T'){
-    const numeric=tag==='M',ignoreCase=['R','C','N','O'].includes(tag);
-    indexed.forEach((item,i)=>{
-      let key=firstSortTag(item.tune.abc,tag);
-      if(ignoreCase)key=key.toLowerCase();
-      item.key=numeric?(SORT_METER_WEIGHTS[key]??19):key;
-      item.titleRank=i;
+  if (tag !== 'T') {
+    const ignoreCase = ['R','C','N','O'].includes(tag);
+    indexed.forEach((item, i) => {
+      let key;
+      if (tag === 'M') {
+        key = SORT_METER_WEIGHTS[firstSortTag(item.tune.abc, 'M')] ?? 19;
+      } else if (tag === 'X') {
+        key = parseInt(firstSortTag(item.tune.abc, 'X'), 10);
+        if (!Number.isFinite(key)) key = 9999;
+      } else {
+        key = firstSortTag(item.tune.abc, tag);
+        if (ignoreCase) key = key.toLowerCase();
+      }
+      item.key = key;
+      item.titleRank = i;
     });
-    indexed.sort((a,b)=>{
-      const cmp=numeric?a.key-b.key:sortLocaleCompare(a.key,b.key);
-      return cmp||a.titleRank-b.titleRank;
+    indexed.sort((a, b) => {
+      const cmp = (tag === 'M' || tag === 'X') ? a.key - b.key : sortLocaleCompare(a.key, b.key);
+      return cmp || a.titleRank - b.titleRank;
     });
   }
   return indexed.map(item=>item.tune);
 }
-let lastViewerSortTag='T';
 
 async function showSortDialog(){
   if(!tunes.length||tunebookShareLoading)return;
@@ -1997,7 +2040,7 @@ function tuneInfo(abc) {
 }
 
 function renderList() {
-  const list=$('tuneList'), query=$('searchInput').value.toLocaleLowerCase().trim();
+  const list=$('tuneList'),query=$('searchInput').value.toLocaleLowerCase().trim();
   updateSourceStatus();
   $('clearSearch').style.display = query ? 'block' : 'none';
   list.replaceChildren();
@@ -2066,25 +2109,42 @@ function selectTune(index) {
 const NEW_TUNE_ABC = 'X:1\nT:New Tune\nC:Traditional\nM:4/4\nL:1/4\nQ:1/4=90\nK:C\nCDEF| GABc|\n';
 
 function addNewTune(){
-  if(studentLessonMode||tunebookShareLoading)return;
-  generation++;stopOldPlayer();$('audio').replaceChildren();
+  if (typeof studentLessonMode !== 'undefined' && studentLessonMode) return;
+  if (typeof tunebookShareLoading !== 'undefined' && tunebookShareLoading) return;
+
+  generation++;
+  stopOldPlayer();
+
+  const audioEl = $('audio');
+  if (audioEl) audioEl.replaceChildren();
+
   closeABCModal();
-  const record=makeTuneRecord(NEW_TUNE_ABC,tunes.length);
-  if(!collectionSourceLabel)collectionSourceLabel='New tunebook';
+
+  const record = makeTuneRecord(NEW_TUNE_ABC, tunes.length);
+  if (!collectionSourceLabel) collectionSourceLabel = 'New tunebook';
   tunes.push(record);
   originalOrderSnapshot.push(snapshotTune(record));
   originalOrderGeneration++;
-  viewerDirty=true;
-  $('searchInput').value='';
+  viewerDirty = true;
+
+  const search = $('searchInput');
+  if (search) search.value = '';
+
   fileLoadSerial++;
   invalidateTunebookShareCache();
-  selectTune(tunes.length-1);
-  const list=$('tuneList');list.scrollTop=list.scrollHeight;
+  selectTune(tunes.length - 1);
+
+  const list = $('tuneList');
+  if (list) list.scrollTop = list.scrollHeight;
+
   openABCModal();
-  const field=$('abcModalText');
-  const position=field.value.indexOf('T:New Tune');
-  if(position>=0){
-    field.setSelectionRange(position+2,position+'T:New Tune'.length);
+
+  const field = $('abcModalText');
+  if (field) {
+    const position = field.value.indexOf('T:New Tune');
+    if (position >= 0) {
+      field.setSelectionRange(position + 2, position + 'T:New Tune'.length);
+    }
   }
 }
 
@@ -2494,7 +2554,7 @@ function normalizeInstruments(value) {
     override:typeof obj.override==='boolean'?obj.override:DEFAULT_INSTRUMENTS.override
   };
 }
-let instruments={...DEFAULT_INSTRUMENTS};
+instruments={...DEFAULT_INSTRUMENTS};
 try { instruments=normalizeInstruments(JSON.parse(localStorage.getItem(INSTRUMENTS_KEY))); } catch (_) {}
 
 function programDirective(selected) { return selected===0?'mute':String(selected-1); }
@@ -2600,8 +2660,17 @@ async function rebuild() {
       onEvent(ev){if(initializing||!playing||token!==generation)return;if(playbackCursor&&ev&&ev.left!=null){playbackCursor.setAttribute('x1',String(ev.left-2));playbackCursor.setAttribute('x2',String(ev.left-2));playbackCursor.setAttribute('y1',String(ev.top));playbackCursor.setAttribute('y2',String(ev.top+ev.height));keepCursorVisible(ev);}},
       onFinished(){if(initializing||token!==generation)return;playing=false;removeCursor();}
     };
-    const next=new ABCJS.synth.SynthController(abc);installLoopPersistence(next);
-    next.load('#audio',cursorControl,{displayLoop:true,displayRestart:true,displayPlay:true,displayProgress:true,displayWarp:true});
+
+    const next = new ABCJS.synth.SynthController(abc);
+    installLoopPersistence(next);
+    next.load('#audio', cursorControl, {
+      displayLoop: true,
+      displayRestart: true,
+      displayPlay: true,
+      displayProgress: true,
+      displayWarp: true
+    });
+
     player=next;
     initializing=true;
     try{await next.setTune(visuals[0],false,{});}finally{initializing=false;}
@@ -2617,8 +2686,10 @@ async function rebuild() {
 async function enablePlayback() {
   const btn=$('enableBtn');btn.disabled=true;btn.textContent='Enabling Playback…';
   try {
-    const ctx=window.abcjsAudioContext;
-    if(ctx&&ctx.state==='suspended')await ctx.resume();
+    try {
+  const ctx = window.abcjsAudioContext;
+  if (ctx && ctx.state === 'suspended') await ctx.resume();
+} catch (_) {}
     needsGesture=false;unlocked=true;lessonIntroductionPending=false;
     await rebuild();
     if(!$('audio').querySelector('.abcjs-midi-start'))throw new Error('Playback controls were not initialized.');
@@ -2663,37 +2734,28 @@ async function addFiles(files) {
   }
   if(serial!==fileLoadSerial)return 0;
   if(next.length){
-    let proceed=false;
-    try{proceed=await confirmDiscardViewerChanges();}
-    catch(error){console.warn('Unable to confirm file replacement:',error);}
-    if(serial!==fileLoadSerial)return 0;
-    if(!proceed){
-      tunebookShareLoading=false;
-      refreshTunebookShareState();
-      return 0;
-    }
+  let action='replace';
+  try{action=await confirmDiscardViewerChanges();}
+  catch(error){console.warn('Unable to confirm file action:',error);action='cancel';}
+  if(serial!==fileLoadSerial)return 0;
+  if(action==='cancel'){
+    tunebookShareLoading=false;
+    refreshTunebookShareState();
+    return 0;
   }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+  if(action==='merge'){
+    const before=tunes.length;
+    const initialOriginal=originalOrderSnapshot.map(snapshotTune);
+    for(const rec of next) tunes.push(rec);
+    rememberOriginalOrder(initialOriginal.concat(tunes.slice(before)));
+    viewerDirty=true;
+    invalidateTunebookShareCache();
+    tunebookShareLoading=false;
+    renderList();
+    refreshTunebookShareState();
+    return next.length;
+  }
+}
   tunebookShareLoading=false;
   if(next.length) {
     setModal('shareModal',false);setModal('lessonLinkModal',false);
@@ -2912,14 +2974,14 @@ const TUNEBOOK_SHARE_BASE_URL='https://michaeleskin.com/tools/abc-tunebook-viewe
 const TUNEBOOK_SHARE_MAX_LEN=8100;
 const TUNEBOOK_LESSON_DRAFT_KEY='abcTunebookViewerLessonDraftV1';
 const TUNEBOOK_LESSON_PLAYER='abc-tunebook-viewer.html';
-let tunebookShareCache=null;
-let currentTuneShareCache=null;
-let allTunesABCTTPayloadCache=null;
-let tunebookShareLoading=false;
-let shareLinkDialogKind='all';
-let lessonScope='all';
-let studentLessonMode=false;
-let lessonIntroductionPending=false;
+tunebookShareCache=null;
+currentTuneShareCache=null;
+allTunesABCTTPayloadCache=null;
+tunebookShareLoading=false;
+shareLinkDialogKind='all';
+lessonScope='all';
+studentLessonMode=false;
+lessonIntroductionPending=false;
 
 function endStudentLessonForFileLoad(){
   if(!studentLessonMode&&!lessonIntroductionPending)return;
@@ -4108,7 +4170,7 @@ async function ghDoList() {
     files.forEach(f => {
       const opt = document.createElement('option');
       opt.value = f.name;
-      opt.textContent = `${f.name}  (${(f.size/1024).toFixed(1)} KB)`;
+      opt.textContent = `${f.name} (${(f.size/1024).toFixed(1)} KB)`;
       sel.appendChild(opt);
     });
     sel.addEventListener('change', () => {
@@ -4199,6 +4261,232 @@ document.addEventListener('DOMContentLoaded', () => {
   $gh('ghFileName').value = 'meu-tunebook.abc';
 });
 
+/* ================= Reprodução por voz (dinâmica) ================= */
+(function () {
+  let voiceSynth = null;
+  let voiceAudioCtx = null;
+  let voiceActiveBtn = null;
+
+  function stopVoicePlayback() {
+    if (voiceSynth) {
+      try { voiceSynth.stop(); } catch (_) {}
+      voiceSynth = null;
+    }
+    if (voiceAudioCtx && voiceAudioCtx.state !== 'closed') {
+      try { voiceAudioCtx.close(); } catch (_) {}
+    }
+    voiceAudioCtx = null;
+    document.querySelectorAll('#voiceButtons button[data-voice]').forEach(b => b.classList.remove('active'));
+    voiceActiveBtn = null;
+  }
+
+  function detectVoices(abc) {
+    const matches = abc.match(/^[ \t]*V[ \t]*:[ \t]*([^\r\n]+)/gm) || [];
+    const voices = [];
+    const seen = new Set();
+    matches.forEach(line => {
+      const name = line.replace(/^[ \t]*V[ \t]*:[ \t]*/, '').trim().split(/\s+/)[0];
+      if (name && !seen.has(name)) {
+        seen.add(name);
+        voices.push(name);
+      }
+    });
+    return voices;
+  }
+
+function buildButtons() {
+  const container = document.getElementById('voiceButtons');
+  if (!container) return;
+  container.replaceChildren();
+
+  if (typeof tunes === 'undefined' || !tunes.length || currentIndex < 0 || !tunes[currentIndex]) {
+    container.style.display = 'none';
+    return;
+  }
+
+  const abc = tunes[currentIndex].abc;
+  let voices = detectVoices(abc);
+  const hasExplicitVoices = voices.length > 0;
+  if (!hasExplicitVoices) voices = ['V:1'];
+  const voiceCount = voices.length;
+  const hasChords = /"[^"]+"/.test(abc);
+
+  container.style.display = '';
+
+  const addBtn = (label, mode, title) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'subtle';
+    btn.textContent = label;
+    if (title) btn.title = title;
+    btn.setAttribute('data-voice', mode);
+    btn.addEventListener('click', () => {
+      if (btn.classList.contains('active')) stopVoicePlayback();
+      else playVoice(mode, btn);
+    });
+    container.appendChild(btn);
+    return btn;
+  };
+
+  if (hasChords) {
+    addBtn('Acorde', 'chords', 'Tocar somente os acordes');
+  }
+
+  if (hasExplicitVoices && voiceCount >= 2) {
+    for (let i = 0; i < voiceCount; i++) {
+      addBtn(`Acorde+${voices[i]}`, `chords-v${i + 1}`, `Tocar acordes + ${voices[i]}`);
+    }
+  }
+
+  if (hasExplicitVoices && voiceCount >= 2) {
+    const allVoicesMode = voices.map((_, i) => i).join('-');
+    addBtn(voices.join('-'), `voices-${allVoicesMode}`, `Tocar todas as vozes (${voices.join(', ')})`);
+  }
+
+  if (hasExplicitVoices) {
+    for (let i = 0; i < voiceCount; i++) {
+      const others = [];
+      for (let j = 0; j < voiceCount; j++) if (j !== i) others.push(j);
+      addBtn(voices[i], `only-${i}-${others.join('-')}`, `Tocar somente ${voices[i]}`);
+    }
+  } else {
+    addBtn('V:1', 'only-single', 'Tocar somente a melodia');
+  }
+
+  addBtn('Play All', 'all', 'Tocar tudo (acordes + todas as vozes)');
+
+  const stopBtn = document.createElement('button');
+  stopBtn.type = 'button';
+  stopBtn.className = 'subtle';
+  stopBtn.id = 'voiceStopBtn';
+  stopBtn.textContent = 'Parar';
+  stopBtn.style.display = 'none';
+  stopBtn.addEventListener('click', stopVoicePlayback);
+  container.appendChild(stopBtn);
+}
+  async function playVoice(mode, btn) {
+    stopVoicePlayback();
+
+    if (typeof tunes === 'undefined' || !tunes.length || currentIndex < 0 || !tunes[currentIndex]) {
+      if (window.DayPilot?.Modal?.alert) {
+        await DayPilot.Modal.alert('Selecione uma música antes de tocar.', { top: 100, width: 420 });
+      } else {
+        alert('Selecione uma música antes de tocar.');
+      }
+      return;
+    }
+
+    if (!window.ABCJS?.synth?.CreateSynth) {
+      if (window.DayPilot?.Modal?.alert) {
+        await DayPilot.Modal.alert('A biblioteca de síntese não está disponível.', { top: 100, width: 420 });
+      }
+      return;
+    }
+
+    if (typeof player !== 'undefined' && player) {
+      try { player.pause(); } catch (_) {}
+    }
+
+    const abc = withInstrumentOverrides(tunes[currentIndex].abc);
+    let visualObj;
+
+    const tmp = document.createElement('div');
+    tmp.style.position = 'absolute';
+    tmp.style.left = '-99999px';
+    tmp.style.top = '0';
+    document.body.appendChild(tmp);
+    try {
+      visualObj = ABCJS.renderAbc(tmp, abc, tabParam($('displayMode').value))[0];
+    } catch (e) {
+      tmp.remove();
+      if (window.DayPilot?.Modal?.alert) await DayPilot.Modal.alert('Erro ao renderizar ABC: ' + e.message, { top: 100, width: 460 });
+      return;
+    }
+    tmp.remove();
+    if (!visualObj) return;
+
+    let options = {};
+    if (mode === 'chords') {
+      options = { voicesOff: true };
+    } else if (mode === 'all') {
+      options = {};
+      } else if (mode === 'only-single') {
+     options = { chordsOff: true };
+
+    } else if (mode.startsWith('chords-v')) {
+      const v = parseInt(mode.replace('chords-v', ''), 10) - 1;
+      const voices = detectVoices(tunes[currentIndex].abc);
+      const off = [];
+      for (let i = 0; i < voices.length; i++) if (i !== v) off.push(i);
+      options = { voicesOff: off };
+    } else if (mode.startsWith('voices-')) {
+      options = { chordsOff: true };
+    } else if (mode.startsWith('only-')) {
+  const rest = mode.slice('only-'.length);
+  const parts = rest.split('-').filter(x => x !== '');
+  const target = parseInt(parts[0], 10);
+  const voiceList = detectVoices(tunes[currentIndex].abc);
+  const off = [];
+  for (let i = 0; i < voiceList.length; i++) {
+    if (i !== target) off.push(i);
+  }
+  options = { chordsOff: true, voicesOff: off };
+}
+
+    btn.classList.add('active');
+    const stopBtn = document.getElementById('voiceStopBtn');
+    if (stopBtn) stopBtn.style.display = '';
+
+    try {
+      voiceAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      await voiceAudioCtx.resume();
+
+      voiceSynth = new ABCJS.synth.CreateSynth();
+      await voiceSynth.init({
+        audioContext: voiceAudioCtx,
+        visualObj: visualObj,
+        millisecondsPerMeasure: visualObj.millisecondsPerMeasure(),
+        options: options
+      });
+      await voiceSynth.prime();
+      await voiceSynth.start();
+    } catch (err) {
+      console.warn('Erro na reprodução por voz:', err);
+      stopVoicePlayback();
+      if (window.DayPilot?.Modal?.alert) {
+        await DayPilot.Modal.alert('Não foi possível iniciar a reprodução: ' + (err?.message || err), { top: 100, width: 460 });
+      }
+    }
+  }
+
+  function initVoiceButtons() {
+    buildButtons();
+
+    const container = document.getElementById('voiceButtons');
+    if (!container) return;
+
+    const score = document.getElementById('score');
+    if (score && !score.__voiceObserved) {
+      const observer = new MutationObserver(() => {
+        setTimeout(buildButtons, 30);
+      });
+      observer.observe(score, { childList: true });
+      score.__voiceObserved = true;
+    }
+
+    const displayMode = document.getElementById('displayMode');
+    if (displayMode) displayMode.addEventListener('change', () => setTimeout(buildButtons, 50));
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initVoiceButtons);
+  } else {
+    initVoiceButtons();
+  }
+})();
+
 </script>
 </body>
 </html>
+
+
