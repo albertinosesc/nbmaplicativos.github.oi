@@ -1015,6 +1015,21 @@
 #voiceButtons button.active {background:#176b43;color:#fff;-webkit-text-fill-color:#fff;border-color:#0d4c2f;}
 #audioHolder #audio { display: none !important; }
 
+.abcModalFooter {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+
+.abcModalFooter > button {
+  position: relative !important;
+  inset: auto !important;
+  flex: 0 0 auto !important;
+  margin: 0 !important;
+}
+
 </style>
 </head>
 <body>
@@ -1044,9 +1059,14 @@
    </div>
    <div id="scoreScroll"><div id="placeholder">Select a tune from the list to view its notation.</div><div id="score"></div></div>
    <div id="audioHolder">
-     <div id="voiceButtons" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 6px;justify-content:center;"></div>
-     <div id="audio" aria-label="Playback controls"></div>
-   </div>
+  <div id="voiceButtons" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 6px;justify-content:center;"></div>
+  <div style="display:flex;justify-content:center;padding:4px 0;">
+    <button id="playBookBtn" class="subtle" type="button">▶ Tocar livro</button>
+  </div>
+  <div id="audio" aria-label="Playback controls"></div>
+</div>
+
+
   </section>
  </main>
 </div>
@@ -1128,7 +1148,11 @@
     </div>
     <div id="abcModalWarning" class="abcModalWarning" role="alert" hidden></div>
     <textarea id="abcModalText" class="abcModalText" aria-label="Edit current ABC text" spellcheck="false" autocorrect="off" autocapitalize="off" wrap="soft"></textarea>
-    <div class="abcModalFooter"><button id="abcModalOK" type="button">Close</button></div>
+    <div class="abcModalFooter">
+      <button id="abcModalPrevBtn" type="button">Anterior</button>
+      <button id="abcModalNextBtn" type="button">Próximo</button>
+      <button id="abcModalOK" type="button">Close</button>
+    </div>
     <div id="abcModalResize" class="abcModalResize" role="button" tabindex="0" aria-label="Resize ABC window" title="Drag to resize the ABC window"></div>
   </section>
 </div>
@@ -1330,6 +1354,8 @@ function guardABCEdit(nextText,event){
   return true;
 }
 
+
+
 function commitABCEdit(){
   if(studentLessonMode||abcEditComposing||$('abcModalOverlay').hidden||abcEditTuneId===null)return;
   const field=$('abcModalText'),text=field.value;
@@ -1422,6 +1448,7 @@ function closeABCModal({flushRedraw=false}={}) {
   clearABCEditWarning();
   const hadFocus=overlay.contains(document.activeElement);
   overlay.hidden=true;
+  updateABCModalNavButtons();
   abcModalPointer=null;abcEditTuneId=null;abcEditComposing=false;
   if(hadFocus)$('viewABCBtn').focus({preventScroll:true});
   if(pending&&flushRedraw&&currentIndex>=0&&tunes[currentIndex]?.id===editedId){
@@ -1478,6 +1505,7 @@ function openABCModal() {
     saved?.top??Math.min(60,Math.max(ABC_MODAL_MARGIN,(window.innerHeight-h)/2)),
     saved?.width??w,saved?.height??h);
   $('abcModalOverlay').hidden=false;
+  updateABCModalNavButtons();
   $('abcModalText').scrollTop=0;
   $('abcModalText').scrollLeft=0;
   if(window.matchMedia('(pointer:coarse)').matches)$('abcModalOK').focus({preventScroll:true});
@@ -1485,6 +1513,8 @@ function openABCModal() {
 }
 
 $('abcModalOK').addEventListener('click',()=>closeABCModal({flushRedraw:true}));
+$('abcModalPrevBtn')?.addEventListener('click',()=>stepABCModalTune(-1));
+$('abcModalNextBtn')?.addEventListener('click',()=>stepABCModalTune(1));
 $('viewABCBtn').addEventListener('click',openABCModal);
 
 for(const [handleName,isResize] of [['abcModalHeader',false],['abcModalResize',true]]) {
@@ -1998,6 +2028,8 @@ async function showTuneListSettingsDialog(){
 }
 $('tuneListSettingsBtn').addEventListener('click',()=>{void showTuneListSettingsDialog();});
 
+
+
 function normalizedKey(value) {
   const key=String(value||'').trim();
   if (!key) return '';
@@ -2096,16 +2128,89 @@ function stopOldPlayer() {
   if (playbackCursor) {playbackCursor.remove();playbackCursor=null;}
 }
 
-function selectTune(index) {
-  if (index<0||index>=tunes.length) return;
-  closeABCModal();
-  currentIndex=index;syncTransposeButtonState();$('viewABCBtn').disabled=false;$('tempoBtn').disabled=false;renderList();
-  refreshTunebookShareState();
-  $('selectedName').textContent=tunes[index].title;
-  $('scoreScroll').scrollTop=0;
-  void rebuild();
+function syncABCModalToCurrentTune() {
+  const overlay = $('abcModalOverlay');
+  if (!overlay || overlay.hidden) return false;
+  if (studentLessonMode || currentIndex < 0 || !tunes[currentIndex]) {
+    closeABCModal();
+    return false;
+  }
+
+  const source = normalizeABC(tunes[currentIndex].abc);
+  const match = /^[ \t]*X[ \t]*:/m.exec(source);
+  if (!match) {
+    closeABCModal();
+    return false;
+  }
+
+  const xStart = match.index + match[0].indexOf('X');
+  const tuneABC = source.slice(xStart);
+  if (!/^[ \t]*X[ \t]*:/.test(tuneABC)) {
+    closeABCModal();
+    return false;
+  }
+
+  cancelABCEditTimer();
+  abcEditListPending = false;
+  clearABCEditWarning();
+  abcEditTuneId = tunes[currentIndex].id;
+  abcEditFilePrefix = source.slice(0, xStart);
+  abcEditLastValid = tuneABC;
+  abcEditComposing = false;
+
+  $('abcModalText').value = tuneABC;
+  $('abcModalTitle').textContent = 'ABC — ' + tunes[currentIndex].title;
+  updateABCModalNavButtons();
+  $('abcModalText').scrollTop = 0;
+  $('abcModalText').scrollLeft = 0;
+  return true;
 }
 
+function updateABCModalNavButtons() {
+  const prevBtn = $('abcModalPrevBtn');
+  const nextBtn = $('abcModalNextBtn');
+  const isOpen = !$('abcModalOverlay')?.hidden;
+  const hasTunes = Array.isArray(tunes) && tunes.length > 0 && currentIndex >= 0;
+
+  if (prevBtn) {
+    prevBtn.disabled = !isOpen || !hasTunes || currentIndex <= 0;
+  }
+  if (nextBtn) {
+    nextBtn.disabled = !isOpen || !hasTunes || currentIndex >= tunes.length - 1;
+  }
+}
+
+function stepABCModalTune(delta) {
+  if ($('abcModalOverlay')?.hidden) return;
+  if (!Array.isArray(tunes) || !tunes.length || currentIndex < 0) return;
+
+  // Garante que qualquer edição pendente seja comprometida antes de trocar de música
+  commitABCEdit();
+  if (cancelABCEditTimer() && currentIndex >= 0 && tunes[currentIndex]) {
+    refreshTunebookShareState();
+    void rebuild();
+  }
+
+  const targetIndex = currentIndex + delta;
+  if (targetIndex < 0 || targetIndex >= tunes.length) return;
+  selectTune(targetIndex);
+}
+
+function selectTune(index) {
+  if (index < 0 || index >= tunes.length) return;
+  const abcModalWasOpen = !$('abcModalOverlay').hidden;
+  if (!abcModalWasOpen) closeABCModal();
+  currentIndex = index;
+  syncTransposeButtonState();
+  $('viewABCBtn').disabled = false;
+  $('tempoBtn').disabled = false;
+  renderList();
+  refreshTunebookShareState();
+  $('selectedName').textContent = tunes[index].title;
+  $('scoreScroll').scrollTop = 0;
+  if (abcModalWasOpen) syncABCModalToCurrentTune();
+  void rebuild();
+}
 const NEW_TUNE_ABC = 'X:1\nT:New Tune\nC:Traditional\nM:4/4\nL:1/4\nQ:1/4=90\nK:C\nCDEF| GABc|\n';
 
 function addNewTune(){
@@ -2702,6 +2807,8 @@ async function enablePlayback() {
 }
 
 function fileNameOK(file){return /\.(?:abc|txt)$/i.test(file.name)||(!file.name&&file.type==='text/plain');}
+
+
 
 async function addFiles(files) {
   if(files.length)closeABCModal({flushRedraw:true});
@@ -3321,6 +3428,7 @@ function lessonConfigFromText(text){
   }
   return validateLessonConfigObject(JSON.parse(trimmed));
 }
+
 async function loadLessonConfigFile(file){
   const config=lessonConfigFromText(await file.text());
   if(tunes.length){
@@ -4483,6 +4591,316 @@ function buildButtons() {
   } else {
     initVoiceButtons();
   }
+})();
+
+window.playAllWithCallback = async function (onEnded, options = {}) {
+  const {
+    startDelayMs = 0,
+    endDelayMs = 0,
+    shouldContinue = () => true,
+    onCountdownStep = null
+  } = options;
+
+  if (!tunes.length || currentIndex < 0 || !tunes[currentIndex] || !shouldContinue()) {
+    if (typeof onEnded === 'function') onEnded();
+    return null;
+  }
+
+  if (window.voiceSynth) {
+    try { window.voiceSynth.stop(); } catch (_) {}
+    window.voiceSynth = null;
+  }
+  if (window.voiceAudioCtx && window.voiceAudioCtx.state !== 'closed') {
+    try { await window.voiceAudioCtx.close(); } catch (_) {}
+  }
+  window.voiceAudioCtx = null;
+
+  if (typeof player !== 'undefined' && player) {
+    try { player.pause(); } catch (_) {}
+  }
+
+  let finished = false;
+  let cancelled = false;
+  let timerId = null;
+  let stepTimerId = null;
+
+  const clearTimers = () => {
+    if (timerId) { clearTimeout(timerId); timerId = null; }
+    if (stepTimerId) { clearInterval(stepTimerId); stepTimerId = null; }
+  };
+
+  const done = () => {
+    if (finished) return;
+    finished = true;
+    clearTimers();
+    if (typeof onCountdownStep === 'function') onCountdownStep(0);
+    if (typeof onEnded === 'function') onEnded();
+  };
+
+  if (startDelayMs > 0) {
+    const totalSteps = 4;
+    const stepInterval = startDelayMs / totalSteps;
+    let currentStep = 1;
+
+    if (typeof onCountdownStep === 'function') onCountdownStep(currentStep);
+
+    await new Promise(resolve => {
+      stepTimerId = setInterval(() => {
+        if (cancelled || !shouldContinue()) {
+          clearTimers();
+          resolve();
+          return;
+        }
+        currentStep++;
+        if (currentStep <= totalSteps) {
+          if (typeof onCountdownStep === 'function') onCountdownStep(currentStep);
+        } else {
+          clearInterval(stepTimerId);
+          stepTimerId = null;
+        }
+      }, stepInterval);
+
+      timerId = setTimeout(() => {
+        clearTimers();
+        resolve();
+      }, startDelayMs);
+    });
+
+    if (typeof onCountdownStep === 'function') onCountdownStep(0);
+
+    if (cancelled || !shouldContinue()) {
+      done();
+      return null;
+    }
+  }
+
+  const abc = withInstrumentOverrides(tunes[currentIndex].abc);
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:absolute;left:-99999px;';
+  document.body.appendChild(tmp);
+
+  let visualObj;
+  try {
+    visualObj = ABCJS.renderAbc(tmp, abc, tabParam($('displayMode').value))[0];
+  } catch (e) {
+    tmp.remove();
+    console.warn('playAllWithCallback render error:', e);
+    done();
+    return null;
+  }
+  tmp.remove();
+
+  if (!visualObj) {
+    done();
+    return null;
+  }
+
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    window.voiceAudioCtx = new AudioCtx();
+    await window.voiceAudioCtx.resume();
+
+    if (cancelled || !shouldContinue()) {
+      done();
+      return null;
+    }
+
+    const synth = new ABCJS.synth.CreateSynth();
+    window.voiceSynth = synth;
+
+    const tempoFactor = (typeof tempoPercent === 'number' && tempoPercent > 0) ? (tempoPercent / 100) : 1;
+    const baseMsPerMeasure = typeof visualObj.millisecondsPerMeasure === 'function'
+      ? visualObj.millisecondsPerMeasure()
+      : 2000;
+    const msPerMeasure = baseMsPerMeasure / tempoFactor;
+
+    await synth.init({
+      audioContext: window.voiceAudioCtx,
+      visualObj,
+      millisecondsPerMeasure: msPerMeasure,
+      options: {}
+    });
+    await synth.prime();
+    await synth.start();
+
+    const synthSeconds = Number(synth.duration);
+    const visualSeconds = typeof visualObj.getTotalTime === 'function' ? Number(visualObj.getTotalTime()) : 0;
+    const durationMs = synthSeconds > 0
+      ? synthSeconds * 1000
+      : visualSeconds > 0
+        ? (visualSeconds * 1000) / tempoFactor
+        : 8000;
+
+    timerId = setTimeout(() => {
+      if (cancelled || !shouldContinue()) {
+        done();
+        return;
+      }
+      if (endDelayMs > 0) {
+        timerId = setTimeout(done, endDelayMs);
+      } else {
+        done();
+      }
+    }, Math.ceil(durationMs) + 250);
+
+    return () => {
+      cancelled = true;
+      finished = true;
+      clearTimers();
+      if (typeof onCountdownStep === 'function') onCountdownStep(0);
+      try { synth.stop(); } catch (_) {}
+      if (window.voiceAudioCtx && window.voiceAudioCtx.state !== 'closed') {
+        window.voiceAudioCtx.close().catch(() => {});
+      }
+      window.voiceAudioCtx = null;
+      window.voiceSynth = null;
+    };
+  } catch (err) {
+    console.warn('playAllWithCallback error:', err);
+    done();
+    return null;
+  }
+};
+
+/* ================= Play Book (toca em sequência) ================= */
+(function () {
+  const TUNE_GAP_MS = 4000;
+  let bookActive = false;
+  let bookTimer = null;
+  let cancelCurrentPlayback = null;
+  let dotElements = [];
+
+  function ensureCountdownDots() {
+    const playBtn = document.getElementById('playBookBtn');
+    if (!playBtn) return [];
+
+    let holder = document.getElementById('bookCountdownDots');
+    if (!holder) {
+      holder = document.createElement('span');
+      holder.id = 'bookCountdownDots';
+      holder.setAttribute('aria-hidden', 'true');
+      Object.assign(holder.style, {
+        display: 'inline-flex',
+        alignItems: 'center',
+        gap: '5px',
+        marginLeft: '8px',
+        verticalAlign: 'middle'
+      });
+      playBtn.insertAdjacentElement('afterend', holder);
+    }
+
+    if (holder.children.length !== 4) {
+      holder.replaceChildren();
+      dotElements = [];
+      for (let i = 0; i < 4; i++) {
+        const dot = document.createElement('span');
+        Object.assign(dot.style, {
+          width: '9px',
+          height: '9px',
+          borderRadius: '50%',
+          display: 'inline-block',
+          backgroundColor: '#cfd6d2',
+          border: '1px solid #8c9992',
+          transition: 'transform 140ms ease, background-color 140ms ease'
+        });
+        holder.appendChild(dot);
+        dotElements.push(dot);
+      }
+    }
+
+    return dotElements;
+  }
+
+  function setCountdownStep(step) {
+    const dots = ensureCountdownDots();
+    dots.forEach((dot, idx) => {
+      const active = idx < step;
+      dot.style.backgroundColor = active ? '#176b43' : '#cfd6d2';
+      dot.style.borderColor = active ? '#176b43' : '#8c9992';
+      dot.style.transform = active ? 'scale(1.2)' : 'scale(1)';
+    });
+  }
+
+  function clearBookTimers() {
+    if (bookTimer) {
+      clearTimeout(bookTimer);
+      bookTimer = null;
+    }
+    if (typeof cancelCurrentPlayback === 'function') {
+      cancelCurrentPlayback();
+      cancelCurrentPlayback = null;
+    }
+    setCountdownStep(0);
+  }
+
+  function stopBook() {
+    bookActive = false;
+    clearBookTimers();
+    const btn = document.getElementById('playBookBtn');
+    if (btn) btn.textContent = '▶ Tocar livro';
+    if (window.voiceSynth) {
+      try { window.voiceSynth.stop(); } catch (_) {}
+      window.voiceSynth = null;
+    }
+    if (window.voiceAudioCtx && window.voiceAudioCtx.state !== 'closed') {
+      window.voiceAudioCtx.close().catch(() => {});
+      window.voiceAudioCtx = null;
+    }
+    if (typeof stopOldPlayer === 'function') stopOldPlayer();
+  }
+
+  function nextTune() {
+    if (!bookActive) return;
+    if (currentIndex + 1 >= tunes.length) {
+      stopBook();
+      return;
+    }
+    selectTune(currentIndex + 1);
+    bookTimer = setTimeout(playCurrentVoice, 200);
+  }
+
+  async function playCurrentVoice() {
+    if (!bookActive) return;
+    clearBookTimers();
+
+    cancelCurrentPlayback = await window.playAllWithCallback(
+      () => {
+        if (!bookActive) return;
+        nextTune();
+      },
+      {
+        startDelayMs: TUNE_GAP_MS,
+        endDelayMs: TUNE_GAP_MS,
+        shouldContinue: () => bookActive,
+        onCountdownStep: setCountdownStep
+      }
+    );
+  }
+
+  function startBook() {
+    if (!tunes.length) {
+      if (window.DayPilot?.Modal?.alert) DayPilot.Modal.alert('Nenhuma música carregada.', { top: 100, width: 400 });
+      else alert('Nenhuma música carregada.');
+      return;
+    }
+    ensureCountdownDots();
+    bookActive = true;
+    const btn = document.getElementById('playBookBtn');
+    if (btn) btn.textContent = '⏹ Parar livro';
+    if (currentIndex < 0) selectTune(0);
+    void playCurrentVoice();
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    ensureCountdownDots();
+    const btn = document.getElementById('playBookBtn');
+    if (btn) {
+      btn.addEventListener('click', () => {
+        if (bookActive) stopBook();
+        else startBook();
+      });
+    }
+  });
 })();
 
 </script>
