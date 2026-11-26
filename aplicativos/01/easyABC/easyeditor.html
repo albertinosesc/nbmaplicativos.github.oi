@@ -42,995 +42,1383 @@
   <script src="https://michaeleskin.com/abcjs-eskin-portable/dist/abcjs-eskin-chord-intervals.js?cb=20261010_0240"></script>
   <script src="pako.min.js?cb=20260920_1125"></script>
   <script src="daypilot-modal.min-3.10.1.js?cb=20260920_1125"></script>
-  <style>
-    :root {color-scheme:light; --ink:#16241e; --border:#d1d9d4; --accent:#176b43; --shade:#eff4f0;}
-    * {box-sizing:border-box}
-    html,body {margin:0;height:100%;overflow:hidden;background:#f7f9f7;color:var(--ink);font:15px/1.35 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    button,input,select {font:inherit}
-    button,select {cursor:pointer}
-    button:focus-visible,input:focus-visible,select:focus-visible {outline:3px solid #85bda1;outline-offset:1px}
-    .app {display:flex;flex-direction:column;height:100vh;height:100dvh;min-height:0}
-    header {position:relative;flex:0 0 55px;height:55px;display:flex;align-items:center;justify-content:center;background:white;border-bottom:1px solid var(--border)}
-    .headerTitleBlock {display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;width:100%;min-width:0;pointer-events:none}
-    header h1 {margin:0;font-size:21px;line-height:1.2;font-weight:650;white-space:nowrap}
-    .headerSourceStatus {display:block;max-width:calc(100vw - 24px);color:#667b6c;font-size:14px;line-height:1.15;font-weight:400;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-    .corner {position:absolute;top:10px;height:30px;display:inline-flex;align-items:center;justify-content:center;min-width:79px;padding:3px 12px;color:#25362e;border:1px solid #abbab0;background:#f5f8f5;border-radius:6px;text-decoration:none;font-weight:600;font-size:12px}
-    .corner:hover {background:#e6f0e8}
-    .corner.left {left:16px}.corner.right {right:16px}
-    .workspace {--default-list-width:clamp(204px,23vw,282px);min-height:0;flex:1;display:grid;grid-template-columns:var(--tune-list-width,var(--default-list-width)) 12px minmax(0,1fr);gap:0;padding:7px}
-    /* Drag the divider to expand the tune list; the notation shares the remaining space. */
-    .paneDivider {position:relative;min-width:0;min-height:0;cursor:col-resize;touch-action:none;user-select:none;-webkit-user-select:none}
-    .paneDivider::before {content:"";position:absolute;left:50%;top:7px;bottom:7px;width:2px;transform:translateX(-50%);border-radius:4px;background:#c0cbc3}
-    .paneDivider::after {content:"";position:absolute;left:50%;top:50%;width:5px;height:38px;transform:translate(-50%,-50%);border-radius:4px;background:#9cad9f}
-    .paneDivider:hover::after,.paneDivider.dragging::after,.paneDivider:focus-visible::after {background:var(--accent)}
-    .paneDivider:focus-visible {outline:2px solid #85bda1;outline-offset:-2px}
-    aside,.scorePane {min-width:0;min-height:0;background:white;border:1px solid var(--border);border-radius:7px;overflow:hidden}
-    aside {display:flex;flex-direction:column;container-type:inline-size}
-    /* The action buttons share the tune-controls grid to keep the gear above Sort. */
-    .listActions {display:contents;}
-    #openBtn,#shareBtn {min-width:81px;min-height:34px;padding:6px 13px}
-    /* Blue Share button matching Open's dimensions, with a tooltip-bearing
-       wrapper because disabled buttons do not reliably show title on Safari. */
-    .shareBtnWrap {display:inline-flex;flex:0 0 auto}
-    .shareBtnWrap[hidden] {display:none}
-    #shareBtn {background:#2867a5;border-color:#20588e;color:#fff;-webkit-text-fill-color:#fff}
-    #shareBtn:not(:disabled):hover {background:#20588e}
-    #shareBtn:disabled {opacity:.45;cursor:default;pointer-events:none}
-    #shareBtn:disabled:hover {background:#2867a5}
-    .primary {border:1px solid #145737;background:var(--accent);color:white;font-weight:600;border-radius:5px;padding:6px 13px;min-height:34px}
-    .primary:hover {background:#0d5432}
-    .subtle {border:1px solid #c4d1c8;border-radius:5px;background:#f6f8f6;padding:5px 9px;min-height:34px}
-    .subtle:hover {background:#e5efe7}
-    .subtle:disabled {opacity:.45;cursor:default}
-    /* Stable controls across Safari iOS/iPadOS and desktop browsers. */
-    .app button.corner,.app button.primary,.app button.subtle,.app button.tune,.app button#clearSearch {
-      -webkit-appearance:none;appearance:none;-webkit-tap-highlight-color:transparent;
-      box-shadow:none;text-shadow:none;letter-spacing:normal;
-      font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      -webkit-text-fill-color:currentColor;line-height:1.2;
-    }
-    .app button.subtle,.app button.corner {color:#25362e;-webkit-text-fill-color:#25362e;background-color:#f5f8f5;border:1px solid #abbab0;border-radius:6px;font-size:12px;font-weight:600;}
-    .app button.primary {background-color:#176b43;color:#fff;-webkit-text-fill-color:#fff;}
-    .app button#shareBtn {background-color:#2867a5;border-color:#20588e;color:#fff;-webkit-text-fill-color:#fff;}
-    .app button#shareBtn:not(:disabled):hover {background-color:#20588e;}
-    .app button.tune {background-color:transparent;color:#23382c;-webkit-text-fill-color:#23382c;border:0;border-bottom:1px solid #f0f2f0;border-radius:3px;font-size:16px;font-weight:400;}
-    .app button.tune.active {background-color:#dceee0;color:#0c4c29;-webkit-text-fill-color:#0c4c29;font-weight:400;}
-    .app button.tune:hover {background-color:#f0f5f1;}
-    .app button.tune.active:hover {background-color:#dceee0;}
-    #displayMode {appearance:none;-webkit-appearance:none;
-      background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%2325362e' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 9px center;
-      padding-right:27px;color:#25362e;-webkit-text-fill-color:#25362e;}
-    #searchInput {appearance:none;-webkit-appearance:none;color:#25362e;-webkit-text-fill-color:#25362e;}
-    /* Normalize the new button across Safari/iPadOS and desktop browsers. */
-    .app button#instrumentsBtn {
-      -webkit-appearance:none;appearance:none;flex:0 0 auto;
-      min-height:32px;padding:4px 10px;white-space:nowrap;
-      background-color:#f5f8f5;border:1px solid #abbab0;border-radius:6px;
-      color:#25362e;-webkit-text-fill-color:#25362e;
-      box-shadow:none;text-shadow:none;letter-spacing:normal;
-      font:600 12px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    }
-    .app button#instrumentsBtn:hover {background-color:#e6f0e8}
-    /* Keep controls on the right when the header wraps onto another row. */
-    .scoreHeader {flex-wrap:wrap;row-gap:6px;justify-content:flex-end}
-    /* The display selector itself stays on the left of the first row. */
-    #displayMode {margin-right:auto}
-    #tempoBtn,#viewABCBtn {flex:0 0 auto;min-height:32px;padding:4px 12px;white-space:nowrap;}
-    .tuneTransposeButtons {display:inline-flex;flex:0 0 auto;align-items:center;gap:4px;white-space:nowrap;}
-    .tuneTransposeButtons button.subtle {min-height:32px;padding:4px 9px;white-space:nowrap;}
-
-    /* All three button rows use shared columns: Open / Share / Settings,
-       Show tune info / Sort, and Add / Delete / Clear. No dedicated gear row. */
-    .tuneControls {display:grid;grid-template-columns:max-content max-content max-content;
-      align-items:center;justify-content:start;column-gap:7px;row-gap:4px;
-      flex:0 0 auto;margin:8px 8px 6px;}
-    .tuneListOptions,.tuneEditActions {display:contents;}
-    #openBtn {grid-column:1;grid-row:1;justify-self:start;}
-    .shareBtnWrap {grid-column:2;grid-row:1;justify-self:start;}
-    /* A drawn (not font-dependent) gear is consistent on Safari, iOS, and desktop.
-       Share Sort's grid column and width; match Open/Share's 34px height. */
-    #tuneListSettingsBtn {grid-column:3;grid-row:1;justify-self:stretch;
-      display:inline-flex;align-items:center;justify-content:center;
-      box-sizing:border-box;width:100%;min-width:0;height:34px;min-height:34px;padding:0;}
-    #tuneListSettingsBtn .settingsGearIcon {display:block;flex:0 0 18px;width:18px;height:18px;
-      fill:currentColor;pointer-events:none;}
-    .showTuneInfoOption {grid-column:1 / span 2;grid-row:2;display:flex;align-items:center;gap:7px;min-width:0;padding:2px 0;font-size:15px;color:#354d3e;cursor:pointer;user-select:none;-webkit-user-select:none}
-    .showTuneInfoOption input {width:16px;height:16px;margin:0;accent-color:var(--accent);margin-left:2px;}
-    #sortBtn {grid-column:3;grid-row:2;justify-self:end;width:100%;min-height:28px;padding:4px 11px;white-space:nowrap}
-    /* Small tune-management buttons, kept at the left immediately above search. */
-    .tuneEditActions button {grid-row:3;justify-self:start;min-height:28px;padding:4px 11px;white-space:nowrap;}
-    #addTuneBtn {grid-column:1;}
-    #deleteTuneBtn {grid-column:2;}
-    #clearTunesBtn {grid-column:3;justify-self:end;}
-    .tuneEditActions button:disabled {opacity:.45;cursor:default;}
-    /* Keep Add, Delete, and Clear on one row even with a narrow resized sidebar. */
-    @container (max-width:245px) {
-      .tuneControls {column-gap:3px;margin-left:5px;margin-right:5px;font-size:12px;}
-      .tuneControls #openBtn,.tuneControls #shareBtn {min-width:0;padding:6px 6px;}
-      .app .tuneEditActions button.subtle {padding-left:4px;padding-right:4px;font-size:11px;}
-      #sortBtn {padding-left:6px;padding-right:6px;font-size:11px;}
-      .showTuneInfoOption {font-size:13px;gap:4px;}
-    }
-    @container (max-width:185px) {
-      .tuneControls {column-gap:2px;margin-left:4px;margin-right:4px;}
-      .app .tuneEditActions button.subtle {padding-left:2px;padding-right:2px;font-size:10px;}
-    }
-    /* On iPad portrait / similarly narrow desktop sidebars, the compact
-       245px rule makes Open and Share needlessly tiny. Share the available
-       column space with Sort/Settings, without adding rows or widening the
-       entire sidebar. Keep iPhone landscape's shorter viewport unchanged. */
-    @media (min-width:731px) and (min-height:550px) {
-      @container (min-width:200px) and (max-width:245px) {
-        .tuneControls {
-          grid-template-columns:minmax(0,1fr) minmax(0,1fr) minmax(0,.65fr);
-          justify-content:stretch;
-        }
-        .tuneControls #openBtn,
-        .tuneControls #shareBtn {width:100%;font-size:14px;}
-        .tuneControls .shareBtnWrap {width:100%;}
-      }
-    }
-    @media(max-width:730px) and (min-width:526px) {
-      .tuneControls {column-gap:5px;}
-      .showTuneInfoOption {font-size:12px;gap:4px;}
-      .showTuneInfoOption input {width:14px;height:14px;}
-      #sortBtn {padding:4px 7px;}
-      .tuneEditActions button {padding:4px 7px;font-size:12px;}
-    }
-    /* Tune-list title and metadata sizes are independent of the notation and ABC editor. */
-    #tuneList {--tune-title-font-size:16px;--tune-info-font-size:14px;}
-    #tuneList .tuneTitle {font-size:var(--tune-title-font-size);}
-    #tuneList .tuneInfo {font-size:var(--tune-info-font-size);}
-    /* The Sort and tune-list settings dialogs use the same styled DayPilot select. */
-    .viewerSortHeading {display:block;box-sizing:border-box;width:100%;margin:4px 0 25px;padding:0;font:normal 23px/1.3 Helvetica,Arial,sans-serif;text-align:center;color:#111}
-    .viewerSortIntro {margin:32px 0 29px;font:16px/1.55 Helvetica,Arial,sans-serif;color:#111;text-align: center;}
-    .modal_flat_main .viewerSortSelect {display:flex;align-items:center;justify-content:center;gap:10px;margin:0;font:16px/1.4 Helvetica,Arial,sans-serif;color:#111;white-space:nowrap}
-    .modal_flat_main .viewerSortSelect select,
-    .modal_flat_main select.viewerSortSelect {box-sizing:border-box;-webkit-appearance:none;appearance:none;flex:0 1 260px;width:260px;min-width:0;max-width:100%;height:35px;border:2px solid #888;border-radius:0;padding:4px 32px 4px 9px;background:#eee url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%238C98F2' d='M0 0h12L6 7z'/%3E%3C/svg%3E") no-repeat right 10px center;color:#111;-webkit-text-fill-color:#111;font:16px/1.2 Helvetica,Arial,sans-serif}
-    .modal_flat_main:has(.viewerSortHeading) .modal_flat_buttons {margin-top:38px}
-    @media(max-width:525px) {.viewerSortHeading {font-size:21px;margin-bottom:18px}.viewerSortIntro {margin:22px 0 19px}.modal_flat_main .viewerSortSelect {flex-wrap:wrap}}
-    #fileInput {display:none}
-    .search {position:relative;margin:0 8px 7px;flex:0 0 auto}
-    #searchInput {width:100%;min-height:36px;border:1px solid #c3cfc6;border-radius:5px;padding:7px 32px 7px 9px;background:white;font-size:16px}
-    #clearSearch {position:absolute;right:3px;top:3px;border:0;background:transparent;font-size:19px;line-height:28px;width:28px;height:29px;color:#777;display:none}
-    #tuneList {overflow-x:hidden;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;min-height:0;flex:1;padding:1px 5px 7px}
-    .tune {display:block;width:100%;border:0;border-bottom:1px solid #f0f2f0;border-radius:3px;text-align:left;background:transparent;padding:9px 8px;min-height:38px;line-height:1.3;color:#23382c;overflow-wrap:anywhere;font-size:16px}
-    .tune:hover {background:#f0f5f1}
-    .tune.active {background:#dceee0;color:#0c4c29;font-weight:400}
-    .tuneTitle {display:block}
-    .tuneInfo {display:block;margin-top:2px;color:#66796e;font-size:14px;line-height:1.3;font-weight:400}
-    .tune.active .tuneInfo {color:#42664e}
-    .emptyList {color:#77857b;font-size:14px;text-align:center;padding:23px 10px}
-    .scorePane {display:flex;flex-direction:column}
-    /* In-page full view is supported on iPad/iPhone where the Fullscreen API is limited. */
-    .app.fullPage header,.app.fullPage aside,.app.fullPage .paneDivider {display:none}
-    .app.fullPage .workspace {display:block;padding:0;gap:0}
-    .app.fullPage .scorePane {width:100%;height:100%;border:0;border-radius:0}
-    .app.fullPage #score {padding:9px 13px 26px}
-    .scoreHeader {flex:0 0 auto;min-height:45px;display:flex;align-items:center;gap:14px;padding:6px 12px;border-bottom:1px solid var(--border);background:#fafcfa}
-    .scoreHeader label {font-size:13px;font-weight:600;white-space:nowrap}
-    #displayMode {max-width:min(280px,48vw);min-width:155px;height:32px;border-radius:5px;border:1px solid #b8c6bb;padding:4px 6px;background:white;font-size:13px}
-    #selectedName {min-width:0;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:right;font-size:14px;color:#60746a}
-    #fullPageBtn {min-height:32px;min-width:86px;padding:4px 9px;white-space:nowrap;flex:0 0 auto}
-    #scoreScroll {min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;background:white}
-    #score {min-width:0;width:100%;padding:9px 8px 23px}
-    #score svg {display:block;width:100% !important;height:auto !important;max-width:100%;margin-inline:auto;overflow:visible;color:#111}
-    #score .hiddentabline {display:none}
-    #placeholder {padding:30px 18px;text-align:center;color:#77857b}
-    #audioHolder {flex:0 0 auto;border-top:1px solid var(--border);padding:3px 8px 5px;background:#fafcfa;min-height:61px}
-    #audio {max-width:100%;min-height:50px}
-    #audio .abcjs-inline-audio {box-sizing:border-box;max-width:100%;margin:0 auto;}
-    #audio input.abcjs-midi-tempo,#audio input.abcjs-midi-current-tempo {cursor:pointer}
-    /* Make the abcjs Repeat/Loop button unmistakable when enabled. */
-    #audio .abcjs-midi-loop.abcjs-pushed{background:#176b43 !important;border-color:#0d4c2f !important;color:#fff !important;box-shadow:0 0 0 3px rgba(23,107,67,.24),inset 0 0 0 1px rgba(255,255,255,.22) !important}
-    #audio .abcjs-midi-loop.abcjs-pushed svg,#audio .abcjs-midi-loop.abcjs-pushed svg *{fill:#fff !important;stroke:#fff !important}
-    #score .abcjs-cursor {stroke:#00c83c;stroke-width:12px;stroke-opacity:.28;transform:translate(7px,0);pointer-events:none}
-    #status {position:fixed;left:50%;bottom:5px;transform:translateX(-50%);padding:4px 10px;background:#f0f5f0;color:#536a58;border:1px solid #d3ded4;border-radius:4px;font-size:12px;pointer-events:none;display:none}
-    .overlay {position:fixed;inset:0;z-index:2000;background:#0007;display:none;justify-content:center;align-items:flex-start;overflow:auto;padding:16vh 12px 24px}
-    .overlay.open {display:flex}
-    /* Match the standalone player tools' audio-enable dialog, including its
-       speaker icon, green button, and one-third-down viewport placement. */
-    #enableOverlay {
-      z-index:30000;
-      justify-content:center;
-      align-items:center;
-      padding:max(16px,env(safe-area-inset-top,0px)) 16px max(16px,env(safe-area-inset-bottom,0px));
-      background:rgba(0,0,0,.64);
-    }
-    #enableOverlay .enablePlaybackDialog {
-      transform:translateY(-16.6667vh);
-      transform:translateY(-16.6667dvh);
-      width:min(380px,100%);
-      max-height:calc(100dvh - 32px);
-      overflow-y:auto;
-      box-sizing:border-box;
-      padding:30px 24px 28px;
-      border-radius:16px;
-      background:#fff;
-      color:#17251d;
-      box-shadow:0 22px 65px rgba(0,0,0,.38);
-      text-align:center;
-      font:16px/1.45 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-    }
-    #enableOverlay .enablePlaybackSymbol {
-      font-size:36px;
-      line-height:1;
-      margin-bottom:14px;
-    }
-    #enableOverlay .enablePlaybackDialog h2 {
-      margin:0 0 12px;
-      font-size:1.42rem;
-      line-height:1.2;
-    }
-    #enableOverlay .enablePlaybackDialog p {
-      margin:0 0 24px;
-      color:#46584b;
-    }
-    #enableOverlay #enableBtn {
-      display:block;
-      box-sizing:border-box;
-      width:100%;
-      min-height:56px;
-      padding:12px 18px;
-      border:0;
-      border-radius:10px;
-      color:#fff;
-      -webkit-text-fill-color:#fff;
-      background:#176b43;
-      box-shadow:none;
-      font:700 1.1rem/1.25 system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-      cursor:pointer;
-    }
-    #enableOverlay #enableBtn:hover:not(:disabled),
-    #enableOverlay #enableBtn:focus-visible {
-      background:#0d4c2f;
-      outline:3px solid #92c4a6;
-      outline-offset:2px;
-    }
-    #enableOverlay #enableBtn:disabled {
-      opacity:.72;
-      cursor:wait;
-    }
-    @media (max-height:540px) {
-      #enableOverlay .enablePlaybackDialog {transform:none;}
-    }
-    @media (max-width:480px) {
-      #enableOverlay .enablePlaybackDialog {padding:26px 20px 24px;}
-    }
-    .dialog {box-shadow:0 10px 36px #0004;border:1px solid #acb5af;background:white;border-radius:8px;width:min(530px,95vw);padding:22px 25px 24px;text-align:left;max-height:78vh;overflow:auto}
-    .dialog h2 {margin:0 0 14px;text-align:center;font-size:21px}
-    .dialog p {margin:0 0 12px}
-    .dialog ul {padding-left:24px;line-height:1.55}
-    .dialog .buttons {display:flex;justify-content:center;margin-top:20px}
-
-    /* Tempo prompt: mirror the compact DayPilot prompt used in the instrument players.
-       Scoped to this prompt, leaving the Instruments and error dialogs unchanged. */
-    body.viewerTempoPromptOpen .modal_default_main {
-      box-sizing:border-box !important;
-      max-width:calc(100vw - 24px) !important;
-      border:1px solid #17241c !important;
-      box-shadow:0 8px 28px rgba(0,0,0,.18) !important;
-      color:#17241c !important;
-      font:16px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif !important;
-    }
-    body.viewerTempoPromptOpen .modal_default_main .modal_default_content {
-      font-size:16px !important;line-height:1.45 !important;
-      text-align:center !important;
-    }
-    /* DayPilot's .modal_default_input can be a wrapper around the text field.
-       Styling both caused the double border around the Tempo input. */
-    body.viewerTempoPromptOpen .modal_default_main .modal_default_input:not(input) {
-      padding:0 !important;
-      border:0 !important;
-      border-radius:0 !important;
-      box-shadow:none !important;
-      outline:0 !important;
-      background:transparent !important;
-    }
-    body.viewerTempoPromptOpen .modal_default_main input[type="text"],
-    body.viewerTempoPromptOpen .modal_default_main input:not([type]) {
-      box-sizing:border-box !important;
-      max-width:100% !important;
-      padding:7px 9px !important;
-      border:1px solid #999 !important;border-radius:5px !important;
-      background:#fff !important;
-      box-shadow:none !important;
-      color:#17241c !important;-webkit-text-fill-color:#17241c !important;
-      font:16px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif !important;
-      -webkit-appearance:none;appearance:none;
-    }
-    /* Match the other players: keep the focused input's border neutral.
-       The Viewer's general green focus ring should not affect this prompt. */
-    body.viewerTempoPromptOpen .modal_default_main input[type="text"]:focus,
-    body.viewerTempoPromptOpen .modal_default_main input[type="text"]:focus-visible,
-    body.viewerTempoPromptOpen .modal_default_main input:not([type]):focus,
-    body.viewerTempoPromptOpen .modal_default_main input:not([type]):focus-visible {
-      border-color:#999 !important;
-      outline:none !important;
-      box-shadow:none !important;
-    }
-    body.viewerTempoPromptOpen .modal_default_main .modal_default_buttons {
-      text-align:center !important;
-    }
-    body.viewerTempoPromptOpen .modal_default_main .modal_default_buttons table {
-      margin-left:auto !important;margin-right:auto !important;
-    }
-    body.viewerTempoPromptOpen .modal_default_main input[type="button"],
-    body.viewerTempoPromptOpen .modal_default_main input[type="submit"],
-    body.viewerTempoPromptOpen .modal_default_main button,
-    body.viewerTempoPromptOpen .modal_default_button {
-      -webkit-appearance:none !important;appearance:none !important;
-      color:#17241c !important;-webkit-text-fill-color:#17241c !important;
-      background:#f5f6f5 !important;border:1px solid #aebbb3 !important;
-      border-radius:6px !important;box-shadow:none !important;
-      font:600 14px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif !important;
-      min-width:78px !important;width:auto !important;padding:6px 14px !important;
-      cursor:pointer;
-    }
-    body.viewerTempoPromptOpen .modal_default_main input[type="button"]:hover,
-    body.viewerTempoPromptOpen .modal_default_main input[type="submit"]:hover,
-    body.viewerTempoPromptOpen .modal_default_main button:hover {
-      background:#e4e8e5 !important;border-color:#81968a !important;
-    }
-
-    /* Save-file filename prompt: use the same compact DayPilot styling as
-       the instrument players. Scoped so Tempo and other dialogs are unchanged. */
-    body.save-name-prompt-open .modal_default_main {
-      box-sizing:border-box !important;
-      max-width:calc(100vw - 24px) !important;
-      border:1px solid #17241c !important;
-      box-shadow:0 8px 28px rgba(0,0,0,.18) !important;
-      color:#17241c !important;
-      font-size:16px !important;
-    }
-    body.save-name-prompt-open .modal_default_main .modal_default_content {
-      text-align:left !important;
-      font-size:16px !important;
-      line-height:1.4 !important;
-      padding-bottom:8px !important;
-    }
-    body.save-name-prompt-open .modal_default_main .modal_default_input:not(input) {
-      padding:0 !important;border:0 !important;border-radius:0 !important;
-      outline:0 !important;box-shadow:none !important;background:transparent !important;
-    }
-    body.save-name-prompt-open .modal_default_main input[type="text"],
-    body.save-name-prompt-open .modal_default_main input:not([type]) {
-      box-sizing:border-box !important;
-      max-width:100% !important;
-      padding:7px 9px !important;
-      border:1px solid #999 !important;
-      border-radius:5px !important;
-      box-shadow:none !important;
-      background:#fff !important;
-      color:#17241c !important;-webkit-text-fill-color:#17241c !important;
-      font-size:16px !important;
-    }
-    body.save-name-prompt-open .modal_default_main input[type="text"]:focus,
-    body.save-name-prompt-open .modal_default_main input[type="text"]:focus-visible,
-    body.save-name-prompt-open .modal_default_main input:not([type]):focus,
-    body.save-name-prompt-open .modal_default_main input:not([type]):focus-visible {
-      border-color:#999 !important;outline:0 !important;box-shadow:none !important;
-    }
-    body.save-name-prompt-open .modal_default_main .modal_default_buttons {text-align:center !important}
-    body.save-name-prompt-open .modal_default_main .modal_default_buttons table {
-      margin-left:auto !important;margin-right:auto !important;
-    }
-    body.save-name-prompt-open .modal_default_main .modal_default_buttons input[type="button"],
-    body.save-name-prompt-open .modal_default_main .modal_default_buttons input[type="submit"],
-    body.save-name-prompt-open .modal_default_main .modal_default_buttons button {margin:0 9px !important}
-    body.save-name-prompt-open .modal_default_main input[type="button"],
-    body.save-name-prompt-open .modal_default_main input[type="submit"],
-    body.save-name-prompt-open .modal_default_main button,
-    body.save-name-prompt-open .modal_default_button {
-      -webkit-appearance:none !important;appearance:none !important;
-      border:1px solid #aebbb3 !important;border-radius:6px !important;
-      box-shadow:none !important;background:#f5f6f5 !important;
-      color:#17241c !important;-webkit-text-fill-color:#17241c !important;
-      font:600 14px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif !important;
-      min-width:78px !important;width:auto !important;padding:6px 14px !important;
-    }
-    body.save-name-prompt-open .modal_default_main input[type="button"]:hover,
-    body.save-name-prompt-open .modal_default_main input[type="submit"]:hover,
-    body.save-name-prompt-open .modal_default_main button:hover {
-      background:#e4e8e5 !important;border-color:#81968a !important;
-    }
-    body.save-name-prompt-open .modal_default_main,
-    body.save-name-prompt-open .modal_default_main > div,
-    body.save-name-prompt-open .modal_default_main .modal_default_content,
-    body.save-name-prompt-open .modal_default_main .modal_default_buttons {outline:0 !important}
-
-    /* DayPilot alert and confirmation dialogs: match the instrument players.
-       These baseline rules also cover error alerts and Yes/No confirmations.
-       The more-specific Tempo and filename prompt rules above remain in force. */
-    .modal_default_main {
-      box-sizing:border-box !important;
-      max-width:calc(100vw - 24px) !important;
-      border:1px solid #17241c !important;
-      box-shadow:0 8px 28px rgba(0,0,0,.18) !important;
-      font-size:16px !important;
-    }
-    .modal_default_main .modal_default_content {
-      font-size:16px !important;
-      line-height:1.55 !important;
-      text-align:center !important;
-    }
-    .modal_default_main .modal_default_buttons {text-align:center !important;}
-    .modal_default_main .modal_default_buttons table {
-      margin-left:auto !important;
-      margin-right:auto !important;
-    }
-    .modal_default_main input {font-size:16px !important;}
-    .modal_default_main input[type="button"],
-    .modal_default_main input[type="submit"],
-    .modal_default_main button,
-    .modal_default_button {
-      -webkit-appearance:none !important;
-      appearance:none !important;
-      color:#17241c !important;
-      -webkit-text-fill-color:#17241c !important;
-      background:#f5f6f5 !important;
-      border:1px solid #aebbb3 !important;
-      border-radius:6px !important;
-      box-shadow:none !important;
-      font:inherit !important;
-      font-size:14px !important;
-      font-weight:600 !important;
-      line-height:1.2 !important;
-      min-width:78px !important;
-      width:auto !important;
-      padding:6px 14px !important;
-      cursor:pointer;
-    }
-    .modal_default_main input[type="button"]:hover,
-    .modal_default_main input[type="submit"]:hover,
-    .modal_default_main button:hover,
-    .modal_default_button:hover {
-      background:#e4e8e5 !important;
-      border-color:#81968a !important;
-    }
-    .modal_default_main,
-    .modal_default_main > div,
-    .modal_default_main .modal_default_content,
-    .modal_default_main .modal_default_buttons {outline:0 !important;}
-
-    /* Instruments DayPilot dialog: match the compact ABC Transcription Tools Player Settings.
-       Scoped to its modal_flat theme; the Viewer's Tempo/alert dialogs are unaffected. */
-    .modal_flat_background {background-color:#000;opacity:.42}
-    .modal_flat_main {
-      box-sizing:border-box;max-width:calc(100vw - 20px);max-height:calc(100dvh - 74px);
-      overflow:auto;border:1px solid #333;box-shadow:0 0 15px -2px rgba(0,0,0,.65);
-      background:#fff;color:#111;font:16px/1.4 Helvetica,Arial,sans-serif;
-      -webkit-text-size-adjust:100%;
-    }
-    .modal_flat_inner {box-sizing:border-box;padding:16px 28px 24px;background:#fff;color:#111}
-    .modal_flat_content {font-family:Helvetica,Arial,sans-serif;margin:0}
-    .modal_flat_input {margin:0}
-    .modal_flat_main .viewerInstrumentsTitle {
-      margin:4px 0 26px;text-align:center;font:normal 24px/1.3 Helvetica,Arial,sans-serif
-    }
-    .modal_flat_main .viewerInstrumentsIntro,
-    .modal_flat_main .viewerInstrumentsOverrideNote {
-      margin:0 0 24px;font:16px/1.5 Helvetica,Arial,sans-serif
-    }
-    .modal_flat_main .viewerInstrumentsOverrideNote {margin:26px 0 12px}
-    .modal_flat_main .viewerInstrumentsSelect,
-    .modal_flat_main .viewerInstrumentsSoundfont,
-    .modal_flat_main .viewerInstrumentsVolume {
-      display:flex;flex-wrap:wrap;align-items:center;column-gap:9px;row-gap:6px;
-      margin:0 0 17px;font:16px/1.4 Helvetica,Arial,sans-serif;
-    }
-    .modal_flat_main .viewerInstrumentsSelect select,
-    .modal_flat_main .viewerInstrumentsSoundfont select {
-      box-sizing:border-box;-webkit-appearance:none;-moz-appearance:none;appearance:none;
-      width:min(245px,100%);max-width:100%;height:34px;min-height:34px;margin:0;
-      border:2px solid #999;border-radius:0;padding:4px 30px 4px 10px;
-      background-color:#efefef;
-      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238C98F2' d='M0 0h12L6 7z'/%3E%3C/svg%3E");
-      background-repeat:no-repeat;background-size:12px 8px;background-position:right 10px center;
-      color:#111;-webkit-text-fill-color:#111;font:16px/1.25 Helvetica,Arial,sans-serif;
-      cursor:pointer;
-    }
-    .modal_flat_main .viewerInstrumentsSoundfont select {width:min(165px,100%)}
-    /* Separate the volume settings slightly from the instrument dropdowns. */
-    .modal_flat_main .viewerInstrumentsFirstVolume {margin-top:11px}
-    .modal_flat_main .viewerInstrumentsVolume input[type=number] {
-      box-sizing:border-box;-webkit-appearance:none;-moz-appearance:textfield;appearance:textfield;
-      width:66px;height:32px;min-height:32px;margin:0;padding:3px 7px;
-      border:1px solid #999;border-radius:4px;background:#fff;
-      color:#111;-webkit-text-fill-color:#111;font:16px/1.2 Helvetica,Arial,sans-serif;
-    }
-    .modal_flat_main .viewerInstrumentsCheckbox {
-      display:flex;align-items:flex-start;gap:9px;margin:4px 0 0;
-      font:16px/1.45 Helvetica,Arial,sans-serif;
-    }
-    .modal_flat_main .viewerInstrumentsCheckbox input[type=checkbox] {
-      -webkit-appearance:checkbox;appearance:checkbox;order:-1;
-      flex:0 0 18px;width:18px;height:18px;margin:2px 9px 0 0;
-      accent-color:#176b43;cursor:pointer;
-    }
-    .modal_flat_buttons {
-      display:flex;align-items:center;justify-content:center;flex-wrap:wrap;gap:10px;
-      margin:30px 0 0;text-align:center;
-    }
-    .modal_flat_buttons table {margin-left:auto;margin-right:auto}
-    .modal_flat_main button,
-    .modal_flat_main .modal_flat_ok,
-    .modal_flat_main .modal_flat_cancel,
-    .modal_flat_main input[type=button],
-    .modal_flat_main input[type=submit] {
-      box-sizing:border-box;-webkit-appearance:none;appearance:none;
-      min-width:105px;min-height:42px;margin:0;padding:8px 18px;
-      border:0;border-radius:0;box-shadow:none;background:#ccc;
-      color:#111;-webkit-text-fill-color:#111;font:16px/1.3 Helvetica,Arial,sans-serif;
-      cursor:pointer;
-    }
-    .modal_flat_main button:hover,.modal_flat_main input[type=button]:hover,
-    .modal_flat_main input[type=submit]:hover {background:#bcbcbc}
-    .modal_flat_main select:focus-visible,.modal_flat_main input:focus-visible,
-    .modal_flat_main button:focus-visible {outline:2px solid #176b43;outline-offset:2px}
-    @media(max-width:600px) {
-      .modal_flat_inner {padding:15px 16px 18px}
-      .modal_flat_main .viewerInstrumentsTitle {margin:3px 0 18px;font-size:22px}
-      .modal_flat_main .viewerInstrumentsIntro,
-      .modal_flat_main .viewerInstrumentsOverrideNote {font-size:15px;margin-bottom:17px}
-      .modal_flat_main .viewerInstrumentsSelect,
-      .modal_flat_main .viewerInstrumentsSoundfont,
-      .modal_flat_main .viewerInstrumentsVolume {font-size:15px;margin-bottom:15px}
-      .modal_flat_main .viewerInstrumentsCheckbox {font-size:15px}
-      .modal_flat_buttons {margin-top:22px}
-    }
-
-    /* Instructions follow the standalone players: fixed heading/footer, scrolling body. */
-    #instructionsOverlay {padding:50px 12px 24px;overflow:hidden}
-    #instructionsOverlay .dialog {
-      display:flex;flex-direction:column;width:min(680px,calc(100vw - 24px));
-      height:calc(100vh - 74px);height:min(760px,calc(100dvh - 74px));
-      max-height:calc(100dvh - 74px);padding:20px 25px 22px;overflow:hidden
-    }
-    #instructionsOverlay .dialog h2 {flex:0 0 auto;margin:0 0 4px}
-    #instructionsOverlay .viewerVersion {
-      flex:0 0 auto;margin:0 0 15px;text-align:center;
-      font-size:13px;line-height:1.4;font-weight:600;color:#60746a
-    }
-    #instructionsOverlay .instructionsScroll {
-      flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain;
-      -webkit-overflow-scrolling:touch;padding:0 13px 0 2px;
-      font-size:15px;line-height:1.45
-    }
-    #instructionsOverlay .instructionsScroll h3 {margin:0 0 8px;font-size:17px;line-height:1.3}
-    #instructionsOverlay .instructionsScroll .aboutSection {text-align:center}
-    #instructionsOverlay .instructionsScroll p {margin:0 0 10px}
-    /* Two compact, touch-friendly demo links in the Instructions dialog. */
-    #instructionsOverlay .viewerVideoLinks {
-      display:grid;gap:10px;max-width:540px;margin:10px auto 20px;
-    }
-    #instructionsOverlay .viewerVideoLink {
-      display:flex;align-items:center;gap:14px;min-width:0;
-      padding:13px 15px;border:1px solid #c9dccf;border-radius:9px;
-      background:#f7faf8;color:#1c4530;text-decoration:none;
-      font:600 14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      transition:background .15s ease,border-color .15s ease,box-shadow .15s ease;
-    }
-    #instructionsOverlay .viewerVideoLink:hover,
-    #instructionsOverlay .viewerVideoLink:focus-visible {
-      background:#eaf5ed;border-color:#87b59a;
-      box-shadow:0 2px 8px rgba(20,83,47,.1);
-    }
-    #instructionsOverlay .viewerVideoLink:focus-visible {
-      outline:2px solid #176b43;outline-offset:2px;
-    }
-    #instructionsOverlay .viewerVideoPlay {
-      display:inline-flex;flex:0 0 36px;align-items:center;justify-content:center;
-      width:36px;height:36px;border-radius:50%;background:#176b43;
-      color:#fff;font-size:15px;line-height:1;padding-left:2px;
-    }
-    #instructionsOverlay .viewerVideoText {flex:1 1 auto;min-width:0;overflow-wrap:break-word;}
-    #instructionsOverlay .viewerVideoExternal {flex:0 0 auto;color:#59826a;font-size:18px;font-weight:400;}
-    @media (max-width:525px) {
-      #instructionsOverlay .viewerVideoLink {gap:11px;padding:11px 12px;font-size:13.5px;}
-      #instructionsOverlay .viewerVideoPlay {flex-basis:33px;width:33px;height:33px;}
-    }
-    #instructionsOverlay .instructionsScroll hr {
-      border:0;border-top:1px solid rgba(127,127,127,.25);margin:17px 0
-    }
-    #instructionsOverlay .dialog .buttons {flex:0 0 auto;margin-top:15px}
-    #instructionsOverlay #closeInstructions {
-      min-width:170px;min-height:40px;color:#25362e;background:#f5f8f5;
-      border:1px solid #abbab0;border-radius:6px
-    }
-    #instructionsOverlay #closeInstructions:hover {background:#e6f0e8}
-    @media (max-height:550px) {
-      #instructionsOverlay {padding-top:14px;padding-bottom:12px}
-      #instructionsOverlay .dialog {
-        height:calc(100dvh - 26px);max-height:calc(100dvh - 26px);
-        padding-top:12px;padding-bottom:12px
-      }
-      #instructionsOverlay .viewerVersion {margin-bottom:8px}
-      #instructionsOverlay .dialog .buttons {margin-top:8px}
-    }
-    @media (max-width:525px) {
-      #instructionsOverlay .dialog {padding-left:16px;padding-right:16px}
-      #instructionsOverlay .dialog h2 {font-size:19px}
-      #instructionsOverlay .instructionsScroll {padding-right:8px}
-    }
-    #dragOverlay {position:fixed;inset:8px;z-index:1000;pointer-events:none;border:3px dashed #176b43;border-radius:13px;background:#e3f4e5dc;display:none;align-items:center;justify-content:center;color:#105832;font-size:23px;font-weight:650}
-    @media(max-width:730px) {.workspace{--default-list-width:clamp(165px,34vw,225px);padding:4px} .scoreHeader{padding:5px 7px;gap:7px}.scoreHeader label{display:none} #displayMode{min-width:116px;max-width:43vw}#selectedName{display:none} .corner{min-width:70px} header h1{font-size:18px}}
-    /* Keep the longer viewer title clear of the corner buttons on narrow phones. */
-    @media(max-width:525px) and (orientation:portrait) {
-      header {flex-basis:60px;height:60px}
-      .headerTitleBlock {gap:13px}
-      header h1 {font-size:clamp(12px,3.6vw,16px)}
-      header .corner {top:5px;min-width:0;padding:3px 7px;font-size:12px}
-      header .corner.left {left:8px}
-      header .corner.right {right:8px}
-    }
-    @media(max-width:360px) and (orientation:portrait) {
-      header .corner {padding-left:5px;padding-right:5px}
-    }
-    @media(max-width:525px) and (orientation:portrait) {
-      .workspace {grid-template-columns:minmax(0,1fr);grid-template-rows:var(--tune-list-height,minmax(130px,29dvh)) 12px minmax(0,1fr)}
-      .paneDivider {cursor:row-resize}
-      .paneDivider::before {left:7px;right:7px;top:50%;bottom:auto;width:auto;height:2px;transform:translateY(-50%)}
-      .paneDivider::after {width:38px;height:5px}
-    }
-    @media(max-width:525px) and (orientation:portrait) { .tune{min-height:32px;padding:6px 8px} .scoreHeader label{display:none} #displayMode{min-width:92px;max-width:35vw;flex:0 1 35vw} #instrumentsBtn{padding:4px 7px} #tempoBtn{padding:4px 7px} .tuneTransposeButtons button.subtle{padding:4px 6px;font-size:11px} #viewABCBtn{padding:4px 7px} #fullPageBtn{min-width:76px;padding:4px 7px} .listActions{padding:4px 7px}.search{margin-bottom:4px} }
-    @media(max-width:650px) and (orientation:landscape) { .scoreHeader{flex-wrap:wrap;column-gap:6px;row-gap:4px} #selectedName{display:none} #displayMode{min-width:105px;max-width:100%;flex:1 1 106px} #instrumentsBtn{padding:4px 7px} #tempoBtn{padding:4px 7px} .tuneTransposeButtons button.subtle{padding:4px 6px;font-size:11px} #viewABCBtn{padding:4px 7px} #fullPageBtn{min-width:78px;padding:4px 7px} }
-    @media(max-height:540px) and (orientation:landscape) {header{flex-basis:49px;height:49px} header h1{font-size:17px} .headerSourceStatus{font-size:12px} .corner{top:6px} .workspace{padding:3px} .scoreHeader{min-height:37px;padding:3px 7px} .listActions{padding:4px 7px} #audioHolder{padding:1px 5px;min-height:54px} .overlay{padding-top:6vh}}
-    /* Read-only ABC source window. Kept separate from the DayPilot dialogs. */
-    .abcModalOverlay {
-      position:fixed;inset:0;z-index:2400;pointer-events:none;
-      background:transparent;
-    }
-    .abcModalOverlay[hidden] {display:none}
-    .abcModalWindow {
-      position:absolute;display:flex;flex-direction:column;min-width:0;min-height:0;
-      overflow:hidden;box-sizing:border-box;pointer-events:auto;
-      border:1px solid #8b9990;border-radius:7px;background:#fff;
-      color:#17241c;box-shadow:0 12px 36px rgba(0,0,0,.34);
-    }
-    .abcModalHeader {
-      position:relative;flex:0 0 auto;display:flex;align-items:center;justify-content:flex-start;
-      min-height:39px;padding:7px 14px;background:#f1f6f2;
-      border-bottom:1px solid #c9d5cb;cursor:move;touch-action:none;
-      user-select:none;-webkit-user-select:none;
-    }
-    .abcModalHeader h2 {
-      margin:0;font:650 15px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      max-width:calc(100% - 215px);text-align:left;overflow:hidden;
-      text-overflow:ellipsis;white-space:nowrap;
-    }
-    /* Match the notation pane's styled display-mode selector. Keep the
-       control independent of the draggable ABC title bar. */
-    .abcModalFontControl {
-      position:absolute;right:11px;top:50%;transform:translateY(-50%);
-      display:flex;align-items:center;gap:7px;cursor:default;
-      font:600 12px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      color:#25362e;
-    }
-    .abcModalFontControl label {white-space:nowrap;cursor:default}
-    #abcModalFontSize {
-      box-sizing:border-box;appearance:none;-webkit-appearance:none;
-      width:108px;max-width:100%;min-height:31px;
-      border:1px solid #b8c6bb;border-radius:5px;
-      padding:4px 25px 4px 8px;color:#25362e;-webkit-text-fill-color:#25362e;
-      background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%2325362e' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 8px center;
-      font:normal 12px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      cursor:pointer;
-    }
-    .abcModalText {
-      display:block;box-sizing:border-box;width:100%;flex:1 1 auto;
-      min-height:0;min-width:0;overflow:auto;resize:none;
-      margin:0;padding:12px 14px;border:0;outline:none;background:#fff;color:#18221d;
-      -webkit-text-fill-color:#18221d;
-      font:13pt/1.35 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;
-      /* The native textarea preserves selections, Undo, and mobile editing. */
-      white-space:pre-wrap;tab-size:4;overflow-wrap:anywhere;word-break:normal;
-      -webkit-overflow-scrolling:touch;overscroll-behavior:contain;
-      user-select:text;-webkit-user-select:text;
-    }
-    .abcModalText:focus-visible {outline:2px solid #85bda1;outline-offset:-2px}
-    .abcModalWarning {
-      position:absolute;z-index:3;top:43px;left:12px;right:12px;
-      padding:9px 12px;border:1px solid #ccaa65;border-radius:6px;
-      background:#fff5e5;color:#5d4216;box-shadow:0 3px 12px #0002;
-      font:600 13px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      pointer-events:none;
-    }
-    .abcModalWarning[hidden] {display:none}
-    .abcModalFooter {
-      flex:0 0 51px;display:grid;align-items:center;
-      grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);
-      /* Explicitly use one full-height row so Safari centers both footer items. */
-      grid-template-rows:minmax(0,1fr);
-      border-top:1px solid #d1d9d4;background:#fafcfa;
-    }
-    .abcModalFooterInfo {
-      grid-column:1;grid-row:1;align-self:center;justify-self:start;
-      min-width:0;padding-left:12px;
-      color:#65766b;font:11px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-    }
-    .abcModalFooter button {grid-column:2;grid-row:1;align-self:center;justify-self:center}
-    .abcModalFooter button {
-      -webkit-appearance:none;appearance:none;min-width:96px;min-height:34px;
-      padding:7px 20px;border:1px solid #aebbb3;border-radius:6px;
-      background:#f5f8f5;color:#25362e;-webkit-text-fill-color:#25362e;
-      font:600 14px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      cursor:pointer;
-    }
-    .abcModalFooter button:hover {background:#e6f0e8}
-    .abcModalFooter button:focus-visible,.abcModalResize:focus-visible {
-      outline:3px solid #85bda1;outline-offset:-2px;
-    }
-    .abcModalResize {
-      position:absolute;right:0;bottom:0;width:27px;height:27px;
-      cursor:nwse-resize;touch-action:none;z-index:1;
-      background:repeating-linear-gradient(135deg,transparent 0px,transparent 5px,#7e9184 6px,#7e9184 7px,transparent 8px,transparent 10px);
-      clip-path:polygon(100% 0,100% 100%,0 100%);
-      opacity:.75;
-    }
-    @media(max-width:525px) {
-      .abcModalHeader {min-height:37px;padding:7px 12px}
-      .abcModalHeader h2 {font-size:14px;max-width:calc(100% - 135px)}
-      .abcModalFontControl {right:9px}
-      .abcModalFontControl label {display:none}
-      #abcModalFontSize {width:108px}
-      .abcModalText {padding:10px 11px}
-      .abcModalFooter {flex-basis:49px}
-    }
-
-    /* Sharing and lesson dialogs match the standalone instrument players. */
-    .lessonModal {position:fixed;inset:0;z-index:5000;display:none;align-items:flex-start;
-      justify-content:center;overflow:auto;padding:75px 16px 18px;background:rgba(0,0,0,.45)}
-    .lessonModal.open {display:flex}
-    .lessonDialog {position:relative;box-sizing:border-box;width:min(620px,calc(100vw - 28px));
-      max-height:calc(100dvh - 92px);overflow:auto;padding:28px 24px;
-      border:1px solid #aebbb3;border-radius:0;background:#fff;color:#17241c;
-      box-shadow:0 18px 55px rgba(0,0,0,.3);font:15px/1.45 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .lessonDialog h2 {margin:0 0 28px;text-align:center;font-size:21px;line-height:1.3}
-    .lessonDialog label {display:block;margin:13px 0 5px;font-weight:650}
-    .lessonDialog input[type=text],.lessonDialog textarea {box-sizing:border-box;width:100%;
-      border:1px solid #b8c7bd;border-radius:7px;padding:8px;color:#17241c;
-      background:#fff;font:inherit}
-    .lessonDialog textarea {resize:vertical;min-height:112px}
-    .lessonActions {display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:14px 16px;margin-top:22px}
-    .lessonActions button,.lessonCloseRow button {appearance:none;-webkit-appearance:none;
-      padding:7px 16px;border:1px solid #a9aed8;border-radius:6px;background:#e6e8ff;
-      box-shadow:none;color:#17241c;-webkit-text-fill-color:#17241c;font:400 15px/1.2 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      cursor:pointer}
-    .lessonActions button:hover:not(:disabled) {background:#daddff;border-color:#8f96c8}
-    .lessonActions button:disabled {opacity:.45;cursor:default}
-    .lessonCloseRow {display:flex;justify-content:center;margin-top:34px}
-    .lessonCloseRow button {min-width:78px;border-color:#aebbb3;background:#f5f6f5}
-    .lessonCloseRow button:hover {background:#e4e8e5;border-color:#81968a}
-    /* Five intentionally separate centered rows; buttons stay aligned on phones. */
-    #shareModal .lessonDialog {width:min(620px,calc(100vw - 28px));}
-    #shareModal .lessonDialog h2 {margin-bottom:25px;}
-    .shareActionRows {display:grid;gap:14px;max-width:548px;margin:0 auto;}
-    .shareActionRow {display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;}
-    /* Subtle row-specific tints group the five pairs of sharing actions.
-       Both buttons within each row use identical colors in every state. */
-    .shareActionRow:nth-child(1) {--share-row-bg:#e7f2e9;--share-row-border:#a7cbb0;--share-row-hover:#d7e9db;}
-    .shareActionRow:nth-child(2) {--share-row-bg:#e7eefb;--share-row-border:#a9bfdf;--share-row-hover:#d9e5f8;}
-    .shareActionRow:nth-child(3) {--share-row-bg:#faf0e2;--share-row-border:#d9c09b;--share-row-hover:#f4e5d0;}
-    .shareActionRow:nth-child(4) {--share-row-bg:#e3f2f1;--share-row-border:#9fc8c3;--share-row-hover:#d3e9e6;}
-    .shareActionRow:nth-child(5) {--share-row-bg:#f0eafb;--share-row-border:#c4b3df;--share-row-hover:#e5dbf6;}
-    .shareActionRow button {appearance:none;-webkit-appearance:none;min-height:43px;width:100%;
-      padding:8px 7px;border:1px solid var(--share-row-border);border-radius:6px;
-      background:var(--share-row-bg);color:#17241c;-webkit-text-fill-color:#17241c;
-      font:400 14px/1.3 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
-      white-space:normal;cursor:pointer;}
-    .shareActionRow button:hover:not(:disabled) {background:var(--share-row-hover);border-color:var(--share-row-border);}
-    .shareActionRow button:disabled {opacity:.43;cursor:default;}
-    #shareModal .lessonCloseRow {margin-top:27px;}
-    @media(max-width:480px){.shareActionRows{gap:11px}.shareActionRow{gap:9px}
-      .shareActionRow button{min-height:48px;padding:7px 5px;font-size:12px}}
-
-    #lessonModal .lessonDialog {width:min(700px,calc(100vw - 28px));height:min(50dvh,520px);
-      display:flex;flex-direction:column;overflow:hidden}
-    #lessonModal .lessonDialog h2,#lessonModal .lessonDialog label,#lessonModal .lessonDialog input,
-    #lessonModal .lessonDialog .lessonHint,#lessonModal .lessonActions,#lessonModal .lessonCloseRow {flex:0 0 auto}
-    #lessonInstructionsInput {flex:1 1 0;min-height:100px!important;height:100%;resize:none}
-    #lessonModal .lessonActions {margin-top:22px}
-    #lessonModal .lessonCloseRow {margin-top:30px}
-    .lessonHint {font-size:13px;color:#607068;margin:7px 0}
-    #lessonLinkModal .lessonDialog {width:min(700px,calc(100vw - 28px));padding-bottom:32px}
-    #lessonLinkOutput {display:block;width:100%;height:240px;min-height:180px;resize:vertical;
-      font:13px/1.4 ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;overflow-wrap:anywhere}
-    #lessonLinkModal .lessonActions {margin-top:30px;margin-bottom:8px}
-    #studentLessonModal {padding-top:62px}
-    #studentLessonModal .lessonDialog {width:min(600px,calc(100vw - 28px));
-      max-height:min(60dvh,650px);display:flex;flex-direction:column;overflow:hidden;padding:28px 38px 26px}
-    #studentLessonTitle {flex:0 0 auto;margin:0 0 26px}
-    .lessonStudentScroll {flex:1 1 auto;min-height:0;overflow-y:auto;overscroll-behavior:contain}
-    .lessonStudentText {white-space:pre-wrap;line-height:1.45}
-    #studentLessonModal .lessonActions {flex:0 0 auto;margin-top:20px}
-    .lessonLockedNote {flex:0 0 auto;margin:20px 0 0;color:#777;font-size:13px;line-height:1.35;text-align:center}
-    .dialogHelpBtn {position:absolute;left:16px;top:12px;width:34px;height:34px;
-      padding:0;border:0;background:transparent;color:#17241c;-webkit-text-fill-color:#17241c;
-      font:600 28px/34px system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
-      text-align:center;cursor:pointer}
-    .dialogHelpBtn:hover {background:transparent;color:#176b43;-webkit-text-fill-color:#176b43}
-    #instructionsOverlay.contextHelpOnTop {z-index:10000}
-    @media (max-width:650px) {
-      .lessonModal {padding:50px 12px 12px}
-      .lessonDialog {padding:20px 16px 22px;max-height:calc(100dvh - 60px)}
-      .lessonActions {gap:12px}
-      .lessonActions button {flex:1 1 42%}
-      #lessonModal .lessonDialog {height:min(65dvh,520px)}
-      #studentLessonModal {padding-top:28px}
-      #studentLessonModal .lessonDialog {padding:22px 18px}
-      .dialogHelpBtn {left:9px;top:8px}
-    }
-
-    /* ABC Transcription Tools wide modal theme for desktop My Tools reordering.
-       DayPilot uses modal_flat_wide rather than modal_flat for this dialog. */
-    .modal_flat_wide_background {background-color:#000;opacity:.4;}
-    .modal_flat_wide_main {box-sizing:border-box;max-width:calc(100vw - 20px);max-height:calc(100dvh - 35px);
-      overflow-y:auto;border:1px solid #333;box-shadow:0 0 15px -2px rgba(0,0,0,.75);
-      background:#fff;color:#111;font:16px/1.4 Helvetica,Arial,sans-serif;}
-    .modal_flat_wide_inner {box-sizing:border-box;padding:10px 30px 30px;background:#fff;color:#111;}
-    .modal_flat_wide_content {font-family:Helvetica,Arial,sans-serif;margin:20px 0;}
-    .modal_flat_wide_input {margin:20px 0;}
-    .modal_flat_wide_buttons {text-align:center;margin:40px auto 0;}
-    .modal_flat_wide_buttons table {margin-left:auto;margin-right:auto;}
-    .modal_flat_wide_main button,.modal_flat_wide_main input[type=button],
-    .modal_flat_wide_main input[type=submit] {box-sizing:border-box;-webkit-appearance:none;appearance:none;
-      font:16px/1.2 Helvetica,Arial,sans-serif;min-width:140px;width:140px;padding:10px 20px;
-      border:0;border-radius:0;background:#ccc;color:#000;-webkit-text-fill-color:#000;
-      box-shadow:none;cursor:pointer;white-space:nowrap;}
-    .modal_flat_wide_cancel {margin-left:5px;}
-    .modal_flat_wide_main button:hover,.modal_flat_wide_main input[type=button]:hover,
-    .modal_flat_wide_main input[type=submit]:hover {background:#bcbcbc;}
-    /* Preserve the same reorder footer alignment and mobile move-button appearance. */
-    .modal_flat_main:has(#external_favorites_mobile_sortable) .modal_flat_buttons,
-    .modal_flat_wide_main:has(#external_favorites_desktop_sortable) .modal_flat_wide_buttons {
-      text-align:center;}
-    .modal_flat_main:has(#external_favorites_mobile_sortable) .modal_flat_buttons table,
-    .modal_flat_wide_main:has(#external_favorites_desktop_sortable) .modal_flat_wide_buttons table {
-      margin-left:auto;margin-right:auto;}
-    .modal_flat_main:has(#external_favorites_mobile_sortable) #mobile_external_favorites_order_up,
-    .modal_flat_main:has(#external_favorites_mobile_sortable) #mobile_external_favorites_order_down {
-      box-sizing:border-box;-webkit-appearance:none;appearance:none;min-width:112px;
-      padding:9px 12px;border:0;border-radius:0;background:#ccc;color:#111;
-      -webkit-text-fill-color:#111;box-shadow:none;font:16px/1.2 Helvetica,Arial,sans-serif;cursor:pointer;}
-    @media(max-width:650px){
-      .modal_flat_wide_inner {padding:12px 15px 18px;}
-      .modal_flat_main:has(#external_favorites_mobile_sortable) #mobile_external_favorites_order_up,
-      .modal_flat_main:has(#external_favorites_mobile_sortable) #mobile_external_favorites_order_down {min-width:90px;padding:8px 10px;}
-    }
-
-    /* ABC Transcription Tools' Open Tune(s) in Another Tool dialog. */
-    .external-tool {padding:8px;border:2px solid transparent;border-radius:6px;transition:border-color .15s ease,background-color .15s ease;cursor:pointer;}
-    .external-tool:hover {border-color:#b9d7ee;background:#eef6fc;box-shadow:none;}
-    .draggable_tune,.draggable_tune_mobile {cursor:grab;user-select:none;margin:5px;padding:10px;border:1px solid #ddd;background:#f9f9f9;font-family:Helvetica,Arial,sans-serif;font-size:16px;}
-    .draggable_tune_selected,.draggable_tune_mobile_selected {background:#b0ffb0;}
-    .modal_flat_main:has(#viewerExternalDialog) {max-width:calc(100vw - 20px)!important;max-height:calc(100dvh - 35px)!important;overflow-y:auto;}
-    .modal_flat_main:has(#viewerExternalDialog) .modal_flat_inner {padding:10px 30px 30px;}
-    #viewerExternalDialog .viewerExternalTabs button {min-height:38px!important;height:38px!important;padding:0 12px!important;}
-    #viewerExternalDialog .external-tools-grid {scrollbar-gutter:stable;}
-    #viewerExternalDialog .viewerExternalTabs button { -webkit-text-fill-color:currentColor!important; }
-    #viewerExternalDialog .external-tool > img {max-width:100%;}
-    #viewerExternalDialog a.dialogcornerbutton {color:#111;text-decoration:none;}
-    #viewerExternalDialog a.dialogcornerbutton:hover {color:#176b43;}
-    @media(max-width:760px) {
-      .modal_flat_main:has(#viewerExternalDialog) .modal_flat_inner {padding:9px 12px 15px;}
-      #viewerExternalDialog .viewerExternalTabs button {width:auto!important;flex:1 1 0!important;min-width:0!important;padding:0 3px!important;font-size:clamp(11px,3.2vw,15px)!important;}
-      #viewerExternalDialog .viewerExternalTitle {font-size:clamp(19px,5vw,25px)!important;padding:0 16px;}
-      #viewerExternalDialog .external-tools-grid {grid-template-columns:minmax(0,1fr)!important;grid-auto-rows:176px!important;column-gap:0!important;row-gap:8px!important;}
-      #viewerExternalDialog #external_tools_panel_mytools {height:auto!important;}
-      #viewerExternalDialog #external_tools_favorites_grid {height:min(532px,calc(100dvh - 275px))!important;min-height:160px;}
-      #viewerExternalDialog #external_tools_panel_abc,#viewerExternalDialog #external_tools_panel_other {height:min(604px,calc(100dvh - 210px))!important;min-height:160px;overflow-y:auto!important;}
-      #viewerExternalDialog .external-tool {box-sizing:border-box!important;width:100%!important;max-width:310px;min-width:0;height:174px!important;justify-self:center;padding:5px 5px!important;}
-      #viewerExternalDialog .external-tool > img {height:113px!important;max-width:100%!important;}
-      #viewerExternalDialog .external-tool > div {font-size:16px!important;line-height:1.15!important;}
-      #viewerExternalDialog .viewerExternalFavManagement {gap:8px!important;height:60px!important;padding-top:8px!important;}
-      #viewerExternalDialog .external-favorites-management-button {min-width:0!important;font-size:13px!important;padding:6px 8px!important;}
-    }
-
-    /* Keep the external-tools dialog and DayPilot OK footer inside the *visible*
-       viewport, including the shorter iPad landscape and iPhone Safari views.
-       The catalog scrolls independently instead of pushing OK below the screen. */
-    .modal_flat_main:has(#viewerExternalDialog) {
-      box-sizing:border-box!important;
-      height:min(790px,calc(100dvh - 74px))!important;
-      max-height:calc(100dvh - 74px)!important;
-      display:flex!important;
-      flex-direction:column!important;
-      overflow:hidden!important;
-    }
-    .modal_flat_main:has(#viewerExternalDialog) .modal_flat_inner {
-      box-sizing:border-box!important;
-      flex:1 1 auto!important;
-      display:flex!important;
-      flex-direction:column!important;
-      min-height:0!important;
-      overflow:hidden!important;
-      padding:10px 30px 12px!important;
-    }
-    .modal_flat_main:has(#viewerExternalDialog) .modal_flat_content {
-      flex:1 1 auto!important;
-      display:flex!important;
-      flex-direction:column!important;
-      min-height:0!important;
-      overflow:hidden!important;
-      margin:0!important;
-    }
-    .modal_flat_main:has(#viewerExternalDialog) .modal_flat_buttons {
-      flex:0 0 auto!important;
-      margin:12px 0 0!important;
-      padding:0!important;
-      text-align:center!important;
-    }
-    .modal_flat_main:has(#viewerExternalDialog) .modal_flat_buttons table {
-      margin-left:auto!important;margin-right:auto!important;
-    }
-    #viewerExternalDialog {
-      display:flex;flex:1 1 auto;flex-direction:column;min-height:0;overflow:hidden;
-    }
-    #viewerExternalDialog .viewerExternalTitle {
-      flex:0 0 auto;margin-top:8px!important;margin-bottom:13px!important;
-    }
-    #viewerExternalDialog .viewerExternalTabs {
-      flex:0 0 auto;margin-bottom:12px!important;
-    }
-    #viewerExternalDialog #external_tools_panel_mytools,
-    #viewerExternalDialog #external_tools_panel_abc,
-    #viewerExternalDialog #external_tools_panel_other {
-      flex:1 1 auto;min-height:0;height:auto!important;
-      overflow-y:auto!important;overflow-x:hidden!important;
-    }
-    #viewerExternalDialog #external_tools_panel_mytools {overflow:hidden!important;}
-    #viewerExternalDialog #external_tools_favorites_grid {
-      box-sizing:border-box;height:calc(100% - 72px)!important;
-      min-height:0!important;overflow-y:auto!important;
-    }
-    #viewerExternalDialog .external-tools-grid {
-      /* Third-party panel previously had three fixed-height explicit rows. */
-      grid-template-rows:none!important;
-    }
-    @media(max-height:800px) {
-      #viewerExternalDialog .external-tools-grid {grid-auto-rows:clamp(136px,23dvh,196px)!important;}
-      #viewerExternalDialog .external-tool {height:100%!important;}
-      #viewerExternalDialog .external-tool > img {height:clamp(79px,15dvh,128px)!important;}
-    }
-    @media(max-width:760px) {
-      .modal_flat_main:has(#viewerExternalDialog) .modal_flat_inner {
-        padding:9px 12px 10px!important;
-      }
-      #viewerExternalDialog #external_tools_favorites_grid {
-        height:calc(100% - 60px)!important;min-height:0!important;
-      }
-      #viewerExternalDialog .external-tools-grid {
-        grid-auto-rows:clamp(135px,22dvh,176px)!important;
-      }
-      #viewerExternalDialog .external-tool {height:100%!important;}
-      #viewerExternalDialog .external-tool > img {
-        height:clamp(78px,14dvh,113px)!important;
-      }
-    }
-    /* Keep the tooltip active even when its associated action is disabled. */
-    .shareActionRow .shareActionButtonWrap {display:block;min-width:0;}
   
-#voiceButtons button {min-height:32px;padding:4px 10px;font-size:13px;}
-#voiceButtons button.active {background:#176b43;color:#fff;-webkit-text-fill-color:#fff;border-color:#0d4c2f;}
-#audioHolder #audio { display: none !important; }
+  
+ <style>
+  :root {
+    color-scheme: light;
+    --ink: #16241e;
+    --border: #d1d9d4;
+    --accent: #176b43;
+    --shade: #eff4f0;
+    --print-scale: 1;
+  }
 
-.abcModalFooter {
-  display: flex !important;
-  flex-direction: row !important;
-  align-items: center !important;
-  justify-content: flex-end !important;
-  gap: 8px !important;
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #f7f9f7;
+    color: var(--ink);
+    font: 15px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+
+  button, input, select {
+    font: inherit;
+  }
+
+  button, select {
+    cursor: pointer;
+  }
+
+  button:focus-visible, input:focus-visible, select:focus-visible {
+    outline: 3px solid #85bda1;
+    outline-offset: 1px;
+  }
+
+  /* Layout principal */
+  .app {
+    display: flex;
+    flex-direction: column;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+
+  header {
+    position: relative;
+    flex: 0 0 55px;
+    height: 55px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .headerTitleBlock {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 1px;
+    width: 100%;
+    min-width: 0;
+    pointer-events: none;
+  }
+
+  header h1 {
+    margin: 0;
+    font-size: 21px;
+    line-height: 1.2;
+    font-weight: 650;
+    white-space: nowrap;
+  }
+
+  .headerSourceStatus {
+    display: block;
+    max-width: calc(100vw - 24px);
+    color: #667b6c;
+    font-size: 14px;
+    line-height: 1.15;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .corner {
+    position: absolute;
+    top: 10px;
+    height: 30px;
+    min-width: 79px;
+    padding: 3px 12px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    color: #25362e;
+    border: 1px solid #abbab0;
+    border-radius: 6px;
+    background: #f5f8f5;
+    text-decoration: none;
+    font-weight: 600;
+    font-size: 12px;
+  }
+
+  .corner:hover {
+    background: #e6f0e8;
+  }
+
+  .corner.left { left: 16px; }
+  .corner.right { right: 16px; }
+
+  .workspace {
+    --default-list-width: clamp(204px, 23vw, 282px);
+    min-height: 0;
+    flex: 1;
+    display: grid;
+    grid-template-columns: var(--tune-list-width, var(--default-list-width)) 12px minmax(0, 1fr);
+    gap: 0;
+    padding: 7px;
+  }
+
+  .paneDivider {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    cursor: col-resize;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .paneDivider::before {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 7px;
+    bottom: 7px;
+    width: 2px;
+    transform: translateX(-50%);
+    border-radius: 4px;
+    background: #c0cbc3;
+  }
+
+  .paneDivider::after {
+    content: "";
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 5px;
+    height: 38px;
+    transform: translate(-50%, -50%);
+    border-radius: 4px;
+    background: #9cad9f;
+  }
+
+  .paneDivider:hover::after,
+  .paneDivider.dragging::after,
+  .paneDivider:focus-visible::after {
+    background: var(--accent);
+  }
+
+  aside, .scorePane {
+    min-width: 0;
+    min-height: 0;
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: 7px;
+    overflow: hidden;
+  }
+
+  aside {
+    display: flex;
+    flex-direction: column;
+    container-type: inline-size;
+  }
+
+  /* Botões gerais e lista de músicas */
+  .listActions { display: contents; }
+  .tuneListOptions, .tuneEditActions { display: contents; }
+
+  #openBtn, #shareBtn {
+    min-width: 81px;
+    min-height: 34px;
+    padding: 6px 13px;
+  }
+
+  .shareBtnWrap {
+    display: inline-flex;
+    flex: 0 0 auto;
+  }
+
+  .shareBtnWrap[hidden] { display: none; }
+
+  .primary {
+    border: 1px solid #145737;
+    background: var(--accent);
+    color: #fff;
+    font-weight: 600;
+    border-radius: 5px;
+    padding: 6px 13px;
+    min-height: 34px;
+  }
+
+  .primary:hover { background: #0d5432; }
+
+  .subtle {
+    border: 1px solid #c4d1c8;
+    border-radius: 5px;
+    background: #f6f8f6;
+    padding: 5px 9px;
+    min-height: 34px;
+  }
+
+  .subtle:hover { background: #e5efe7; }
+  .subtle:disabled { opacity: .45; cursor: default; }
+
+  .app button.corner,
+  .app button.primary,
+  .app button.subtle,
+  .app button.tune,
+  .app button#clearSearch {
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
+    box-shadow: none;
+    text-shadow: none;
+    letter-spacing: normal;
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    -webkit-text-fill-color: currentColor;
+    line-height: 1.2;
+  }
+
+  .app button.subtle,
+  .app button.corner {
+    color: #25362e;
+    -webkit-text-fill-color: #25362e;
+    background-color: #f5f8f5;
+    border: 1px solid #abbab0;
+    border-radius: 6px;
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .app button.primary {
+    background-color: #176b43;
+    color: #fff;
+    -webkit-text-fill-color: #fff;
+  }
+
+  .app button#shareBtn {
+    background-color: #2867a5;
+    border-color: #20588e;
+    color: #fff;
+    -webkit-text-fill-color: #fff;
+  }
+
+  .app button#shareBtn:not(:disabled):hover { background-color: #20588e; }
+  .app button#shareBtn:disabled { opacity: .45; cursor: default; pointer-events: none; }
+
+  .app button.tune {
+    background-color: transparent;
+    color: #23382c;
+    -webkit-text-fill-color: #23382c;
+    border: 0;
+    border-bottom: 1px solid #f0f2f0;
+    border-radius: 3px;
+    font-size: 16px;
+    font-weight: 400;
+  }
+
+  .app button.tune:hover { background-color: #f0f5f1; }
+  .app button.tune.active { background-color: #dceee0; color: #0c4c29; -webkit-text-fill-color: #0c4c29; }
+
+  #displayMode {
+    appearance: none;
+    -webkit-appearance: none;
+    max-width: min(280px, 48vw);
+    min-width: 155px;
+    height: 32px;
+    margin-right: auto;
+    border-radius: 5px;
+    border: 1px solid #b8c6bb;
+    padding: 4px 27px 4px 6px;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%2325362e' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 9px center;
+    color: #25362e;
+    -webkit-text-fill-color: #25362e;
+    font-size: 13px;
+  }
+
+  #searchInput {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 100%;
+    min-height: 36px;
+    border: 1px solid #c3cfc6;
+    border-radius: 5px;
+    padding: 7px 32px 7px 9px;
+    background: #fff;
+    color: #25362e;
+    -webkit-text-fill-color: #25362e;
+    font-size: 16px;
+  }
+
+  .tuneControls {
+    display: grid;
+    grid-template-columns: max-content max-content max-content;
+    align-items: center;
+    justify-content: start;
+    column-gap: 7px;
+    row-gap: 4px;
+    flex: 0 0 auto;
+    margin: 8px 8px 6px;
+  }
+
+  #openBtn { grid-column: 1; grid-row: 1; justify-self: start; }
+  .shareBtnWrap { grid-column: 2; grid-row: 1; justify-self: start; }
+
+  #tuneListSettingsBtn {
+    grid-column: 3;
+    grid-row: 1;
+    justify-self: stretch;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-width: 0;
+    height: 34px;
+    min-height: 34px;
+    padding: 0;
+  }
+
+  #tuneListSettingsBtn .settingsGearIcon {
+    display: block;
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    fill: currentColor;
+    pointer-events: none;
+  }
+
+  .showTuneInfoOption {
+    grid-column: 1 / span 2;
+    grid-row: 2;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    padding: 2px 0;
+    font-size: 15px;
+    color: #354d3e;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .showTuneInfoOption input {
+    width: 16px;
+    height: 16px;
+    margin: 0 0 0 2px;
+    accent-color: var(--accent);
+  }
+
+  #sortBtn {
+    grid-column: 3;
+    grid-row: 2;
+    justify-self: end;
+    width: 100%;
+    min-height: 28px;
+    padding: 4px 11px;
+    white-space: nowrap;
+  }
+
+  .tuneEditActions button {
+    grid-row: 3;
+    justify-self: start;
+    min-height: 28px;
+    padding: 4px 11px;
+    white-space: nowrap;
+  }
+
+  #addTuneBtn { grid-column: 1; }
+  #deleteTuneBtn { grid-column: 2; }
+  #clearTunesBtn { grid-column: 3; justify-self: end; }
+  .tuneEditActions button:disabled { opacity: .45; cursor: default; }
+
+  @container (max-width: 245px) {
+    .tuneControls { column-gap: 3px; margin-left: 5px; margin-right: 5px; font-size: 12px; }
+    .tuneControls #openBtn, .tuneControls #shareBtn { min-width: 0; padding: 6px 6px; }
+    .app .tuneEditActions button.subtle { padding-left: 4px; padding-right: 4px; font-size: 11px; }
+    #sortBtn { padding-left: 6px; padding-right: 6px; font-size: 11px; }
+    .showTuneInfoOption { font-size: 13px; gap: 4px; }
+  }
+
+  @container (max-width: 185px) {
+    .tuneControls { column-gap: 2px; margin-left: 4px; margin-right: 4px; }
+    .app .tuneEditActions button.subtle { padding-left: 2px; padding-right: 2px; font-size: 10px; }
+  }
+
+  @media (min-width: 731px) and (min-height: 550px) {
+    @container (min-width: 200px) and (max-width: 245px) {
+      .tuneControls {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, .65fr);
+        justify-content: stretch;
+      }
+      .tuneControls #openBtn, .tuneControls #shareBtn { width: 100%; font-size: 14px; }
+      .tuneControls .shareBtnWrap { width: 100%; }
+    }
+  }
+
+  @media (max-width: 730px) and (min-width: 526px) {
+    .tuneControls { column-gap: 5px; }
+    .showTuneInfoOption { font-size: 12px; gap: 4px; }
+    .showTuneInfoOption input { width: 14px; height: 14px; }
+    #sortBtn { padding: 4px 7px; }
+    .tuneEditActions button { padding: 4px 7px; font-size: 12px; }
+  }
+
+  #tuneList {
+    --tune-title-font-size: 16px;
+    --tune-info-font-size: 14px;
+    overflow-x: hidden;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    min-height: 0;
+    flex: 1;
+    padding: 1px 5px 7px;
+  }
+
+  #tuneList .tuneTitle { font-size: var(--tune-title-font-size); display: block; }
+  #tuneList .tuneInfo {
+    font-size: var(--tune-info-font-size);
+    display: block;
+    margin-top: 2px;
+    color: #66796e;
+    line-height: 1.3;
+    font-weight: 400;
+  }
+
+  .tune.active .tuneInfo { color: #42664e; }
+  #fileInput { display: none; }
+  .search { position: relative; margin: 0 8px 7px; flex: 0 0 auto; }
+
+  #clearSearch {
+    position: absolute;
+    right: 3px;
+    top: 3px;
+    border: 0;
+    background: transparent;
+    font-size: 19px;
+    line-height: 28px;
+    width: 28px;
+    height: 29px;
+    color: #777;
+    display: none;
+  }
+
+  .tune {
+    display: block;
+    width: 100%;
+    border: 0;
+    border-bottom: 1px solid #f0f2f0;
+    border-radius: 3px;
+    text-align: left;
+    background: transparent;
+    padding: 9px 8px;
+    min-height: 38px;
+    line-height: 1.3;
+    color: #23382c;
+    overflow-wrap: anywhere;
+    font-size: 16px;
+  }
+
+  .emptyList { color: #77857b; font-size: 14px; text-align: center; padding: 23px 10px; }
+
+  /* Área da partitura e áudio */
+  .scorePane { display: flex; flex-direction: column; }
+  .app.fullPage header, .app.fullPage aside, .app.fullPage .paneDivider { display: none; }
+  .app.fullPage .workspace { display: block; padding: 0; gap: 0; }
+  .app.fullPage .scorePane { width: 100%; height: 100%; border: 0; border-radius: 0; }
+  .app.fullPage #score { padding: 9px 13px 26px; }
+
+  .scoreHeader {
+    flex: 0 0 auto;
+    min-height: 45px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 14px;
+    row-gap: 6px;
+    padding: 6px 12px;
+    border-bottom: 1px solid var(--border);
+    background: #fafcfa;
+  }
+
+  .scoreHeader label { font-size: 13px; font-weight: 600; white-space: nowrap; }
+
+  #selectedName {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    font-size: 14px;
+    color: #60746a;
+  }
+
+  #instrumentsBtn, #tempoBtn, #viewABCBtn, #fullPageBtn, #printScoreBtn {
+    flex: 0 0 auto;
+    min-height: 32px;
+    padding: 4px 10px;
+    white-space: nowrap;
+  }
+
+  #fullPageBtn { min-width: 86px; padding: 4px 9px; }
+
+  .tuneTransposeButtons {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 4px;
+    white-space: nowrap;
+  }
+
+  .tuneTransposeButtons button.subtle { min-height: 32px; padding: 4px 9px; white-space: nowrap; }
+
+  #scoreScroll {
+    min-height: 0;
+    flex: 1;
+    overflow: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling: touch;
+    background: #fff;
+  }
+
+  #score { min-width: 0; width: 100%; padding: 9px 8px 23px; }
+  #score svg {
+    display: block;
+    width: 100% !important;
+    height: auto !important;
+    max-width: 100%;
+    margin-inline: auto;
+    overflow: visible;
+    color: #111;
+  }
+
+  #score .hiddentabline { display: none; }
+  #placeholder { padding: 30px 18px; text-align: center; color: #77857b; }
+
+  #audioHolder {
+    flex: 0 0 auto;
+    border-top: 1px solid var(--border);
+    padding: 3px 8px 5px;
+    background: #fafcfa;
+    min-height: 61px;
+  }
+
+  #audio { max-width: 100%; min-height: 50px; }
+  #audioHolder #audio { display: none !important; }
+  #audio .abcjs-inline-audio { box-sizing: border-box; max-width: 100%; margin: 0 auto; }
+  #audio input.abcjs-midi-tempo, #audio input.abcjs-midi-current-tempo { cursor: pointer; }
+
+  #audio .abcjs-midi-loop.abcjs-pushed {
+    background: #176b43 !important;
+    border-color: #0d4c2f !important;
+    color: #fff !important;
+    box-shadow: 0 0 0 3px rgba(23, 107, 67, .24), inset 0 0 0 1px rgba(255, 255, 255, .22) !important;
+  }
+
+  #audio .abcjs-midi-loop.abcjs-pushed svg,
+  #audio .abcjs-midi-loop.abcjs-pushed svg * {
+    fill: #fff !important;
+    stroke: #fff !important;
+  }
+
+  #score .abcjs-cursor {
+    stroke: #00c83c;
+    stroke-width: 12px;
+    stroke-opacity: .28;
+    transform: translate(7px, 0);
+    pointer-events: none;
+  }
+
+  #voiceButtons button { min-height: 32px; padding: 4px 10px; font-size: 13px; }
+  #voiceButtons button.active {
+    background: #176b43;
+    color: #fff;
+    -webkit-text-fill-color: #fff;
+    border-color: #0d4c2f;
+  }
+
+  /* Overlays e diálogos */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 2000;
+    background: #0007;
+    display: none;
+    justify-content: center;
+    align-items: flex-start;
+    overflow: auto;
+    padding: 16vh 12px 24px;
+  }
+
+  .overlay.open { display: flex; }
+
+  #enableOverlay {
+    z-index: 30000;
+    justify-content: center;
+    align-items: center;
+    padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+    background: rgba(0, 0, 0, .64);
+  }
+
+  #enableOverlay .enablePlaybackDialog {
+    transform: translateY(-16.6667dvh);
+    width: min(380px, 100%);
+    max-height: calc(100dvh - 32px);
+    overflow-y: auto;
+    padding: 30px 24px 28px;
+    border-radius: 16px;
+    background: #fff;
+    color: #17251d;
+    box-shadow: 0 22px 65px rgba(0, 0, 0, .38);
+    text-align: center;
+    font: 16px/1.45 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  #enableOverlay .enablePlaybackSymbol { font-size: 36px; line-height: 1; margin-bottom: 14px; }
+  #enableOverlay .enablePlaybackDialog h2 { margin: 0 0 12px; font-size: 1.42rem; line-height: 1.2; }
+  #enableOverlay .enablePlaybackDialog p { margin: 0 0 24px; color: #46584b; }
+
+  #enableOverlay #enableBtn {
+    display: block;
+    width: 100%;
+    min-height: 56px;
+    padding: 12px 18px;
+    border: 0;
+    border-radius: 10px;
+    color: #fff;
+    -webkit-text-fill-color: #fff;
+    background: #176b43;
+    font: 700 1.1rem/1.25 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    cursor: pointer;
+  }
+
+  #enableOverlay #enableBtn:hover:not(:disabled),
+  #enableOverlay #enableBtn:focus-visible {
+    background: #0d4c2f;
+    outline: 3px solid #92c4a6;
+    outline-offset: 2px;
+  }
+
+  .dialog {
+    box-shadow: 0 10px 36px #0004;
+    border: 1px solid #acb5af;
+    background: #fff;
+    border-radius: 8px;
+    width: min(530px, 95vw);
+    padding: 22px 25px 24px;
+    text-align: left;
+    max-height: 78vh;
+    overflow: auto;
+  }
+
+  .dialog h2 { margin: 0 0 14px; text-align: center; font-size: 21px; }
+  .dialog p { margin: 0 0 12px; }
+  .dialog .buttons { display: flex; justify-content: center; margin-top: 20px; }
+
+  /* Diálogos DayPilot (Tempo, Salvar, Alertas e Instrumentos) */
+  body.viewerTempoPromptOpen .modal_default_main,
+  body.save-name-prompt-open .modal_default_main,
+  .modal_default_main {
+    box-sizing: border-box !important;
+    max-width: calc(100vw - 24px) !important;
+    border: 1px solid #17241c !important;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, .18) !important;
+    font-size: 16px !important;
+  }
+
+  .modal_default_main .modal_default_content {
+    font-size: 16px !important;
+    line-height: 1.55 !important;
+    text-align: center !important;
+  }
+
+  body.save-name-prompt-open .modal_default_main .modal_default_content {
+    text-align: left !important;
+    line-height: 1.4 !important;
+    padding-bottom: 8px !important;
+  }
+
+  .modal_default_main .modal_default_buttons { text-align: center !important; }
+  .modal_default_main .modal_default_buttons table { margin-left: auto !important; margin-right: auto !important; }
+  .modal_default_main input { font-size: 16px !important; }
+
+  body.viewerTempoPromptOpen .modal_default_main .modal_default_input:not(input),
+  body.save-name-prompt-open .modal_default_main .modal_default_input:not(input) {
+    padding: 0 !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    outline: 0 !important;
+    background: transparent !important;
+  }
+
+  body.viewerTempoPromptOpen .modal_default_main input[type="text"],
+  body.viewerTempoPromptOpen .modal_default_main input:not([type]),
+  body.save-name-prompt-open .modal_default_main input[type="text"],
+  body.save-name-prompt-open .modal_default_main input:not([type]) {
+    box-sizing: border-box !important;
+    max-width: 100% !important;
+    padding: 7px 9px !important;
+    border: 1px solid #999 !important;
+    border-radius: 5px !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    color: #17241c !important;
+    -webkit-text-fill-color: #17241c !important;
+  }
+
+  .modal_default_main input[type="button"],
+  .modal_default_main input[type="submit"],
+  .modal_default_main button,
+  .modal_default_button {
+    -webkit-appearance: none !important;
+    appearance: none !important;
+    color: #17241c !important;
+    -webkit-text-fill-color: #17241c !important;
+    background: #f5f6f5 !important;
+    border: 1px solid #aebbb3 !important;
+    border-radius: 6px !important;
+    box-shadow: none !important;
+    font-size: 14px !important;
+    font-weight: 600 !important;
+    line-height: 1.2 !important;
+    min-width: 78px !important;
+    width: auto !important;
+    padding: 6px 14px !important;
+    cursor: pointer;
+  }
+
+  .modal_default_main input[type="button"]:hover,
+  .modal_default_main input[type="submit"]:hover,
+  .modal_default_main button:hover,
+  .modal_default_button:hover {
+    background: #e4e8e5 !important;
+    border-color: #81968a !important;
+  }
+
+  .modal_flat_background { background-color: #000; opacity: .42; }
+  .modal_flat_main {
+    box-sizing: border-box;
+    max-width: calc(100vw - 20px);
+    max-height: calc(100dvh - 74px);
+    overflow: auto;
+    border: 1px solid #333;
+    box-shadow: 0 0 15px -2px rgba(0, 0, 0, .65);
+    background: #fff;
+    color: #111;
+    font: 16px/1.4 Helvetica, Arial, sans-serif;
+  }
+
+  .modal_flat_inner { box-sizing: border-box; padding: 16px 28px 24px; background: #fff; color: #111; }
+  .modal_flat_content, .modal_flat_input { margin: 0; font-family: Helvetica, Arial, sans-serif; }
+  .modal_flat_main .viewerInstrumentsTitle { margin: 4px 0 26px; text-align: center; font: normal 24px/1.3 Helvetica, Arial, sans-serif; }
+  .modal_flat_main .viewerInstrumentsIntro, .modal_flat_main .viewerInstrumentsOverrideNote { margin: 0 0 24px; font: 16px/1.5 Helvetica, Arial, sans-serif; }
+  .modal_flat_main .viewerInstrumentsOverrideNote { margin: 26px 0 12px; }
+
+  .modal_flat_main .viewerInstrumentsSelect,
+  .modal_flat_main .viewerInstrumentsSoundfont,
+  .modal_flat_main .viewerInstrumentsVolume {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 9px;
+    row-gap: 6px;
+    margin: 0 0 17px;
+    font: 16px/1.4 Helvetica, Arial, sans-serif;
+  }
+
+  .modal_flat_main .viewerInstrumentsSelect select,
+  .modal_flat_main .viewerInstrumentsSoundfont select {
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+    width: min(245px, 100%);
+    height: 34px;
+    min-height: 34px;
+    margin: 0;
+    border: 2px solid #999;
+    border-radius: 0;
+    padding: 4px 30px 4px 10px;
+    background: #efefef url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%238C98F2' d='M0 0h12L6 7z'/%3E%3C/svg%3E") no-repeat right 10px center;
+    background-size: 12px 8px;
+    color: #111;
+    -webkit-text-fill-color: #111;
+    font: 16px/1.25 Helvetica, Arial, sans-serif;
+    cursor: pointer;
+  }
+
+  .modal_flat_main .viewerInstrumentsSoundfont select { width: min(165px, 100%); }
+  .modal_flat_main .viewerInstrumentsFirstVolume { margin-top: 11px; }
+
+  .modal_flat_main .viewerInstrumentsVolume input[type=number] {
+    box-sizing: border-box;
+    width: 66px;
+    height: 32px;
+    min-height: 32px;
+    margin: 0;
+    padding: 3px 7px;
+    border: 1px solid #999;
+    border-radius: 4px;
+    background: #fff;
+    color: #111;
+    font: 16px/1.2 Helvetica, Arial, sans-serif;
+  }
+
+  .modal_flat_main .viewerInstrumentsCheckbox {
+    display: flex;
+    align-items: flex-start;
+    gap: 9px;
+    margin: 4px 0 0;
+    font: 16px/1.45 Helvetica, Arial, sans-serif;
+  }
+
+  .modal_flat_main .viewerInstrumentsCheckbox input[type=checkbox] {
+    order: -1;
+    flex: 0 0 18px;
+    width: 18px;
+    height: 18px;
+    margin: 2px 9px 0 0;
+    accent-color: #176b43;
+    cursor: pointer;
+  }
+
+  .modal_flat_buttons {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 30px 0 0;
+    text-align: center;
+  }
+
+  .modal_flat_main button,
+  .modal_flat_main .modal_flat_ok,
+  .modal_flat_main .modal_flat_cancel,
+  .modal_flat_main input[type=button],
+  .modal_flat_main input[type=submit] {
+    box-sizing: border-box;
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 105px;
+    min-height: 42px;
+    margin: 0;
+    padding: 8px 18px;
+    border: 0;
+    border-radius: 0;
+    background: #ccc;
+    color: #111;
+    -webkit-text-fill-color: #111;
+    font: 16px/1.3 Helvetica, Arial, sans-serif;
+    cursor: pointer;
+  }
+
+  .modal_flat_main button:hover,
+  .modal_flat_main input[type=button]:hover,
+  .modal_flat_main input[type=submit]:hover {
+    background: #bcbcbc;
+  }
+
+  .viewerSortHeading { display: block; width: 100%; margin: 4px 0 25px; font: normal 23px/1.3 Helvetica, Arial, sans-serif; text-align: center; color: #111; }
+  .modal_flat_main .viewerSortSelect { display: flex; align-items: center; justify-content: center; gap: 10px; font: 16px/1.4 Helvetica, Arial, sans-serif; color: #111; }
+  .modal_flat_main .viewerSortSelect select,
+  .modal_flat_main select.viewerSortSelect {
+    -webkit-appearance: none;
+    appearance: none;
+    flex: 0 1 260px;
+    width: 260px;
+    max-width: 100%;
+    height: 35px;
+    border: 2px solid #888;
+    border-radius: 0;
+    padding: 4px 32px 4px 9px;
+    background: #eee url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath fill='%238C98F2' d='M0 0h12L6 7z'/%3E%3C/svg%3E") no-repeat right 10px center;
+    color: #111;
+    font: 16px/1.2 Helvetica, Arial, sans-serif;
+  }
+
+  /* Instruções e arrastar arquivo */
+  #instructionsOverlay { padding: 50px 12px 24px; overflow: hidden; }
+  #instructionsOverlay .dialog {
+    display: flex;
+    flex-direction: column;
+    width: min(680px, calc(100vw - 24px));
+    height: min(760px, calc(100dvh - 74px));
+    max-height: calc(100dvh - 74px);
+    padding: 20px 25px 22px;
+    overflow: hidden;
+  }
+
+  #instructionsOverlay .dialog h2 { flex: 0 0 auto; margin: 0 0 4px; }
+  #instructionsOverlay .viewerVersion { flex: 0 0 auto; margin: 0 0 15px; text-align: center; font-size: 13px; font-weight: 600; color: #60746a; }
+  #instructionsOverlay .instructionsScroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    -webkit-overflow-scrolling:touch;
+    padding: 0 13px 0 2px;
+    font-size: 15px;
+    line-height: 1.45;
+  }
+
+  #instructionsOverlay .instructionsScroll h3 { margin: 0 0 8px; font-size: 17px; line-height: 1.3; }
+  #instructionsOverlay .instructionsScroll p { margin: 0 0 10px; }
+  #instructionsOverlay .instructionsScroll hr { border: 0; border-top: 1px solid rgba(127, 127, 127, .25); margin: 17px 0; }
+  #instructionsOverlay .dialog .buttons { flex: 0 0 auto; margin-top: 15px; }
+  #instructionsOverlay #closeInstructions { min-width: 170px; min-height: 40px; color: #25362e; background: #f5f8f5; border: 1px solid #abbab0; border-radius: 6px; }
+  #instructionsOverlay #closeInstructions:hover { background: #e6f0e8; }
+
+  #dragOverlay {
+    position: fixed;
+    inset: 8px;
+    z-index: 1000;
+    pointer-events: none;
+    border: 3px dashed #176b43;
+    border-radius: 13px;
+    background: #e3f4e5dc;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    color: #105832;
+    font-size: 23px;
+    font-weight: 650;
+  }
+
+  /* Modal ABC */
+  .abcModalOverlay { position: fixed; inset: 0; z-index: 2400; pointer-events: none; background: transparent; }
+  .abcModalOverlay[hidden] { display: none; }
+
+  .abcModalWindow {
+    position: absolute;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
+    pointer-events: auto;
+    border: 1px solid #8b9990;
+    border-radius: 7px;
+    background: #fff;
+    color: #17241c;
+    box-shadow: 0 12px 36px rgba(0, 0, 0, .34);
+  }
+
+  .abcModalHeader {
+    position: relative;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 39px;
+    padding: 7px 14px;
+    background: #f1f6f2;
+    border-bottom: 1px solid #c9d5cb;
+    cursor: move;
+    touch-action: none;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  .abcModalHeader h2 {
+    margin: 0;
+    font: 650 15px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    max-width: calc(100% - 215px);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .abcModalFontControl {
+    position: absolute;
+    right: 11px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font: 600 12px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #25362e;
+  }
+
+  #abcModalFontSize {
+    appearance: none;
+    -webkit-appearance: none;
+    width: 108px;
+    max-width: 100%;
+    min-height: 31px;
+    border: 1px solid #b8c6bb;
+    border-radius: 5px;
+    padding: 4px 25px 4px 8px;
+    color: #25362e;
+    -webkit-text-fill-color: #25362e;
+    background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%2325362e' stroke-width='1.5'/%3E%3C/svg%3E") no-repeat right 8px center;
+    font: normal 12px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+
+  .abcInsertBtn {
+    padding: 3px 8px;
+    font-size: 12px;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    background: #fff;
+    color: #1f3329;
+    border: 1px solid #9fb0a7;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .abcInsertBtn:hover { background: #e2ebe6; }
+
+  .abcModalText {
+    display: block;
+    width: 100%;
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+    overflow: auto;
+    resize: none;
+    margin: 0;
+    padding: 12px 14px;
+    border: 0;
+    outline: none;
+    background: #fff;
+    color: #18221d;
+    -webkit-text-fill-color: #18221d;
+    font: 13pt/1.35 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    white-space: pre-wrap;
+    tab-size: 4;
+    overflow-wrap: anywhere;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .abcModalWarning {
+    position: absolute;
+    z-index: 3;
+    top: 43px;
+    left: 12px;
+    right: 12px;
+    padding: 9px 12px;
+    border: 1px solid #ccaa65;
+    border-radius: 6px;
+    background: #fff5e5;
+    color: #5d4216;
+    box-shadow: 0 3px 12px #0002;
+    font: 600 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    pointer-events: none;
+  }
+
+  .abcModalWarning[hidden] { display: none; }
+
+  .abcModalFooter {
+    flex: 0 0 51px;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: flex-end !important;
+    gap: 8px !important;
+    padding: 0 12px;
+    border-top: 1px solid #d1d9d4;
+    background: #fafcfa;
+  }
+
+  .abcModalFooter > button {
+    position: relative !important;
+    inset: auto !important;
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+    -webkit-appearance: none;
+    appearance: none;
+    min-width: 96px;
+    min-height: 34px;
+    padding: 7px 14px;
+    border: 1px solid #aebbb3;
+    border-radius: 6px;
+    background: #f5f8f5;
+    color: #25362e;
+    -webkit-text-fill-color: #25362e;
+    font: 600 14px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    cursor: pointer;
+  }
+
+  .abcModalFooter > button:hover { background: #e6f0e8; }
+
+  .abcModalResize {
+    position: absolute;
+    right: 0;
+    bottom: 0;
+    width: 27px;
+    height: 27px;
+    cursor: nwse-resize;
+    touch-action: none;
+    z-index: 1;
+    background: repeating-linear-gradient(135deg, transparent 0, transparent 5px, #7e9184 6px, #7e9184 7px, transparent 8px, transparent 10px);
+    clip-path: polygon(100% 0, 100% 100%, 0 100%);
+    opacity: .75;
+  }
+
+  /* Modais GitHub, Share e Aula */
+  .lessonModal {
+    position: fixed;
+    inset: 0;
+    z-index: 5000;
+    display: none;
+    align-items: flex-start;
+    justify-content: center;
+    overflow: auto;
+    padding: 75px 16px 18px;
+    background: rgba(0, 0, 0, .45);
+  }
+
+  .lessonModal.open { display: flex; }
+
+  .lessonDialog {
+    position: relative;
+    width: min(620px, calc(100vw - 28px));
+    max-height: calc(100dvh - 92px);
+    overflow: auto;
+    padding: 28px 24px;
+    border: 1px solid #aebbb3;
+    background: #fff;
+    color: #17241c;
+    box-shadow: 0 18px 55px rgba(0, 0, 0, .3);
+    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+  }
+
+  .lessonDialog h2 { margin: 0 0 28px; text-align: center; font-size: 21px; line-height: 1.3; }
+  .lessonDialog label { display: block; margin: 13px 0 5px; font-weight: 650; }
+
+  .lessonDialog input[type=text],
+  .lessonDialog input[type=password],
+  .lessonDialog textarea {
+    width: 100%;
+    border: 1px solid #b8c7bd;
+    border-radius: 7px;
+    padding: 8px;
+    color: #17241c;
+    background: #fff;
+    font: inherit;
+  }
+
+  .lessonDialog textarea { resize: vertical; min-height: 112px; }
+
+  .lessonActions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 14px 16px;
+    margin-top: 22px;
+  }
+
+  .lessonActions button,
+  .lessonCloseRow button {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 7px 16px;
+    border: 1px solid #a9aed8;
+    border-radius: 6px;
+    background: #e6e8ff;
+    color: #17241c;
+    -webkit-text-fill-color: #17241c;
+    font: 400 15px/1.2 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    cursor: pointer;
+  }
+
+  .lessonActions button:hover:not(:disabled) { background: #daddff; border-color: #8f96c8; }
+  .lessonActions button:disabled { opacity: .45; cursor: default; }
+  .lessonCloseRow { display: flex; justify-content: center; margin-top: 34px; }
+  .lessonCloseRow button { min-width: 78px; border-color: #aebbb3; background: #f5f6f5; }
+  .lessonCloseRow button:hover { background: #e4e8e5; border-color: #81968a; }
+
+  .shareActionRows { display: grid; gap: 14px; max-width: 548px; margin: 0 auto; }
+  .shareActionRow { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+  .shareActionRow .shareActionButtonWrap { display: block; min-width: 0; }
+  .shareActionRow:nth-child(1) { --share-row-bg: #e7f2e9; --share-row-border: #a7cbb0; --share-row-hover: #d7e9db; }
+  .shareActionRow:nth-child(2) { --share-row-bg: #e7eefb; --share-row-border: #a9bfdf; --share-row-hover: #d9e5f8; }
+  .shareActionRow:nth-child(3) { --share-row-bg: #faf0e2; --share-row-border: #d9c09b; --share-row-hover: #f4e5d0; }
+  .shareActionRow:nth-child(4) { --share-row-bg: #e3f2f1; --share-row-border: #9fc8c3; --share-row-hover: #d3e9e6; }
+  .shareActionRow:nth-child(5) { --share-row-bg: #f0eafb; --share-row-border: #c4b3df; --share-row-hover: #e5dbf6; }
+
+  .shareActionRow button {
+    appearance: none;
+    -webkit-appearance: none;
+    min-height: 43px;
+    width: 100%;
+    padding: 8px 7px;
+    border: 1px solid var(--share-row-border);
+    border-radius: 6px;
+    background: var(--share-row-bg);
+    color: #17241c;
+    -webkit-text-fill-color: #17241c;
+    font: 400 14px/1.3 system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    white-space: normal;
+    cursor: pointer;
+  }
+
+  .shareActionRow button:hover:not(:disabled) { background: var(--share-row-hover); }
+  #lessonModal .lessonDialog { width: min(700px, calc(100vw - 28px)); height: min(50dvh, 520px); display: flex; flex-direction: column; overflow: hidden; }
+  #lessonInstructionsInput { flex: 1 1 0; min-height: 100px !important; height: 100%; resize: none; }
+  .lessonHint { font-size: 13px; color: #607068; margin: 7px 0; }
+  #lessonLinkModal .lessonDialog { width: min(700px, calc(100vw - 28px)); padding-bottom: 32px; }
+  #lessonLinkOutput { display: block; width: 100%; height: 240px; min-height: 180px; resize: vertical; font: 13px/1.4 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; overflow-wrap: anywhere; }
+  #studentLessonModal { padding-top: 62px; }
+  #studentLessonModal .lessonDialog { width: min(600px, calc(100vw - 28px)); max-height: min(60dvh, 650px); display: flex; flex-direction: column; overflow: hidden; padding: 28px 38px 26px; }
+  #studentLessonTitle { flex: 0 0 auto; margin: 0 0 26px; }
+  .lessonStudentScroll { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; }
+  .lessonStudentText { white-space: pre-wrap; line-height: 1.45; }
+  .lessonLockedNote { flex: 0 0 auto; margin: 20px 0 0; color: #777; font-size: 13px; line-height: 1.35; text-align: center; }
+
+  .dialogHelpBtn {
+    position: absolute;
+    left: 16px;
+    top: 12px;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #17241c;
+    -webkit-text-fill-color: #17241c;
+    font: 600 28px/34px system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .dialogHelpBtn:hover { color: #176b43; -webkit-text-fill-color: #176b43; }
+  #instructionsOverlay.contextHelpOnTop { z-index: 10000; }
+
+  /* Responsividade */
+  @media (max-width: 730px) {
+    .workspace { --default-list-width: clamp(165px, 34vw, 225px); padding: 4px; }
+    .scoreHeader { padding: 5px 7px; gap: 7px; }
+    .scoreHeader label { display: none; }
+    #displayMode { min-width: 116px; max-width: 43vw; }
+    #selectedName { display: none; }
+    .corner { min-width: 70px; }
+    header h1 { font-size: 18px; }
+  }
+
+  @media (max-width: 525px) and (orientation: portrait) {
+    header { flex-basis: 60px; height: 60px; }
+    .headerTitleBlock { gap: 13px; }
+    header h1 { font-size: clamp(12px, 3.6vw, 16px); }
+    header .corner { top: 5px; min-width: 0; padding: 3px 7px; font-size: 12px; }
+    header .corner.left { left: 8px; }
+    header .corner.right { right: 8px; }
+    .workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: var(--tune-list-height, minmax(130px, 29dvh)) 12px minmax(0, 1fr); }
+    .paneDivider { cursor: row-resize; }
+    .paneDivider::before { left: 7px; right: 7px; top: 50%; bottom: auto; width: auto; height: 2px; transform: translateY(-50%); }
+    .paneDivider::after { width: 38px; height: 5px; }
+    .tune { min-height: 32px; padding: 6px 8px; }
+    #displayMode { min-width: 92px; max-width: 35vw; flex: 0 1 35vw; }
+    #instrumentsBtn, #tempoBtn, #viewABCBtn, #printScoreBtn { padding: 4px 7px; }
+    .tuneTransposeButtons button.subtle { padding: 4px 6px; font-size: 11px; }
+    #fullPageBtn { min-width: 76px; padding: 4px 7px; }
+    .abcModalHeader { min-height: 37px; padding: 7px 12px; }
+    .abcModalHeader h2 { font-size: 14px; max-width: calc(100% - 135px); }
+    .abcModalFontControl { right: 9px; }
+    .abcModalFontControl label { display: none; }
+    .abcModalText { padding: 10px 11px; }
+    .abcModalFooter { flex-basis: 49px; }
+    .lessonModal { padding: 50px 12px 12px; }
+    .lessonDialog { padding: 20px 16px 22px; max-height: calc(100dvh - 60px); }
+  }
+
+  @media (max-width: 650px) and (orientation: landscape) {
+    .scoreHeader { flex-wrap: wrap; column-gap: 6px; row-gap: 4px; }
+    #selectedName { display: none; }
+    #displayMode { min-width: 105px; max-width: 100%; flex: 1 1 106px; }
+    #instrumentsBtn, #tempoBtn, #viewABCBtn, #printScoreBtn { padding: 4px 7px; }
+    .tuneTransposeButtons button.subtle { padding: 4px 6px; font-size: 11px; }
+    #fullPageBtn { min-width: 78px; padding: 4px 7px; }
+  }
+
+  @media (max-height: 540px) and (orientation: landscape) {
+    header { flex-basis: 49px; height: 49px; }
+    header h1 { font-size: 17px; }
+    .headerSourceStatus { font-size: 12px; }
+    .corner { top: 6px; }
+    .workspace { padding: 3px; }
+    .scoreHeader { min-height: 37px; padding: 3px 7px; }
+    #audioHolder { padding: 1px 5px; min-height: 54px; }
+    .overlay { padding-top: 6vh; }
+  }
+
+  /* Impressão / PDF: sem espaço vazio no topo e partitura ajustada */
+@media print {
+  @page {
+    size: portrait;
+    margin: 8mm;
+  }
+
+  html,
+  body,
+  .app,
+  main.workspace,
+  section.scorePane,
+  #scoreScroll,
+  #score {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    visibility: visible !important;
+  }
+
+  header,
+  aside,
+  .paneDivider,
+  .scoreHeader > :not(#selectedName),
+  #placeholder,
+  #audioHolder,
+  .abcModalOverlay,
+  .lessonModal,
+  .overlay,
+  #dragOverlay,
+  #status,
+  .abcjs-cursor {
+    display: none !important;
+  }
+
+  .scoreHeader {
+    display: block !important;
+    min-height: 0 !important;
+    margin: 0 0 6px 0 !important;
+    padding: 0 !important;
+    border: 0 !important;
+    background: transparent !important;
+  }
+
+  #selectedName {
+    display: block !important;
+    text-align: left !important;
+    font-size: 15px !important;
+    font-weight: 700 !important;
+    line-height: 1.2 !important;
+    color: #000 !important;
+  }
+
+  #score svg {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin: 0 auto !important;
+    visibility: visible !important;
+  }
 }
-
-.abcModalFooter > button {
-  position: relative !important;
-  inset: auto !important;
-  flex: 0 0 auto !important;
-  margin: 0 !important;
-}
-
 </style>
+
+
+
 </head>
 <body>
 <div class="app">
@@ -1054,15 +1442,23 @@
   <section class="scorePane" aria-label="Tune notation and playback">
    <div class="scoreHeader"><label for="displayMode">Display mode</label>
     <select id="displayMode" aria-label="Display mode">
-     <option value="noten">Notation</option><option value="notenames">Names</option><option value="mandolin">Mandolin (GDAE)</option><option value="gdad">GDAD</option><option value="cgda">CGDA</option><option value="cgdae">CGDAE</option><option value="dgdae">DGDAE</option><option value="guitare">Guitar</option><option value="guitard">DADGAD</option><option value="uke">Uke</option>
-    </select><span id="selectedName"></span><button id="viewABCBtn" class="subtle" type="button" title="Edit the current ABC text for the selected tune" disabled>Write</button><span class="tuneTransposeButtons" role="group" aria-label="Transpose selected tune"><button id="transposeDownBtn" class="subtle" type="button" title="Transpose the tune down one semitone. Shift-click: two semitones. Alt-click: one octave." disabled>Transpose ↓</button><button id="transposeUpBtn" class="subtle" type="button" title="Transpose the tune up one semitone. Shift-click: two semitones. Alt-click: one octave." disabled>Transpose ↑</button></span><button id="instrumentsBtn" class="subtle" type="button" title="Choose the soundfont, MIDI instruments, and accompaniment volumes">Instruments</button><button id="tempoBtn" class="subtle" type="button" title="Set the playback tempo percentage" disabled>Tempo</button><button id="fullPageBtn" class="subtle" type="button" aria-pressed="false" title="Show just the notation and playback across the page">Full page</button>
+      <option value="noten">Notation</option><option value="notenames">Names</option><option value="mandolin">Mandolin (GDAE)</option><option value="gdad">GDAD</option><option value="cgda">CGDA</option><option value="cgdae">CGDAE</option><option value="dgdae">DGDAE</option><option value="guitare">Guitar</option><option value="guitard">DADGAD</option><option value="uke">Uke</option>
+    </select><button id="printScoreBtn" class="subtle" type="button" title="Imprimir ou salvar a partitura atual em PDF">Imprimir / PDF</button><span id="selectedName"></span><button id="viewABCBtn" class="subtle" type="button" title="Edit the current ABC text for the selected tune" disabled>Write</button><span class="tuneTransposeButtons" role="group" aria-label="Transpose selected tune"><button id="transposeDownBtn" class="subtle" type="button" title="Transpose the tune down one semitone. Shift-click: two semitones. Alt-click: one octave." disabled>Transpose ↓</button><button id="transposeUpBtn" class="subtle" type="button" title="Transpose the tune up one semitone. Shift-click: two semitones. Alt-click: one octave." disabled>Transpose ↑</button></span><button id="instrumentsBtn" class="subtle" type="button" title="Choose the soundfont, MIDI instruments, and accompaniment volumes">Instruments</button><button id="tempoBtn" class="subtle" type="button" title="Set the playback tempo percentage" disabled>Tempo</button><button id="fullPageBtn" class="subtle" type="button" aria-pressed="false" title="Show just the notation and playback across the page">Full page</button>
    </div>
    <div id="scoreScroll"><div id="placeholder">Select a tune from the list to view its notation.</div><div id="score"></div></div>
    <div id="audioHolder">
   <div id="voiceButtons" style="display:flex;flex-wrap:wrap;gap:6px;padding:4px 0 6px;justify-content:center;"></div>
-  <div style="display:flex;justify-content:center;padding:4px 0;">
-    <button id="playBookBtn" class="subtle" type="button">▶ Tocar livro</button>
-  </div>
+  <div style="display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:10px;padding:4px 0;">
+  <button id="playBookBtn" class="subtle" type="button">▶ Tocar livro</button>
+  <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;user-select:none;" title="Recomeçar na primeira música ao terminar a última">
+    <input type="checkbox" id="bookLoopCheckbox">
+    Loop livro
+  </label>
+  <label style="display:inline-flex;align-items:center;gap:4px;font-size:13px;cursor:pointer;user-select:none;" title="Tocar 4 cliques leves durante as 4 bolinhas iniciais">
+    <input type="checkbox" id="bookClickCheckbox">
+    counts
+  </label>
+</div>
   <div id="audio" aria-label="Playback controls"></div>
 </div>
 
@@ -1113,11 +1509,6 @@
     <p>Configure the Personal Access Token, owner, repo, branch, and file path.</p>
     <p>For tune files, use a path like <code>aplicativos/01/easyABC/tunes/meu-tunebook.abc</code>.</p>
     <hr>
-    <section class="aboutSection" aria-label="About">
-      <h3>About</h3>
-      <p>Created by <a href="https://michaeleskin.com" target="_blank" rel="noopener noreferrer">Michael Eskin</a>.</p>
-    </section>
-    <hr>
   </div>
   <div class="buttons"><button id="closeInstructions" class="primary" type="button">Close</button></div>
 </div></div>
@@ -1147,8 +1538,17 @@
       </div>
     </div>
     <div id="abcModalWarning" class="abcModalWarning" role="alert" hidden></div>
+    <div id="abcQuickInsertBar" style="display:flex;flex-wrap:wrap;gap:5px;padding:6px 10px;background:#eef3f0;border-bottom:1px solid #cdd8d2;align-items:center;">
+  <button type="button" id="abcShortcutToggleBtn" class="abcInsertBtn" aria-pressed="false" title="Ativar/desativar mapeamento rápido de teclas ABC">Atalhos: OFF</button>
+  <button type="button" class="abcInsertBtn" data-insert="V:1&#10;">V:1</button>
+  <button type="button" class="abcInsertBtn" data-insert="V:2&#10;">V:2</button>
+  <button type="button" class="abcInsertBtn" data-insert="Q:1/4=90&#10;">Q:1/4=90</button>
+  <button type="button" class="abcInsertBtn" data-insert="%%MIDI program 1&#10;">%%MIDI program</button>
+  <button type="button" class="abcInsertBtn" data-insert="|:  :|">|: :|</button>
+</div>
     <textarea id="abcModalText" class="abcModalText" aria-label="Edit current ABC text" spellcheck="false" autocorrect="off" autocapitalize="off" wrap="soft"></textarea>
     <div class="abcModalFooter">
+      <span id="abcModalMetaStatus" style="margin-right:auto;font-size:12px;color:#46584f;">Compassos: 0 · Alterações não salvas</span>
       <button id="abcModalPrevBtn" type="button">Anterior</button>
       <button id="abcModalNextBtn" type="button">Próximo</button>
       <button id="abcModalOK" type="button">Close</button>
@@ -1257,6 +1657,7 @@
     <div id="ghStatus" class="lessonHint" style="text-align:center;margin-top:8px;"></div>
   </div>
 </div>
+
 
 
 <script>
@@ -4593,12 +4994,292 @@ function buildButtons() {
   }
 })();
 
+/* ================= 1. Modal ABC: Inserção rápida, Compassos, Status e Atalhos ================= */
+const ABC_LAST_GH_FILE_KEY = 'abc-tunebook:last-gh-file';
+const BOOK_LOOP_KEY = 'abc-tunebook:play-book-loop';
+const BOOK_CLICK_KEY = 'abc-tunebook:play-book-click';
+
+let abcLastSavedGitHubLabel = '';
+let abcHasUnsavedChanges = false;
+let onBookTuneSelectedCallback = null;
+
+function countABCMeasures(abcText) {
+  const normalized = normalizeABC(abcText || '');
+  const lines = normalized.split('\n').filter(line => {
+    const t = line.trim();
+    if (!t || t.startsWith('%')) return false;
+    // Ignora linhas de cabeçalho ABC (ex: X:, T:, M:, K:, V:, Q:, L:)
+    return !/^[A-Za-z]\s*:/.test(t);
+  });
+  const body = lines.join('\n');
+  // Remove barras duplas/repetições/finais para não contar barra final como compasso extra
+  const cleaned = body
+    .replace(/\|\|/g, '|')
+    .replace(/:\|+/g, '|')
+    .replace(/\|+:/g, '|')
+    .replace(/\[[12]/g, '');
+  const bars = cleaned.split('|').map(s => s.trim()).filter(Boolean);
+  return bars.length;
+}
+
+function updateABCModalStatusBar() {
+  const statusEl = $('abcModalMetaStatus');
+  if (!statusEl) return;
+
+  const text = $('abcModalText')?.value || '';
+  const measures = countABCMeasures(text);
+  const saveState = abcHasUnsavedChanges
+    ? 'Alterações não salvas no GitHub'
+    : (abcLastSavedGitHubLabel ? `Salvo no GitHub às ${abcLastSavedGitHubLabel}` : 'Sem alterações pendentes');
+
+  statusEl.textContent = `Compassos: ${measures} · ${saveState}`;
+  statusEl.style.color = abcHasUnsavedChanges ? '#9a4b00' : '#176b43';
+}
+
+function markABCEditedState() {
+  abcHasUnsavedChanges = true;
+  updateABCModalStatusBar();
+}
+
+function markABCSavedToGitHubState() {
+  const now = new Date();
+  abcLastSavedGitHubLabel = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  abcHasUnsavedChanges = false;
+  updateABCModalStatusBar();
+}
+
+function insertABCSnippet(snippet) {
+  const textarea = $('abcModalText');
+  if (!textarea || textarea.readOnly || abcEditTuneId === null) return;
+
+  const start = textarea.selectionStart ?? textarea.value.length;
+  const end = textarea.selectionEnd ?? textarea.value.length;
+  const nextValue = textarea.value.slice(0, start) + snippet + textarea.value.slice(end);
+
+  if (typeof guardABCEdit === 'function') {
+    const issue = abcEditStructureIssue(nextValue);
+    if (issue) {
+      showABCEditWarning(issue);
+      return;
+    }
+  }
+
+  textarea.value = nextValue;
+  const caretPos = start + snippet.length;
+  textarea.focus();
+  textarea.setSelectionRange(caretPos, caretPos);
+
+  commitABCEdit();
+  markABCEditedState();
+  updateABCModalStatusBar();
+}
+
+async function saveCurrentTuneOrBookQuickToGitHub() {
+  commitABCEdit();
+  if (typeof ghSaveConfig === 'function') ghSaveConfig();
+
+  const token = (typeof GH !== 'undefined' && GH.token) ? GH.token : (localStorage.getItem('gh_token') || '');
+  const fileNameInput = $gh('ghFileName');
+  const savedFileName = localStorage.getItem(ABC_LAST_GH_FILE_KEY) || '';
+  const currentFileName = (fileNameInput?.value || '').trim() || savedFileName;
+
+  if (!token) {
+    if (typeof ghOpen === 'function') ghOpen();
+    ghStatus('Informe o token do GitHub para salvar com Ctrl+S.', false);
+    return;
+  }
+
+  if (!currentFileName) {
+    if (typeof ghOpen === 'function') ghOpen();
+    ghStatus('Escolha ou informe o nome do arquivo .abc no GitHub.', false);
+    return;
+  }
+
+  if (fileNameInput && !fileNameInput.value.trim()) {
+    fileNameInput.value = currentFileName;
+  }
+  localStorage.setItem(ABC_LAST_GH_FILE_KEY, currentFileName);
+
+  const path = `${GH.folder}/${currentFileName.replace(/^\/+/, '')}`;
+  const content = typeof ghCurrentABC === 'function' ? ghCurrentABC() : '';
+  if (!content.trim()) {
+    updateABCModalStatusBar();
+    return;
+  }
+
+  const prevText = $('abcModalMetaStatus')?.textContent || '';
+  if ($('abcModalMetaStatus')) $('abcModalMetaStatus').textContent = 'Enviando para o GitHub…';
+
+  try {
+    await GH.put(path, content, `Update ${path} via EasyABC Editor`);
+    markABCSavedToGitHubState();
+  } catch (err) {
+    if ($('abcModalMetaStatus')) {
+      $('abcModalMetaStatus').textContent = `${prevText} · Erro: ${err?.message || err}`;
+      $('abcModalMetaStatus').style.color = '#b00';
+    }
+  }
+}
+
+document.querySelectorAll('#abcQuickInsertBar .abcInsertBtn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const snippet = btn.getAttribute('data-insert') || '';
+    if (snippet) insertABCSnippet(snippet);
+  });
+});
+
+$('abcModalText')?.addEventListener('input', () => {
+  markABCEditedState();
+  updateABCModalStatusBar();
+});
+
+$('abcModalText')?.addEventListener('keydown', event => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    void saveCurrentTuneOrBookQuickToGitHub();
+    return;
+  }
+  if (event.altKey && event.key === 'ArrowLeft') {
+    event.preventDefault();
+    stepABCModalTune(-1);
+    return;
+  }
+  if (event.altKey && event.key === 'ArrowRight') {
+    event.preventDefault();
+    stepABCModalTune(1);
+  }
+});
+
+/* ================= 2. Botão Imprimir / PDF ================= */
+$('printScoreBtn')?.addEventListener('click', () => {
+  if (currentIndex < 0 || !tunes[currentIndex]) {
+    reportError('Selecione uma música antes de imprimir ou gerar PDF.');
+    return;
+  }
+  window.print();
+});
+
+/* ================= 3. Clique leve durante as 4 bolinhas iniciais ================= */
+function playFourCountClicks(audioCtx, totalMs = 4000) {
+  if (!audioCtx) return;
+  const steps = 4;
+  const intervalMs = totalMs / steps;
+
+  for (let i = 0; i < steps; i++) {
+    const delaySec = (i * intervalMs) / 1000;
+    const startAt = audioCtx.currentTime + delaySec;
+
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(i === 0 ? 1050 : 820, startAt);
+
+    gain.gain.setValueAtTime(0.0001, startAt);
+    gain.gain.exponentialRampToValueAtTime(0.08, startAt + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, startAt + 0.055);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(startAt);
+    osc.stop(startAt + 0.06);
+  }
+}
+
+
+
+/* ================= Helpers de BPM para contagem (4 bolinhas e cliques) ================= */
+/* ================= Helpers de BPM para contagem (4 bolinhas e cliques) ================= */
+function getEffectiveCountdownBPM(visualObj, abcText = '') {
+  let baseBpm = 120;
+
+  if (visualObj && typeof visualObj.getBpm === 'function') {
+    const bpmFromObj = Number(visualObj.getBpm());
+    if (bpmFromObj > 0) baseBpm = bpmFromObj;
+  } else if (visualObj?.meta?.tempo) {
+    const bpmFromMeta = Number(visualObj.meta.tempo);
+    if (bpmFromMeta > 0) baseBpm = bpmFromMeta;
+  } else if (abcText) {
+    const match = abcText.match(/^Q\s*:\s*(?:[^=\r\n]+=)?\s*(\d+(?:\.\d+)?)/m);
+    if (match && Number(match[1]) > 0) {
+      baseBpm = Number(match[1]);
+    }
+  }
+
+  const speedFactor = (typeof tempoPercent === 'number' && tempoPercent > 0)
+    ? (tempoPercent / 100)
+    : 1;
+
+  return Math.max(10, Math.min(400, baseBpm * speedFactor));
+}
+
+function getFourBeatsDurationMs(bpm) {
+  return 4 * (60000 / bpm);
+}
+
+function renderTempVisualObjForCurrentTune() {
+  if (!Array.isArray(tunes) || currentIndex < 0 || !tunes[currentIndex]) {
+    return { abc: '', visualObj: null };
+  }
+
+  const rawAbc = tunes[currentIndex].abc || '';
+  const abc = typeof withInstrumentOverrides === 'function'
+    ? withInstrumentOverrides(rawAbc)
+    : rawAbc;
+
+  const tmp = document.createElement('div');
+  tmp.style.cssText = 'position:absolute;left:-99999px;';
+  document.body.appendChild(tmp);
+
+  let visualObj = null;
+  try {
+    const mode = (typeof $ === 'function' && $('displayMode')) ? $('displayMode').value : 'noten';
+    const opts = typeof tabParam === 'function' ? tabParam(mode) : {};
+    visualObj = ABCJS.renderAbc(tmp, abc, opts)[0] || null;
+  } catch (e) {
+    console.warn('Erro ao ler BPM do visualObj:', e);
+  } finally {
+    tmp.remove();
+  }
+
+  return { abc, visualObj };
+}
+
+function playFourCountClicks(ctx, totalMs) {
+  if (!ctx || !(totalMs > 0)) return;
+
+  const beatSec = (totalMs / 4) / 1000;
+  const startAt = ctx.currentTime + 0.02;
+
+  for (let i = 0; i < 4; i++) {
+    const t = startAt + (i * beatSec);
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(i === 0 ? 1100 : 880, t);
+
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.18, t + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    osc.start(t);
+    osc.stop(t + 0.05);
+  }
+}
+
+/* ================= Reprodução única com contagem sincronizada por BPM ================= */
 window.playAllWithCallback = async function (onEnded, options = {}) {
   const {
     startDelayMs = 0,
     endDelayMs = 0,
     shouldContinue = () => true,
-    onCountdownStep = null
+    onCountdownStep = null,
+    playClickDuringCountdown = false
   } = options;
 
   if (!tunes.length || currentIndex < 0 || !tunes[currentIndex] || !shouldContinue()) {
@@ -4637,9 +5318,30 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
     if (typeof onEnded === 'function') onEnded();
   };
 
-  if (startDelayMs > 0) {
+  const { abc, visualObj } = renderTempVisualObjForCurrentTune();
+  if (!visualObj) {
+    done();
+    return null;
+  }
+
+  const effectiveBpm = getEffectiveCountdownBPM(visualObj, abc);
+  const beatMs = 60000 / effectiveBpm;
+  const alignedStartMs = startDelayMs > 0 ? getFourBeatsDurationMs(effectiveBpm) : 0;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+
+  if (alignedStartMs > 0) {
+    if (playClickDuringCountdown && AudioCtx) {
+      try {
+        const clickCtx = new AudioCtx();
+        await clickCtx.resume();
+        playFourCountClicks(clickCtx, alignedStartMs);
+        setTimeout(() => {
+          if (clickCtx.state !== 'closed') clickCtx.close().catch(() => {});
+        }, alignedStartMs + 300);
+      } catch (_) {}
+    }
+
     const totalSteps = 4;
-    const stepInterval = startDelayMs / totalSteps;
     let currentStep = 1;
 
     if (typeof onCountdownStep === 'function') onCountdownStep(currentStep);
@@ -4658,12 +5360,12 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
           clearInterval(stepTimerId);
           stepTimerId = null;
         }
-      }, stepInterval);
+      }, beatMs);
 
       timerId = setTimeout(() => {
         clearTimers();
         resolve();
-      }, startDelayMs);
+      }, alignedStartMs);
     });
 
     if (typeof onCountdownStep === 'function') onCountdownStep(0);
@@ -4674,29 +5376,7 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
     }
   }
 
-  const abc = withInstrumentOverrides(tunes[currentIndex].abc);
-  const tmp = document.createElement('div');
-  tmp.style.cssText = 'position:absolute;left:-99999px;';
-  document.body.appendChild(tmp);
-
-  let visualObj;
   try {
-    visualObj = ABCJS.renderAbc(tmp, abc, tabParam($('displayMode').value))[0];
-  } catch (e) {
-    tmp.remove();
-    console.warn('playAllWithCallback render error:', e);
-    done();
-    return null;
-  }
-  tmp.remove();
-
-  if (!visualObj) {
-    done();
-    return null;
-  }
-
-  try {
-    const AudioCtx = window.AudioContext || window.webkitAudioContext;
     window.voiceAudioCtx = new AudioCtx();
     await window.voiceAudioCtx.resume();
 
@@ -4709,10 +5389,11 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
     window.voiceSynth = synth;
 
     const tempoFactor = (typeof tempoPercent === 'number' && tempoPercent > 0) ? (tempoPercent / 100) : 1;
-    const baseMsPerMeasure = typeof visualObj.millisecondsPerMeasure === 'function'
-      ? visualObj.millisecondsPerMeasure()
-      : 2000;
-    const msPerMeasure = baseMsPerMeasure / tempoFactor;
+    const meter = typeof visualObj.getMeter === 'function' ? visualObj.getMeter() : null;
+    const beatsPerMeasure = (meter && meter.num && meter.den)
+      ? (meter.num * (4 / meter.den))
+      : 4;
+    const msPerMeasure = beatMs * beatsPerMeasure;
 
     await synth.init({
       audioContext: window.voiceAudioCtx,
@@ -4762,13 +5443,18 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
   }
 };
 
-/* ================= Play Book (toca em sequência) ================= */
+/* ================= Play Book ================= */
 (function () {
   const TUNE_GAP_MS = 4000;
   let bookActive = false;
+  let bookLoopEnabled = false;
+  let bookClickEnabled = false;
   let bookTimer = null;
   let cancelCurrentPlayback = null;
   let dotElements = [];
+
+  try { bookLoopEnabled = localStorage.getItem(BOOK_LOOP_KEY) === 'true'; } catch (_) {}
+  try { bookClickEnabled = localStorage.getItem(BOOK_CLICK_KEY) === 'true'; } catch (_) {}
 
   function ensureCountdownDots() {
     const playBtn = document.getElementById('playBookBtn');
@@ -4783,7 +5469,7 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
         display: 'inline-flex',
         alignItems: 'center',
         gap: '5px',
-        marginLeft: '8px',
+        marginLeft: '4px',
         verticalAlign: 'middle'
       });
       playBtn.insertAdjacentElement('afterend', holder);
@@ -4851,11 +5537,16 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
 
   function nextTune() {
     if (!bookActive) return;
-    if (currentIndex + 1 >= tunes.length) {
-      stopBook();
-      return;
+    const isLast = currentIndex + 1 >= tunes.length;
+    if (isLast) {
+      if (!bookLoopEnabled) {
+        stopBook();
+        return;
+      }
+      selectTune(0);
+    } else {
+      selectTune(currentIndex + 1);
     }
-    selectTune(currentIndex + 1);
     bookTimer = setTimeout(playCurrentVoice, 200);
   }
 
@@ -4863,19 +5554,36 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
     if (!bookActive) return;
     clearBookTimers();
 
+    const { abc, visualObj } = renderTempVisualObjForCurrentTune();
+    const effectiveBpm = getEffectiveCountdownBPM(visualObj, abc);
+    const countdownMs = getFourBeatsDurationMs(effectiveBpm);
+
     cancelCurrentPlayback = await window.playAllWithCallback(
       () => {
         if (!bookActive) return;
         nextTune();
       },
       {
-        startDelayMs: TUNE_GAP_MS,
+        startDelayMs: countdownMs,
         endDelayMs: TUNE_GAP_MS,
         shouldContinue: () => bookActive,
-        onCountdownStep: setCountdownStep
+        onCountdownStep: setCountdownStep,
+        playClickDuringCountdown: bookClickEnabled
       }
     );
   }
+
+  function restartFromSelectedTune() {
+    if (!bookActive) return;
+    clearBookTimers();
+    bookTimer = setTimeout(() => {
+      if (bookActive) void playCurrentVoice();
+    }, 150);
+  }
+
+  onBookTuneSelectedCallback = () => {
+    if (bookActive) restartFromSelectedTune();
+  };
 
   function startBook() {
     if (!tunes.length) {
@@ -4893,6 +5601,7 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
 
   document.addEventListener('DOMContentLoaded', () => {
     ensureCountdownDots();
+
     const btn = document.getElementById('playBookBtn');
     if (btn) {
       btn.addEventListener('click', () => {
@@ -4900,9 +5609,123 @@ window.playAllWithCallback = async function (onEnded, options = {}) {
         else startBook();
       });
     }
+
+    const loopCb = document.getElementById('bookLoopCheckbox');
+    if (loopCb) {
+      loopCb.checked = bookLoopEnabled;
+      loopCb.addEventListener('change', () => {
+        bookLoopEnabled = !!loopCb.checked;
+        try { localStorage.setItem(BOOK_LOOP_KEY, String(bookLoopEnabled)); } catch (_) {}
+      });
+    }
+
+    const clickCb = document.getElementById('bookClickCheckbox');
+    if (clickCb) {
+      clickCb.checked = bookClickEnabled;
+      clickCb.addEventListener('change', () => {
+        bookClickEnabled = !!clickCb.checked;
+        try { localStorage.setItem(BOOK_CLICK_KEY, String(bookClickEnabled)); } catch (_) {}
+      });
+    }
   });
 })();
 
+/* ================= Atalhos rápidos de teclado no modal ABC ================= */
+(function () {
+  const ABC_KEY_MAP = {
+    '\\': '|',
+    ']': '|]',
+
+    // Oitava média (maiúsculas)
+    'z': 'C,',
+    'x': 'D,',
+    'c': 'E,',
+    'v': 'F,',
+    'b': 'G,',
+    'n': 'A,',
+    'm': 'B,',
+
+    'a': 'C',
+    's': 'D',
+    'd': 'E',
+    'f': 'F',
+    'g': 'G',
+    'h': 'A',
+    'j': 'B',
+
+    // Oitava aguda (minúsculas)
+    'q': 'c',
+    'w': 'd',
+    'e': 'e',
+    'r': 'f',
+    't': 'g',
+    'y': 'a',
+    'u': 'b',
+
+    // Alterações / ligaduras rápidas
+    '´': '_',
+    '~': '^'
+  };
+
+  let abcShortcutsEnabled = false;
+
+  function insertTextAtCursor(textarea, text) {
+    if (!textarea) return;
+    const start = textarea.selectionStart ?? textarea.value.length;
+    const end = textarea.selectionEnd ?? textarea.value.length;
+
+    if (typeof textarea.setRangeText === 'function') {
+      textarea.setRangeText(text, start, end, 'end');
+    } else {
+      const before = textarea.value.slice(0, start);
+      const after = textarea.value.slice(end);
+      textarea.value = before + text + after;
+      const pos = start + text.length;
+      textarea.selectionStart = textarea.selectionEnd = pos;
+    }
+
+    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  function updateShortcutButtonUI() {
+    const btn = document.getElementById('abcShortcutToggleBtn');
+    if (!btn) return;
+    btn.setAttribute('aria-pressed', String(abcShortcutsEnabled));
+    btn.textContent = abcShortcutsEnabled ? 'Atalhos: ON' : 'Atalhos: OFF';
+    btn.style.backgroundColor = abcShortcutsEnabled ? '#176b43' : '#fff';
+    btn.style.color = abcShortcutsEnabled ? '#fff' : '#1f3329';
+    btn.style.borderColor = abcShortcutsEnabled ? '#0d4c2f' : '#9fb0a7';
+  }
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const toggleBtn = document.getElementById('abcShortcutToggleBtn');
+    const textarea = document.getElementById('abcModalText');
+
+    updateShortcutButtonUI();
+
+    if (toggleBtn) {
+      toggleBtn.addEventListener('click', () => {
+        abcShortcutsEnabled = !abcShortcutsEnabled;
+        updateShortcutButtonUI();
+        if (textarea) textarea.focus();
+      });
+    }
+
+    if (textarea) {
+      textarea.addEventListener('keydown', (event) => {
+        if (!abcShortcutsEnabled) return;
+        if (event.ctrlKey || event.altKey || event.metaKey || event.isComposing) return;
+
+        const key = event.key;
+        const mapped = ABC_KEY_MAP[key] ?? ABC_KEY_MAP[key.toLowerCase()];
+        if (!mapped) return;
+
+        event.preventDefault();
+        insertTextAtCursor(textarea, mapped);
+      });
+    }
+  });
+})();
 </script>
 </body>
 </html>
